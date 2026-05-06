@@ -45,3 +45,20 @@ This project uses VS Code as the default IDE. IntelliJ is not used for this lear
 ## Next Step
 
 Day 3: Create or connect the GitHub repository for `ai-efficiency-control-tower`.
+
+## Day 3 Status
+
+- GitHub repository created: yes
+- Remote connected: yes
+- First commit pushed: yes
+
+## Day 4 Status
+
+- Project folder structure created: yes
+- .gitkeep files in all folders: yes
+- .gitignore updated with ChromaDB and coverage entries: yes
+- Committed and pushed: yes
+
+## Next Step
+
+Day 5: Write README v0 with problem statement, goal, and non-goals.
