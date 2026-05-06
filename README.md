@@ -1,50 +1,28 @@
 # AI Efficiency Control Tower
 
-## Purpose
+## What This Is
 
-This project is a production-oriented AI engineering portfolio project.
+A production-oriented AI Use Case Intake & Triage system.
 
-It will evolve into a system that analyzes documents, logs and process information, produces structured outputs, supports retrieval over knowledge sources, integrates with automation workflows and tracks quality, cost and security considerations.
+It takes internal AI ideas and evaluates them by business value, cost, risk, privacy, technical feasibility, RAG need, human review need and AI-vs-automation fit.
+
+The result is a structured decision report that helps organizations decide whether and how to implement an AI use case.
 
 ## Current Stage
 
-Day 1: Project setup.
+Week 1 – Project setup and structure.
 
 ## Planned Capabilities
 
-- Log and text analysis
-- Structured JSON outputs
-- FastAPI backend
-- LLM integration with controlled outputs
-- RAG with sources
-- n8n workflow automation
-- Evaluation and cost tracking
-- Security and privacy documentation
-- Docker and Azure deployment documentation
+- Rule-based triage engine (AI vs. automation decision)
+- FastAPI intake API with Pydantic validation
+- LLM integration with structured outputs
+- RAG over internal governance and policy knowledge
+- n8n workflow automation with human review
+- Cost logging and model routing
+- PII redaction and prompt injection defense
+- Evaluation datasets and quality scoring
+- Docker containerization
+- Azure OpenAI integration (budget-controlled)
 
 ## Project Structure
-
-- README.md
-- CLAUDE.md
-- learning-log.md
-- architecture.md
-- .gitignore
-- src/
-- data/
-- tests/
-- docs/
-- prompts/
-- evals/
-- workflows/
-- assets/
-- notes/
-
-## Day 1 Output
-
-- Repository created
-- Obsidian Vault created
-- Claude Code context file created
-- Base project structure created
-- Initial documentation created
-- First Git commit completed
-
