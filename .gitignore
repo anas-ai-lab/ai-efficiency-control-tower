@@ -42,3 +42,11 @@ CLAUDE.local.md
 # Obsidian local vault settings
 .obsidian/
 *.canvas
+
+# Vector DB (ChromaDB)
+chroma_db/
+*.db
+
+# Test coverage
+.coverage
+htmlcov/
