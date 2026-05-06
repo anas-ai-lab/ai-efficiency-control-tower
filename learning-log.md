@@ -82,3 +82,55 @@ Markdown-Inhalte gehören in `.md`-Dateien. Terminal-Befehle gehören ins Termin
 ### Nächster Schritt
 
 An Tag 3 wird das GitHub-Repository `ai-efficiency-control-tower` erstellt oder mit dem bestehenden lokalen Projekt verbunden.
+
+---
+
+## Tag 3 – GitHub Repo Setup
+
+**Datum:** 2026-05-07
+**Phase:** Phase 0 – Setup, Arbeitsweise und Projektidentität
+**Woche:** Woche 1
+**Fokus:** Git-Initialisierung, GitHub-Verbindung, erster Push
+
+### Was ich heute gemacht habe
+
+- Git Remote zu GitHub verknüpft.
+- Authentifizierung mit Personal Access Token gelöst.
+- 32 Objekte erfolgreich nach GitHub gepusht.
+- README auf echten Projektfokus korrigiert.
+- Repo auf public gestellt.
+- `.gitignore` vor dem public Stellen geprüft.
+
+### Sichtbarer Output
+
+- Öffentliches GitHub Repo `ai-efficiency-control-tower` live.
+- Erster Commit auf GitHub sichtbar.
+- `README.md` mit korrektem Projektfokus.
+
+### Wichtige Erkenntnisse
+
+- `git init` auf bestehendem Repo ist harmlos – initialisiert nur neu ohne Datenverlust.
+- GitHub akzeptiert kein Passwort mehr über HTTPS → Personal Access Token ist Pflicht.
+- `git remote remove` / `git remote add` für Fehlerkorrektur bei falsch gesetztem Remote.
+- `.gitignore` muss vor dem public Stellen sauber sein – Secrets dürfen nie ins Repo.
+- README ist das Erste, was Recruiter und Tech Leads sehen. Falscher Fokus beschädigt das Portfolio.
+
+### Fehler und Korrekturen
+
+- README beschrieb ursprünglich ein anderes Projekt. Früh korrigiert – verhindert, dass sich ein Fehler über Wochen aufbaut.
+
+### Technischer Check
+
+- Git lokal initialisiert: ja
+- Remote `origin` korrekt gesetzt: ja
+- Erster Push erfolgreich: ja
+- Repo public: ja
+- README Fokus korrekt: ja
+
+### Offene Punkte
+
+- Keine.
+
+### Nächster Schritt
+
+An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`, `docs/`, `prompts/`, `evals/`, `workflows/`.
