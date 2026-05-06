@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.local
+*.key
+*.pem
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs / generated files
+*.log
+analysis_result.json
+
+# Local/private data
+data/private/
+
+# Obsidian local workspace cache
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Claude local/private project settings
+CLAUDE.local.md
+.claude/settings.local.json
