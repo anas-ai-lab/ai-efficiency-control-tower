@@ -33,3 +33,52 @@
 ### Open questions
 
 - None.
+
+---
+
+## Tag 2 – VS Code Setup
+
+**Datum:** 2026-05-06  
+**Phase:** Phase 0 – Setup, Arbeitsweise und Projektidentität  
+**Woche:** Woche 1  
+**Fokus:** VS Code Setup und lokale Arbeitsumgebung  
+
+### Was ich heute gemacht habe
+
+- Bestehenden Projektordner in VS Code geöffnet.
+- VS Code als Standard-IDE für den Lernplan bestätigt.
+- Integriertes VS-Code-Terminal verwendet.
+- Projektpfad geprüft.
+- Python im Terminal geprüft.
+- Git im Terminal geprüft.
+- `setup_notes.md` erstellt.
+- Setup-Ergebnisse dokumentiert.
+- Erste Git-Änderung für das Setup vorbereitet bzw. committed.
+
+### Sichtbarer Output
+
+- `setup_notes.md`
+- Aktualisierter Projektstatus im Lernlog
+- Funktionierendes VS-Code-Terminal
+- Verifizierte Python- und Git-Installation
+
+### Wichtige Erkenntnis
+
+Markdown-Inhalte gehören in `.md`-Dateien. Terminal-Befehle gehören ins Terminal.
+
+### Technischer Check
+
+- Projektordner korrekt geöffnet: ja
+- Terminal im richtigen Projektpfad: ja
+- Python verfügbar: ja
+- Git verfügbar: ja
+- VS Code als Haupteditor gesetzt: ja
+
+### Offene Punkte
+
+- GitHub-Repo an Tag 3 prüfen oder verbinden.
+- Sicherstellen, dass der Arbeitsbaum sauber ist.
+
+### Nächster Schritt
+
+An Tag 3 wird das GitHub-Repository `ai-efficiency-control-tower` erstellt oder mit dem bestehenden lokalen Projekt verbunden.
