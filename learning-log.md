@@ -134,3 +134,21 @@ An Tag 3 wird das GitHub-Repository `ai-efficiency-control-tower` erstellt oder 
 ### Nächster Schritt
 
 An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`, `docs/`, `prompts/`, `evals/`, `workflows/`.
+
+---
+
+## Tag 04 – 2026-05-06
+
+**Fokus:** Projektstruktur vervollständigen
+**Output:** Vollständige Ordnerstruktur, .gitignore mit ChromaDB/Coverage-Einträgen
+**Wichtigste Erkenntnis:** Leere Ordner brauchen `.gitkeep`. .gitignore vor dem ersten echten Code sauber aufsetzen spart spätere Fehler.
+**Status:** ✅ Abgeschlossen
+
+---
+
+## Tag 05 – 2026-05-06
+
+**Fokus:** README v0
+**Output:** README auf korrekten Projektfokus umgestellt
+**Wichtigste Erkenntnis:** README ist das erste was Recruiter und Tech Leads sehen. Problem Statement, Ziel und Nicht-Ziele fehlen noch.
+**Status:** ⚠️ Teilweise – Catch-up an Tag 06
