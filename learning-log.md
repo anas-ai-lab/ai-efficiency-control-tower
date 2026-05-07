@@ -152,3 +152,18 @@ An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`
 **Output:** README auf korrekten Projektfokus umgestellt
 **Wichtigste Erkenntnis:** README ist das erste was Recruiter und Tech Leads sehen. Problem Statement, Ziel und Nicht-Ziele fehlen noch.
 **Status:** ⚠️ Teilweise – Catch-up an Tag 06
+
+## Tag 6 — AI Decision Framework & Matrix (2026-05-07)
+
+**Fokus:** Konzeptioneller Kern des Triage-Systems — wann AI, wann nicht.
+
+**Was wirklich gelernt wurde:**
+- DSGVO Art. 22 ist enger als gedacht: greift nur bei rein automatisierten Entscheidungen mit erheblicher Wirkung auf Personen. „Personenbezug" allein reicht nicht.
+- EU AI Act ist kein theoretisches Zukunftsprojekt: Recruiting-AI ist heute bereits Hochrisiko (Annex III), Bußgelder bis €35M, Pflichten ab August 2026.
+- Classical ML existiert als Kategorie zwischen Regel und LLM — strukturierte Zeitreihendaten (Anomalie, Fraud) gehören dort hin, nicht zu LLM.
+- Business Value ist nur dann vor einem Internes Gremium verteidigbar wenn er berechnet ist, nicht geschätzt. Formel: Zeitersparnis × Volumen × Stundensatz × Evidenzfaktor × Adoptionsfaktor.
+- Ein RAG-System auf veralteter oder inkonsistenter Wissensbasis produziert schlechtere Outputs als gar kein RAG. KB-Qualität ist Voraussetzung, nicht Nachgedanke.
+
+**Engineering-Relevanz:**
+- Diese Kriterien werden direkt zu `domain/triage_engine.py` (Woche 5) und `domain/ai_vs_automation.py` (Woche 6).
+- Der Business-Value-Score wird als `computed_field` in Pydantic V2 abgebildet.
