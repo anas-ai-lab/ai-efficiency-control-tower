@@ -167,3 +167,48 @@ An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`
 **Engineering-Relevanz:**
 - Diese Kriterien werden direkt zu `domain/triage_engine.py` (Woche 5) und `domain/ai_vs_automation.py` (Woche 6).
 - Der Business-Value-Score wird als `computed_field` in Pydantic V2 abgebildet.
+
+### Tag 7 — Wochenabschluss
+
+- architecture.md: Systemskizze mit Mermaid-Diagramm fertiggestellt
+- Prozessfluss macht Architekturentscheidungen sichtbar:
+  regelbasierter Kern, LLM optional, Human Review bei high risk
+- Woche 1 vollständig dokumentiert und committed
+- Erkenntnis: Dokumentation ist kein Anhang — sie zwingt zu
+  klarerem Denken über Systemgrenzen
+
+---
+
+## Woche 1 — Review (Tag 1–7)
+
+**Datum:** 2026-05-07
+
+### Was in Woche 1 wirklich abgeschlossen wurde
+- Repo-Struktur: vollständig angelegt
+- README v0: vorhanden
+- .gitignore: solide
+- docs/ai-decision-framework.md v2: vollständig
+- docs/ai_vs_automation_matrix.md v2: vollständig
+- docs/architecture.md: 1-Seiten-Skizze mit Mermaid
+- Daily Notes Tag 1–6: vorhanden
+- learning-log.md: laufend gepflegt
+
+### Was zu trivial war (kein Engineering-Substanz)
+- Passt bisher
+
+### Was echte Engineering-Substanz hatte
+- ai-decision-framework.md: Zwang zur Formalisierung von Entscheidungslogik
+- architecture.md: erstes Systemdenken, Komponentengrenzen definiert
+
+### Wichtigste Erkenntnis der Woche
+- Noch keine
+
+### Was ab Woche 2 anders sein muss
+- Weniger Setup, mehr Code
+- Jeder Tag liefert ein Code-Artefakt
+- Engineering-Disziplin von Tag 1: ruff, mypy, pytest
+
+### Selbstbewertung Woche 1
+- Pace: 6
+- Output-Qualität: 7
+- Fokus: 5
