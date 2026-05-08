@@ -29,6 +29,7 @@ Run these commands in the VS Code terminal:
 pwd
 python3 --version
 git --version
+```
 
 ## Results
 
@@ -66,6 +67,7 @@ Day 5: Write README v0 with problem statement, goal, and non-goals.
 ## Pre-commit Hooks (Tag 11)
 
 ### Setup
+
 ```bash
 uv add --dev pre-commit
 uv run pre-commit install
@@ -73,6 +75,7 @@ uv run pre-commit autoupdate
 ```
 
 ### Aktive Hooks
+
 | Hook | Zweck |
 |---|---|
 | ruff | Linting mit auto-fix |
@@ -87,10 +90,12 @@ uv run pre-commit autoupdate
 | check-merge-conflict | Keine Merge-Marker |
 
 ### Wichtig: mypy läuft via `local` repo
+
 Grund: mirrors-mypy kennt Projekt-Dependencies nicht → falsche Fehler.
 Lösung: `uv run mypy src/` nutzt lokale venv mit allen installierten Packages.
 
 ### Manuelle Nutzung
+
 ```bash
 # Alle Dateien prüfen
 uv run pre-commit run --all-files
@@ -103,5 +108,6 @@ uv run pre-commit autoupdate
 ```
 
 ### Bekannte Edge Cases
+
 - Nach `uv add` neuer Packages: `uv sync` dann `pre-commit run mypy`
 - Bei CI: `pre-commit run --all-files` im ci.yml (Tag 12)
