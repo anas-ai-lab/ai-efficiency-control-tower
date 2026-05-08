@@ -1,9 +1,9 @@
 # AI Decision Framework
 ## AI Efficiency Control Tower — [Anonymisiert]
 
-**Version:** 2.0  
-**Stand:** Mai 2026  
-**Autor:** AI Efficiency Control Tower  
+**Version:** 2.0
+**Stand:** Mai 2026
+**Autor:** AI Efficiency Control Tower
 **Zielgruppen:** Internes Gremium, Fachbereiche, Engineering, Compliance
 
 ---
@@ -72,8 +72,8 @@ Bewerte jeden Bereich von 1–5 anhand der Beschreibungen. Trage die Punkte ein.
 | 4 | €5.000 – €15.000/Monat |
 | 5 | > €15.000/Monat |
 
-> Berechnung: (Zeit_heute − Zeit_AI in h) × Häufigkeit/Monat × Nutzer × Stundensatz  
-> × Evidenzfaktor (Schätzung=0,5 / Beispiel getestet=0,8 / Validiert=1,0)  
+> Berechnung: (Zeit_heute − Zeit_AI in h) × Häufigkeit/Monat × Nutzer × Stundensatz
+> × Evidenzfaktor (Schätzung=0,5 / Beispiel getestet=0,8 / Validiert=1,0)
 > × Adoptionsfaktor (Freiwillig=0,5 / Gefördert=0,75 / Pflicht=1,0)
 
 ---
@@ -306,10 +306,10 @@ flowchart TD
 | Volumen & Frequenz | 4 | 800/Monat — manuell nicht mehr effizient skalierbar |
 | **Gesamtscore** | **3,5** | |
 
-**Primärempfehlung:** LLM als Klassifikator  
-**Modifier:** Wissensabhängigkeit = 2 → kein RAG nötig  
-**Governance-Gate:** Standard Track  
-**Pflicht:** Keine Art. 22-Relevanz (kein Personenbezug mit erheblicher Wirkung). Eval-Set 50+ Tickets.  
+**Primärempfehlung:** LLM als Klassifikator
+**Modifier:** Wissensabhängigkeit = 2 → kein RAG nötig
+**Governance-Gate:** Standard Track
+**Pflicht:** Keine Art. 22-Relevanz (kein Personenbezug mit erheblicher Wirkung). Eval-Set 50+ Tickets.
 **Realbeispiel:** Ähnlich umgesetzt bei Atlassian Jira-Teams mit OpenAI Function Calling — Fehlerrate < 5% nach 4 Wochen Eval.
 
 ---
@@ -328,9 +328,9 @@ flowchart TD
 | Volumen & Frequenz | 3 | 30/Monat — messbar, aber noch manuell handhabbar |
 | **Gesamtscore** | **4,3** | |
 
-**Primärempfehlung:** LLM Advanced  
-**Modifier:** Wissensabhängigkeit = 5 → **LLM + RAG** (Kompetenzprofile, Referenzprojekte als KB)  
-**Governance-Gate:** Standard Track  
+**Primärempfehlung:** LLM Advanced
+**Modifier:** Wissensabhängigkeit = 5 → **LLM + RAG** (Kompetenzprofile, Referenzprojekte als KB)
+**Governance-Gate:** Standard Track
 **Pflicht:** Kein Art. 22. Eval-Set 30 RFPs mit bekanntem Ausgang. Human Review für finale Go/No-Go-Entscheidung empfohlen (nicht verpflichtend, aber sinnvoll bei >€100k-Deals).
 
 ---
@@ -349,9 +349,9 @@ flowchart TD
 | Volumen & Frequenz | 3 | 50–100 Bewerbungen/Monat je Stelle |
 | **Gesamtscore** | **3,9** | |
 
-**Primärempfehlung:** LLM + RAG  
-**Modifier:** Wissensabhängigkeit = 4 → RAG mit Anforderungsprofilen  
-**Governance-Gate:** ⚠️ **Compliance Track**  
+**Primärempfehlung:** LLM + RAG
+**Modifier:** Wissensabhängigkeit = 4 → RAG mit Anforderungsprofilen
+**Governance-Gate:** ⚠️ **Compliance Track**
 **Pflicht:**
 - DSGVO Art. 22: Trifft zu, wenn Scoring/Vorfilterung allein über Einladung entscheidet. Human Review substanziell Pflicht (kein Rubber-Stamping).
 - EU AI Act Annex III: Recruitment AI ist explizit Hochrisiko. Core-Pflichten ab August 2026: Dokumentation, Bias-Tests, Audit Log, Human Oversight.
@@ -375,9 +375,9 @@ flowchart TD
 | Volumen & Frequenz | 4 | Tägliche Buchungen aller 3.300 Mitarbeiter |
 | **Gesamtscore** | **2,7** | |
 
-**Primärempfehlung:** Klassisches ML oder Hybrid  
-**Modifier:** Input-Typ = 1 + Entscheidungskomplexität = 2 → **Override: Klassische Automatisierung / Regelbasiert + Optional ML für statistische Ausreißer**  
-**Governance-Gate:** Standard Track  
+**Primärempfehlung:** Klassisches ML oder Hybrid
+**Modifier:** Input-Typ = 1 + Entscheidungskomplexität = 2 → **Override: Klassische Automatisierung / Regelbasiert + Optional ML für statistische Ausreißer**
+**Governance-Gate:** Standard Track
 **Hinweis:** LLM wäre hier **falsch** — strukturierte Daten + klare Regeln. Isolation Forest oder einfache Regel-Engine (Buchung > 24h/Tag, Buchung nach Projektende) ist günstiger, schneller, erklärbarer. LLM würde Komplexität unnötig erhöhen.
 
 ---
@@ -396,9 +396,9 @@ flowchart TD
 | Volumen & Frequenz | 3 | 20–50 neue Mitarbeitende/Monat, je mehrere Fragen |
 | **Gesamtscore** | **3,7** | |
 
-**Primärempfehlung:** LLM + RAG  
-**Governance-Gate:** Standard Track (mit einer wichtigen Einschränkung)  
-**Pflicht:** Quellenangabe in jeder Antwort zwingend. Monitoring der Fehlantworten (Halluzinationen) monatlich. Klarer "Ich bin nicht sicher — wende dich an HR" Fallback.  
+**Primärempfehlung:** LLM + RAG
+**Governance-Gate:** Standard Track (mit einer wichtigen Einschränkung)
+**Pflicht:** Quellenangabe in jeder Antwort zwingend. Monitoring der Fehlantworten (Halluzinationen) monatlich. Klarer "Ich bin nicht sicher — wende dich an HR" Fallback.
 **Hinweis Datenqualität:** Vor Deployment KB sauber machen: veraltete Dokumente entfernen, Versionskontrolle einführen. Schlechte KB = schlechte Antworten, unabhängig vom Modell.
 
 ---

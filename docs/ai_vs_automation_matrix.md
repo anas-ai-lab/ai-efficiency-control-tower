@@ -1,8 +1,8 @@
 # AI vs. Automation Matrix
 ## AI Efficiency Control Tower — Schnellreferenz
 
-**Version:** 2.0 | **Stand:** Mai 2026  
-**Kontext:** IT-Beratungsunternehmen, DACH-Markt, erste AI-Governance-Initiative  
+**Version:** 2.0 | **Stand:** Mai 2026
+**Kontext:** IT-Beratungsunternehmen, DACH-Markt, erste AI-Governance-Initiative
 **Ergänzt:** `docs/ai-decision-framework.md`
 
 ---
@@ -137,64 +137,64 @@ Schritt 5: Compliance-Overlay (unabhängig von Schritten 1–4)
 
 ### 1. SAP-Buchungsexport → Excel-Report für Controller
 
-**Ansatz:** Klassische Automatisierung (SAP API + Python)  
-**Warum:** Vollständig strukturiert, deterministisch, kein Sprachverständnis nötig.  
+**Ansatz:** Klassische Automatisierung (SAP API + Python)
+**Warum:** Vollständig strukturiert, deterministisch, kein Sprachverständnis nötig.
 **Fehler den man macht:** LLM-Agent der Reports „intelligenter" macht — nicht nötig.
 
 ---
 
 ### 2. IT-Tickets aus Confluence/Jira automatisch priorisieren
 
-**Ansatz:** LLM als Klassifikator  
-**Warum:** Freitext-Beschreibungen, Kontext variiert, Dringlichkeit nicht regelbasiert formulierbar.  
+**Ansatz:** LLM als Klassifikator
+**Warum:** Freitext-Beschreibungen, Kontext variiert, Dringlichkeit nicht regelbasiert formulierbar.
 **Red Flag:** Automatische Zuweisung an Personen ohne Review bei Kritisch-Tickets.
 
 ---
 
 ### 3. Interne Policy-Fragen von Mitarbeitern (HR, IT-Richtlinien)
 
-**Ansatz:** LLM + RAG  
-**Warum:** Natürlichsprachige Fragen, Antwort aus internen Dokumenten.  
+**Ansatz:** LLM + RAG
+**Warum:** Natürlichsprachige Fragen, Antwort aus internen Dokumenten.
 **Pflicht:** Quellenangabe, Fallback „Frage HR direkt", KB monatlich aktualisiert.
 
 ---
 
 ### 4. Bewerbungsscreening für offene Beraterstellen
 
-**Ansatz:** LLM + RAG + Human Review (Pflicht)  
-**Warum:** EU AI Act Hochrisiko, DSGVO Art. 22 bei automatisierter Bewerbungsablehnung.  
+**Ansatz:** LLM + RAG + Human Review (Pflicht)
+**Warum:** EU AI Act Hochrisiko, DSGVO Art. 22 bei automatisierter Bewerbungsablehnung.
 **Pflicht vor Deployment:** DPIA, Betriebsrat-Information, Bias-Tests, Audit-Log.
 
 ---
 
 ### 5. Transaktions-Anomalie-Erkennung im Buchhaltungssystem
 
-**Ansatz:** Klassisches ML (Isolation Forest) oder Regelbasiert  
-**Warum:** Strukturierte Finanzdaten, historische Anomalie-Labels verfügbar, Echtzeit-Anforderung.  
+**Ansatz:** Klassisches ML (Isolation Forest) oder Regelbasiert
+**Warum:** Strukturierte Finanzdaten, historische Anomalie-Labels verfügbar, Echtzeit-Anforderung.
 **Fehler den man macht:** LLM auf strukturierten Transaktionsdaten — 10× teurer, gleiche Ergebnisse.
 
 ---
 
 ### 6. Ausschreibungen (RFPs) auf Eignung prüfen
 
-**Ansatz:** LLM + RAG  
-**Warum:** Unstrukturierte PDFs, Eignung hängt von internen Kompetenzprofilen und Referenzprojekten ab.  
+**Ansatz:** LLM + RAG
+**Warum:** Unstrukturierte PDFs, Eignung hängt von internen Kompetenzprofilen und Referenzprojekten ab.
 **Hinweis:** Finale Go/No-Go bleibt beim Account Manager.
 
 ---
 
 ### 7. Timesheet-Anomalien erkennen (falsche Projektbuchungen)
 
-**Ansatz:** Klassische Automatisierung + Regelbasiert  
-**Warum:** Vollständig strukturierte Daten (Projekt-ID, Datum, Stunden). Klare Regeln: Buchung nach Projektende, >24h/Tag.  
+**Ansatz:** Klassische Automatisierung + Regelbasiert
+**Warum:** Vollständig strukturierte Daten (Projekt-ID, Datum, Stunden). Klare Regeln: Buchung nach Projektende, >24h/Tag.
 **Fehler den man macht:** LLM für strukturierte Validierungslogik einsetzen.
 
 ---
 
 ### 8. Angebotsdokument erstellen (komplex, mehrstufig)
 
-**Ansatz:** LLM + RAG + Tool Use mit Human Approval  
-**Warum:** Recherche (KB), Entwurf (LLM), Kalkulation (Tool), Freigabe (Mensch). Konsequenzen bei Fehler sind vertraglich.  
+**Ansatz:** LLM + RAG + Tool Use mit Human Approval
+**Warum:** Recherche (KB), Entwurf (LLM), Kalkulation (Tool), Freigabe (Mensch). Konsequenzen bei Fehler sind vertraglich.
 **Pflicht:** Jedes Angebot wird von einem Menschen vor Versand geprüft.
 
 ---

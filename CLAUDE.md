@@ -53,4 +53,3 @@ Current focus:
 AI is for ambiguity.
 Rules are for clarity.
 Humans are for responsibility.
-

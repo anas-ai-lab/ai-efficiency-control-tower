@@ -38,10 +38,10 @@
 
 ## Tag 2 – VS Code Setup
 
-**Datum:** 2026-05-06  
-**Phase:** Phase 0 – Setup, Arbeitsweise und Projektidentität  
-**Woche:** Woche 1  
-**Fokus:** VS Code Setup und lokale Arbeitsumgebung  
+**Datum:** 2026-05-06
+**Phase:** Phase 0 – Setup, Arbeitsweise und Projektidentität
+**Woche:** Woche 1
+**Fokus:** VS Code Setup und lokale Arbeitsumgebung
 
 ### Was ich heute gemacht habe
 
