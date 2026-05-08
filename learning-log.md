@@ -301,3 +301,22 @@ für jedes Python-Projekt das `pyproject.toml` als Single Source of Truth nutzt.
 
 **Offene Fragen:**
 - Wann macht `fail_under > 0`
+
+## Tag 11 — Pre-commit Hooks (2026-05-08)
+
+**Thema:** Code Quality Enforcement — pre-commit
+
+**Was neu war:**
+- mypy als `local` Hook konfigurieren: entscheidend damit mypy Projekt-Dependencies kennt
+- pre-commit Commit-Verhalten: Hook modifiziert Datei → Commit bricht ab →
+  das ist kein Fehler, sondern Schutzverhalten. Fix: `git add -A` + erneut committen
+- `autoupdate` für deprecated stage names
+
+**Was bestätigt wurde:**
+- Hooks laufen nur auf gestagten Dateien bei Commits (korrekt)
+- `--all-files` für manuellen vollständigen Run
+
+**Technische Entscheidung:**
+mypy via `local` repo statt `mirrors-mypy` — notiert in `setup_notes.md`
+
+**Output:** `.pre-commit-config.yaml` aktiv, Repo sauber, CI-Vorbereitung abgeschlossen
