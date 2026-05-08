@@ -50,6 +50,3 @@ chroma_db/
 # Test coverage
 .coverage
 htmlcov/
-echo "htmlcov/" >> .gitignore
-echo ".coverage" >> .gitignorehtmlcov/
-.coverage
