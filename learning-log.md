@@ -241,3 +241,31 @@ Das ist der Unterschied zwischen Tutorial-Code und einem echten Repo.
 ### Offene Fragen
 - Wann brauche ich `uv add` vs. direkt in pyproject.toml eintragen?
 - Was passiert wenn jemand ohne uv am Projekt arbeiten will?
+
+---
+
+## Woche 2 — Tag 09 (2026-05-08)
+
+**Thema:** Ruff + mypy strict Konfiguration
+
+**Erledigt:**
+- ruff installiert und konfiguriert (strict ruleset)
+- mypy.ini mit strict mode angelegt
+- Makefile mit make check
+- make check läuft grün
+
+**Ehrliche Einschätzung:**
+Tooling mechanisch eingerichtet, aber inhaltliches Verständnis fehlt.
+Die Konfigurationsoptionen wurden kopiert, nicht verstanden.
+Das ist ein echtes Problem — wer mypy.ini nicht lesen kann,
+kann Fehlerausgaben nicht interpretieren und Optionen nicht bewusst anpassen.
+
+**Offene Lücken:**
+- ruff Regelcodes: was prüft E, F, B, UP, SIM, RUF konkret?
+- mypy strict: was kommt zu default dazu?
+- no_implicit_reexport: was bedeutet das praktisch?
+- warn_return_any: wann schlägt das an?
+
+**Aktion für Tag 10:**
+Vor pytest: 15 Min Lektüre ruff-Doku (Regelübersicht) + mypy strict-Changelog.
+Ziel: Ich kann die 5 Fragen oben beantworten ohne nachzuschauen.
