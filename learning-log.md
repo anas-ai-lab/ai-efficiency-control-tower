@@ -212,3 +212,32 @@ An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`
 - Pace: 6
 - Output-Qualität: 7
 - Fokus: 5
+
+## Woche 2 — Tag 8 (2026-05-08)
+
+### Thema
+uv, pyproject.toml, src-Layout, Python 3.12 Projekt-Setup
+
+### Was ich gebaut habe
+Projektfundament mit uv als Package Manager: pyproject.toml mit
+src-Layout, zwei Dependency-Groups (dev/test), Python 3.12 gepinnt,
+Package-Struktur `src/aect/` aufgesetzt, uv sync erfolgreich.
+
+### Was ich heute noch nicht verstanden habe
+- Das Zusammenspiel von uv / pip / venv / pyproject.toml
+- Warum src-Layout (nicht direkt im Root)
+- Was dependency-groups vs. requirements.txt bringt
+- Was hatchling ist und warum build-backend
+
+### Was ich das nächste Mal nachschlagen will
+- uv Dokumentation: https://docs.astral.sh/uv/
+- Python Packaging Guide (pyproject.toml): https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
+
+### Engineering-Erkenntnis
+Ein einziges `uv sync` nach dem Klonen reicht — keine manuelle
+venv-Erstellung, keine requirements.txt pflegen, exakt reproduzierbar.
+Das ist der Unterschied zwischen Tutorial-Code und einem echten Repo.
+
+### Offene Fragen
+- Wann brauche ich `uv add` vs. direkt in pyproject.toml eintragen?
+- Was passiert wenn jemand ohne uv am Projekt arbeiten will?
