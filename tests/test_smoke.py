@@ -24,4 +24,6 @@ def test_version_format() -> None:
     """__version__ must follow semver pattern (MAJOR.MINOR.PATCH)."""
     parts = aect.__version__.split(".")
     assert len(parts) == 3, f"Expected semver, got: {aect.__version__}"
-    assert all(part.isdigit() for part in parts), f"Non-numeric version part in: {aect.__version__}"
+    assert all(part.isdigit() for part in parts), (
+        f"Non-numeric version part in: {aect.__version__}"
+    )
