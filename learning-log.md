@@ -269,3 +269,35 @@ kann Fehlerausgaben nicht interpretieren und Optionen nicht bewusst anpassen.
 **Aktion für Tag 10:**
 Vor pytest: 15 Min Lektüre ruff-Doku (Regelübersicht) + mypy strict-Changelog.
 Ziel: Ich kann die 5 Fragen oben beantworten ohne nachzuschauen.
+
+## Tag 10 — 2026-05-08
+
+**Thema:** pytest-Konfiguration, Smoke Tests, Coverage
+
+**Was ich heute wirklich gelernt habe:**
+
+TOML erlaubt keine doppelten Sektions-Keys. Wenn `[tool.pytest.ini_options]`
+zweimal in `pyproject.toml` steht, bricht das gesamte Tool-Ökosystem
+(uv, mypy, ruff) mit einem Parse-Error ab — nicht nur pytest selbst.
+Lesson: Vor dem Einfügen neuer Sektionen immer prüfen ob sie schon existieren.
+
+Die `--strict-markers`-Option in pytest ist bewusst gesetzt: Sie erzwingt,
+dass jeder verwendete Marker in `conftest.py` registriert ist. Das verhindert
+Tipp-Fehler in Marker-Namen die sonst still ignoriert würden.
+
+`branch = true` in Coverage bedeutet: nicht nur Zeilen werden gezählt,
+sondern auch ob beide Zweige eines `if`-Statements getestet wurden.
+Das ist strenger und sinnvoller für echte Qualitätsmessung.
+
+**Was trivial war:**
+Die 3 Smoke-Tests selbst — aber sie sind nicht wegen ihrer Komplexität
+wertvoll, sondern weil sie beweisen dass das Package-Setup korrekt ist.
+Ein grüner Smoke-Test nach frischem Clone ist ein echtes Signal.
+
+**Was Engineering-Substanz hatte:**
+Die `pyproject.toml`-Bereinigung. Zu verstehen warum TOML-Duplikate
+das gesamte Tool-Ökosystem betreffen (nicht nur ein Tool) ist wichtig
+für jedes Python-Projekt das `pyproject.toml` als Single Source of Truth nutzt.
+
+**Offene Fragen:**
+- Wann macht `fail_under > 0`
