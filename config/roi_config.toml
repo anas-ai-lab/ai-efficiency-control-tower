@@ -1,0 +1,50 @@
+# AECT ROI-Konfiguration — GENERISCHE PLATZHALTER
+#
+# IP-Trennung (interne Referenz (entfernt) §5): KEINE echten Firmenwerte hier eintragen.
+# Echte Stundensätze → config/roi_config.local.toml (gitignored)
+#
+# WICHTIG: Alle Schlüssel müssen mit den .value-Strings der StrEnums aus
+# src/aect/domain/types.py übereinstimmen (nach Schritt 0 prüfen und ggf. anpassen):
+#   [hourly_rates.*]   → EmployeeCategory.value
+#   [evidence_factors] → EvidenceLevel.value
+#   [adoption_factors] → AdoptionType.value
+#   _FREQUENCY_TO_ANNUAL-Keys in roi.py → FrequencyUnit.value
+
+# --- Vorfilter-Schwellen (Platzhalter — echte Werte in Local-Config) ---
+[thresholds]
+min_potential_eur        = 20000.0
+min_hours_per_year       = 120.0
+min_expected_benefit_eur = 5000.0
+
+# --- Stundensätze pro Land und Mitarbeiterkategorie (Platzhalter) ---
+# Schlüssel = EmployeeCategory.value — ggf. aus Schritt 0 anpassen
+[hourly_rates.DE]
+ASSOCIATE    = 45.0
+PROFESSIONAL = 65.0
+SENIOR       = 90.0
+MANAGER      = 120.0
+
+[hourly_rates.AT]
+ASSOCIATE    = 42.0
+PROFESSIONAL = 60.0
+SENIOR       = 85.0
+MANAGER      = 115.0
+
+[hourly_rates.CH]
+ASSOCIATE    = 55.0
+PROFESSIONAL = 80.0
+SENIOR       = 110.0
+MANAGER      = 145.0
+
+# --- Evidenzfaktoren (Schlüssel = EvidenceLevel.value — ggf. anpassen) ---
+[evidence_factors]
+LOW    = 0.50
+MEDIUM = 0.75
+HIGH   = 1.00
+
+# --- Nutzungsfaktoren / Adoption (Schlüssel = AdoptionType.value — ggf. anpassen) ---
+[adoption_factors]
+NONE   = 0.10
+LOW    = 0.30
+MEDIUM = 0.60
+HIGH   = 1.00

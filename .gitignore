@@ -50,3 +50,6 @@ chroma_db/
 # Test coverage
 .coverage
 htmlcov/
+
+# Firmenspezifische ROI-Config (IP-Trennung, interne Referenz (entfernt) §5)
+config/roi_config.local.toml

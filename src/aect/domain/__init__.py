@@ -6,6 +6,7 @@ Verbotene Imports: aect.adapters, aect.application (würde Dependency Inversion 
 """
 
 from aect.domain.models import UseCaseInput
+from aect.domain.roi import ROIConfig, ROIResult, calculate_roi, load_roi_config
 from aect.domain.types import (
     AdoptionType,
     DataClassification,
@@ -22,5 +23,9 @@ __all__ = [
     "EvidenceLevel",
     "FrequencyUnit",
     "ImplementationApproach",
+    "ROIConfig",
+    "ROIResult",
     "UseCaseInput",
+    "calculate_roi",
+    "load_roi_config",
 ]

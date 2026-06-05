@@ -1,8 +1,14 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.hatch.build.targets.wheel]
+packages = ["src/aect"]
+
+[tool.hatch.build.targets.editable]
 packages = ["src/aect"]
 
 [project]
@@ -26,6 +32,7 @@ dev = [
     "coverage>=7.13.5",
     "bandit[toml]>=1.8",
     "pip-audit>=2.7",
+    "hypothesis>=6.152.4",
 ]
 test = [
     "pytest>=8.2.0",
@@ -52,6 +59,8 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "RUF002",  # Unicode-Mathesymbole (x, -) in Docstrings erlaubt
+    "RUF003",  # Unicode-Mathesymbole (x, -) in Kommentaren erlaubt
 ]
 
 [tool.ruff.lint.isort]
