@@ -320,3 +320,47 @@ für jedes Python-Projekt das `pyproject.toml` als Single Source of Truth nutzt.
 mypy via `local` repo statt `mirrors-mypy` — notiert in `setup_notes.md`
 
 **Output:** `.pre-commit-config.yaml` aktiv, Repo sauber, CI-Vorbereitung abgeschlossen
+
+## Tag 12 — 2026-06-05 — GitHub Actions CI + Security Scanning
+
+### Was neu war
+
+**Node-24-Transition ist live.** GitHub hat am 2. Juni 2026 auf Node 24
+umgestellt. Das bedeutet konkret: `actions/checkout@v4` und
+`gitleaks-action@v2` laufen mit Deprecation-Warnings oder brechen bald.
+Wer heute eine neue CI aufsetzt, muss `@v6` / `@v3` verwenden.
+
+**SHA-Pinning in der Praxis.** `git ls-remote <repo> refs/tags/<tag>`
+gibt den Commit-SHA einer Action zurück. Das ist die einzige sichere
+Methode — Tags sind mutable, ein kompromittierter Maintainer kann `@v4`
+auf bösartigen Code umzeigen ohne dass der Consumer es merkt.
+
+**pip-audit findet echte CVEs.** Heute an Tag 1: `idna 3.13` mit
+CVE-2026-45409, Fix in 3.15. Nicht hypothetisch, nicht ein Test —
+ein realer CVE in einer Dependency, die über requests transitiv
+reingekommen ist. `uv add "idna>=3.15"` hat es in einem Befehl gefixt.
+
+**macOS vs GNU Coreutils.** `head -n -3` funktioniert auf macOS nicht
+(BSD head, kein negatives Zeilenargument). macOS-kompatibler Weg:
+`sed -i '' 'X,$d' file` für "ab Zeile X alles löschen".
+
+**GitHub Free Plan + Branch Protection auf privaten Repos.** Status-
+Checks als Merge-Gate sind auf private Repos ohne Team-Plan nicht
+durchsetzbar. Das ist eine Bezahlschranke, kein Konfigurationsfehler.
+Für Solo-Builds ohne PRs nicht relevant — die CI läuft trotzdem.
+
+**PAT braucht `workflow` Scope für `.github/workflows/`.** GitHub
+verweigert Pushes in das workflows-Verzeichnis ohne diesen Scope,
+auch wenn `repo` vorhanden ist.
+
+### Was noch unklar ist / offen
+
+- `mypy.ini` Zeile 16: Parse-Fehler `']\n'`. mypy läuft durch aber
+  ignoriert die ini. Müssen prüfen ob strict-Einstellungen tatsächlich
+  aktiv sind oder ob mypy mit Defaults läuft.
+
+### Pattern
+
+Security-Scanning in CI von Anfang an — nicht als Audit nachträglich.
+pip-audit hat heute bewiesen warum: reale CVEs kommen über transitive
+Dependencies, nicht über direkte Imports.
