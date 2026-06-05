@@ -468,3 +468,63 @@ Implementation baut. Heute: Tests haben zuerst mit ImportError versagt
 (Model existierte nicht), dann mit ValidationError-Erwartungen die noch
 nicht erfüllt waren — dann Schritt für Schritt das Schema gebaut bis
 alle 9 Tests grün waren.
+
+## Tag 15 — 2026-06-05 | Pydantic V2 Domain-Modell
+
+### Was gebaut wurde
+
+Das Eingabemodell für eine Use-Case-Einreichung. Stell es dir wie ein
+ausgefülltes Formular vor: Wer reicht ein, welcher Prozess soll automatisiert
+werden, wie viel Zeit spart das pro Vorgang, wie oft passiert das pro Jahr,
+werden persönliche Daten verarbeitet? Das Modell prüft jede Antwort auf
+Plausibilität — bevor irgendetwas berechnet wird.
+
+### Was Pydantic V2 hier konkret macht
+
+Pydantic ist eine Python-Library, die Datenstrukturen validiert. Wenn ein
+Formular-Feld sagt "Zeitersparnis: -5 Stunden", wirft Pydantic einen Fehler —
+bevor das in die Berechnung geht. Das ist kein manueller if-else-Code, sondern
+deklarativ: ich beschreibe welche Felder erlaubt sind und welche Grenzen gelten,
+Pydantic erzwingt das automatisch.
+
+Drei konkrete Einstellungen die heute wichtig waren:
+
+**`extra="forbid"`:** Wenn jemand ein Feld schickt, das im Schema nicht
+existiert, wird die Anfrage abgelehnt. Schutz: in Phase C werden diese Felder
+an ein KI-Modell weitergegeben. Ohne diese Regel könnte ein Angreifer beliebige
+Texte einschleusen und den Verbrauch explodieren lassen (Token-Flooding).
+
+**`frozen=True`:** Nach der Erstellung kann das Objekt nicht mehr verändert
+werden. Grund: Das Eingabe-Objekt repräsentiert was eingereicht wurde. Was das
+System daraus berechnet (ROI, Risiko-Zone), kommt in ein separates
+Ergebnis-Objekt. Würde man das Eingabe-Objekt mit Berechnungen befüllen,
+vermischt man zwei verschiedene Konzepte — schwer zu testen, schwer zu warten.
+
+**`max_length` auf Freitextfeldern:** Jedes Beschreibungsfeld hat ein Zeichen-
+Limit. In Phase C (LLM-Integration) werden diese Texte an Azure OpenAI
+geschickt — jedes Zeichen kostet Geld und Zeit. Ohne Limit könnte eine
+50.000-Zeichen-Beschreibung den Betrieb zum Stillstand bringen.
+
+### Was heute schiefgelaufen ist (und was ich daraus mitgenommen habe)
+
+Drei separate Probleme hintereinander: Namenskonflikt zwischen `EvidenceQuality`
+(alter Name) und `EvidenceLevel` (neuer Name), korruptes Python-Environment
+durch eine doppelte Installations-Datei, und ein Unicode-Zeichen (`×`) das ruff
+nicht akzeptiert.
+
+Das wichtigste Muster: Wenn etwas nicht importiert werden kann, zuerst das
+Environment prüfen — nicht sofort den Code. Der Code war korrekt, das
+Environment war kaputt.
+
+### Warum das für AECT wichtig ist
+
+`UseCaseInput` ist das Eingangstor des gesamten Systems. Was dieses Modell
+nicht akzeptiert, kommt nie in die Rule Engine, nie in den LLM-Call, nie in
+den Report. Jede Validierungsregel hier spart Debugging-Zeit in allen
+späteren Phasen.
+
+### Offene Frage (vor Tag 16 zu beantworten)
+
+Was ist der konkrete Unterschied zwischen `UseCaseInput.model_validate(dict)`
+und `UseCaseInput(**dict)` in Pydantic V2 — und wann schlägt eines fehl,
+obwohl das andere durchgeht?
