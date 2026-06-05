@@ -423,3 +423,48 @@ Tag 14 startet Phase A: die Domain-Schicht und die Regel-Engine. Das ist der
 wertvollste Teil des Projekts — das Bewertungsmodell deterministisch in Code übersetzen.
 Vor dem ersten Phase-A-Guide gibt es einen Pflicht-Check: `git ls-files src/` und
 `uv run pytest -q`. Erst wenn der Stand verifiziert ist, kommt der Guide.
+
+## 2026-06-05 — Day 14: Pydantic V2 Input-Schema, TDD, StrEnum
+
+### Was ist Pydantic V2 und warum extra="forbid"?
+
+Pydantic ist eine Python-Library die Datenvalidierung über normale
+Python-Klassen macht. Du definierst Felder mit Typen und Regeln —
+Pydantic prüft bei der Erstellung ob die Daten passen, und wirft einen
+ValidationError wenn nicht.
+
+`extra="forbid"` ist ein Security-Setting: wenn ein JSON-Payload Felder
+enthält die das Schema nicht kennt, schlägt die Validierung fehl statt
+die Felder still zu ignorieren. Das klingt pingelig — ist es aber nicht.
+Ein Angreifer könnte versuchen, über unbekannte Felder Daten ins System
+zu schleusen die am Ende ins LLM wandern. `extra="forbid"` schneidet
+das am Eingang ab (OWASP LLM10: Unbounded Consumption).
+
+### Was ist `max_length` bei Textfeldern?
+
+Token-Flooding: wenn jemand ein Textfeld mit 50.000 Zeichen befüllt
+und dieser Text ans LLM geht, kostet das Geld und verlangsamt das
+System. `max_length=2000` setzt eine harte Grenze. Das ist kein UX-
+Feature — es ist Budget-Schutz und Security.
+
+### Was ist `StrEnum`?
+
+Vor Python 3.11: `class MyEnum(str, Enum)` — zwei Basisklassen, der
+String-Aspekt musste explizit hinzugefügt werden.
+Ab Python 3.11: `class MyEnum(StrEnum)` — eingebaut, sauberer.
+
+Der Unterschied im Verhalten: beide erzeugen Enum-Werte die gleichzeitig
+Strings sind (`EvidenceQuality.ESTIMATE == "estimate"` ist True). Der
+Unterschied ist nur Schreibweise und Modernität. Ruff flaggt die alte Form
+mit UP042 — ein Hinweis dass der Code auf eine neuere Python-Version
+aktualisiert werden kann.
+
+### Was ist TDD in der Praxis hier?
+
+Test-Driven Development heißt: zuerst einen Test schreiben der beschreibt
+was der Code können soll, dann den Code so schreiben dass der Test grün
+wird. Der Vorteil: man denkt über das Interface nach bevor man die
+Implementation baut. Heute: Tests haben zuerst mit ImportError versagt
+(Model existierte nicht), dann mit ValidationError-Erwartungen die noch
+nicht erfüllt waren — dann Schritt für Schritt das Schema gebaut bis
+alle 9 Tests grün waren.
