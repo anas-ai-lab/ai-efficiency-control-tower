@@ -11,7 +11,9 @@ version = "0.1.0"
 description = "AI Efficiency Control Tower — AI Use Case Intake & Triage Assistant"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "idna>=3.15",
+]
 
 [dependency-groups]
 dev = [
