@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Minimale Berechtigungen auf Workflow-Ebene (Security Checklist)
+permissions:
+  contents: read
+
+jobs:
+  # ─── Job 1: Lint · Typecheck · Test ────────────────────────────────────────
+  quality:
+    name: Lint · Typecheck · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2            # SHA: Schritt 5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies (frozen)
+        run: uv sync --frozen
+
+      - name: Lint — ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: Format check — ruff format
+        run: uv run ruff format --check src/ tests/
+
+      - name: Type check — mypy
+        run: uv run mypy src/
+
+      - name: Test + Coverage — pytest
+        run: uv run pytest --cov=src/aect --cov-report=term-missing -q
+
+  # ─── Job 2: SAST · Dependency CVE ──────────────────────────────────────────
+  security:
+    name: SAST · Deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2            # SHA: Schritt 5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies (frozen)
+        run: uv sync --frozen
+
+      - name: SAST — bandit (MEDIUM+)
+        run: uv run bandit -r src/ -ll
+
+      - name: Dependency CVE scan — pip-audit
+        run: uv run pip-audit
+
+  # ─── Job 3: Secret scan ─────────────────────────────────────────────────────
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2            # SHA: Schritt 5
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3   # SHA: Schritt 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Kein GITLEAKS_LICENSE nötig: privates Repo auf persönlichem Account

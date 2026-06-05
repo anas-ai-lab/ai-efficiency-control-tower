@@ -21,6 +21,8 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "coverage>=7.13.5",
+    "bandit[toml]>=1.8",
+    "pip-audit>=2.7",
 ]
 test = [
     "pytest>=8.2.0",
@@ -82,3 +84,6 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "\\.\\.\\.\\s*$",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
