@@ -1,0 +1,74 @@
+"""Domain-Typen für AECT — kontrollierte Vokabular-Enums.
+
+Alle Enum-Werte sind snake_case (StrEnum — direktes Parsen aus JSON/Form-Daten,
+kein manuelles .value-Mapping nötig).
+
+IP-Trennung (interne Referenz (entfernt) §5): Faktor-Mappings (Stundensätze, Score-Gewichte,
+Vorfilter-Schwellen) liegen in config/roi_config.yaml — nicht hier.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class EvidenceLevel(StrEnum):
+    """Qualität der Zeitersparnis-Schätzung.
+
+    Beeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).
+    Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.yaml.
+    """
+
+    PURE_ESTIMATE = "pure_estimate"  # Bauchgefühl / Expertenmeinung ohne Datenbasis
+    SIMILAR_PROJECT = "similar_project"  # Analogie zu vergleichbarem Vorhaben
+    TESTED_PILOTED = "tested_piloted"  # Gemessen oder in Pilotprojekt validiert
+
+
+class AdoptionType(StrEnum):
+    """Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell."""
+
+    MANDATORY = "mandatory"  # Pflichtnutzung (regulatorisch oder Prozessanweisung)
+    VOLUNTARY = "voluntary"  # Freiwillig / opt-in
+
+
+class ImplementationApproach(StrEnum):
+    """Geplante Umsetzungsstrategie."""
+
+    STANDARD_PRODUCT = "standard_product"  # COTS / Out-of-the-box-Lösung
+    CUSTOM_BUILD = "custom_build"  # Eigenentwicklung
+    VENDOR_SOLUTION = "vendor_solution"  # Drittanbieter mit Customizing
+
+
+class DataClassification(StrEnum):
+    """Datenschutz-Einstufung der verarbeiteten Daten.
+
+    Beeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).
+    Score-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1, SENSITIVE_PERSONAL=2.
+    Mapping liegt in config, nicht hier.
+    """
+
+    NO_PERSONAL_DATA = "no_personal_data"  # Rein operative / anonyme Daten
+    PSEUDONYMOUS = "pseudonymous"  # Pseudonymisiert (Art. 4 Nr. 5 DSGVO)
+    PERSONAL = "personal"  # Personenbezogen (Art. 4 Nr. 1 DSGVO)
+    SENSITIVE_PERSONAL = "sensitive_personal"  # Besondere Kategorien (Art. 9 DSGVO)
+
+
+class FrequencyUnit(StrEnum):
+    """Bezugszeitraum für instances_per_period."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+class EmployeeCategory(StrEnum):
+    """Grobe Seniorität der betroffenen Mitarbeiter.
+
+    Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.yaml.
+    Dieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code.
+    """
+
+    JUNIOR = "junior"  # Einsteiger / Analyst / Junior Developer
+    PROFESSIONAL = "professional"  # Erfahrener Berater / Fachexperte
+    SENIOR = "senior"  # Senior / Manager / Principal Expert
+    MIXED = "mixed"  # Heterogenes Team — Config nutzt konfigurierten Mittelwert

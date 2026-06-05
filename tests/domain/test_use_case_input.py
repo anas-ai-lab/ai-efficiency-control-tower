@@ -1,43 +1,73 @@
-"""Tests für UseCaseInput — TDD: erst Tests, dann Implementation."""
+"""Tests für UseCaseInput — Pydantic V2 Validierung."""
 
 import pytest
 from pydantic import ValidationError
 
-from aect.domain.models import EvidenceQuality, UseCaseInput
+from aect.domain.models import UseCaseInput
+from aect.domain.types import (
+    DataClassification,
+    EvidenceLevel,
+)
+
+# Zentrale Fixture — alle Pflichtfelder korrekt befüllt.
+# Wird in Validierungs-Tests via {**VALID_PAYLOAD, "feld": "ungültig"} überschrieben.
+VALID_PAYLOAD: dict = {
+    "title": "Automatische Rechnungsprüfung im AP-Prozess",
+    "submitter": "Maria Muster",
+    "department": "Finanzen",
+    "current_state": "Rechnungen werden manuell geprüft, 3 FTEs, durchschnittlich 2 Stunden pro Rechnung",
+    "desired_state": "KI prüft Rechnungen vor, Mensch entscheidet nur noch bei Ausreißern und Grenzfällen",
+    "example_process": "Eingehende Rechnung → PDF-Extraktion → Regelprüfung → Freigabe",
+    "time_savings_hours_per_case": 0.2,
+    "frequency_per_year": 7200,
+    "affected_employees_count": 6,
+    "employee_category": "professional",
+    "adoption_type": "mandatory",
+    "implementation_approach": "vendor_solution",
+    "implementation_complexity": 3,
+    "data_classification": "personal",
+}
 
 
 class TestUseCaseInputValideEingaben:
     """Happy-Path: gültige Eingaben müssen durchgehen."""
 
     def test_minimale_pflichtfelder(self) -> None:
-        """Nur Pflichtfelder — alle optionalen Felder fehlen."""
-        uc = UseCaseInput(
-            title="Automatische Rechnungsprüfung",
-            submitter="Maria Muster",
-            department="Finanzen",
-            current_state="Rechnungen werden manuell geprüft, 3 FTEs, 2h/Rechnung",
-            desired_state="KI prüft Rechnungen vor, Mensch entscheidet nur noch bei Ausreißern",
-            example_process="Eingehende Rechnung → PDF-Extraktion → Regelprüfung → Freigabe",
-        )
-        assert uc.title == "Automatische Rechnungsprüfung"
-        assert uc.contains_pii is False  # sicherer Default
+        model = UseCaseInput.model_validate(VALID_PAYLOAD)
+        assert model.title == "Automatische Rechnungsprüfung im AP-Prozess"
+        assert model.contains_pii is False
+        assert model.evidence_level is EvidenceLevel.PURE_ESTIMATE
+        assert model.estimated_license_cost_eur == 0.0
 
     def test_alle_felder_gueltig(self) -> None:
-        """Vollständige Eingabe mit allen optionalen Feldern."""
-        uc = UseCaseInput(
-            title="Ticket-Klassifizierung IT-Support",
-            submitter="Klaus Klein",
-            department="IT",
-            current_state="Tickets landen im allgemeinen Postfach, manuelle Zuweisung",
-            desired_state="Automatische Kategorisierung und Zuweisung in <30s",
-            example_process="Ticket eingehend → Kategorie bestimmen → Queue zuweisen",
-            contains_pii=True,
-            evidence_quality=EvidenceQuality.ESTIMATE,
-            time_savings_hours_per_case=0.5,
-            frequency_per_year=5000,
+        model = UseCaseInput.model_validate(
+            {
+                **VALID_PAYLOAD,
+                "contains_pii": True,
+                "evidence_level": "similar_project",
+                "estimated_license_cost_eur": 18_000.0,
+                "regulatory_pressure": True,
+                "competitive_pressure": True,
+                "strategic_priority": True,
+            }
         )
-        assert uc.contains_pii is True
-        assert uc.evidence_quality == EvidenceQuality.ESTIMATE
+        assert model.contains_pii is True
+        assert model.evidence_level is EvidenceLevel.SIMILAR_PROJECT
+        assert model.regulatory_pressure is True
+
+    def test_alle_evidence_levels_akzeptiert(self) -> None:
+        for level in EvidenceLevel:
+            model = UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "evidence_level": level.value}
+            )
+            assert model.evidence_level is level
+
+    def test_alle_data_classifications_akzeptiert(self) -> None:
+        for dc in DataClassification:
+            model = UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "data_classification": dc.value}
+            )
+            assert model.data_classification is dc
 
 
 class TestUseCaseInputValidierung:
@@ -45,87 +75,68 @@ class TestUseCaseInputValidierung:
 
     def test_leerer_title_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="",  # leer → ungültig
-                submitter="Test",
-                department="Test",
-                current_state="IST",
-                desired_state="SOLL",
-                example_process="Beispiel",
-            )
+            UseCaseInput.model_validate({**VALID_PAYLOAD, "title": ""})
 
     def test_title_zu_lang_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="x" * 201,  # max_length=200 → überschritten
-                submitter="Test",
-                department="Test",
-                current_state="IST",
-                desired_state="SOLL",
-                example_process="Beispiel",
-            )
+            UseCaseInput.model_validate({**VALID_PAYLOAD, "title": "x" * 201})
 
     def test_current_state_zu_lang_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="Titel",
-                submitter="Test",
-                department="Test",
-                current_state="x" * 2001,  # max_length=2000 → überschritten
-                desired_state="SOLL",
-                example_process="Beispiel",
-            )
+            UseCaseInput.model_validate({**VALID_PAYLOAD, "current_state": "x" * 2001})
 
     def test_extra_felder_werden_abgelehnt(self) -> None:
-        """extra='forbid' — unbekannte Felder dürfen nicht durchkommen."""
-        with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="Titel",
-                submitter="Test",
-                department="Test",
-                current_state="IST",
-                desired_state="SOLL",
-                example_process="Beispiel",
-                unbekanntes_feld="sollte nicht gehen",  # extra-Feld
+        with pytest.raises(ValidationError) as exc_info:
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "unbekanntes_feld": "sollte nicht gehen"}
             )
+        assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
     def test_negative_time_savings_werden_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="Titel",
-                submitter="Test",
-                department="Test",
-                current_state="IST",
-                desired_state="SOLL",
-                example_process="Beispiel",
-                time_savings_hours_per_case=-1.0,  # negativ → ungültig
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "time_savings_hours_per_case": -1.0}
+            )
+
+    def test_time_savings_ueber_8h_wird_abgelehnt(self) -> None:
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "time_savings_hours_per_case": 8.01}
             )
 
     def test_negative_frequency_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
-            UseCaseInput(
-                title="Titel",
-                submitter="Test",
-                department="Test",
-                current_state="IST",
-                desired_state="SOLL",
-                example_process="Beispiel",
-                frequency_per_year=-100,
+            UseCaseInput.model_validate({**VALID_PAYLOAD, "frequency_per_year": -100})
+
+    def test_complexity_unter_1_wird_abgelehnt(self) -> None:
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "implementation_complexity": 0}
             )
+
+    def test_complexity_ueber_5_wird_abgelehnt(self) -> None:
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "implementation_complexity": 6}
+            )
+
+    def test_ungueltige_adoption_type_wird_abgelehnt(self) -> None:
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate({**VALID_PAYLOAD, "adoption_type": "optional"})
+
+
+class TestUseCaseInputImmutability:
+    """frozen=True — Instanzen sind nach Erstellung unveränderlich."""
+
+    def test_zuweisung_nach_erstellung_wirft_fehler(self) -> None:
+        model = UseCaseInput.model_validate(VALID_PAYLOAD)
+        with pytest.raises(ValidationError):
+            model.title = "Mutation"  # type: ignore[misc]
 
 
 class TestUseCaseInputModelValidate:
     """model_validate() vs. direkter Konstruktor — Verhalten bei Dict-Input."""
 
     def test_model_validate_aus_dict(self) -> None:
-        """model_validate() akzeptiert ein Dict — wichtig für JSON-Payloads."""
-        data = {
-            "title": "Aus Dictionary",
-            "submitter": "Test",
-            "department": "Test",
-            "current_state": "IST",
-            "desired_state": "SOLL",
-            "example_process": "Beispiel",
-        }
-        uc = UseCaseInput.model_validate(data)
-        assert uc.title == "Aus Dictionary"
+        model = UseCaseInput.model_validate(VALID_PAYLOAD)
+        assert model.title == "Automatische Rechnungsprüfung im AP-Prozess"
