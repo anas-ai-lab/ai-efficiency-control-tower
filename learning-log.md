@@ -364,3 +364,62 @@ auch wenn `repo` vorhanden ist.
 Security-Scanning in CI von Anfang an — nicht als Audit nachträglich.
 pip-audit hat heute bewiesen warum: reale CVEs kommen über transitive
 Dependencies, nicht über direkte Imports.
+
+## Tag 13 — 2026-06-05
+
+### Was sind ADRs und warum schreibt man sie?
+
+ADR steht für Architecture Decision Record — ein kurzes Dokument, das festhält,
+warum eine technische Entscheidung so getroffen wurde wie sie getroffen wurde.
+Nicht nur was entschieden wurde, sondern: welches Problem war vorher da, welche
+Alternativen wurden erwogen, und warum wurden sie verworfen.
+
+Der Grund dafür ist praktisch: In drei Monaten weiß man nicht mehr, warum man
+damals Azure OpenAI statt einem anderen Anbieter genommen hat. Im Interview weiß
+man es auch nicht, wenn man es nie aufgeschrieben hat. ADRs machen aus einem
+Zufallsergebnis eine verteidigbare Entscheidung.
+
+Heute entstanden drei: eine für die Toolchain (warum uv, ruff, mypy), eine für die
+Architektur (warum Hexagonal), eine für den LLM-Ansatz (warum Azure, warum Mock-First).
+Jede hat eine Tabelle mit verworfenen Alternativen — das ist der wichtigste Teil.
+
+### Was heute mit pre-commit passiert ist — und warum es normal ist
+
+pre-commit lief heute zweimal und schlug beide Male fehl. Das klingt nach einem Problem,
+ist aber das korrekte Verhalten.
+
+Was passiert ist: Die ADR-Dateien fehlten am Ende ein Zeilenumbruch (`end-of-file-fixer`)
+und hatten trailing whitespace (Leerzeichen am Zeilenende). pre-commit hat beides
+automatisch korrigiert — aber damit hat es die Dateien verändert, während sie schon
+für den Commit vorgemerkt waren.
+
+Das führt zu einem scheinbar widersprüchlichen git-Status: die Datei erscheint
+gleichzeitig als "staged" (alte Version, vorgemerkt) und "unstaged" (neue Version,
+von pre-commit korrigiert). Der Commit schlägt fehl weil git nur die ursprüngliche,
+noch nicht bereinigte Version committen würde.
+
+Lösung: `git add -A` auf den aktuellen Stand (die von pre-commit bereinigten Dateien),
+dann erst committen. Beim zweiten Anlauf findet pre-commit nichts mehr zu fixen.
+
+Das ist kein Fehler im Setup — es ist die Absicht. pre-commit ist ein Qualitätsfilter,
+der Probleme automatisch behebt statt sie durchzulassen. Der Preis dafür ist ein
+zweistufiger Workflow wenn Hooks Dateien anfassen.
+
+**Konsequenz für das Projekt:** In jedem Tagesabschluss-Commit: wenn pre-commit
+Dateien modifiziert hat, immer nochmal `git add -A` bevor `git commit`.
+Das ist keine Ausnahme — das ist der Normalfall.
+
+### Was der "modified: Makefile" in git status bedeutet
+
+git status zeigte heute "modified: Makefile" statt "new file: Makefile". Das bedeutet:
+die Datei existierte bereits im Repository. Tag 12 (GitHub Actions CI) war also
+tatsächlich schon erledigt — der Tracker-Hinweis "planned, not executed" war zu
+pessimistisch. `git log` und `git ls-files` sind die einzige verlässliche Quelle
+für den echten Projekt-Stand — nicht Notizen, nicht Erinnerungen.
+
+### Was als nächstes kommt
+
+Tag 14 startet Phase A: die Domain-Schicht und die Regel-Engine. Das ist der
+wertvollste Teil des Projekts — das Bewertungsmodell deterministisch in Code übersetzen.
+Vor dem ersten Phase-A-Guide gibt es einen Pflicht-Check: `git ls-files src/` und
+`uv run pytest -q`. Erst wenn der Stand verifiziert ist, kommt der Guide.
