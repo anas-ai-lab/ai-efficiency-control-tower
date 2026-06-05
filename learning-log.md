@@ -528,3 +528,55 @@ späteren Phasen.
 Was ist der konkrete Unterschied zwischen `UseCaseInput.model_validate(dict)`
 und `UseCaseInput(**dict)` in Pydantic V2 — und wann schlägt eines fehl,
 obwohl das andere durchgeht?
+
+## Tag 16 — 06.06.2026
+
+### ROI-Engine: Warum eine Berechnung "pure" sein sollte
+
+Eine "pure function" klingt technisch, ist aber eine einfache Idee: gleiche
+Eingaben → immer gleiche Ausgabe, ohne versteckte Abhängigkeiten. Die
+ROI-Berechnung ist so gebaut — sie braucht weder eine Datenbankverbindung
+noch einen globalen Zustand, nur die Zahlen die man ihr gibt. Warum wichtig?
+Weil man sie dann in Tests beliebig oft mit beliebigen Werten aufrufen kann,
+ohne Setup-Overhead. Und weil sie deterministisch ist: kein "manchmal passt
+das Ergebnis, manchmal nicht".
+
+### property-based Testing: Eigenschaften statt Beispiele prüfen
+
+Klassische Tests prüfen konkrete Fälle: "bei diesen Eingaben erwarte ich
+genau diesen Wert." property-based Tests prüfen eine mathematische Eigenschaft
+für alle möglichen Eingaben: "egal welche Faktoren zwischen 0 und 1 ich wähle,
+der erwartete Nutzen darf das theoretische Potenzial nie übersteigen."
+
+Das Werkzeug `hypothesis` generiert automatisch hunderte Kombinationen und
+sucht aktiv nach Gegenbeispielen. Der Vorteil: man prüft nicht nur die Fälle,
+an die man beim Schreiben gedacht hat, sondern systematisch den Rand des
+Möglichen. Invarianten wie "Nutzen ≤ Potenzial" sind exakt die Art von
+Regel, die in komplexen Berechnungen schleichend gebrochen werden kann.
+
+### IP-Trennung durch Config-Injektion
+
+Die Stundensätze in diesem Projekt sind firmeneigene Zahlen — sie dürfen
+nicht in ein öffentliches Repo. Die Lösung ist architektonisch: `ROIConfig`
+ist ein unveränderliches Objekt, das von außen befüllt wird. Die Berechnung
+selbst enthält keine Zahlen, nur die Formel. Echte Werte kommen aus einer
+gitignorierten lokalen Datei, Platzhalter aus einer committed generischen
+Datei.
+
+Das ist kein Disziplin-Merkmal ("man sollte das so machen") sondern eine
+Architektur-Eigenschaft: wer keine Config übergibt, kann die Funktion nicht
+aufrufen. Der Fehler ist strukturell unmöglich, nicht nur unwahrscheinlich.
+
+### Was das hatchling/uv-Problem zeigt
+
+Das Build-Backend (das Werkzeug, das Python-Pakete für die Entwicklungsumgebung
+installierbar macht) hat einen stillen Fehler produziert: `uv run pytest`
+lief grün, `uv run python` schlug fehl. Das war möglich, weil pytest eine
+eigene Pfad-Einstellung hatte, die den Fehler maskierte. Fazit: ein Testlauf
+allein ist kein Beweis, dass das Paket korrekt installiert ist. Nach jedem
+Package-Manager-Lauf (uv sync, uv add) den Import auch direkt prüfen,
+nicht nur über pytest.
+
+Das Build-Backend wurde auf setuptools gewechselt — weniger modern als
+hatchling, aber in dieser Kombination zuverlässiger. Für ein Portfolio-Projekt
+zählt Stabilität mehr als technische Aktualität des Build-Systems.
