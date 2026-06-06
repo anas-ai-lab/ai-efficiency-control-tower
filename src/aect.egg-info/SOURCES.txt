@@ -8,7 +8,9 @@ src/aect.egg-info/dependency_links.txt
 src/aect.egg-info/requires.txt
 src/aect.egg-info/top_level.txt
 src/aect/domain/__init__.py
+src/aect/domain/filters.py
 src/aect/domain/models.py
 src/aect/domain/roi.py
+src/aect/domain/scoring.py
 src/aect/domain/types.py
 tests/test_smoke.py
