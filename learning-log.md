@@ -630,3 +630,65 @@ Das Muster tritt bei Texten wie `"Wert muss 1–5 sein"` auf — schreibt man de
 **Frage:** "Was ist der Unterschied zwischen einem installierten Python-Paket und einem importierbaren?"
 
 **Antwort:** Bei einem `src`-Layout muss der Build-Backend explizit konfiguriert sein, damit er weiß, wo im Projektverzeichnis der Code liegt. Ohne diese Konfiguration erstellt die editable Installation eine `.pth`-Datei, die auf den falschen Pfad zeigt. Das Paket gilt als installiert, ist aber nicht auffindbar. pytest verdeckt das Problem durch seine eigene `pythonpath`-Konfiguration — weshalb Tests grün sind, während `python -c "import paket"` scheitert.
+
+## Tag 18 — 2026-06-07: Wie ein System aus Zahlen ein Urteil macht
+
+### Was gebaut wurde
+
+Das System kann jetzt aus den berechneten ROI-Zahlen automatisch entscheiden,
+in welche von drei Kategorien ein Use Case fällt: kaum lohnenswert,
+vertretbar mit Risiken, oder klarer Gewinner. Diese Entscheidung heißt
+Zonen-Klassifikation.
+
+Zusätzlich gibt es jetzt eine Qualitätsprüfung: Bevor das System überhaupt
+rechnet, schaut es nach ob die Beschreibung konkret genug ist. Wer nur
+„wir wollen effizienter werden" einreicht, bekommt keine Bewertung —
+sondern einen konkreten Hinweis was fehlt.
+
+### Das Wichtigste: Regeln vor KI
+
+Das klingt banal, ist es aber nicht. Die meisten KI-Projekte lassen das
+Modell entscheiden was gut oder schlecht ist. Hier ist es umgekehrt:
+Die Entscheidung LIKELY_WIN oder MARGINAL_GAIN trifft reiner Code —
+keine KI, keine Zufälligkeit, kein Halluzinieren. Das hat drei Vorteile:
+
+1. **Reproduzierbar.** Gleiche Zahlen → immer gleiche Zone. Das kann man
+   in einem Interview vorführen und verteidigen.
+2. **Testbar.** Man kann beweisen dass das System korrekt funktioniert —
+   nicht nur hoffen.
+3. **Vertrauenswürdig.** Wenn die KI später einen Lösungsvorschlag macht,
+   hat das System bereits eine überprüfte Grundlage — die KI-Ausgabe wird
+   gegen die Regel-Ausgabe gemessen, nicht umgekehrt.
+
+### Property-based Testing — warum normale Tests nicht reichen
+
+Normale Tests prüfen handverlesene Beispiele: „Wenn Nutzen 75.000 EUR und
+Score 2, dann LIKELY_WIN." Das ist wichtig. Aber es beweist nicht ob die
+Logik *immer* korrekt ist.
+
+Property-based Tests (mit dem Tool Hypothesis) generieren automatisch
+Hunderte von zufälligen Eingaben und prüfen ob eine mathematische Eigenschaft
+immer gilt. Heute wurden zwei solche Eigenschaften bewiesen:
+
+- Handlungsdruck kann eine Zone nur verbessern, nie verschlechtern.
+- Mehr erwarteter Nutzen ergibt immer die gleiche oder eine bessere Zone
+  (nie eine schlechtere).
+
+Das ist der Unterschied zwischen „es funktioniert in meinen Beispielen"
+und „es funktioniert immer".
+
+### Konfiguration statt Hartkodierung — warum das rechtlich relevant ist
+
+Die Schwellenwerte (ab welchem Nutzen ist ein Use Case LIKELY_WIN?) stehen
+nicht im Code, sondern in einer separaten Konfigurationsdatei. Das ist keine
+technische Spielerei — es ist eine rechtliche Absicherung. Der Code ist
+generisch und zeigbar; die firmenspezifischen Werte bleiben intern.
+(Hintergrund: interne Referenz (entfernt), vertragliche Verpflichtung.)
+
+### Bugs die heute aufgetaucht sind
+
+Der schlimmste war wieder der Editable-Install-Bug: Nach jedem
+`uv add` (Paket installieren) verliert das Venv (die Python-Umgebung)
+den Verweis auf das eigene Projekt. Fix ist immer gleich:
+`uv pip install -e . --reinstall`. Das wird in den Standard-Ablauf
+für Tag 19 eingebaut.
