@@ -259,16 +259,30 @@ def _calculate_roi_values(
 # ---------------------------------------------------------------------------
 
 
-def calculate_roi(input: UseCaseInput, config: ROIConfig) -> ROIResult:
+def calculate_roi(
+    input: UseCaseInput,
+    config: ROIConfig,
+    country: str = "DE",
+) -> ROIResult:
     """Öffentlicher Einstiegspunkt: UseCaseInput → ROIResult.
 
-    TODO: Adapter-Implementierung nach Schritt 0 (Feldnamen aus models.py verifizieren).
-    Erwartete Felder: employee_country, employee_category, time_saved_per_occurrence_hours,
-    occurrences_per_period, frequency_unit, employees_affected, license_cost_annual_eur,
-    adoption_type, evidence_level.
-    NotImplementedError entfernen und Feldnamen eintragen sobald verifiziert.
+    Mappt UseCaseInput-Felder auf _calculate_roi_values().
+
+    frequency_per_year ist bereits ein Jahreswert → frequency_unit_value="ANNUALLY"
+    (Multiplikator 1) übergibt es unverändert an _to_annual_hours().
+
+    country: ISO-Kürzel für Stundensatz-Lookup (muss in roi_config.toml vorhanden sein).
+    Unbekanntes country → _calculate_roi_values liefert theoretical_potential=0.
     """
-    raise NotImplementedError(
-        "calculate_roi-Adapter: Feldnamen aus models.py in Schritt 0 prüfen, "
-        "dann _calculate_roi_values(...) mit den echten Feldnamen aufrufen."
+    return _calculate_roi_values(
+        employee_country=country,
+        employee_category_value=input.employee_category.value,
+        time_saved_per_occurrence_hours=input.time_savings_hours_per_case,
+        occurrences_per_period=float(input.frequency_per_year),
+        frequency_unit_value="ANNUALLY",
+        employees_affected=input.affected_employees_count,
+        license_cost_annual_eur=input.estimated_license_cost_eur,
+        adoption_type_value=input.adoption_type.value,
+        evidence_level_value=input.evidence_level.value,
+        config=config,
     )

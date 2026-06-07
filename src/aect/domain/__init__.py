@@ -1,8 +1,8 @@
-"""AECT Domain-Schicht — öffentliche API.
+"""AECT Domain-Schicht -- oeffentliche API.
 
 Hexagonal Architecture: Die Domain-Schicht ist die innerste Schicht.
 Erlaubte Imports: Standard-Library, Pydantic.
-Verbotene Imports: aect.adapters, aect.application (würde Dependency
+Verbotene Imports: aect.adapters, aect.application (wuerde Dependency
 Inversion verletzen).
 """
 
@@ -14,6 +14,7 @@ from aect.domain.feasibility import (
 from aect.domain.filters import FilterResult, apply_prefilter
 from aect.domain.models import UseCaseInput
 from aect.domain.roi import ROIConfig, ROIResult, calculate_roi, load_roi_config
+from aect.domain.routing import RoutingRecommendation, RoutingResult, route_use_case
 from aect.domain.scoring import CompositeScore, compute_composite_score
 from aect.domain.types import (
     AdoptionType,
@@ -45,6 +46,9 @@ __all__ = [
     # roi
     "ROIConfig",
     "ROIResult",
+    # routing
+    "RoutingRecommendation",
+    "RoutingResult",
     "TriageZone",
     # models
     "UseCaseInput",
@@ -56,4 +60,5 @@ __all__ = [
     "compute_composite_score",
     "load_roi_config",
     "load_zone_classifier",
+    "route_use_case",
 ]
