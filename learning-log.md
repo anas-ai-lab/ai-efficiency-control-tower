@@ -692,3 +692,48 @@ Der schlimmste war wieder der Editable-Install-Bug: Nach jedem
 den Verweis auf das eigene Projekt. Fix ist immer gleich:
 `uv pip install -e . --reinstall`. Das wird in den Standard-Ablauf
 für Tag 19 eingebaut.
+
+## Tag 19 — 07.06.2026 — AI-vs-Automation-Router + Umgebungsreparatur
+
+### Was heute passiert ist
+
+Das System hat heute eine Weiche bekommen. Vorher konnte es Use Cases bewerten
+(Nutzen, Kosten, Risiko). Jetzt kann es auch entscheiden, *welche Technologie*
+für einen Use Case geeignet ist: klassische Automatisierung (wenn der Prozess
+einfach und gleichförmig ist), KI (wenn er komplex und mehrdeutig ist), oder
+menschliche Prüfung (wenn Datenschutzrisiken im Spiel sind).
+
+Diese Entscheidung passiert ohne KI-Modell — durch klare, testbare Regeln.
+Nur wenn das System zu keinem klaren Ergebnis kommt (BORDERLINE), kommt in
+einer späteren Phase ein KI-Modell zur Verfeinerung.
+
+### Was gelernt wurde — und warum es wichtig ist
+
+**Lesson 1 — Präzise Fehlertypen beim Testen.**
+Frozen Dataclasses (Objekte die nach der Erstellung nicht mehr verändert werden
+dürfen) schützen sich über einen speziellen Fehlertyp: `FrozenInstanceError`.
+Ein Test der nur auf "irgendeinen Fehler" wartet (`Exception`) prüft nicht wirklich
+ob das Objekt unveränderlich ist — er besteht selbst dann, wenn kein Fehler
+ausgelöst wird. Lesson: Im Test immer den *spezifischen* Fehler nennen den man
+erwartet, nie den allgemeinen.
+
+**Lesson 2 — TOML-Keys müssen exakt mit Code-Konstanten übereinstimmen.**
+Die Konfigurationsdatei hatte Schlüssel in Großbuchstaben (`PROFESSIONAL`),
+der Code aber erwartete Kleinbuchstaben (`professional`). Da Python bei fehlenden
+Schlüsseln einen Standard-Wert zurückgibt statt zu werfen, lief die Berechnung
+stillschweigend falsch (Stundensatz = 0, Potenzial = 0). Solche "silent failures"
+sind gefährlicher als Abstürze — sie sehen von außen korrekt aus. Lesson: Enum-
+Werte und Config-Keys von Anfang an auf denselben Standard festlegen.
+
+**Lesson 3 — Umgebungsdiagnose vor Code-Diagnose.**
+Zwei Stunden wurden (in einer früheren Session) damit verbracht, den falschen
+Schuldigen zu suchen (setuptools vs. hatchling), während das eigentliche Problem
+ein doppeltes Verzeichnis im `.venv` war. Lesson: Wenn Python-Imports schweigen,
+erst die Umgebung prüfen (`find .venv -name "*.pth"`, `ls .venv/lib/`) — bevor
+man den Build-Mechanismus verdächtigt.
+
+### Zahlen
+- 120 Tests grün
+- 98% Coverage über alle Domain-Module
+- 7 von 7 Phase-A-Modulen gebaut
+- 1 Umgebungsfehler diagnostiziert + behoben
