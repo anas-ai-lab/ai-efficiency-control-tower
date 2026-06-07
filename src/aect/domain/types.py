@@ -72,3 +72,16 @@ class EmployeeCategory(StrEnum):
     PROFESSIONAL = "professional"  # Erfahrener Berater / Fachexperte
     SENIOR = "senior"  # Senior / Manager / Principal Expert
     MIXED = "mixed"  # Heterogenes Team — Config nutzt konfigurierten Mittelwert
+
+
+class TriageZone(StrEnum):
+    """Outcome zone for AECT use-case triage.
+
+    MARGINAL_GAIN: insufficient benefit or excessive complexity.
+    CALCULATED_RISK: viable with caveats — proceed with caution.
+    LIKELY_WIN: high benefit, manageable complexity.
+    """
+
+    MARGINAL_GAIN = "MARGINAL_GAIN"
+    CALCULATED_RISK = "CALCULATED_RISK"
+    LIKELY_WIN = "LIKELY_WIN"

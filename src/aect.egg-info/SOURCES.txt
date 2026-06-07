@@ -13,4 +13,5 @@ src/aect/domain/models.py
 src/aect/domain/roi.py
 src/aect/domain/scoring.py
 src/aect/domain/types.py
+src/aect/domain/zones.py
 tests/test_smoke.py

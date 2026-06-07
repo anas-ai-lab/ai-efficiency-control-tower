@@ -1,0 +1,25 @@
+# Zone classification thresholds for AECT triage.
+# INTERNAL — use generic placeholder values only.
+# This file uses generic placeholders only (IP separation: interne Referenz (entfernt) §5).
+
+zone:
+  likely_win:
+    # Qualifies as LIKELY_WIN if:
+    # expected_benefit >= min AND composite_score <= max
+    min_expected_benefit_eur: 50000.0
+    max_composite_score: 4
+
+  calculated_risk:
+    # Qualifies as CALCULATED_RISK if:
+    # expected_benefit >= min AND composite_score <= max
+    # (and does not qualify as LIKELY_WIN)
+    min_expected_benefit_eur: 5000.0
+    max_composite_score: 7
+
+  # Everything below calculated_risk thresholds -> MARGINAL_GAIN
+
+handlungsdruck:
+  # If handlungsdruck_score >= this threshold, zone is elevated by one step:
+  # MARGINAL_GAIN -> CALCULATED_RISK, CALCULATED_RISK -> LIKELY_WIN
+  # (LIKELY_WIN stays LIKELY_WIN — already at maximum)
+  elevation_threshold: 4  # integer, 1-5 scale
