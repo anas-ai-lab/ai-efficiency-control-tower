@@ -580,3 +580,53 @@ nicht nur über pytest.
 Das Build-Backend wurde auf setuptools gewechselt — weniger modern als
 hatchling, aber in dieser Kombination zuverlässiger. Für ein Portfolio-Projekt
 zählt Stabilität mehr als technische Aktualität des Build-Systems.
+
+# Learning-Log — Tag 17
+**Datum:** 2026-06-07
+**Thema:** Vorfilter, Composite-Score, src-Layout-Falle
+
+---
+
+## Was heute gelernt wurde
+
+### 1. Warum ein installiertes Paket trotzdem nicht importierbar ist
+
+Das klingt paradox: `uv pip list` zeigt das Paket als installiert an — aber `import aect` schlägt mit `ModuleNotFoundError` fehl. Wie geht das?
+
+Bei einem "src-Layout" liegt der Code nicht direkt im Projektordner, sondern in einem Unterordner namens `src/`. Das ist eine bewusste Designentscheidung: es verhindert, dass man versehentlich den lokalen Code importiert, anstatt das wirklich installierte Paket.
+
+Das Problem entsteht bei der Installation: Python erstellt eine kleine Textdatei (`.pth`-Datei) im `site-packages`-Ordner, die Python sagt "schau auch in diesem Verzeichnis nach". Wenn der Build-Backend (hier: hatchling) nicht explizit weiß, dass der Code in `src/` liegt, schreibt er den Pfad zum Projekt-Root in diese Datei — zum Beispiel `/Users/.../ai-efficiency-control-tower`. Python sucht dann nach einem Ordner namens `aect` direkt darin. Der existiert aber nicht — der Ordner heißt `src`, und `aect` liegt darin.
+
+**Fix:** In `pyproject.toml` unter `[tool.hatch.build.targets.wheel]` den Eintrag `packages = ["src/aect"]` ergänzen. Damit weiß hatchling: der Code für das Paket liegt in `src/aect/`, nicht im Root.
+
+**Warum pytest das Problem nie gesehen hat:** pytest hat in seiner Konfiguration (`pyproject.toml` unter `[tool.pytest.ini_options]`) die Zeile `pythonpath = ["src"]` — das fügt `src/` automatisch zum Python-Suchpfad hinzu, bevor die Tests laufen. Deshalb funktionieren Tests, aber `python -c "import aect"` nicht. Pytest hat das Problem also verdeckt.
+
+**Was das für Phase B bedeutet:** Wenn FastAPI gestartet wird, braucht es das gleiche Paket. Ohne diesen Fix wäre der Server-Start in Phase B mit dem gleichen Fehler gescheitert. Besser jetzt als dann.
+
+---
+
+### 2. Warum Vorfilter und Composite-Score getrennte Module sind — obwohl beide "Regeln" sind
+
+Beide sind deterministisch und beide stehen in Phase A. Trotzdem sind sie getrennt, weil sie unterschiedliche Fragen beantworten:
+
+Der **Vorfilter** ist ein binäres Gate: pass oder fail. Wenn ein Use Case die Mindesthürden nicht nimmt, ist die Bewertung vorbei — alles andere wäre Zeitverschwendung. Das ist eine ja/nein-Entscheidung.
+
+Der **Composite-Score** ist eine kontinuierliche Einschätzung: wie aufwändig ist dieser Use Case in der Umsetzung, auf einer Skala von 2 bis 10? Das ist keine Ja/Nein-Frage, sondern eine Einordnung.
+
+Beide in eine Funktion zu packen wäre technisch möglich — aber dann hätte die Funktion zwei verschiedene Verantwortlichkeiten. Eine Funktion, eine Verantwortlichkeit ist ein Grundprinzip sauberer Software. Separate Module lassen sich außerdem separat testen, separat erweitern, und separat erklären.
+
+---
+
+### 3. RUF001 — En-Dash vs. Hyphen (zum zweiten Mal)
+
+Das `–`-Zeichen (En-Dash, Unicode U+2013) sieht im Code aus wie ein Bindestrich, ist aber keiner. Ruff fängt das mit RUF001 ab, weil es in Code-Kontexten nahezu immer ein versehentlich eingefügtes falsches Zeichen ist.
+
+Das Muster tritt bei Texten wie `"Wert muss 1–5 sein"` auf — schreibt man den Bereich mit einem echten Bindestrich `-`, wäre es `"Wert muss 1-5 sein"`. Kleiner Unterschied, aber Ruff blockiert den Commit konsequent. Fix ist trivial (`sed` ersetzt alle Vorkommen), aber es wäre besser, es von Anfang an richtig zu schreiben.
+
+---
+
+## Interview-taugliche Formulierung
+
+**Frage:** "Was ist der Unterschied zwischen einem installierten Python-Paket und einem importierbaren?"
+
+**Antwort:** Bei einem `src`-Layout muss der Build-Backend explizit konfiguriert sein, damit er weiß, wo im Projektverzeichnis der Code liegt. Ohne diese Konfiguration erstellt die editable Installation eine `.pth`-Datei, die auf den falschen Pfad zeigt. Das Paket gilt als installiert, ist aber nicht auffindbar. pytest verdeckt das Problem durch seine eigene `pythonpath`-Konfiguration — weshalb Tests grün sind, während `python -c "import paket"` scheitert.
