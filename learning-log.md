@@ -737,3 +737,44 @@ man den Build-Mechanismus verdächtigt.
 - 98% Coverage über alle Domain-Module
 - 7 von 7 Phase-A-Modulen gebaut
 - 1 Umgebungsfehler diagnostiziert + behoben
+
+
+## Tag 20 — 09. Juni 2026 — Domain Pipeline + Phase A Gate
+
+### Was gebaut wurde
+Der letzte Baustein von Phase A: eine zentrale Funktion, die alle
+bisherigen Regelmodule in der richtigen Reihenfolge aufruft.
+
+Stell dir vor, du hast in den letzten Wochen einzelne Maschinen gebaut:
+eine die ROI berechnet, eine die filtert, eine die Zonen klassifiziert.
+Heute wurde die Fertigungsstraße gebaut, die all diese Maschinen
+nacheinander bedient und am Ende einen vollständigen Befund ausspuckt.
+
+### Die wichtigste technische Erkenntnis
+Die Reihenfolge der Schritte ist nicht egal. Der Vorfilter prüft:
+"Lohnt sich das Potenzial überhaupt?" — aber um das zu wissen, braucht
+er die ROI-Berechnung. Also muss ROI zuerst laufen, Vorfilter danach.
+Das klingt offensichtlich, war aber im Code nicht klar dokumentiert —
+und hat mehrere Fehlerschleifen produziert.
+
+### Was das für das Projekt bedeutet
+Phase A ist jetzt vollständig und verteidigbar:
+- Das deterministische Bewertungsmodell läuft von Anfang bis Ende durch
+- 10 realistische Testfälle prüfen automatisch ob alles noch stimmt
+- 98% Code-Abdeckung bedeutet: fast jede Zeile wurde durch Tests ausgeführt
+
+### Die ehrliche Rückmeldung
+Tag 20 hat doppelt so lange gedauert wie geplant. Ursache: Ich habe
+Funktions-Signaturen geraten statt nachgeschaut. Jede Funktion hat
+bestimmte Erwartungen an den Typ und Namen ihrer Parameter — wenn man
+das nicht kennt, scheitert der erste Aufruf mit einem Fehler, dann
+passt man an, scheitert wieder, und so weiter.
+
+Die Lektion: erst lesen, dann schreiben. Auch wenn es sich langsamer
+anfühlt — es ist schneller.
+
+### Was als nächstes kommt
+Tag 21: Dokumentation der Architektur-Entscheidungen (warum Regeln vor
+LLM, warum drei Zonen, warum Routing als separater Schritt). Das ist
+kein Overhead — das ist der Unterschied zwischen "Code der läuft" und
+"System das jemand anderes verstehen und weiterentwickeln kann".
