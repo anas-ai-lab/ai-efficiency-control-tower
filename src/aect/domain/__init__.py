@@ -13,6 +13,7 @@ from aect.domain.feasibility import (
 )
 from aect.domain.filters import FilterResult, apply_prefilter
 from aect.domain.models import UseCaseInput
+from aect.domain.pipeline import TriageResult, evaluate_use_case
 from aect.domain.roi import ROIConfig, ROIResult, calculate_roi, load_roi_config
 from aect.domain.routing import RoutingRecommendation, RoutingResult, route_use_case
 from aect.domain.scoring import CompositeScore, compute_composite_score
@@ -49,6 +50,7 @@ __all__ = [
     # routing
     "RoutingRecommendation",
     "RoutingResult",
+    "TriageResult",
     "TriageZone",
     # models
     "UseCaseInput",
@@ -58,6 +60,7 @@ __all__ = [
     "apply_prefilter",
     "calculate_roi",
     "compute_composite_score",
+    "evaluate_use_case",
     "load_roi_config",
     "load_zone_classifier",
     "route_use_case",
