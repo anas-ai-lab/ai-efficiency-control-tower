@@ -850,3 +850,39 @@ Namen überall. Das Ergebnis ist kürzer und lesbarer als das Original.
 153 Tests grün. pipeline.py jetzt 100% Coverage — die zwei offenen Stellen
 aus Tag 20 (die `_cost_tier`-Bänder und die `is_actionable`-Zweige)
 sind geschlossen. Phase A: fertig.
+
+## Tag 22 — Hexagonal Architecture: Ports, Adapter, Application Service
+
+**Was heute gebaut wurde:** Das Projekt hat jetzt drei Schichten mit klaren Grenzen.
+Die Domain-Schicht aus Phase A bleibt unverändert. Darüber kommt eine
+Application-Schicht, die orchestriert. Darunter hängen Adapter, die Infrastruktur
+liefern.
+
+**Port:** Ein Port ist ein Vertrag in Form von Code — er sagt "ich brauche etwas,
+das eine `now()`-Methode hat", ohne festzulegen, wer das liefert. Im echten Betrieb
+liefert es die Systemuhr, im Test eine Fake-Uhr mit fixer Zeit.
+
+**Adapter:** Ein Adapter ist die konkrete Umsetzung eines Vertrags. `InMemoryRepository`
+ist ein Adapter — er speichert Daten in einem Python-Dictionary im RAM, bis das
+Programm beendet wird. Später kommt ein SQLite-Adapter, der dieselbe Schnittstelle
+bedient aber dauerhaft speichert. Der Service bemerkt den Unterschied nicht.
+
+**Dependency Inversion:** Normalerweise hängt der "Chef-Code" (Service) am
+"Helfer-Code" (Datenbank). Dependency Inversion dreht das um: der Service kennt
+nur den Vertrag (Port), nicht den Helfer. Der Helfer passt sich an den Vertrag an,
+nicht umgekehrt. Konkreter verletzte Import wäre gewesen:
+`from aect.adapters.in_memory.repository import InMemoryRepository` direkt im Service.
+
+**Strukturelles Subtyping:** Python prüft bei `typing.Protocol` nicht ob ein Objekt
+explizit "ich bin ein Repository" deklariert hat — es prüft nur ob es die richtigen
+Methoden hat. `InMemoryRepository` erbt von nichts, hat aber `save/get/list_all` →
+mypy akzeptiert es als RepositoryPort. Wie ein Vertrag ohne Unterschrift, der nur
+durch tatsächliches Verhalten gilt.
+
+**SubmittedCase:** Ein Container-Objekt, das Input (was wurde eingereicht), Ergebnis
+(was hat die Regel-Engine berechnet), Zeitstempel und ID zusammenhält. Der Empfangsschein
+einer Einreichung.
+
+**Heute aufgetretene Fallen:**
+- `grep` ohne `--include="*.py"` durchsucht auch kompilierten Bytecode → immer mit Flag.
+- Datei ersetzen heisst: zuerst löschen, dann einfügen — nicht drüber schreiben.
