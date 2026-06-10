@@ -778,3 +778,75 @@ Tag 21: Dokumentation der Architektur-Entscheidungen (warum Regeln vor
 LLM, warum drei Zonen, warum Routing als separater Schritt). Das ist
 kein Overhead — das ist der Unterschied zwischen "Code der läuft" und
 "System das jemand anderes verstehen und weiterentwickeln kann".
+
+## Tag 21 — 10. Juni 2026 — ADRs, Phase-A-Review, ruff E402
+
+### Was heute passiert ist
+
+Phase A ist jetzt wirklich fertig — nicht nur der Code, sondern auch
+die Dokumentation der Entscheidungen dahinter. Drei ADRs und ein Review-Dokument.
+
+### Was ein ADR ist
+
+ADR steht für Architecture Decision Record — auf Deutsch: ein kurzes Dokument,
+das festhält warum eine technische Entscheidung so getroffen wurde wie sie
+getroffen wurde. Nicht nur "wir haben X gebaut", sondern "wir haben X gebaut,
+weil Y und Z — und A und B haben wir bewusst verworfen, weil...".
+
+Der Wert entsteht sechs Monate später, wenn jemand fragt: "Warum ist das so?"
+Statt aus dem Gedächtnis zu raten, gibt es eine Antwort mit Begründung.
+
+Heute entstanden drei:
+
+**ADR-001: ROI-Modell.** Warum alle Geldwerte mit Decimal statt float gerechnet
+werden. (Decimal ist eine Rechenart, die z.B. 0.1 + 0.2 korrekt als 0.3 ausgibt
+statt als 0.30000000000000004 — das ist bei Geldbeträgen nicht verhandelbar.)
+Warum das Modell keine Ausnahme wirft wenn ein unbekanntes Land eingeht,
+sondern stattdessen 0 zurückgibt und am Vorfilter scheitert. Warum alle
+Parameter dieser Funktion als benannte Argumente übergeben werden müssen —
+bei sieben Zahlen hintereinander ist die falsche Reihenfolge eine sichere
+Fehlerquelle ohne benannte Labels.
+
+**ADR-002: Zonen-Logik.** Warum der ZoneClassifier Zahlen bekommt und nicht
+das vollständige Eingabeobjekt. (Weil er dann unabhängig vom Rest testbar ist
+und bei Änderungen am Eingabeformat nicht angefasst werden muss.) Warum
+Handlungsdruck maximal eine Zone hochstuft — keine Überklassifikation.
+
+**ADR-003: AI-vs-Automation.** Warum BORDERLINE eine eigene Ausgabe ist
+statt einer Tie-Breaker-Heuristik. (Weil Phase C — die LLM-Schicht — das
+besser lösen kann als weitere Regeln. "Ich weiß es nicht" ist ehrlicher als
+eine geratene Empfehlung.)
+
+### Phase-A-Review: Technical Debt explizit benennen
+
+Das Review-Dokument enthält eine Tabelle mit offenen Schwachstellen,
+die bewusst nicht sofort behoben werden. Das klingt nach schlechter Praxis,
+ist aber das Gegenteil: wer Technical Debt nicht benennt, vergisst ihn.
+Wer ihn benennt, hat Kontrolle.
+
+Ein konkretes Beispiel aus heute: `_cost_tier()` in der Pipeline ist eine
+Hilfsfunktion, die Lizenzkosten in EUR auf eine Kostenstufe 1-3 abbildet.
+Das ist eine Schätzfunktion, kein echtes Eingabefeld — ein späteres
+`implementation_cost_level`-Feld im Eingabeschema wäre sauberer.
+Heute nicht gebaut, aber als Debt dokumentiert mit Priorität "niedrig"
+und Zeitpunkt "Post-v1".
+
+### Der Fehler heute: E402
+
+ruff ist das Tool das Code-Stilregeln prüft — wie ein automatischer Lektor
+für Programmiercode. Eine seiner Regeln ist E402: alle Import-Anweisungen
+(das sind die Zeilen am Anfang einer Python-Datei, die andere Bausteine
+einbinden) müssen oben in der Datei stehen — vor jeglichem anderen Code.
+
+Beim Anfügen der neuen Tests wurden auch die dazugehörigen Imports
+ans Ende der Datei geschrieben. Das bricht diese Regel.
+
+Fix: die komplette Testdatei neu geschrieben mit allen Imports am Anfang,
+alle Aliase (künstliche Umbenennungen mit Unterstrich) entfernt, direkte
+Namen überall. Das Ergebnis ist kürzer und lesbarer als das Original.
+
+### Zahlen
+
+153 Tests grün. pipeline.py jetzt 100% Coverage — die zwei offenen Stellen
+aus Tag 20 (die `_cost_tier`-Bänder und die `is_actionable`-Zweige)
+sind geschlossen. Phase A: fertig.
