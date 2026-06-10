@@ -886,3 +886,39 @@ einer Einreichung.
 **Heute aufgetretene Fallen:**
 - `grep` ohne `--include="*.py"` durchsucht auch kompilierten Bytecode → immer mit Flag.
 - Datei ersetzen heisst: zuerst löschen, dann einfügen — nicht drüber schreiben.
+
+## Tag 23 — 2026-06-10 — FastAPI-Grundstruktur
+
+**Was heute entstanden ist:** Die API-Schicht hat ihren ersten Endpoint.
+Ein HTTP-Request auf `/health` bekommt jetzt eine Antwort — der erste
+beobachtbare Beweis, dass das System von außen erreichbar ist.
+
+**App-Factory:** Statt einer einzelnen globalen App-Variable gibt es eine
+Funktion `create_app()`, die bei jedem Aufruf eine frische App-Instanz baut.
+Tests rufen diese Funktion direkt auf — so beeinflusst kein Test den nächsten
+(kein geteilter Zustand, auf Englisch: "no shared state").
+
+**ASGI / ASGITransport:** ASGI ist der Standard, über den Python-Webapps
+HTTP-Anfragen empfangen. ASGITransport leitet Test-Requests direkt in die App
+weiter — kein echter Server, kein Netzwerk, trotzdem echter HTTP-Code.
+
+**CORS:** Cross-Origin Resource Sharing — Browser-Sicherheitsregel, die
+festlegt, welche anderen Webseiten die API aufrufen dürfen. Leere Liste
+heute = niemand darf von außen. Phase F öffnet das gezielt.
+
+**debug=False:** Im Debug-Modus zeigt FastAPI den vollständigen Fehlerstack
+in der HTTP-Antwort. Das ist nützlich beim Entwickeln, aber ein
+Sicherheitsproblem in Produktion — interne Strukturen werden sichtbar.
+Deshalb: von Anfang an ausgeschaltet.
+
+**Comprehension Gate (Vertiefung):** `create_app()` statt `app` in Tests:
+Wenn alle Tests dieselbe globale Instanz teilen, könnte Test A Middleware-
+oder Router-Zustand hinterlassen, den Test B dann vorfindet. Das führt zu
+Tests, die einzeln grün sind, aber in Kombination zufällig fehlschlagen —
+der schlimmste Debugging-Fall. Factory = jeder Test startet sauber.
+
+**venv-Korruption (zweimal):** Das virtuelle Environment (die isolierte
+Python-Installation für dieses Projekt) wurde nach Paket-Installationen
+inkonsistent. Symptom: Fehler beim Pytest-Start, obwohl Pakete installiert
+sein sollten. Fix: Environment komplett neu aufbauen (`rm -rf .venv && uv sync`).
+Ursache ist ein bekanntes macOS-Muster dieses Projekts.
