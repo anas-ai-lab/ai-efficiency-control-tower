@@ -2,24 +2,33 @@
 
 10 parametrised use cases: LIKELY_WIN (2), CALCULATED_RISK (3),
 MARGINAL_GAIN (2), FAILS VORFILTER (3).
+
+Tag 21 Ergaenzung: _cost_tier-Baender + is_actionable alle Zweige.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from aect.domain.feasibility import FeasibilityResult
+from aect.domain.filters import FilterResult
 from aect.domain.models import UseCaseInput
-from aect.domain.pipeline import TriageResult, evaluate_use_case
-from aect.domain.roi import ROIConfig, load_roi_config
+from aect.domain.pipeline import TriageResult, _cost_tier, evaluate_use_case
+from aect.domain.roi import ROIConfig, ROIResult, load_roi_config
+from aect.domain.routing import RoutingRecommendation, RoutingResult
+from aect.domain.scoring import CompositeScore
 from aect.domain.types import (
     AdoptionType,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
     ImplementationApproach,
+    TriageZone,
 )
+from aect.domain.zones import ZoneResult
 
 
 @pytest.fixture(scope="module")
@@ -143,7 +152,7 @@ _UC_MG_1 = _make_use_case(
     title="E-Mail-Kategorisierung -- geringe Auswirkung",
     time_savings_hours_per_case=0.5,
     frequency_per_year=300,
-    affected_employees_count=8,  # war: 1 → 1 200 h/Jahr, Potenzial klar über 20k
+    affected_employees_count=8,  # 1 200 h/Jahr
     adoption_type=AdoptionType.VOLUNTARY,
     implementation_complexity=4,
 )
@@ -152,7 +161,7 @@ _UC_MG_2 = _make_use_case(
     title="Statusbericht-Zusammenfassung -- sensitive Daten",
     time_savings_hours_per_case=1.0,
     frequency_per_year=130,
-    affected_employees_count=5,  # war: 1 → 650 h/Jahr
+    affected_employees_count=5,  # 650 h/Jahr
     adoption_type=AdoptionType.VOLUNTARY,
     implementation_complexity=4,
     data_classification=DataClassification.SENSITIVE_PERSONAL,
@@ -197,7 +206,7 @@ _FAILING = [_UC_FAIL_1, _UC_FAIL_2, _UC_FAIL_3]
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Snapshot-Tests (Phase A, Tag 20)
 # ---------------------------------------------------------------------------
 
 
@@ -265,9 +274,7 @@ def test_strong_cases_are_actionable(
 def test_triage_result_is_immutable(roi_config: ROIConfig) -> None:
     result = evaluate_use_case(_UC_LW_1, roi_config)
     with pytest.raises(AttributeError):
-        result.passed_vorfilter = (
-            False  # direktes Assignment triggert FrozenInstanceError
-        )
+        result.passed_vorfilter = False
 
 
 def test_pipeline_is_deterministic(roi_config: ROIConfig) -> None:
@@ -280,3 +287,91 @@ def test_title_propagated_to_result(roi_config: ROIConfig) -> None:
     for uc in _ALL_10:
         result = evaluate_use_case(uc, roi_config)
         assert result.title == uc.title
+
+
+# ---------------------------------------------------------------------------
+# Coverage-Ergaenzung Tag 21: _cost_tier + is_actionable
+# ---------------------------------------------------------------------------
+
+
+def test_cost_tier_all_bands() -> None:
+    """_cost_tier mappt Lizenzkosten korrekt auf Kostenstufe 1-3."""
+    assert _cost_tier(0.0) == 1
+    assert _cost_tier(4_999.99) == 1
+    assert _cost_tier(5_000.0) == 2
+    assert _cost_tier(24_999.99) == 2
+    assert _cost_tier(25_000.0) == 3
+    assert _cost_tier(100_000.0) == 3
+
+
+def _minimal_triage(*, passed: bool, zone: TriageZone | None) -> TriageResult:
+    """Baut minimales TriageResult fuer is_actionable-Tests."""
+    vorfilter = FilterResult(
+        passes=passed,
+        failed_criteria=[] if passed else ["Theoretisches Potenzial"],
+        details={"Theoretisches Potenzial": passed},
+    )
+    routing = RoutingResult(
+        recommendation=RoutingRecommendation.BORDERLINE,
+        confidence="LOW",
+        automation_signals=(),
+        ai_signals=(),
+        risk_flags=(),
+    )
+    feasibility = FeasibilityResult(is_feasible=True, flags=())
+
+    roi: ROIResult | None = None
+    composite: CompositeScore | None = None
+    zone_result: ZoneResult | None = None
+
+    if zone is not None:
+        roi = ROIResult(
+            theoretical_potential_eur=Decimal("60000.00"),
+            usage_factor=1.0,
+            evidence_factor=1.0,
+            expected_benefit_eur=Decimal("60000.00"),
+            license_cost_annual_eur=Decimal("0.00"),
+            net_expected_benefit_eur=Decimal("60000.00"),
+            hours_per_year=500.0,
+            passes_prefilter=True,
+            prefilter_fail_reason=None,
+        )
+        composite = CompositeScore(
+            complexity_score=2, cost_score=1, data_protection_score=0, total=3
+        )
+        zone_result = ZoneResult(
+            base_zone=zone,
+            final_zone=zone,
+            handlungsdruck_elevated=False,
+            reason="Test",
+        )
+
+    return TriageResult(
+        title="Test-Actionable",
+        passed_vorfilter=passed,
+        vorfilter=vorfilter,
+        routing=routing,
+        feasibility=feasibility,
+        roi=roi,
+        composite=composite,
+        zone=zone_result,
+    )
+
+
+@pytest.mark.parametrize(
+    "passed,zone,expected",
+    [
+        (False, None, False),
+        (True, TriageZone.MARGINAL_GAIN, False),
+        (True, TriageZone.CALCULATED_RISK, True),
+        (True, TriageZone.LIKELY_WIN, True),
+    ],
+)
+def test_is_actionable_all_branches(
+    passed: bool,
+    zone: TriageZone | None,
+    expected: bool,
+) -> None:
+    """is_actionable ist True genau fuer LIKELY_WIN und CALCULATED_RISK."""
+    result = _minimal_triage(passed=passed, zone=zone)
+    assert result.is_actionable == expected
