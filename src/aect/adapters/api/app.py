@@ -9,16 +9,25 @@ Security (aect-security-checklist v2.1, Phase B):
   CORS allow_origins=[]: sicherer Default, explizit leer.
     Phase F setzt konkrete Origins per Env-Variable, wenn das Frontend existiert.
     Nie ["*"] mit allow_credentials=True (CORS-Bypass-Risiko).
-  X-API-Key in allow_headers: vorbereitet fuer Tag 24.
-Globaler Exception-Handler folgt in Tag 24.
+  X-API-Key in allow_headers: vorbereitet fuer require_api_key.
+  Globaler Exception-Handler (Tag 24): kein Stack-Trace an Client,
+    generische 500-Response mit request_id fuer Log-Korrelation.
+    HTTPException wird von FastAPI separat behandelt -- nicht durch
+    diesen Handler abgefangen.
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import logging
+import uuid
 
-from aect.adapters.api.routes import health
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from aect.adapters.api.routes import cases, health
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -40,7 +49,29 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type", "X-API-Key"],
     )
 
+    @app.exception_handler(Exception)
+    async def global_exception_handler(
+        request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        """Faengt alle unbehandelten non-HTTP-Exceptions ab.
+
+        Security (OWASP LLM02): kein Stack-Trace in der Response.
+        request_id: ermoeglicht Log-Korrelation ohne PII-Leak.
+        Intern: Exception wird mit logger.exception geloggt.
+        """
+        request_id = str(uuid.uuid4())
+        logger.exception(
+            "Unhandled exception",
+            extra={"request_id": request_id, "path": str(request.url.path)},
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal error", "request_id": request_id},
+        )
+
     app.include_router(health.router)
+    app.include_router(cases.router)
 
     return app
 
