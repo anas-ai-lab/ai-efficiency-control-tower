@@ -922,3 +922,51 @@ Python-Installation für dieses Projekt) wurde nach Paket-Installationen
 inkonsistent. Symptom: Fehler beim Pytest-Start, obwohl Pakete installiert
 sein sollten. Fix: Environment komplett neu aufbauen (`rm -rf .venv && uv sync`).
 Ursache ist ein bekanntes macOS-Muster dieses Projekts.
+
+## Tag 24 — API-Key-Auth, Exception-Handler, GET /cases (2026-06-10)
+
+**Was heute gebaut wurde:** Jeder Endpoint ausser /health verlangt jetzt
+einen geheimen Schluessel im HTTP-Header. Wer den Schluessel nicht kennt,
+bekommt 401 — Zugriff verweigert. Und wenn intern etwas schieflaeuft,
+bekommt der Aufrufer eine generische Fehlermeldung statt dem kompletten
+internen Fehlertext.
+
+**FastAPI Dependency Injection:** FastAPI hat ein System, bei dem man einer
+Funktion sagt "bevor du laeuft, hol dir das hier" — zum Beispiel "pruefe
+zuerst den API-Key". Das nennt sich Dependency. Der Vorteil: Die Auth-Logik
+sitzt an einem Ort, nicht in jedem Endpoint einzeln.
+
+**APIKeyHeader:** Ein fertiger FastAPI-Baustein, der den X-API-Key-Header aus
+dem HTTP-Request liest. auto_error=False bedeutet: wenn der Header fehlt, gibt
+er None zurueck statt automatisch einen Fehler zu werfen — wir werfen dann
+selbst einen 401, damit der Fehler einheitlich aussieht.
+
+**dependency_overrides:** In Tests kann man FastAPI sagen "wenn jemand
+get_settings() aufruft, gib stattdessen das hier zurueck". So muss kein echter
+API-Key in der Testumgebung konfiguriert sein — der Test injiziert einen
+bekannten Testwert. Das funktioniert nur weil get_settings kein lru_cache hat;
+ein gecachter Wert wuerde das Override ignorieren.
+
+**Globaler Exception-Handler:** Eine Funktion, die FastAPI aufruft wenn irgendwo
+eine unbehandelte Exception auftritt. Sicherheitsregel: der Aufrufer erhaelt
+nie den internen Fehlertext (koennte interne Details leaken). Er bekommt nur
+"Internal error" plus eine request_id — die request_id steht auch im Server-Log,
+so kann man den Fehler intern nachverfolgen ohne aussen etwas preiszugeben.
+
+**Starlette Re-raise:** Starlette (das Framework unter FastAPI) sendet die
+500-Response und wirft dann die Exception nochmal — damit Server wie uvicorn
+sie ebenfalls loggen koennen. Im Test bedeutet das: der Handler hat korrekt
+funktioniert, aber der Test-HTTP-Client sieht trotzdem die Exception.
+Loesung: raise_app_exceptions=False sagt dem Test-Client "lass Starlette
+die Exception re-raisen ohne sie in den Test durchzureichen".
+
+**pydantic-settings:** Eine Bibliothek, die Konfigurationswerte automatisch
+aus Umgebungsvariablen oder einer .env-Datei liest. Mit Prefix AECT_ wird
+aus AECT_API_KEY automatisch das Feld api_key. extra="ignore" war noetig,
+weil PYTHONPATH in der .env stand — ohne diese Einstellung haette pydantic
+das als unbekanntes Feld abgelehnt.
+
+**Coverage-Lernpunkt:** 0% Coverage auf dependencies.py bedeutete nicht,
+dass der Code nicht lief — er lief, aber pytest hat ihn nie direkt getestet.
+Erst mit dedizierten Auth-Tests ist die Luecke geschlossen. Rote Coverage-
+Zeilen in einem Security-kritischen Modul sind kein kosmetisches Problem.
