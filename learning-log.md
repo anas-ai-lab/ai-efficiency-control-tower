@@ -970,3 +970,39 @@ das als unbekanntes Feld abgelehnt.
 dass der Code nicht lief — er lief, aber pytest hat ihn nie direkt getestet.
 Erst mit dedizierten Auth-Tests ist die Luecke geschlossen. Rote Coverage-
 Zeilen in einem Security-kritischen Modul sind kein kosmetisches Problem.
+
+## Tag 25 — POST /triage: Der Kern von Phase B
+
+Heute haben wir den wichtigsten Endpunkt gebaut: Man schickt einen
+Use-Case-Antrag rein, das System bewertet ihn vollständig und schickt
+das Ergebnis sofort zurück.
+
+**Was ist ein Endpunkt?**
+Eine Adresse im System, an die man Daten schicken kann und eine
+Antwort zurückbekommt — wie ein Schalter in einer Behörde.
+
+**Warum brauchen wir separate Response-Schemas?**
+Die Domain-Objekte (das "Innenleben" des Systems) verwenden Typen,
+die JSON nicht kennt — zum Beispiel `Decimal` für exakte Geldbeträge
+und `tuple` für unveränderliche Listen. JSON kennt nur einfache Zahlen
+und Arrays. Die Response-Schemas übersetzen diese internen Typen in
+etwas, das jeder Client versteht. Außerdem entscheiden wir bewusst,
+was nach außen sichtbar ist — nicht alles was intern existiert gehört
+in die API-Antwort.
+
+**Was macht die Mapper-Funktion?**
+Sie ist der Übersetzer zwischen den zwei Welten: nimmt ein
+Domain-Objekt entgegen und baut daraus das Response-Schema zusammen.
+Ein Satz Arbeit, einmal geschrieben, überall konsistent.
+
+**Was haben die Tests geprüft?**
+Ob Auth funktioniert (kein Key = kein Zugriff), ob ein guter
+Use Case tatsächlich bewertet wird (zone nicht leer), ob ein
+schwacher Use Case den Vorfilter nicht besteht (zone bleibt leer),
+und ob das System auf kaputte Eingaben sauber mit einem Fehler
+antwortet statt zu crashen.
+
+**Warum machen wir den venv-Rebuild?**
+macOS kann unter bestimmten Bedingungen die Python-Umgebung
+duplizieren, sodass das Paket nicht mehr gefunden wird. Rebuild
+ist der saubere Fix — kein Symptombekämpfen.
