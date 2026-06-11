@@ -1006,3 +1006,15 @@ antwortet statt zu crashen.
 macOS kann unter bestimmten Bedingungen die Python-Umgebung
 duplizieren, sodass das Paket nicht mehr gefunden wird. Rebuild
 ist der saubere Fix — kein Symptombekämpfen.
+
+## Tag 26 — Rate Limiting und Structured Logging
+
+**Rate Limiting** bedeutet: jeder darf nur eine bestimmte Anzahl Anfragen pro Minute stellen. Wie ein Türsteher, der sagt "du warst schon dreimal drin, warte kurz." Wir haben festgelegt: POST /triage maximal 30 Mal pro Minute pro API-Key, GET /cases 60 Mal. Wer drüber kommt, bekommt eine 429-Antwort — das ist der HTTP-Code für "zu viele Anfragen, versuch's später nochmal."
+
+**Structured Logging** heißt: statt rohem Text schreibt der Server jede Meldung als strukturiertes JSON-Objekt. Statt "Fehler bei Request" steht dann `{"event": "Unhandled exception", "request_id": "abc123", "route": "/triage", "timestamp": "..."}`. Damit kann man Logs später maschinell auswerten und filtern.
+
+**Correlation-ID** ist eine zufällige ID die bei jedem Request neu erzeugt wird und durch alle Log-Einträge dieses Requests durchläuft. Wenn ein Fehler passiert, kann man anhand der ID alle zugehörigen Log-Zeilen finden — wie eine Bestellnummer die man durch den ganzen Prozess mitschleppt.
+
+**Das iCloud-Problem:** macOS synchronisiert den Desktop automatisch mit iCloud. Wenn wir neue Pakete installieren, schreibt uv und iCloud gleichzeitig in dieselben Dateien — das korruptiert die Umgebung. Lösung ist das Projekt in einen Ordner zu verschieben, der nicht von iCloud erfasst wird.
+
+**Warum `# type: ignore`?** mypy prüft ob alle Datentypen im Code zusammenpassen. Manchmal hat eine externe Bibliothek (hier: slowapi) eine Typ-Angabe die nicht ganz stimmt — nicht unser Fehler. Der Kommentar sagt mypy: "diese eine Zeile absichtlich ignorieren, wir wissen was wir tun." Der Code selbst ändert sich nicht.
