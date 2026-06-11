@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from aect.adapters.api.routes import cases, health
+from aect.adapters.api.routes import cases, health, triage
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(cases.router)
+    app.include_router(triage.router)
 
     return app
 
