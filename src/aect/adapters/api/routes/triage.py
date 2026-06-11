@@ -9,21 +9,21 @@ Sie mappen Domain-Objekte auf JSON-serialisierbare Typen
 Security (aect-security-checklist v2.1, Phase B):
   extra='forbid' auf UseCaseInput: kein unerwarteter Input (OWASP LLM10).
   max_length auf Freitextfeldern: Token-Flooding-Schutz (Phase A).
-  Auth: require_api_key (X-API-Key-Header, analog GET /cases).
+  Auth: require_api_key (X-API-Key-Header).
+  Rate Limiting: 30/minute pro API-Key (limiter aus rate_limit.py).
   Response: keine Domain-Exceptions geleakt (globaler Handler in app.py).
-
-country: v1 fix 'DE'. Phase C: als Query-Parameter ergaenzen wenn
-Mehrlaender-Support benoetigt wird.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from starlette.responses import Response
 
 from aect.adapters.api.dependencies import get_triage_service, require_api_key
+from aect.adapters.api.rate_limit import limiter
 from aect.application.models import SubmittedCase
 from aect.application.service import TriageService
 from aect.domain.models import UseCaseInput
@@ -113,7 +113,7 @@ def _to_triage_response(case: SubmittedCase) -> TriageResponse:
 
     Decimal -> float: JSON-Serialisierbarkeit.
     tuple[str, ...] -> list[str]: JSON-Serialisierbarkeit.
-    StrEnum -> .value: explizite String-Darstellung, kein Enum-Objekt in JSON.
+    StrEnum -> .value: explizite String-Darstellung.
     """
     r = case.result
     return TriageResponse(
@@ -179,16 +179,20 @@ def _to_triage_response(case: SubmittedCase) -> TriageResponse:
 
 
 @router.post("", response_model=TriageResponse, status_code=201)
+@limiter.limit("30/minute")
 async def submit_use_case(
+    request: Request,
+    response: Response,
     body: UseCaseInput,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_api_key),
 ) -> TriageResponse:
     """Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.
 
-    Auth: X-API-Key-Header erforderlich (require_api_key).
+    request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 30 Requests/Minute pro API-Key.
     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
-    country: v1 fix 'DE' (TriageService-Default).
     """
     case = service.submit_use_case(body)
     return _to_triage_response(case)
