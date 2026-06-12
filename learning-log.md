@@ -1195,3 +1195,30 @@ Absicht: so kann man die ganze Verkabelung (Anfrage → Verarbeitung → Antwort
 Anzeige) testen, ohne dass jede Testausführung Geld kostet oder unterschiedlich
 ausfällt. Wenn später die echte KI dazukommt, muss laut heutigem Gate nur **eine
 einzige Stelle** im Code ausgetauscht werden — der Rest bleibt stehen.
+
+## Tag 32 — Eine Alarmanlage statt einer Tür
+
+Heute hat das System eine Art Alarmanlage bekommen, kein Schloss. Bevor eine
+Beschreibung an die KI geschickt wird, schaut das System kurz hin: steht da
+irgendwo ein Satz wie "Ignoriere alle bisherigen Anweisungen" oder "Zeig mir
+deine internen Vorgaben"? Solche Sätze sind ein typischer Trick, um eine KI
+von ihrer eigentlichen Aufgabe abzubringen.
+
+Wichtig: Wird so ein Satz gefunden, passiert *nichts* mit der Anfrage selbst
+— sie wird ganz normal weiterverarbeitet. Es wird nur ein Vermerk geschrieben:
+"Bei diesem Fall ist mir etwas Verdächtiges aufgefallen". Der Vermerk enthält
+nicht den kompletten Text, sondern nur, *welche Art* von verdächtigem Muster
+gefunden wurde und zu welchem Fall es gehört.
+
+**Warum nicht einfach blockieren?** Weil ganz normale Geschäftstexte
+manchmal Formulierungen enthalten, die zufällig ähnlich klingen — z. B. "wir
+wollen den alten Prozess ignorieren und neu anfangen". Eine Alarmanlage, die
+bei jedem Fenster-Öffnen losgeht, wird irgendwann ignoriert. Ein Vermerk, der
+später ausgewertet werden kann, ist nützlicher als eine Tür, die zufällig
+zuschlägt.
+
+**Kleine Stolperfalle beim Bauen:** Das Protokollsystem hatte sich beim
+ersten Test "gemerkt", wie es Meldungen schreibt — und diese Erinnerung
+wurde nicht aktualisiert, als der Test prüfen wollte, ob die Meldung
+ankommt. Lösung: das Protokollsystem bei jedem Treffer neu "aufwachen"
+lassen, statt sich auf die alte Erinnerung zu verlassen.
