@@ -9,6 +9,7 @@ from structlog.testing import capture_logs
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.application.models import SubmittedCase
+from aect.application.ports.llm import LLMMessage, LLMResponse
 from aect.application.service import TriageService
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
@@ -193,3 +194,30 @@ class TestTriageServiceSharpenInjectionDetection:
 
         warnings = [log for log in logs if log["event"] == "injection_pattern_detected"]
         assert warnings == []
+
+
+class _ExplodingLLMAdapter:
+    """Wirft bei jedem Aufruf -- macht sichtbar, ob complete() aufgerufen wird."""
+
+    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+        raise AssertionError("LLM darf bei submit_use_case nicht aufgerufen werden")
+
+
+class TestTriageServiceGracefulDegradation:
+    """Belegt aect-security-checklist v2.1 Phase C: Regel-Triage laeuft ohne LLM weiter."""
+
+    def test_submit_use_case_does_not_call_llm(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_ExplodingLLMAdapter(),
+        )
+
+        case = service.submit_use_case(sample_use_case)
+
+        assert case.id == "id-001"
