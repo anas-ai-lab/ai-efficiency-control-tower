@@ -1170,3 +1170,28 @@ gleich, egal ob eine Lampe oder ein Toaster dranhängt.
    könnten nicht zuverlässig prüfen, ob alles richtig funktioniert.
 3. Alle zukünftigen Tests für die KI-Funktionen (Tag 31+) bauen auf diesem
    Platzhalter auf — sie laufen damit schnell, offline und gratis.
+## Tag 31 — Die KI bekommt eine erste Aufgabe (noch als Platzhalter)
+
+Heute haben wir den ersten Baustein gebaut, bei dem eine KI mitspielt — bisher
+hat das System nur Zahlen ausgerechnet und Fälle eingestuft.
+
+**Was ist ein "Prompt"?** Eine Anweisung an die KI, in einer eigenen Textdatei
+statt im Programmcode. Vorteil: Wenn man die Anweisung später verbessern will,
+ändert man nur diese Textdatei — der Code bleibt unberührt. Jede Version dieser
+Datei wird durchnummeriert (v1, v2, ...), damit man immer nachvollziehen kann,
+welche Anweisung welches Ergebnis erzeugt hat.
+
+**Was macht der neue Schritt "Schärfen"?** Man kann jetzt zu einem bereits
+eingereichten Fall sagen: "mach die Beschreibung konkreter". Das System schickt
+die Original-Beschreibung an die KI und bekommt eine verbesserte Version zurück.
+
+**Warum bleibt das Original erhalten?** Damit die ursprüngliche Idee der Person,
+die den Vorschlag eingereicht hat, nicht verschwindet — man sieht beide Versionen
+nebeneinander, nichts wird überschrieben.
+
+**Warum "noch als Platzhalter"?** Die echte KI ist noch nicht angeschlossen — es
+antwortet eine Testversion, die immer eine vorhersagbare Antwort gibt. Das ist
+Absicht: so kann man die ganze Verkabelung (Anfrage → Verarbeitung → Antwort →
+Anzeige) testen, ohne dass jede Testausführung Geld kostet oder unterschiedlich
+ausfällt. Wenn später die echte KI dazukommt, muss laut heutigem Gate nur **eine
+einzige Stelle** im Code ausgetauscht werden — der Rest bleibt stehen.
