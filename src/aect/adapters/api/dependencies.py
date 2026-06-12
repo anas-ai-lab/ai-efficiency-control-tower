@@ -16,6 +16,11 @@ Security (aect-security-checklist v2.1, Phase B):
   wir liefern einheitlich 401 (kein Info-Leak ueber Mechanismus).
 InMemoryRepository: prozessgebunden, kein State nach Neustart.
 Phase B: SQLiteRepository ersetzt dies.
+
+Idempotency (aect-security-checklist v2.1, Phase B):
+  get_idempotency_store() folgt demselben Muster wie get_triage_service():
+  AECT_DB_PATH gesetzt -> SQLiteIdempotencyStore (persistent), sonst
+  InMemoryIdempotencyStore (Singleton, prozessgebunden).
 """
 
 from __future__ import annotations
@@ -29,14 +34,21 @@ from fastapi.security import APIKeyHeader
 from aect.adapters.api.settings import Settings
 from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
+from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
 
 # Singleton -- Repository-State lebt fuer die Prozess-Lebensdauer.
 _repository: InMemoryRepository = InMemoryRepository()
+
+# Singleton -- Idempotency-Key-State lebt fuer die Prozess-Lebensdauer
+# (analog _repository; nur relevant ohne AECT_DB_PATH).
+_idempotency_store: InMemoryIdempotencyStore = InMemoryIdempotencyStore()
 
 # auto_error=False: fehlender Header liefert None statt automatischem 403.
 # Unser require_api_key gibt dann einheitlich 401 zurueck.
@@ -105,3 +117,18 @@ def get_triage_service(
         id_generator=UUIDGenerator(),
         roi_config=get_roi_config(),
     )
+
+
+def get_idempotency_store(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> IdempotencyStorePort:
+    """Liefert IdempotencyStore passend zur Persistenz-Wahl.
+
+    AECT_DB_PATH gesetzt -> SQLiteIdempotencyStore (eigene Tabelle in
+    derselben DB-Datei wie SQLiteRepository).
+    AECT_DB_PATH leer  -> InMemoryIdempotencyStore (Singleton, prozessgebunden,
+    Dev/Test).
+    """
+    if settings.db_path:
+        return SQLiteIdempotencyStore(Path(settings.db_path))
+    return _idempotency_store

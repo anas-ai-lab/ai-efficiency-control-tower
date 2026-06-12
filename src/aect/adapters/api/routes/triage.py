@@ -12,19 +12,35 @@ Security (aect-security-checklist v2.1, Phase B):
   Auth: require_api_key (X-API-Key-Header).
   Rate Limiting: 30/minute pro API-Key (limiter aus rate_limit.py).
   Response: keine Domain-Exceptions geleakt (globaler Handler in app.py).
+
+Idempotency (aect-security-checklist v2.1, Phase B):
+  Optionaler Header 'Idempotency-Key' (max. 200 Zeichen, Token-Flooding-
+  Schutz). Bei wiederholtem Request mit demselben Key wird das urspruengliche
+  Ergebnis zurueckgegeben (Status 200, Header 'Idempotent-Replay: true')
+  statt den Use Case erneut zu verarbeiten. Ohne Header: unveraendertes
+  Verhalten (Status 201, jeder Request erzeugt einen neuen Case).
+
+  Grenze (bewusst, ADR-005): der Key wird nicht gegen den Payload validiert.
+  Ein wiederverwendeter Key mit geaendertem Body liefert das alte Ergebnis,
+  nicht 409/422.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel
 from starlette.responses import Response
 
-from aect.adapters.api.dependencies import get_triage_service, require_api_key
+from aect.adapters.api.dependencies import (
+    get_idempotency_store,
+    get_triage_service,
+    require_api_key,
+)
 from aect.adapters.api.rate_limit import limiter
 from aect.application.models import SubmittedCase
+from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.service import TriageService
 from aect.domain.models import UseCaseInput
 
@@ -185,6 +201,10 @@ async def submit_use_case(
     response: Response,
     body: UseCaseInput,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
+    idempotency_store: IdempotencyStorePort = Depends(get_idempotency_store),  # noqa: B008
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", max_length=200
+    ),
     _: str = Depends(require_api_key),
 ) -> TriageResponse:
     """Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.
@@ -193,6 +213,22 @@ async def submit_use_case(
     Auth: X-API-Key-Header (require_api_key).
     Rate Limit: 30 Requests/Minute pro API-Key.
     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
+
+    Idempotency: siehe Modul-Docstring. Bei Replay wird response.status_code
+    auf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.
     """
+    if idempotency_key is not None:
+        existing_case_id = idempotency_store.get(idempotency_key)
+        if existing_case_id is not None:
+            existing_case = service.get_case(existing_case_id)
+            if existing_case is not None:
+                response.status_code = 200
+                response.headers["Idempotent-Replay"] = "true"
+                return _to_triage_response(existing_case)
+
     case = service.submit_use_case(body)
+
+    if idempotency_key is not None:
+        idempotency_store.set(idempotency_key, case.id)
+
     return _to_triage_response(case)
