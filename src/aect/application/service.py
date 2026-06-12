@@ -6,12 +6,15 @@ Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung.
 
 from __future__ import annotations
 
+import structlog
+
 from aect.application.models import SharpenedUseCase, SubmittedCase
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.prompts import load_prompt
+from aect.application.sanitization import detect_injection_patterns
 from aect.domain import ROIConfig, UseCaseInput, evaluate_use_case
 
 
@@ -84,10 +87,34 @@ class TriageService:
 
         Messages-API (aect-security-checklist v2.1, Phase C): System- und
         User-Prompt bleiben getrennte LLMMessage-Eintraege, kein String-Concat.
+
+        Injection-Pattern-Check (OWASP LLM01, Tag 32): Freitextfelder werden vor
+        dem LLM-Call auf bekannte Injection-Muster geprueft. Treffer werden
+        geloggt (case_id + Feldname + Pattern-Namen, kein Body), der Call laeuft
+        trotzdem weiter -- Flaggen, nicht Blocken (siehe sanitization.py).
         """
         case = self._repository.get(case_id)
         if case is None:
             return None
+
+        fields_to_check = {
+            "title": case.use_case.title,
+            "current_state": case.use_case.current_state,
+            "desired_state": case.use_case.desired_state,
+            "example_process": case.use_case.example_process,
+        }
+        detected: dict[str, list[str]] = {
+            field_name: patterns
+            for field_name, field_value in fields_to_check.items()
+            if (patterns := detect_injection_patterns(field_value))
+        }
+        if detected:
+            logger = structlog.get_logger()
+            logger.warning(
+                "injection_pattern_detected",
+                case_id=case.id,
+                fields=detected,
+            )
 
         system_prompt = load_prompt("sharpen_use_case", "system", prompt_version)
         user_template = load_prompt("sharpen_use_case", "user", prompt_version)
