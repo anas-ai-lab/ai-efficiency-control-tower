@@ -1115,3 +1115,30 @@ Anfragen wiederverwenden.
 **Verständnislücke (für mich, ehrlich notiert):**
 Ich habe die Frage "warum reicht der Key allein, ohne den Inhalt zu
 vergleichen" nicht ganz sauber beantwortet — kurzer Nachtrag morgen.
+
+## Tag 29 — Warum ein "Schluessel" und eine "Datei" statt eines Passworts und einer Mega-Datenbank
+
+**API-Key (X-API-Key):** Stell dir vor, AECT ist ein Haus mit einer Tuer.
+Statt fuer jeden Besucher einen eigenen Hausschluessel mit Namen drauf zu
+machen (das waere JWT/Login-System), gibt es genau EINEN Schluessel fuer
+die Tuer. Wer den Schluessel hat, kommt rein. Fuer ein System, das nur eine
+Person nutzt, reicht das voellig -- ein Mehrpersonen-Schluesselsystem waere
+Aufwand fuer niemanden.
+
+Eine Ausnahme: `/health` (der "ist das Haus ueberhaupt an"-Knopf) braucht
+keinen Schluessel -- sonst koennte man nicht mal pruefen, ob der Server
+laeuft, ohne den Schluessel zu kennen.
+
+**SQLite-Persistenz:** Bisher hat AECT alle eingereichten Faelle nur im
+Arbeitsspeicher behalten -- wie ein Notizzettel, der beim Ausschalten des
+Rechners verschwindet. SQLite ist eine einzelne Datei auf der Festplatte,
+in der die Faelle dauerhaft stehen. Kein Datenbank-Server im Hintergrund,
+keine laufenden Kosten -- einfach eine Datei, die man kopieren oder
+loeschen kann. Fuer ein Projekt mit einer Person als Nutzer ist das genug;
+ein "echtes" Firmensystem mit vielen gleichzeitigen Nutzern bräuchte mehr,
+aber das ist hier nicht das Ziel.
+
+**Heutiger Check:** Server kurz gestartet, zwei Web-Adressen abgefragt
+(`/health` und `/cases`) -- einmal kam "alles ok" ohne Schluessel, einmal
+"kein Zugang" ohne Schluessel. Genau wie geplant. Das war der letzte
+formale Pruefpunkt fuer diesen Bauabschnitt (Phase B) -- der ist damit fertig.
