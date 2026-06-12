@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import Response
 
@@ -54,3 +54,47 @@ async def list_cases(
         )
         for case in service.list_cases()
     ]
+
+
+class SharpenedCaseResponse(BaseModel):
+    """Original + geschaerfte Version eines Use Cases."""
+
+    case_id: str
+    original_title: str
+    original_current_state: str
+    original_desired_state: str
+    sharpened_text: str
+    prompt_version: str
+
+
+@router.post("/{case_id}/sharpen", response_model=SharpenedCaseResponse)
+@limiter.limit("10/minute")
+async def sharpen_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> SharpenedCaseResponse:
+    """Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
+    (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    sharpened = await service.sharpen_case(case_id)
+    if sharpened is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return SharpenedCaseResponse(
+        case_id=sharpened.case_id,
+        original_title=sharpened.original_title,
+        original_current_state=sharpened.original_current_state,
+        original_desired_state=sharpened.original_desired_state,
+        sharpened_text=sharpened.sharpened_text,
+        prompt_version=sharpened.prompt_version,
+    )

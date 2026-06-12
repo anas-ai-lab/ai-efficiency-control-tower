@@ -6,10 +6,12 @@ Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung.
 
 from __future__ import annotations
 
-from aect.application.models import SubmittedCase
+from aect.application.models import SharpenedUseCase, SubmittedCase
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
+from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
+from aect.application.prompts import load_prompt
 from aect.domain import ROIConfig, UseCaseInput, evaluate_use_case
 
 
@@ -19,6 +21,11 @@ class TriageService:
     Alle Abhaengigkeiten werden von aussen injiziert (Constructor DI).
     Die Domain-Logik liegt vollstaendig in evaluate_use_case() -- der Service
     ist ausschliesslich fuer Orchestrierung und Persistenz zustaendig.
+
+    llm: LLMPort -- Phase C, fuer sharpen_case(). Pflicht-Parameter, kein
+    Default: ein Default auf MockLLMAdapter() wuerde aus aect.adapters
+    importieren und die Dependency-Inversion-Grenze verletzen (siehe
+    Modul-Docstring).
     """
 
     def __init__(
@@ -27,12 +34,14 @@ class TriageService:
         clock: ClockPort,
         id_generator: IdGeneratorPort,
         roi_config: ROIConfig,
+        llm: LLMPort,
         country: str = "DE",
     ) -> None:
         self._repository = repository
         self._clock = clock
         self._id_generator = id_generator
         self._roi_config = roi_config
+        self._llm = llm
         self._country = country
 
     def submit_use_case(self, use_case: UseCaseInput) -> SubmittedCase:
@@ -60,3 +69,46 @@ class TriageService:
     def list_cases(self) -> list[SubmittedCase]:
         """Alle bisher eingereichten Cases."""
         return self._repository.list_all()
+
+    async def sharpen_case(
+        self, case_id: str, prompt_version: str = "v1"
+    ) -> SharpenedUseCase | None:
+        """Schaerft die Use-Case-Beschreibung eines persistierten Cases via LLM.
+
+        Original-Felder (title, current_state, desired_state) werden aus dem
+        gespeicherten Case uebernommen und nie ueberschrieben -- die
+        geschaerfte Version steht daneben (sharpened_text).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+
+        Messages-API (aect-security-checklist v2.1, Phase C): System- und
+        User-Prompt bleiben getrennte LLMMessage-Eintraege, kein String-Concat.
+        """
+        case = self._repository.get(case_id)
+        if case is None:
+            return None
+
+        system_prompt = load_prompt("sharpen_use_case", "system", prompt_version)
+        user_template = load_prompt("sharpen_use_case", "user", prompt_version)
+        user_content = user_template.format(
+            title=case.use_case.title,
+            current_state=case.use_case.current_state,
+            desired_state=case.use_case.desired_state,
+            example_process=case.use_case.example_process,
+        )
+
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self._llm.complete(messages)
+
+        return SharpenedUseCase(
+            case_id=case.id,
+            original_title=case.use_case.title,
+            original_current_state=case.use_case.current_state,
+            original_desired_state=case.use_case.desired_state,
+            sharpened_text=response.content,
+            prompt_version=prompt_version,
+        )

@@ -30,3 +30,33 @@ class SubmittedCase:
     submitted_at: datetime
     use_case: UseCaseInput
     result: TriageResult
+
+
+@dataclass(frozen=True)
+class SharpenedUseCase:
+    """Ergebnis der Use-Case-Schaerfung -- Original + geschaerfte Version.
+
+    Original-Felder werden nie ueberschrieben (interne Referenz (entfernt) §3.1, Punkt 1):
+    case_id verweist auf den persistierten SubmittedCase, original_*
+    sind die unveraenderten Eingabefelder, sharpened_text ist die
+    LLM-Ausgabe.
+
+    Output-Validation (aect-security-checklist v2.1, Phase C): sharpened_text
+    ist str -- die LLM-Antwort wird als Text behandelt, nicht als
+    strukturierte Daten geparst. Strikte Pydantic-Validierung der LLM-Antwort
+    folgt, sobald ein Provider strukturierte (z. B. JSON-)Antworten liefert
+    (siehe ADR-0006, offener Punkt).
+
+    prompt_version macht nachvollziehbar, welche Prompt-Version dieses
+    Ergebnis erzeugt hat (aect.application.prompts.load_prompt).
+
+    frozen=True: Schaerfungs-Ergebnis ist nach Erstellung unveraenderlich,
+    analog zu UseCaseInput.
+    """
+
+    case_id: str
+    original_title: str
+    original_current_state: str
+    original_desired_state: str
+    sharpened_text: str
+    prompt_version: str

@@ -35,10 +35,12 @@ from aect.adapters.api.settings import Settings
 from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
+from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
 from aect.application.ports.idempotency_store import IdempotencyStorePort
+from aect.application.ports.llm import LLMPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
@@ -62,6 +64,17 @@ def get_roi_config() -> ROIConfig:
     lru_cache: Config-Datei wird beim ersten Aufruf gelesen und gecacht.
     """
     return load_roi_config()
+
+
+def get_llm_adapter() -> LLMPort:
+    """Liefert den LLM-Adapter fuer TriageService.sharpen_case().
+
+    Phase C, Mock-First: MockLLMAdapter ist deterministisch, kostenlos,
+    kein Netzwerk. Ein spaeterer Azure-OpenAI-Adapter implementiert
+    denselben LLMPort -- diese Funktion ist die einzige Stelle, die
+    dann angepasst wird (ADR-0005, ADR-0006).
+    """
+    return MockLLMAdapter()
 
 
 def get_settings() -> Settings:
@@ -101,12 +114,14 @@ async def require_api_key(
 
 def get_triage_service(
     settings: Settings = Depends(get_settings),  # noqa: B008
+    llm: LLMPort = Depends(get_llm_adapter),  # noqa: B008
 ) -> TriageService:
     """Liefert TriageService mit echten Produktions-Abhaengigkeiten.
 
     Persistenz: AECT_DB_PATH gesetzt -> SQLiteRepository (ueberlebt Neustart).
                 AECT_DB_PATH leer  -> InMemoryRepository (prozessgebunden, Dev/Test).
     SystemClock und UUIDGenerator sind zustandslos -- neue Instanz pro Call ok.
+    llm: Depends(get_llm_adapter) -- aktuell immer MockLLMAdapter (Phase C).
     """
     repo: RepositoryPort = (
         SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository
@@ -116,6 +131,7 @@ def get_triage_service(
         clock=SystemClock(),
         id_generator=UUIDGenerator(),
         roi_config=get_roi_config(),
+        llm=llm,
     )
 
 

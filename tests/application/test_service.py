@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 
+from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.application.models import SubmittedCase
 from aect.application.service import TriageService
@@ -49,6 +50,7 @@ def _make_service(
         clock=_FakeClock(),
         id_generator=_FakeIdGenerator(ids=ids or ["id-001", "id-002", "id-003"]),
         roi_config=roi_config,
+        llm=MockLLMAdapter(),
     )
     return service, repo
 
@@ -110,3 +112,25 @@ class TestTriageServiceList:
         service.submit_use_case(sample_use_case)
         service.submit_use_case(sample_use_case)
         assert len(service.list_cases()) == 2
+
+
+class TestTriageServiceSharpen:
+    async def test_sharpen_existing_case_returns_sharpened_use_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        sharpened = await service.sharpen_case(case.id)
+
+        assert sharpened is not None
+        assert sharpened.case_id == case.id
+        assert sharpened.original_title == sample_use_case.title
+        assert sharpened.prompt_version == "v1"
+        assert "[mock-response]" in sharpened.sharpened_text
+
+    async def test_sharpen_nonexistent_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        assert await service.sharpen_case("does-not-exist") is None
