@@ -1222,3 +1222,29 @@ ersten Test "gemerkt", wie es Meldungen schreibt — und diese Erinnerung
 wurde nicht aktualisiert, als der Test prüfen wollte, ob die Meldung
 ankommt. Lösung: das Protokollsystem bei jedem Treffer neu "aufwachen"
 lassen, statt sich auf die alte Erinnerung zu verlassen.
+
+## Tag 33 — Was kostet eigentlich ein KI-Aufruf?
+
+Jedes Mal, wenn das System die Künstliche Intelligenz um eine "geschärfte"
+Version eines Use Cases bittet, schickt es ihr nicht nur den Text des
+Nutzers, sondern auch eine Art Bedienungsanleitung dazu ("Du bist ein
+Assistent, der Use Cases schärft..."). Beides zusammen — Anleitung plus
+Nutzer-Text — ist das, wofür man bei der KI bezahlt. Und auch die Antwort
+der KI kostet etwas.
+
+Ab heute zählt das System bei jedem solchen Aufruf automatisch mit: wie
+viel Text rausgeht, wie viel zurückkommt, und rechnet daraus eine
+geschätzte Kosten-Zahl in Euro aus. Diese Zahl landet in einem
+Protokoll im Hintergrund — sie taucht nicht in der eigentlichen Antwort
+auf, die der Nutzer sieht.
+
+**Warum das wichtig ist:** Bevor das System echte Anfragen an die
+kostenpflichtige KI von Microsoft (Azure) schickt, soll genau
+nachvollziehbar sein, wie teuer das wird. Das verhindert böse
+Überraschungen auf der Rechnung.
+
+**Die Zähl-Methode heißt "Tokens".** Ein Token ist ungefähr ein
+Wortbruchstück — kein ganzes Wort, aber auch nicht nur ein Buchstabe.
+Die Zählung läuft über eine Bibliothek namens `tiktoken`, die genau so
+zählt, wie es die KI-Anbieter intern auch tun — sonst würde die Schätzung
+nicht zur echten Rechnung passen.
