@@ -1248,3 +1248,33 @@ Wortbruchstück — kein ganzes Wort, aber auch nicht nur ein Buchstabe.
 Die Zählung läuft über eine Bibliothek namens `tiktoken`, die genau so
 zählt, wie es die KI-Anbieter intern auch tun — sonst würde die Schätzung
 nicht zur echten Rechnung passen.
+
+## Tag 34 — Was tun, wenn die KI mal nicht antwortet?
+
+Heute ging es darum: Was passiert, wenn der Aufruf an die KI fehlschlägt --
+zum Beispiel weil das Netzwerk kurz hakt oder die Antwort zu lange dauert?
+
+**Vorher:** Ein einzelner Fehlschlag hätte den ganzen Vorgang sofort
+abbrechen lassen.
+
+**Jetzt:** Das System merkt sich "das war wahrscheinlich nur kurzfristig"
+und versucht es automatisch noch zweimal, mit kurzer Pause dazwischen, die
+mit jedem Versuch etwas länger wird (sogenannter "Backoff" -- man gibt dem
+Problem Zeit, sich von selbst zu lösen, statt sofort wieder draufzuhauen).
+Klappt es immer noch nicht, gibt das System den ursprünglichen Fehler
+weiter -- nicht irgendeinen generischen "irgendwas ist schiefgegangen".
+
+Außerdem gibt es eine harte Zeitgrenze pro Versuch: Wenn die KI sich
+"aufhängt" und gar nicht mehr antwortet, wird der Versuch nach einer
+festgelegten Zeit abgebrochen, statt ewig zu warten.
+
+**Wichtigste Erkenntnis:** Die normale Bewertung eines Use Cases (Zahlen,
+Regeln, Zonen-Einstufung) braucht die KI gar nicht. Das heißt: Selbst wenn
+die KI komplett ausfällt, kann man Use Cases weiterhin einreichen und
+bewertet bekommen -- nur die "Schärfung" der Beschreibung (der Teil, der die
+KI braucht) wäre betroffen. Das ist heute mit einem Test abgesichert, der
+das System sofort scheitern lässt, falls sich das jemals ändert.
+
+**Begriff geklärt:** "Resilience" (Widerstandsfähigkeit) heißt hier konkret:
+automatische Wiederholversuche + Zeitlimits + "der Rest läuft trotzdem
+weiter".
