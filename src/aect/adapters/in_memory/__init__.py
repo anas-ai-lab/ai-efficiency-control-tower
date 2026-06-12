@@ -2,6 +2,7 @@
 
 from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
+from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 
-__all__ = ["InMemoryRepository", "SystemClock", "UUIDGenerator"]
+__all__ = ["InMemoryRepository", "MockLLMAdapter", "SystemClock", "UUIDGenerator"]
