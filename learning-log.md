@@ -1142,3 +1142,31 @@ aber das ist hier nicht das Ziel.
 (`/health` und `/cases`) -- einmal kam "alles ok" ohne Schluessel, einmal
 "kein Zugang" ohne Schluessel. Genau wie geplant. Das war der letzte
 formale Pruefpunkt fuer diesen Bauabschnitt (Phase B) -- der ist damit fertig.
+
+## Tag 30 — Was ist ein "Port", und warum kann man das LLM später austauschen?
+
+Heute haben wir einen "Anschluss" (Port) für eine KI gebaut — aber noch
+keine echte KI angeschlossen, sondern einen Platzhalter (Mock).
+
+**Was ist ein Port?**
+Ein Port ist wie eine Steckdosen-Norm: er legt fest, *wie* man etwas
+anschließt (z.B. "schick eine Frage rein, bekomm eine Antwort raus"),
+aber nicht, *was* dahintersteckt. Heute steckt ein Platzhalter dahinter,
+der immer dieselbe simple Antwort gibt. Später (Phase C, weitere Tage)
+steckt da die echte Azure-KI dahinter.
+
+**Warum ist das gut?**
+Weil der Rest des Systems (z.B. die Schärfungs-Logik, die wir bald bauen)
+nur mit dem Port redet — nicht direkt mit der KI. Wenn wir später die
+echte Azure-KI anschließen, ändert sich für den Rest des Systems nichts.
+Wie wenn man ein Gerät an eine Steckdose anschließt: die Steckdose ist
+gleich, egal ob eine Lampe oder ein Toaster dranhängt.
+
+**Warum erstmal ein Platzhalter statt der echten KI?**
+1. Kostenlos und sofort — kein Warten auf Azure, keine Kosten.
+2. Vorhersagbar — der Platzhalter gibt immer dieselbe Antwort zurück,
+   dadurch können wir testen "kommt beim System das an, was wir erwarten?"
+   Mit einer echten KI wäre die Antwort jedes Mal anders, und Tests
+   könnten nicht zuverlässig prüfen, ob alles richtig funktioniert.
+3. Alle zukünftigen Tests für die KI-Funktionen (Tag 31+) bauen auf diesem
+   Platzhalter auf — sie laufen damit schnell, offline und gratis.
