@@ -21,6 +21,7 @@ Phase B: SQLiteRepository ersetzt dies.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader
@@ -29,6 +30,8 @@ from aect.adapters.api.settings import Settings
 from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.application.ports.repository import RepositoryPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
 
@@ -84,13 +87,20 @@ async def require_api_key(
     return api_key
 
 
-def get_triage_service() -> TriageService:
+def get_triage_service(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> TriageService:
     """Liefert TriageService mit echten Produktions-Abhaengigkeiten.
 
+    Persistenz: AECT_DB_PATH gesetzt -> SQLiteRepository (ueberlebt Neustart).
+                AECT_DB_PATH leer  -> InMemoryRepository (prozessgebunden, Dev/Test).
     SystemClock und UUIDGenerator sind zustandslos -- neue Instanz pro Call ok.
     """
+    repo: RepositoryPort = (
+        SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository
+    )
     return TriageService(
-        repository=_repository,
+        repository=repo,
         clock=SystemClock(),
         id_generator=UUIDGenerator(),
         roi_config=get_roi_config(),

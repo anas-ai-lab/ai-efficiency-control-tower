@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     """
 
     api_key: str = ""
+    db_path: str = ""  # Leer = InMemoryRepository. AECT_DB_PATH=/pfad/aect.db = SQLite.
 
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
