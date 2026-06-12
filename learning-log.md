@@ -1278,3 +1278,27 @@ das System sofort scheitern lässt, falls sich das jemals ändert.
 **Begriff geklärt:** "Resilience" (Widerstandsfähigkeit) heißt hier konkret:
 automatische Wiederholversuche + Zeitlimits + "der Rest läuft trotzdem
 weiter".
+
+## Tag 35 — Das Sicherheitsnetz wird eingeschaltet
+
+Gestern haben wir ein Sicherheitsnetz gebaut: automatische Wiederholversuche
+und eine Zeitgrenze für Anfragen an die KI. Heute haben wir es tatsächlich
+eingeschaltet — und zwar an genau einer Stelle im Code.
+
+**Warum reicht eine Stelle?** Die Bewertungslogik fragt nie "gib mir die
+Test-KI" oder "gib mir die echte KI" — sie fragt nur "gib mir irgendeine KI,
+die auf meine Frage antworten kann" (das ist der "Anschluss"/Port aus Tag 30).
+Heute haben wir an dieser einen zentralen Stelle gesagt: "und zwar mit
+Sicherheitsnetz drumherum". Die Bewertungslogik selbst musste dafür nicht
+geändert werden — sie merkt nichts vom Netz, sie bekommt einfach eine
+Antwort, so oder so.
+
+**Was wurde konkret getestet?** Ein neuer Test ruft genau diese eine Stelle
+auf und prüft zwei Dinge: kommt das Sicherheitsnetz tatsächlich mit
+("ist es eingepackt?") und funktioniert die Anfrage durch das Netz hindurch
+trotzdem normal ("kommt eine Antwort an?").
+
+**Offener Punkt für mich (Claude):** Eine der heutigen Verständnisfragen war
+schlecht gestellt — sie verlangte Wissen aus dem Code, das du nicht hast,
+weil du die Guides blind abarbeitest. Lehre für künftige Tage: Fragen müssen
+aus dem kurzen Kontext-Absatz beantwortbar sein, nicht aus dem Code selbst.
