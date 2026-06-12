@@ -137,6 +137,24 @@ class TestTriageServiceSharpen:
         service, _ = _make_service(roi_config)
         assert await service.sharpen_case("does-not-exist") is None
 
+    async def test_sharpen_logs_llm_cost(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.sharpen_case(case.id)
+
+        cost_logs = [log for log in logs if log["event"] == "llm_call_cost"]
+        assert len(cost_logs) == 1
+        assert cost_logs[0]["case_id"] == case.id
+        assert cost_logs[0]["operation"] == "sharpen_case"
+        assert cost_logs[0]["token_count"] > 0
+        assert cost_logs[0]["input_tokens"] > 0
+        assert cost_logs[0]["output_tokens"] > 0
+        assert "cost_eur_estimate" in cost_logs[0]
+
 
 class TestTriageServiceSharpenInjectionDetection:
     async def test_injection_pattern_in_input_is_logged_but_does_not_block(

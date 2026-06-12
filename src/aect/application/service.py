@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import structlog
 
+from aect.application.cost_logger import log_llm_cost
 from aect.application.models import SharpenedUseCase, SubmittedCase
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
@@ -130,6 +131,13 @@ class TriageService:
             LLMMessage(role="user", content=user_content),
         ]
         response = await self._llm.complete(messages)
+
+        log_llm_cost(
+            case_id=case.id,
+            messages=messages,
+            response=response,
+            operation="sharpen_case",
+        )
 
         return SharpenedUseCase(
             case_id=case.id,

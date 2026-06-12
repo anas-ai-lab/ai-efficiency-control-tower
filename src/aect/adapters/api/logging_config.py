@@ -1,8 +1,9 @@
 """structlog-Konfiguration fuer AECT.
 
-Allowlist (aect-security-checklist v2.1, Phase B):
+Allowlist (aect-security-checklist v2.1, Phase B; erweitert Tag 32/33):
   Erlaubt:  timestamp, level, logger, request_id, route,
-            status, latency_ms, token_count.
+            status, latency_ms, token_count, case_id, operation,
+            input_tokens, output_tokens, cost_eur_estimate, fields.
   Verboten: body, prompt, PII, Secrets.
 
 JSON-Output: maschinenlesbar, kompatibel mit Azure Monitor und ELK.
