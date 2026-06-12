@@ -1018,3 +1018,62 @@ ist der saubere Fix — kein Symptombekämpfen.
 **Das iCloud-Problem:** macOS synchronisiert den Desktop automatisch mit iCloud. Wenn wir neue Pakete installieren, schreibt uv und iCloud gleichzeitig in dieselben Dateien — das korruptiert die Umgebung. Lösung ist das Projekt in einen Ordner zu verschieben, der nicht von iCloud erfasst wird.
 
 **Warum `# type: ignore`?** mypy prüft ob alle Datentypen im Code zusammenpassen. Manchmal hat eine externe Bibliothek (hier: slowapi) eine Typ-Angabe die nicht ganz stimmt — nicht unser Fehler. Der Kommentar sagt mypy: "diese eine Zeile absichtlich ignorieren, wir wissen was wir tun." Der Code selbst ändert sich nicht.
+
+## Day 27 — Wie AECT Daten dauerhaft speichert (SQLite)
+
+**Was war das Problem?**
+Bisher landeten alle eingereichten Use Cases nur im Arbeitsspeicher
+(InMemoryRepository). Arbeitsspeicher ist wie ein Notizzettel -- sobald der
+Server neu startet, ist alles weg. Heute kam SQLite dazu: eine kleine
+Datenbank, die als einzelne Datei auf der Festplatte liegt und Daten ueber
+einen Neustart hinweg behaelt.
+
+**Was ist eine "Datenbank-Tabelle" hier konkret?**
+Eine Tabelle ist wie eine Excel-Tabelle mit festen Spalten. Unsere Tabelle
+`submitted_cases` hat vier Spalten: eine eindeutige ID, den Zeitpunkt der
+Einreichung, und zwei Spalten mit dem kompletten Inhalt als Text (siehe
+naechster Punkt).
+
+**Was bedeutet "Serialisierung"?**
+Die Bewertungsergebnisse in AECT sind komplexe, verschachtelte Python-
+Objekte (Zahlen, Kategorien, verschachtelte Unter-Ergebnisse). Eine
+Datenbank-Spalte kann aber nur Text oder einfache Zahlen speichern.
+Serialisierung heisst: das komplexe Objekt wird in einen Text (JSON-Format,
+das auch Webseiten benutzen) umgewandelt, bevor es gespeichert wird. Beim
+Auslesen passiert das Gleiche umgekehrt -- "Deserialisierung" -- der Text
+wird wieder in das urspruengliche Objekt zurueckverwandelt.
+
+**Warum war das nicht einfach "ein Befehl"?**
+Drei Eigenheiten mussten beim Zurueckverwandeln extra behandelt werden:
+
+1. **Geld-Betraege (Decimal):** Python kennt einen speziellen Zahlentyp fuer
+   exakte Geldbetraege (Decimal), der Rundungsfehler vermeidet, wie sie bei
+   normalen Kommazahlen (Float) passieren koennen. JSON kennt diesen Typ
+   nicht -- also wird er als Text gespeichert ("1234.56") und beim Zurueck-
+   lesen wieder in Decimal umgewandelt.
+
+2. **Feste Auswahlkategorien (Enums):** Felder wie "Zone: LIKELY_WIN" sind
+   keine freien Texte, sondern eine von wenigen erlaubten Optionen (eine
+   Art Dropdown-Menue im Code). JSON speichert das einfach als Text
+   "LIKELY_WIN" -- beim Zurueckholen muss explizit gesagt werden "das ist
+   wieder eine Zonen-Kategorie, nicht irgendein Text".
+
+3. **Reihenfolgen, die sich nicht aendern duerfen (Tuples vs. Listen):**
+   In Python gibt es Listen (koennen sich aendern) und Tuples (fix, koennen
+   sich nicht aendern). JSON kennt nur Listen. Beim Zurueckholen mussten wir
+   also wieder explizit sagen "das soll ein Tuple sein".
+
+**Was ist ein "Roundtrip-Test"?**
+Ein Test, der prueft: Objekt speichern -> aus der Datenbank wieder auslesen
+-> ist es noch exakt dasselbe? 9 solche Tests wurden heute geschrieben, je
+einer fuer Geldbetraege, Kategorien, Listen/Tuples und den Fall "manche
+Felder sind leer (None), weil der Use Case den Vorfilter nicht bestanden
+hat".
+
+**Was war der Fehler bei der Code-Pruefung?**
+Zwei automatische Pruef-Werkzeuge (ruff = Stil-Pruefer, mypy = Typ-Pruefer)
+haben den ersten Entwurf abgelehnt:
+- ruff wollte eine kuerzere Schreibweise fuer eine if/else-Entscheidung
+  (sogenannter "ternary operator" -- eine Ein-Zeilen-Variante von if/else).
+- mypy hat gemeldet: "diese Variable kann zwei verschiedene Typen haben,
+  aber
