@@ -1077,3 +1077,41 @@ haben den ersten Entwurf abgelehnt:
   (sogenannter "ternary operator" -- eine Ein-Zeilen-Variante von if/else).
 - mypy hat gemeldet: "diese Variable kann zwei verschiedene Typen haben,
   aber
+
+## Day 28 — Idempotency-Keys: Doppel-Klicks unschädlich machen
+
+**Was ist passiert, in Alltagssprache:**
+Stell dir vor, du füllst online ein Formular aus und klickst auf
+"Absenden". Die Seite lädt lange, du bist unsicher ob's geklappt hat,
+und klickst nochmal. Ohne Schutz hättest du jetzt zwei identische
+Einträge in der Datenbank.
+
+Heute habe ich einen Schutz dagegen eingebaut: Der Client (später das
+Frontend) kann beim Absenden eine eindeutige "Quittungsnummer"
+(`Idempotency-Key`) mitschicken. Beim ersten Absenden merkt sich das
+System: "Diese Quittungsnummer gehört zu diesem Ergebnis." Kommt
+dieselbe Quittungsnummer nochmal an, gibt das System einfach das alte
+Ergebnis zurück — ohne den Use Case ein zweites Mal zu bewerten oder
+zu speichern.
+
+**Begriffe geerdet:**
+- *Idempotency-Key* = die "Quittungsnummer" — eine vom Client
+  erzeugte ID für genau diese eine Aktion.
+- *Replay* = "Wiederholung" — das System gibt das vorherige Ergebnis
+  noch einmal aus, statt neu zu rechnen.
+- *Port* = eine Schnittstellen-Beschreibung ("was kann gespeichert und
+  gelesen werden"), ohne festzulegen, *wie* — heute gibt es zwei
+  Umsetzungen: im Arbeitsspeicher (für Tests) und in der Datenbank
+  (für echten Betrieb).
+
+**Stolperstein des Tages:**
+In den Tests hatte ich zwei "Gedächtnisse" (Speicher + Quittungsbuch),
+die sich versehentlich bei jeder Anfrage neu erschaffen haben — wie ein
+Kellner, der nach jedem Schritt sein Notizbuch wegwirft und ein neues
+holt. Der zweite Request konnte sich dadurch nie an den ersten
+"erinnern". Fix: beide Gedächtnisse einmal anlegen und für alle
+Anfragen wiederverwenden.
+
+**Verständnislücke (für mich, ehrlich notiert):**
+Ich habe die Frage "warum reicht der Key allein, ohne den Inhalt zu
+vergleichen" nicht ganz sauber beantwortet — kurzer Nachtrag morgen.
