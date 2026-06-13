@@ -98,3 +98,44 @@ async def sharpen_case(
         sharpened_text=sharpened.sharpened_text,
         prompt_version=sharpened.prompt_version,
     )
+
+
+class SolutionProposalResponse(BaseModel):
+    """Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton)."""
+
+    case_id: str
+    proposal_text: str
+    prompt_version: str
+
+
+@router.post("/{case_id}/propose-solution", response_model=SolutionProposalResponse)
+@limiter.limit("10/minute")
+async def propose_solution(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> SolutionProposalResponse:
+    """Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen
+    (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+
+    Skeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten
+    Zielplattformen -- Stack-Grounding via RAG folgt Phase D.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    proposal = await service.propose_solution(case_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return SolutionProposalResponse(
+        case_id=proposal.case_id,
+        proposal_text=proposal.proposal_text,
+        prompt_version=proposal.prompt_version,
+    )

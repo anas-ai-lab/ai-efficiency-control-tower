@@ -60,3 +60,26 @@ class SharpenedUseCase:
     original_desired_state: str
     sharpened_text: str
     prompt_version: str
+
+
+@dataclass(frozen=True)
+class SolutionProposal:
+    """Ergebnis des Stack-passenden Loesungsvorschlags (Phase C, Skeleton).
+
+    Mock-First-Skeleton (Tag 36) analog SharpenedUseCase: proposal_text ist
+    die rohe LLM-Antwort als str -- strukturierte Validierung (Plattform,
+    Begruendung, Alternativen als separate Felder) folgt, sobald ein
+    Provider strukturierte Antworten liefert (gleicher offener Punkt wie
+    SharpenedUseCase, siehe ADR-0006).
+
+    v1-Prompt (prompts/propose_solution/v1/) nennt bewusst keine konkreten
+    Zielplattformen -- Stack-Grounding via RAG folgt Phase D (Master-Plan
+    v3.1). case_id verweist auf den persistierten SubmittedCase.
+
+    frozen=True: analog SharpenedUseCase, Ergebnis ist nach Erstellung
+    unveraenderlich.
+    """
+
+    case_id: str
+    proposal_text: str
+    prompt_version: str

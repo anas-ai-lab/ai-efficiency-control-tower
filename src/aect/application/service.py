@@ -9,7 +9,7 @@ from __future__ import annotations
 import structlog
 
 from aect.application.cost_logger import log_llm_cost
-from aect.application.models import SharpenedUseCase, SubmittedCase
+from aect.application.models import SharpenedUseCase, SolutionProposal, SubmittedCase
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
@@ -145,5 +145,71 @@ class TriageService:
             original_current_state=case.use_case.current_state,
             original_desired_state=case.use_case.desired_state,
             sharpened_text=response.content,
+            prompt_version=prompt_version,
+        )
+
+    async def propose_solution(
+        self, case_id: str, prompt_version: str = "v1"
+    ) -> SolutionProposal | None:
+        """Skizziert einen Loesungsansatz fuer einen persistierten Case via LLM.
+
+        Tag 36, Phase-C-Skeleton: identisches Pattern wie sharpen_case() --
+        gleicher Injection-Check, gleiches Messages-/Cost-Logging-Vorgehen,
+        andere Prompt-Familie ("propose_solution" statt "sharpen_use_case").
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+
+        v1-Prompt nennt bewusst keine konkreten Zielplattformen (siehe
+        SolutionProposal-Docstring) -- Stack-Grounding via RAG folgt Phase D.
+        """
+        case = self._repository.get(case_id)
+        if case is None:
+            return None
+
+        fields_to_check = {
+            "title": case.use_case.title,
+            "current_state": case.use_case.current_state,
+            "desired_state": case.use_case.desired_state,
+            "example_process": case.use_case.example_process,
+        }
+        detected: dict[str, list[str]] = {
+            field_name: patterns
+            for field_name, field_value in fields_to_check.items()
+            if (patterns := detect_injection_patterns(field_value))
+        }
+        if detected:
+            logger = structlog.get_logger()
+            logger.warning(
+                "injection_pattern_detected",
+                case_id=case.id,
+                fields=detected,
+            )
+
+        system_prompt = load_prompt("propose_solution", "system", prompt_version)
+        user_template = load_prompt("propose_solution", "user", prompt_version)
+        user_content = user_template.format(
+            title=case.use_case.title,
+            current_state=case.use_case.current_state,
+            desired_state=case.use_case.desired_state,
+            example_process=case.use_case.example_process,
+        )
+
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self._llm.complete(messages)
+
+        log_llm_cost(
+            case_id=case.id,
+            messages=messages,
+            response=response,
+            operation="propose_solution",
+        )
+
+        return SolutionProposal(
+            case_id=case.id,
+            proposal_text=response.content,
             prompt_version=prompt_version,
         )
