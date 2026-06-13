@@ -30,6 +30,7 @@ from pathlib import Path
 
 from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader
+from openai import AsyncAzureOpenAI
 
 from aect.adapters.api.settings import Settings
 from aect.adapters.in_memory.clock import SystemClock
@@ -37,6 +38,7 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
@@ -67,21 +69,6 @@ def get_roi_config() -> ROIConfig:
     return load_roi_config()
 
 
-def get_llm_adapter() -> LLMPort:
-    """Liefert den LLM-Adapter fuer TriageService.sharpen_case().
-
-    Phase C: MockLLMAdapter (deterministisch, kostenlos, kein Netzwerk),
-    gewrappt mit ResilientLLMAdapter (Retry + Backoff + Timeout via
-    tenacity -- aect-security-checklist v2.1 Phase C "Circuit Breaker",
-    Tag 34/35). Ein spaeterer Azure-OpenAI-Adapter implementiert denselben
-    LLMPort und wird hier als `inner` eingesetzt -- diese Funktion bleibt
-    die einzige Stelle, die dann angepasst wird (ADR-0005, ADR-0006).
-    Retry-Exception-Typen (TimeoutError, ConnectionError) sind ein
-    generischer Platzhalter; bei Azure ggf. erweitern (siehe resilient.py).
-    """
-    return ResilientLLMAdapter(MockLLMAdapter())
-
-
 def get_settings() -> Settings:
     """Liefert Settings-Instanz.
 
@@ -89,6 +76,39 @@ def get_settings() -> Settings:
     eine andere Settings-Instanz injizieren ohne Cache leeren zu muessen.
     """
     return Settings()
+
+
+def get_llm_adapter(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> LLMPort:
+    """Liefert den LLM-Adapter fuer TriageService (ADR-0010).
+
+    Azure-Pfad: AECT_AZURE_OPENAI_ENDPOINT und AECT_AZURE_OPENAI_API_KEY
+    gesetzt -> AzureOpenAIAdapter (echter Azure-Call, EU-Data-Zone-Pflicht
+    ADR-0003). AsyncAzureOpenAI-Client wird hier gebaut und per
+    Constructor-DI uebergeben (kein patch() in Tests noetig).
+
+    Mock-Pfad: Credentials fehlen -> MockLLMAdapter (deterministisch,
+    kein Netzwerk, fuer Tests und lokale Entwicklung ohne Azure-Setup).
+
+    Beide Pfade: inner wird mit ResilientLLMAdapter gewrappt (Retry +
+    Backoff + Timeout, ADR-0007). TriageService kennt nur LLMPort --
+    der Pfadwechsel ist fuer ihn vollstaendig unsichtbar (ADR-0002).
+    """
+    inner: LLMPort
+    if settings.azure_openai_endpoint and settings.azure_openai_api_key:
+        client = AsyncAzureOpenAI(
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+            azure_endpoint=settings.azure_openai_endpoint,
+        )
+        inner = AzureOpenAIAdapter(
+            client=client,
+            deployment=settings.azure_openai_deployment,
+        )
+    else:
+        inner = MockLLMAdapter()
+    return ResilientLLMAdapter(inner)
 
 
 async def require_api_key(

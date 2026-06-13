@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     api_key: str = ""
     db_path: str = ""  # Leer = InMemoryRepository. AECT_DB_PATH=/pfad/aect.db = SQLite.
 
+    # Azure OpenAI (Phase C, ADR-0010) -- leer = MockLLMAdapter.
+    # EU-Data-Zone-Pflicht (ADR-0003): Deployment muss in swedencentral
+    # oder westeurope liegen -- nicht aus Endpoint-URL pruefbar,
+    # gilt als Deployment-Zeit-Pflicht, kein Code-Gate.
+    azure_openai_endpoint: str = ""  # AECT_AZURE_OPENAI_ENDPOINT
+    azure_openai_api_key: str = ""  # AECT_AZURE_OPENAI_API_KEY
+    azure_openai_deployment: str = ""  # AECT_AZURE_OPENAI_DEPLOYMENT
+    azure_openai_api_version: str = "2024-10-21"  # AECT_AZURE_OPENAI_API_VERSION
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",
