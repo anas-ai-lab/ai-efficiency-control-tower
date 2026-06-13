@@ -1417,3 +1417,38 @@ nachgewiesen, nicht nur die zwei auffälligeren.
 "Verständnis-Check") wird jetzt direkt in die Daily Note geschrieben. So ist
 beim nächsten Tag sofort sichtbar, ob die Frage vom Vortag beantwortet wurde —
 ohne dass im Chat-Verlauf gesucht werden muss.
+
+## Tag 40 — Echter KI-Anbieter angeschlossen, ohne den Rest anzufassen
+
+Bisher hat das System mit einer "Test-Attrappe" gesprochen: einer simulierten
+KI, die immer dieselbe vorhersehbare Antwort gibt, ohne echte Kosten oder
+Internet-Verbindung. Heute kam die echte Verbindung zu Azure (Microsofts
+Cloud-KI-Dienst) dazu — als zweite Möglichkeit neben der Attrappe.
+
+**Wie die Umschaltung funktioniert:** Eine einzige Stelle im Code prüft, ob
+Zugangsdaten für Azure hinterlegt sind. Sind sie da, nutzt das System die
+echte KI. Sind sie nicht da (wie heute — noch keine Zugangsdaten in der
+Konfiguration), läuft die Attrappe weiter. Der große Rest des Systems — die
+Bewertungslogik, die Use-Case-Schärfung, die API-Endpunkte — bekommt davon
+nichts mit. Für die ist es einfach "die KI", egal welche dahintersteckt.
+
+**Warum das wichtig ist:** Wenn in einem Jahr ein anderer KI-Anbieter
+genutzt werden soll (oder ein günstigerer, oder ein besserer), muss nur ein
+neuer "Übersetzer" für diesen Anbieter gebaut und an derselben einen Stelle
+eingehängt werden. Der Rest des Systems bleibt unberührt — keine
+Kettenreaktion durch den ganzen Code.
+
+**Technisches Detail, das Kopfschmerzen machen könnte, wenn man's nicht
+weiß:** Die echte KI liefert ihre Antworten in einem anderen Format als die
+Attrappe — z. B. werden "Werkzeug-Aufrufe" (wenn die KI um zusätzliche Daten
+bittet) als Text-Zeichenketten zurückgegeben, die erst noch in "richtige"
+Daten umgewandelt werden müssen. Der neue Übersetzer macht genau diese
+Umwandlung in beide Richtungen.
+
+**Heute kein echter Test mit der echten KI** — dafür fehlen noch die
+Zugangsdaten (Passwort + Adresse für den Azure-Dienst). Das ist geplant und
+kein Fehler: der Übersetzer ist fertig gebaut und durchgetestet (mit einer
+simulierten Verbindung), der scharfe Test mit echten Kosten kommt als
+eigener kleiner Schritt, sobald die Zugangsdaten eingerichtet sind.
+
+**Tests:** 289 grün (14 neu dazugekommen).
