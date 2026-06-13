@@ -1386,3 +1386,34 @@ belegt wurden (das kommt in einer spaeteren Phase). Deshalb soll er
 vorsichtig formulieren ("koennte passen") statt bestimmt ("ist die richtige
 Wahl").
 EOF
+
+## Tag 39 — Der dritte Fall, den niemand getestet hatte
+
+Seit ein paar Tagen kann die KI bei einem bestimmten Schritt ("Lösungsvorschlag
+machen") auf eine Liste von Hilfsmitteln zugreifen — aktuell genau eines: eine
+Liste mit möglichen Zielplattformen. Die KI kann dieses Hilfsmittel nutzen,
+muss es aber nicht.
+
+Bisher waren zwei Reaktionen der KI getestet: "ich nutze das Hilfsmittel" und
+"ich versuche, ein Hilfsmittel zu nutzen, das es gar nicht gibt" (dafür gibt es
+eine Sicherheitsabfangung, die verhindert, dass das System abstürzt).
+
+Die dritte Reaktion fehlte: "ich brauche kein Hilfsmittel, ich antworte
+einfach direkt." Das ist der häufigste und harmloseste Fall — aber auch der
+musste nachgewiesen werden, sonst weiß man nicht sicher, ob der Code damit
+wirklich richtig umgeht.
+
+Heute kam ein Test dafür dazu: ein Fake-Modell, das immer direkt antwortet,
+egal welche Hilfsmittel angeboten werden. Der Test prüft zwei Dinge: dass eine
+normale Antwort zurückkommt, und dass dabei nur **ein** Eintrag in der
+Kosten-Buchhaltung entsteht — beim Hilfsmittel-Pfad sind es zwei (einmal für
+"was will die KI tun", einmal für "hier ist die finale Antwort").
+
+Mit diesem Test ist die "Kosten- und Verhaltensabdeckung" für diesen Teil des
+Systems jetzt vollständig: alle drei möglichen Reaktionen der KI sind
+nachgewiesen, nicht nur die zwei auffälligeren.
+
+**Neu ab heute:** Die Frage-Antwort-Runde am Ende jeder Anleitung (das
+"Verständnis-Check") wird jetzt direkt in die Daily Note geschrieben. So ist
+beim nächsten Tag sofort sichtbar, ob die Frage vom Vortag beantwortet wurde —
+ohne dass im Chat-Verlauf gesucht werden muss.
