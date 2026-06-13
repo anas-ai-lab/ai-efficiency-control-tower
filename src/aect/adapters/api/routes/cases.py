@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
 from aect.adapters.api.dependencies import get_triage_service, require_api_key
@@ -138,4 +138,120 @@ async def propose_solution(
         case_id=proposal.case_id,
         proposal_text=proposal.proposal_text,
         prompt_version=proposal.prompt_version,
+    )
+
+
+class ReportRequest(BaseModel):
+    """Optionale LLM-Narrative fuer den Report.
+
+    Tag 41 (additiv ohne Persistenz-Aenderung, ADR-0011): der Client reicht
+    sharpen_case()- und propose_solution()-Ergebnisse erneut durch, falls sie
+    im Report angezeigt werden sollen. extra="forbid" + max_length:
+    aect-security-checklist v2.1 Phase A (Token-Flooding-Schutz, LLM10) --
+    gilt als generelle Eingabe-Disziplin auch fuer Felder ohne direkten
+    LLM-Call.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sharpened_text: str | None = Field(default=None, max_length=5000)
+    proposal_text: str | None = Field(default=None, max_length=5000)
+
+
+class BusinessSummaryResponse(BaseModel):
+    """Entscheider-Schicht des Reports."""
+
+    title: str
+    zone: str | None
+    is_actionable: bool
+    recommendation: str
+    expected_benefit_eur: float | None
+    summary_text: str
+    sharpened_text: str | None
+
+
+class TechnicalDetailResponse(BaseModel):
+    """Reviewer-Schicht des Reports."""
+
+    passed_vorfilter: bool
+    vorfilter_failed_criteria: list[str]
+    composite_total: int | None
+    composite_effort_label: str | None
+    feasibility_flags: list[str]
+    feasibility_recommendation: str | None
+    automation_signals: list[str]
+    ai_signals: list[str]
+    risk_flags: list[str]
+    requires_human_review: bool
+    roi_theoretical_potential_eur: float | None
+    roi_net_expected_benefit_eur: float | None
+    proposal_text: str | None
+
+
+class ReportResponse(BaseModel):
+    """Zweischichtiger Report -- striktes JSON (interne Referenz (entfernt) SS3.1, Punkt 6)."""
+
+    case_id: str
+    business_summary: BusinessSummaryResponse
+    technical_detail: TechnicalDetailResponse
+
+
+@router.post("/{case_id}/report", response_model=ReportResponse)
+@limiter.limit("30/minute")
+async def get_report(
+    case_id: str,
+    request: Request,
+    response: Response,
+    body: ReportRequest | None = None,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> ReportResponse:
+    """Erstellt den zweischichtigen Report fuer einen bestehenden Case.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
+    -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
+
+    body: optional, sharpened_text/proposal_text aus vorherigen
+    /sharpen- bzw. /propose-solution-Calls (Tag 41, kein Persistenz-Read).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    sharpened_text = body.sharpened_text if body is not None else None
+    proposal_text = body.proposal_text if body is not None else None
+
+    report = service.generate_report(
+        case_id, sharpened_text=sharpened_text, proposal_text=proposal_text
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return ReportResponse(
+        case_id=report.case_id,
+        business_summary=BusinessSummaryResponse(
+            title=report.business_summary.title,
+            zone=report.business_summary.zone,
+            is_actionable=report.business_summary.is_actionable,
+            recommendation=report.business_summary.recommendation,
+            expected_benefit_eur=report.business_summary.expected_benefit_eur,
+            summary_text=report.business_summary.summary_text,
+            sharpened_text=report.business_summary.sharpened_text,
+        ),
+        technical_detail=TechnicalDetailResponse(
+            passed_vorfilter=report.technical_detail.passed_vorfilter,
+            vorfilter_failed_criteria=report.technical_detail.vorfilter_failed_criteria,
+            composite_total=report.technical_detail.composite_total,
+            composite_effort_label=report.technical_detail.composite_effort_label,
+            feasibility_flags=report.technical_detail.feasibility_flags,
+            feasibility_recommendation=report.technical_detail.feasibility_recommendation,
+            automation_signals=report.technical_detail.automation_signals,
+            ai_signals=report.technical_detail.ai_signals,
+            risk_flags=report.technical_detail.risk_flags,
+            requires_human_review=report.technical_detail.requires_human_review,
+            roi_theoretical_potential_eur=report.technical_detail.roi_theoretical_potential_eur,
+            roi_net_expected_benefit_eur=report.technical_detail.roi_net_expected_benefit_eur,
+            proposal_text=report.technical_detail.proposal_text,
+        ),
     )

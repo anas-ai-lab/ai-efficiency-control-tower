@@ -12,7 +12,14 @@ from typing import Any
 import structlog
 
 from aect.application.cost_logger import log_llm_cost
-from aect.application.models import SharpenedUseCase, SolutionProposal, SubmittedCase
+from aect.application.models import (
+    BusinessSummary,
+    ReportResult,
+    SharpenedUseCase,
+    SolutionProposal,
+    SubmittedCase,
+    TechnicalDetail,
+)
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
@@ -24,7 +31,82 @@ from aect.application.tools import (
     UnknownToolError,
     dispatch_tool_call,
 )
-from aect.domain import ROIConfig, UseCaseInput, evaluate_use_case
+from aect.domain import ROIConfig, TriageResult, UseCaseInput, evaluate_use_case
+
+
+def _build_business_summary(
+    result: TriageResult, sharpened_text: str | None
+) -> BusinessSummary:
+    """Leitet die Entscheider-Schicht deterministisch aus TriageResult ab.
+
+    result.zone ist None genau dann, wenn der Vorfilter nicht bestanden wurde
+    (domain/pipeline.py) -- in diesem Fall auch result.roi None.
+    """
+    if result.zone is not None:
+        zone_value: str | None = result.zone.final_zone.value
+        expected_benefit: float | None = (
+            float(result.roi.expected_benefit_eur) if result.roi is not None else None
+        )
+        summary_text = (
+            f"'{result.title}': Zone {zone_value}, "
+            f"Empfehlung {result.routing.recommendation.value}. "
+            f"{result.zone.reason}"
+        )
+    else:
+        zone_value = None
+        expected_benefit = None
+        summary_text = (
+            f"'{result.title}' erfuellt die Vorfilter-Kriterien nicht "
+            f"({', '.join(result.vorfilter.failed_criteria)}). "
+            f"Empfehlung {result.routing.recommendation.value}."
+        )
+
+    return BusinessSummary(
+        title=result.title,
+        zone=zone_value,
+        is_actionable=result.is_actionable,
+        recommendation=result.routing.recommendation.value,
+        expected_benefit_eur=expected_benefit,
+        summary_text=summary_text,
+        sharpened_text=sharpened_text,
+    )
+
+
+def _build_technical_detail(
+    result: TriageResult, proposal_text: str | None
+) -> TechnicalDetail:
+    """Leitet die Reviewer-Schicht deterministisch aus TriageResult ab.
+
+    composite/roi sind None wenn passed_vorfilter False ist (siehe
+    domain/pipeline.py) -- entsprechende Felder werden dann None.
+    """
+    return TechnicalDetail(
+        passed_vorfilter=result.passed_vorfilter,
+        vorfilter_failed_criteria=list(result.vorfilter.failed_criteria),
+        composite_total=(
+            result.composite.total if result.composite is not None else None
+        ),
+        composite_effort_label=(
+            result.composite.effort_label if result.composite is not None else None
+        ),
+        feasibility_flags=[f.value for f in result.feasibility.flags],
+        feasibility_recommendation=result.feasibility.recommendation,
+        automation_signals=list(result.routing.automation_signals),
+        ai_signals=list(result.routing.ai_signals),
+        risk_flags=list(result.routing.risk_flags),
+        requires_human_review=result.routing.requires_human_review,
+        roi_theoretical_potential_eur=(
+            float(result.roi.theoretical_potential_eur)
+            if result.roi is not None
+            else None
+        ),
+        roi_net_expected_benefit_eur=(
+            float(result.roi.net_expected_benefit_eur)
+            if result.roi is not None
+            else None
+        ),
+        proposal_text=proposal_text,
+    )
 
 
 class TriageService:
@@ -262,4 +344,37 @@ class TriageService:
             case_id=case.id,
             proposal_text=response.content,
             prompt_version=prompt_version,
+        )
+
+    def generate_report(
+        self,
+        case_id: str,
+        sharpened_text: str | None = None,
+        proposal_text: str | None = None,
+    ) -> ReportResult | None:
+        """Erstellt den zweischichtigen Report (Business + Technisch) fuer einen Case.
+
+        Reine Regel-Schicht (Master-Plan v3.1, Phase C: "Zweischichtiger
+        Report-Renderer", ADR-0011): kombiniert das deterministische
+        TriageResult mit optionalen LLM-Narrativen aus sharpen_case() /
+        propose_solution(). AECT persistiert diese Narrative aktuell nicht --
+        der Client reicht sie erneut durch (Tag 41, additiv ohne
+        Persistenz-Aenderung).
+
+        sharpened_text/proposal_text werden unveraendert als untrusted
+        LLM-Output durchgereicht (aect-security-checklist v2.1: "LLM-Output
+        immer als untrusted behandeln") -- sie fliessen nicht in
+        Berechnungen ein, nur in die Anzeige.
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = self._repository.get(case_id)
+        if case is None:
+            return None
+
+        return ReportResult(
+            case_id=case.id,
+            business_summary=_build_business_summary(case.result, sharpened_text),
+            technical_detail=_build_technical_detail(case.result, proposal_text),
         )

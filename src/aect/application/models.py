@@ -83,3 +83,67 @@ class SolutionProposal:
     case_id: str
     proposal_text: str
     prompt_version: str
+
+
+@dataclass(frozen=True)
+class BusinessSummary:
+    """Entscheider-Schicht des zweischichtigen Reports (interne Referenz (entfernt) SS3.1, Punkt 6).
+
+    Enthaelt nur, was fuer eine Go/No-Go-Einschaetzung noetig ist -- keine
+    Rohwerte aus Vorfilter/Composite (siehe TechnicalDetail).
+
+    sharpened_text: optional vom Client uebergebene LLM-Schaerfung
+    (sharpen_case()-Ergebnis). AECT persistiert LLM-Narrative aktuell nicht
+    (Tag 41, additiv ohne Persistenz-Aenderung, siehe ADR-0011) -- der Client
+    reicht den Text erneut durch, wenn er ihn anzeigen will. Als untrusted
+    LLM-Output unveraendert weitergereicht (aect-security-checklist v2.1).
+    """
+
+    title: str
+    zone: str | None
+    is_actionable: bool
+    recommendation: str
+    expected_benefit_eur: float | None
+    summary_text: str
+    sharpened_text: str | None
+
+
+@dataclass(frozen=True)
+class TechnicalDetail:
+    """Reviewer-Schicht des zweischichtigen Reports (interne Referenz (entfernt) SS3.1, Punkt 6).
+
+    Rohwerte aus Vorfilter, Composite-Score, Feasibility und Routing fuer
+    Personen, die die Bewertung nachvollziehen wollen.
+
+    proposal_text: optional vom Client uebergebener Loesungsvorschlag
+    (propose_solution()-Ergebnis), analog sharpened_text in BusinessSummary.
+    """
+
+    passed_vorfilter: bool
+    vorfilter_failed_criteria: list[str]
+    composite_total: int | None
+    composite_effort_label: str | None
+    feasibility_flags: list[str]
+    feasibility_recommendation: str | None
+    automation_signals: list[str]
+    ai_signals: list[str]
+    risk_flags: list[str]
+    requires_human_review: bool
+    roi_theoretical_potential_eur: float | None
+    roi_net_expected_benefit_eur: float | None
+    proposal_text: str | None
+
+
+@dataclass(frozen=True)
+class ReportResult:
+    """Zweischichtiger Report fuer einen persistierten Case (Master-Plan v3.1,
+    Phase C: "Zweischichtiger Report-Renderer").
+
+    Reine Regel-Schicht: business_summary und technical_detail werden
+    deterministisch aus TriageResult abgeleitet (_build_business_summary /
+    _build_technical_detail in application/service.py). Kein LLM-Call.
+    """
+
+    case_id: str
+    business_summary: BusinessSummary
+    technical_detail: TechnicalDetail
