@@ -1356,3 +1356,33 @@ Was noch fehlt (kommt Tag 38): Der eigentliche "Frage-Antwort-Tanz" --
 Assistent fragt nach der Liste, bekommt sie, formuliert damit seine finale
 Antwort. Heute steht nur die Liste und die Tuer-Sicherung bereit, die Tuer
 selbst geht morgen auf.
+
+cat >> learning-log.md << 'EOF'
+
+## Tag 38 (2026-06-13) — Die Tuer geht auf: der Frage-Antwort-Tanz
+
+Gestern stand die "Telefonliste" und die Tuersicherung bereit. Heute wurde
+sie tatsaechlich genutzt: Der Assistent bekommt die Aufgabe, einen
+Loesungsvorschlag zu skizzieren, und kann dabei sagen "zeig mir erst die
+Plattform-Optionen". Der Code holt die Liste aus der Konfigurationsdatei,
+gibt sie zurueck, und der Assistent baut sie in seine Antwort ein.
+
+Wichtig dabei: Dieser "Tanz" hat eine feste Anzahl Schritte -- maximal zwei.
+Der Assistent fragt einmal, bekommt einmal eine Antwort, fertig. Kein
+endloses Hin und Her. Das ist eine bewusste Sicherheitsgrenze (sonst koennte
+ein fehlerhafter Assistent theoretisch unbegrenzt weiter nachfragen und
+Kosten verursachen).
+
+Zweite Absicherung: Was, wenn der Assistent nach etwas Nicht-Existierendem
+fragt? Der Code bricht die ganze Anfrage nicht ab -- er sagt dem Assistenten
+nur "das gibt es nicht" und der Assistent formuliert trotzdem eine Antwort,
+so gut es ohne diese Info geht. Das nennt man "graceful degradation" --
+sanftes Nachgeben statt komplettem Absturz.
+
+Ausserdem wurde die Anleitung an den Assistenten ("System-Prompt") erweitert:
+er weiss jetzt, dass die Plattform-Liste existiert, aber auch, dass die
+Beschreibungen darin noch vorlaeufig sind und noch nicht durch echte Quellen
+belegt wurden (das kommt in einer spaeteren Phase). Deshalb soll er
+vorsichtig formulieren ("koennte passen") statt bestimmt ("ist die richtige
+Wahl").
+EOF
