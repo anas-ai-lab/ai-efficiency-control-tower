@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from aect.adapters.llm.resilient import ResilientLLMAdapter
-from aect.application.ports.llm import LLMMessage, LLMResponse
+from aect.application.ports.llm import LLMMessage, LLMResponse, ToolDefinition
 
 _FAST: dict[str, float] = {"min_wait_seconds": 0.0, "max_wait_seconds": 0.0}
 _MESSAGES = [LLMMessage(role="user", content="Hallo")]
@@ -20,7 +20,9 @@ class _FlakyLLMAdapter:
         self._fail_times = fail_times
         self.call_count = 0
 
-    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
         self.call_count += 1
         if self.call_count <= self._fail_times:
             raise ConnectionError("transient")
@@ -33,7 +35,9 @@ class _AlwaysFailingLLMAdapter:
     def __init__(self) -> None:
         self.call_count = 0
 
-    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
         self.call_count += 1
         raise ConnectionError("permanent")
 
@@ -45,7 +49,9 @@ class _SlowLLMAdapter:
         self._delay_seconds = delay_seconds
         self.call_count = 0
 
-    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
         self.call_count += 1
         await asyncio.sleep(self._delay_seconds)
         return LLMResponse(content="too late")
@@ -57,9 +63,24 @@ class _NonRetryableLLMAdapter:
     def __init__(self) -> None:
         self.call_count = 0
 
-    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
         self.call_count += 1
         raise ValueError("not retryable")
+
+
+class _RecordingLLMAdapter:
+    """Zeichnet die zuletzt empfangenen `tools` auf -- prueft Passthrough."""
+
+    def __init__(self) -> None:
+        self.received_tools: list[ToolDefinition] | None = None
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        self.received_tools = tools
+        return LLMResponse(content="ok")
 
 
 async def test_succeeds_on_first_attempt() -> None:
@@ -110,3 +131,13 @@ async def test_non_retryable_exception_propagates_immediately() -> None:
         await adapter.complete(_MESSAGES)
 
     assert inner.call_count == 1
+
+
+async def test_tools_parameter_is_passed_through_to_inner() -> None:
+    inner = _RecordingLLMAdapter()
+    adapter = ResilientLLMAdapter(inner, max_attempts=3, **_FAST)
+    tool = ToolDefinition(name="lookup_stack_options", description="...", parameters={})
+
+    await adapter.complete(_MESSAGES, tools=[tool])
+
+    assert inner.received_tools == [tool]

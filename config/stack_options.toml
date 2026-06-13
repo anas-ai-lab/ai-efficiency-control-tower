@@ -1,0 +1,28 @@
+# config/stack_options.toml
+#
+# IP-Trennung (interne Referenz (entfernt) §5): Firmenspezifische Plattform-Namen und
+# -Beschreibungen leben hier, nicht im generischen Code
+# (application/tools.py). Wird von lookup_stack_options() (Tag 37) gelesen.
+#
+# Tag 37 (Phase C): Platzhalter-Beschreibungen, noch ohne RAG-Beleg.
+# Stack-Grounding mit echten Quellen folgt Phase D (Master-Plan v3.1).
+
+[open_webui]
+name = "Open WebUI"
+description = "Self-hosted Open-Source-Chat-Oberflaeche fuer LLMs. Geeignet fuer interne Pilotierung ohne Lizenzkosten, erfordert eigenes Hosting."
+
+[copilot_studio]
+name = "Microsoft Copilot Studio"
+description = "Low-Code-Plattform fuer Conversational-AI-Agenten innerhalb von Microsoft 365. Geeignet bei enger Anbindung an Microsoft-Datenquellen (SharePoint, Teams)."
+
+[foundry]
+name = "Microsoft Foundry (Azure AI Foundry)"
+description = "Azure-Plattform fuer Modell-Hosting, Orchestrierung und Evaluation. Geeignet fuer individuelle Loesungen mit hohem Kontrollbedarf ueber Modelle, Prompts und Daten-Pipeline."
+
+[sap_btp]
+name = "SAP Business Technology Platform"
+description = "SAP-eigene Plattform fuer Erweiterungen und Integrationen im SAP-Kontext. Geeignet wenn die Loesung tief in bestehende SAP-Prozesse eingreift."
+
+[andere]
+name = "Andere / individuelle Loesung"
+description = "Keine der Standard-Plattformen passt -- individuelle Architektur erforderlich. Signal fuer vertiefte Pruefung im Internes Gremium."

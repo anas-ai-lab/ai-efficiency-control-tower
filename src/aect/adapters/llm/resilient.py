@@ -11,7 +11,11 @@ ruft kein LLM auf -- ein dauerhaft ausfallender LLM-Adapter blockiert die
 Kernbewertung nicht, unabhaengig von diesem Adapter
 (siehe tests/application/test_service.py).
 
-Offener Punkt (siehe ADR): Die Retry-Exception-Typen (TimeoutError,
+Tag 37 (Function-Calling): `complete()` reicht den optionalen `tools`-
+Parameter unveraendert an den inneren Adapter durch -- reiner Passthrough,
+keine Aenderung an Retry-/Timeout-Verhalten.
+
+Offener Punkt (siehe ADR-0007): Die Retry-Exception-Typen (TimeoutError,
 ConnectionError) sind ein generischer Platzhalter. Ein spaeterer
 Azure-OpenAI-Adapter wirft providerspezifische Exceptions (z. B.
 APIConnectionError, RateLimitError) -- die Retry-Bedingung muss dann erweitert
@@ -31,7 +35,12 @@ from tenacity import (
     wait_exponential,
 )
 
-from aect.application.ports.llm import LLMMessage, LLMPort, LLMResponse
+from aect.application.ports.llm import (
+    LLMMessage,
+    LLMPort,
+    LLMResponse,
+    ToolDefinition,
+)
 
 
 class ResilientLLMAdapter:
@@ -62,7 +71,11 @@ class ResilientLLMAdapter:
         self._min_wait_seconds = min_wait_seconds
         self._max_wait_seconds = max_wait_seconds
 
-    async def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
         retrying = AsyncRetrying(
             stop=stop_after_attempt(self._max_attempts),
             wait=wait_exponential(
@@ -74,7 +87,7 @@ class ResilientLLMAdapter:
         async for attempt in retrying:
             with attempt:
                 return await asyncio.wait_for(
-                    self._inner.complete(messages),
+                    self._inner.complete(messages, tools=tools),
                     timeout=self._timeout_seconds,
                 )
         raise AssertionError("unreachable: AsyncRetrying always returns or raises")
