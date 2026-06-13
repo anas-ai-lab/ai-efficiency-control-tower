@@ -1452,3 +1452,29 @@ simulierten Verbindung), der scharfe Test mit echten Kosten kommt als
 eigener kleiner Schritt, sobald die Zugangsdaten eingerichtet sind.
 
 **Tests:** 289 grün (14 neu dazugekommen).
+
+cat >> learning-log.md << 'EOF'
+
+## Tag 41 — Zweischichtiger Report
+
+Heute hat das Projekt einen "Report"-Knopf bekommen: man gibt eine
+Use-Case-ID an und bekommt zwei Ansichten auf dasselbe Ergebnis zurueck.
+
+Die erste Ansicht ist fuer jemanden, der schnell entscheiden muss: eine
+Ampel-Zone (Gewinn-wahrscheinlich / mit Vorsicht / eher nicht), eine
+Empfehlung und ein kurzer erklaerender Satz. Die zweite Ansicht ist fuer
+jemanden, der jede Zahl pruefen will: alle Einzelwerte aus der Bewertung
+(Geldbetrag, Aufwands-Score, Risiko-Flags usw.).
+
+Wichtig: nichts davon wird neu berechnet. Beide Ansichten sind nur zwei
+verschiedene Zusammenstellungen aus dem Ergebnis, das ohnehin schon
+existiert -- aehnlich wie eine Kurzfassung und eine ausfuehrliche Fassung
+desselben Berichts.
+
+Ein kleiner Stolperstein: beim Schreiben ist eine neue Funktion versehentlich
+"ausserhalb" der zustaendigen Code-Einheit gelandet (eine Frage von
+Leerzeichen am Zeilenanfang in Python -- das entscheidet, wozu ein Code-Block
+gehoert). Die automatische Typ-Pruefung (mypy) hat das sofort gemeldet, bevor
+es ueberhaupt zu Tests kam. Klassisches Beispiel dafuer, warum diese
+Pruef-Schritte vor jedem Commit laufen.
+EOF
