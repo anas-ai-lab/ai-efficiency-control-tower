@@ -1302,3 +1302,30 @@ trotzdem normal ("kommt eine Antwort an?").
 schlecht gestellt — sie verlangte Wissen aus dem Code, das du nicht hast,
 weil du die Guides blind abarbeitest. Lehre für künftige Tage: Fragen müssen
 aus dem kurzen Kontext-Absatz beantwortbar sein, nicht aus dem Code selbst.
+
+## Day 36 — Die KI bekommt eine zweite Aufgabe: einen ersten Lösungsvorschlag skizzieren
+
+Gestern und vorgestern haben wir die "Schärfung" gebaut -- die KI nimmt
+eine unscharfe Use-Case-Beschreibung und formuliert sie konkreter. Heute
+kam ein zweiter Knopf dazu: die KI bekommt die gleiche Beschreibung und
+skizziert einen ersten technischen Lösungsansatz dazu.
+
+**Warum war das heute so schnell gebaut?**
+Weil es technisch fast eine Kopie von vorher war. Alles, was wir in den
+letzten Tagen gebaut haben -- die Prüfung auf verdächtige Eingaben
+("Sicherheitscheck"), das Sicherheitsnetz mit automatischen
+Wiederholversuchen, die Kostenmessung pro KI-Anfrage -- gilt automatisch
+auch für die neue Fähigkeit, ohne dass dafür etwas extra gebaut werden
+musste. Nur die Frage an die KI ist neu ("schlage eine Lösung vor" statt
+"formuliere schärfer"), dazu kommt ein neuer Knopf (Endpoint).
+
+**Was kann das System jetzt noch nicht?**
+Der heutige Lösungsvorschlag ist bewusst ein Platzhalter. Die KI weiß noch
+nichts über die konkreten Werkzeuge/Plattformen, die tatsächlich zur Auswahl
+stehen. Das ist Absicht: dieses Wissen kommt erst in einer späteren Phase,
+wenn die KI Zugriff auf eine kuratierte Wissensbasis bekommt ("RAG" -- die
+KI kann dann in echten Dokumenten nachschlagen, statt zu raten). Heute ging
+es nur darum, die Leitung dafür zu legen.
+
+**Tests:** 262 von 262 automatischen Tests laufen durch, davon 4 neu für
+die heutige Funktion.
