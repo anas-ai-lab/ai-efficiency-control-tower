@@ -307,3 +307,61 @@ class TestTriageServiceProposeSolutionUnknownTool:
 
         assert proposal is not None
         assert "[mock-response]" in proposal.proposal_text
+
+
+class _NoToolCallLLMAdapter:
+    """Liefert immer eine direkte Textantwort, auch wenn `tools` angeboten werden.
+
+    Belegt den Pfad in propose_solution(), in dem response.tool_calls leer
+    ist (Branch service.py 230->261, Coverage-Luecke). MockLLMAdapter deckt
+    diesen Fall nicht ab: er fordert bei tools + fehlender tool-Antwort
+    immer einen Tool-Call an (siehe in_memory/llm.py). Reale Provider
+    koennen trotz angebotener Tools direkt antworten, wenn sie keines
+    brauchen.
+    """
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        last_user = next(
+            (m.content for m in reversed(messages) if m.role == "user"),
+            "",
+        )
+        return LLMResponse(content=f"[direct-response] {last_user}", tool_calls=None)
+
+
+class TestTriageServiceProposeSolutionNoToolCall:
+    """Belegt den Pfad, in dem das LLM trotz angebotener Tools direkt
+    antwortet -- response.tool_calls ist leer (service.py Branch 230->261).
+
+    Ergaenzt TestTriageServiceProposeSolutionUnknownTool: zusammen decken
+    beide Tests alle drei moeglichen tool_calls-Zustaende ab (kein Call /
+    bekanntes Tool / unbekanntes Tool)."""
+
+    async def test_direct_response_without_tool_call(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_NoToolCallLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            proposal = await service.propose_solution(case.id)
+
+        assert proposal is not None
+        assert "[direct-response]" in proposal.proposal_text
+
+        # Genau ein Cost-Log -- kein zweiter complete()-Call, da kein
+        # Tool-Call angefordert wurde (Abgrenzung zum Tool-Call-Pfad,
+        # der zwei Eintraege erzeugt).
+        cost_logs = [log for log in logs if log["event"] == "llm_call_cost"]
+        assert len(cost_logs) == 1
+        assert cost_logs[0]["operation"] == "propose_solution"
