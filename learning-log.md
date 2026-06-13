@@ -1329,3 +1329,30 @@ es nur darum, die Leitung dafür zu legen.
 
 **Tests:** 262 von 262 automatischen Tests laufen durch, davon 4 neu für
 die heutige Funktion.
+
+## Tag 37 (2026-06-13) — Der Assistent kann jetzt "nachfragen"
+
+Heute ging es darum, dem AI-Assistenten eine Art Telefonliste zu geben,
+die er bei Bedarf konsultieren kann -- statt sich auf sein Wissen aus dem
+Training zu verlassen, das veralten oder unvollstaendig sein kann.
+
+**"Function-Calling"** heisst: Der Assistent kann mitten in seiner Antwort
+sagen "ich brauche Info X", der Code liefert X aus einer festen Quelle
+(heute: einer Konfigurationsdatei mit den fuenf moeglichen
+Ziel-Plattformen fuer einen Loesungsvorschlag), und der Assistent baut das
+Ergebnis in seine finale Antwort ein.
+
+Heute wurde nur das **Fundament** gebaut: die "Telefonliste" (ein Eintrag:
+"zeig mir die Plattform-Optionen") und eine Testumgebung, die so tut, als
+wuerde der Assistent diese Liste anfragen -- ohne echten KI-Aufruf, also
+kostenlos und reproduzierbar.
+
+Eine wichtige Absicherung: Fragt der Assistent nach etwas, das nicht auf
+der Liste steht, lehnt der Code das explizit ab (`UnknownToolError`) --
+er kann also nicht "frei improvisieren" und irgendeine Funktion aufrufen,
+die es gar nicht gibt.
+
+Was noch fehlt (kommt Tag 38): Der eigentliche "Frage-Antwort-Tanz" --
+Assistent fragt nach der Liste, bekommt sie, formuliert damit seine finale
+Antwort. Heute steht nur die Liste und die Tuer-Sicherung bereit, die Tuer
+selbst geht morgen auf.
