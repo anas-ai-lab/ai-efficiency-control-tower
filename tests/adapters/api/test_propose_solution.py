@@ -102,7 +102,7 @@ async def test_propose_solution_existing_case_returns_proposal() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["case_id"] == case_id
-    assert data["prompt_version"] == "v1"
+    assert data["prompt_version"] == "v2"
     assert "[mock-response]" in data["proposal_text"]
     assert _VALID_PAYLOAD["title"] in data["proposal_text"]
 

@@ -9,7 +9,7 @@ from structlog.testing import capture_logs
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.application.models import SubmittedCase
-from aect.application.ports.llm import LLMMessage, LLMResponse
+from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDefinition
 from aect.application.service import TriageService
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
@@ -221,3 +221,89 @@ class TestTriageServiceGracefulDegradation:
         case = service.submit_use_case(sample_use_case)
 
         assert case.id == "id-001"
+
+
+class _UnknownToolLLMAdapter:
+    """Simuliert ein LLM, das ein nicht registriertes Tool anfordert.
+
+    Erster Call: fordert Tool "does_not_exist" an -- belegt den
+    UnknownToolError-Pfad (LLM06 Excessive Agency, ADR-0009). Zweiter Call
+    (nach dem Tool-Ergebnis): Echo wie MockLLMAdapter, zeigt dass die Loop
+    trotz Fehler eine finale Antwort liefert (Graceful Degradation).
+    """
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        if tools and not any(m.role == "tool" for m in messages):
+            return LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(id="fake-call-1", name="does_not_exist", arguments={})
+                ],
+            )
+        last_user = next(
+            (m.content for m in reversed(messages) if m.role == "user"),
+            "",
+        )
+        return LLMResponse(content=f"[mock-response] {last_user}")
+
+
+class TestTriageServiceProposeSolution:
+    async def test_propose_solution_calls_tool_and_returns_final_response(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        proposal = await service.propose_solution(case.id)
+
+        assert proposal is not None
+        assert proposal.case_id == case.id
+        assert proposal.prompt_version == "v2"
+        assert "[mock-response]" in proposal.proposal_text
+
+    async def test_propose_solution_logs_cost_for_both_llm_calls(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.propose_solution(case.id)
+
+        cost_logs = [log for log in logs if log["event"] == "llm_call_cost"]
+        assert len(cost_logs) == 2
+        assert all(log["operation"] == "propose_solution" for log in cost_logs)
+
+    async def test_propose_solution_nonexistent_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        assert await service.propose_solution("does-not-exist") is None
+
+
+class TestTriageServiceProposeSolutionUnknownTool:
+    """Belegt LLM06 Excessive Agency / Graceful Degradation (ADR-0009):
+    fordert das LLM ein nicht registriertes Tool an, bricht der Service
+    nicht ab, sondern liefert trotzdem eine Antwort."""
+
+    async def test_unknown_tool_call_does_not_crash_and_returns_proposal(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_UnknownToolLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        proposal = await service.propose_solution(case.id)
+
+        assert proposal is not None
+        assert "[mock-response]" in proposal.proposal_text

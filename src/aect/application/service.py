@@ -6,6 +6,9 @@ Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import structlog
 
 from aect.application.cost_logger import log_llm_cost
@@ -16,6 +19,11 @@ from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.prompts import load_prompt
 from aect.application.sanitization import detect_injection_patterns
+from aect.application.tools import (
+    TOOL_DEFINITIONS,
+    UnknownToolError,
+    dispatch_tool_call,
+)
 from aect.domain import ROIConfig, UseCaseInput, evaluate_use_case
 
 
@@ -149,19 +157,30 @@ class TriageService:
         )
 
     async def propose_solution(
-        self, case_id: str, prompt_version: str = "v1"
+        self, case_id: str, prompt_version: str = "v2"
     ) -> SolutionProposal | None:
         """Skizziert einen Loesungsansatz fuer einen persistierten Case via LLM.
 
-        Tag 36, Phase-C-Skeleton: identisches Pattern wie sharpen_case() --
-        gleicher Injection-Check, gleiches Messages-/Cost-Logging-Vorgehen,
-        andere Prompt-Familie ("propose_solution" statt "sharpen_use_case").
+        Function-Calling-Loop (Tag 38, ADR-0009): propose_solution() bietet
+        TOOL_DEFINITIONS an. Fordert das LLM einen Tool-Call an
+        (response.tool_calls nicht leer), wird jeder Aufruf via
+        dispatch_tool_call() ausgefuehrt, das Ergebnis als role="tool"-
+        Nachricht angehaengt und complete() ein zweites Mal aufgerufen.
+        Kein while-Loop -- maximal zwei complete()-Aufrufe pro Call
+        (LLM10 Unbounded Consumption, siehe ADR-0009).
+
+        LLM06 Excessive Agency: dispatch_tool_call() wirft UnknownToolError
+        fuer nicht registrierte Tool-Namen. Der Fehler wird als
+        Tool-Ergebnis ({"error": ...}) an das LLM zurueckgegeben statt die
+        Anfrage abzubrechen -- Graceful Degradation.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
 
-        v1-Prompt nennt bewusst keine konkreten Zielplattformen (siehe
-        SolutionProposal-Docstring) -- Stack-Grounding via RAG folgt Phase D.
+        v2-Prompt (prompts/propose_solution/v2/) weist das LLM auf
+        lookup_stack_options hin und markiert die Plattform-Beschreibungen
+        als vorlaeufig/unbelegt (RAG-Grounding folgt Phase D). v1 bleibt
+        unveraendert erhalten (Versionierung, application/prompts.py).
         """
         case = self._repository.get(case_id)
         if case is None:
@@ -199,7 +218,7 @@ class TriageService:
             LLMMessage(role="system", content=system_prompt),
             LLMMessage(role="user", content=user_content),
         ]
-        response = await self._llm.complete(messages)
+        response = await self._llm.complete(messages, tools=TOOL_DEFINITIONS)
 
         log_llm_cost(
             case_id=case.id,
@@ -207,6 +226,37 @@ class TriageService:
             response=response,
             operation="propose_solution",
         )
+
+        if response.tool_calls:
+            messages.append(
+                LLMMessage(
+                    role="assistant",
+                    content=response.content,
+                    tool_calls=response.tool_calls,
+                )
+            )
+            for tool_call in response.tool_calls:
+                tool_result: dict[str, Any]
+                try:
+                    tool_result = dispatch_tool_call(tool_call)
+                except UnknownToolError as exc:
+                    tool_result = {"error": str(exc)}
+                messages.append(
+                    LLMMessage(
+                        role="tool",
+                        content=json.dumps(tool_result),
+                        tool_call_id=tool_call.id,
+                    )
+                )
+
+            response = await self._llm.complete(messages, tools=TOOL_DEFINITIONS)
+
+            log_llm_cost(
+                case_id=case.id,
+                messages=messages,
+                response=response,
+                operation="propose_solution",
+            )
 
         return SolutionProposal(
             case_id=case.id,

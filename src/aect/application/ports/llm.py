@@ -31,8 +31,11 @@ class ToolCall:
     parallelen Tool-Calls die Zuordnung eindeutig bleibt.
 
     `arguments`: vom LLM gelieferte Argumente. Wie jede LLM-Ausgabe als
-    untrusted behandeln (aect-security-checklist v2.1, Phase C) -- Tag 38
-    validiert vor Dispatch.
+    untrusted behandeln (aect-security-checklist v2.1, Phase C).
+    Tag 38 / ADR-0009: lookup_stack_options ist parameterlos --
+    dispatch_tool_call() liest `arguments` nicht, daher entsteht heute keine
+    Validierungsluecke. Bei zukuenftigen Tools mit Parametern: Validierung
+    von `arguments` gegen ein erwartetes Schema vor dem Dispatch nachruesten.
     """
 
     id: str
