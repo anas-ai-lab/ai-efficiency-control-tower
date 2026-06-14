@@ -1,4 +1,4 @@
-# ADR-000<N+1>: Resilience-Decorator fuer LLMPort (Retry/Backoff/Timeout)
+# ADR-0007: Resilience-Decorator für LLMPort (Retry/Backoff/Timeout)
 
 **Status:** Accepted
 **Datum:** Juni 2026
@@ -47,3 +47,15 @@ zu klaeren, sobald der Azure-Adapter existiert und sein Quelltext per
 - Verhalten von `sharpen_case()` nach Retry-Exhaustion auf API-Ebene
   (welcher HTTP-Status, welche Fehlermeldung) -- Teil des globalen
   Exception-Handlers, Phase B/C-Schnittstelle.
+
+## Addendum (Audit-Nachzug Juni 2026): respx nicht verwendet
+
+Master-Plan v3.1 nennt `respx` für Resilience-Tests (503/Timeout/429).
+Tatsächlich testet `test_resilient.py` gegen Fake-`LLMPort`-Implementierungen
+(`ConnectionError`/`TimeoutError` direkt), `test_azure_openai.py` mockt
+`AsyncAzureOpenAI` via `MagicMock` (Constructor-DI, ADR-0010) inkl.
+`APIConnectionError`/`APITimeoutError`/`RateLimitError`.
+
+Funktional äquivalent zu respx (HTTP-Layer-Mocks), aber auf Adapter-/
+SDK-Ebene statt Transport-Ebene — konsistenter mit Hexagonal (kein `patch()`
+nötig). Kein offener Punkt.

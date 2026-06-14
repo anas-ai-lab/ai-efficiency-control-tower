@@ -73,3 +73,17 @@ inline), oder (b) ein eigener `ToolCallingLLMAdapter` (Decorator analog
 `TriageService` unveraendert, (a) macht den Kontrollfluss im Service
 sichtbarer. Entscheidung Tag 38, mit `cat` auf `service.py` und
 `dependencies.py` vor dem Schreiben (session-protocol v3 §1 Schritt 4).
+
+## Addendum (Audit-Nachzug Juni 2026): compute_roi nicht implementiert
+
+Master-Plan v3.1 nennt "compute_roi, lookup_stack_options" als Beispiele für
+1–2 Function-Calling-Tools. Nur `lookup_stack_options` wurde gebaut.
+
+Begründung: ROI-Werte liegen bereits deterministisch in `TriageResult.roi`
+vor — berechnet in Phase A, lange vor jedem LLM-Call. Ein `compute_roi`-Tool
+würde eine dem System bereits bekannte Zahl per Tool-Call-Roundtrip erneut
+abfragen — reine Indirection ohne Mehrwert, Verstoß gegen "Simplest solution
+first". `lookup_stack_options` bleibt die einzige Information, auf die das
+LLM sonst keinen Zugriff hat (Config-Daten außerhalb des Prompts).
+
+"1–2 Tools" ist mit 1 erfüllt. Kein offener Punkt.
