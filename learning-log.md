@@ -1508,3 +1508,31 @@ hat, fehlen ihr diese zwei Spalten -- die müsste man löschen, dann wird sie
 beim nächsten Start automatisch neu mit den richtigen Spalten angelegt.
 Für ein privates Projekt ohne echte Nutzerdaten ist das kein Problem.
 EOF
+
+## Tag 43 — Eine Pruef-Schablone, die noch niemand benutzt
+
+Heute kam kein neuer Knopf dazu, mit dem man etwas anklicken kann. Stattdessen
+haben wir eine Art Formular-Vorlage gebaut: Wenn die KI in Zukunft eine
+geschaerfte Use-Case-Beschreibung liefert, soll die Antwort einem festen
+Aufbau folgen -- Titel, Ist-Zustand, Soll-Zustand, und eine Liste mit
+konkreten Verbesserungsvorschlaegen (maximal zehn).
+
+Dazu kam eine Pruef-Funktion: sie nimmt eine KI-Antwort, haelt sie gegen
+dieses Formular und sagt entweder "passt" oder "passt nicht, und zwar
+genau deswegen". Getestet wurde das mit acht verschiedenen kaputten
+Varianten -- von "das ist gar kein gueltiges JSON" bis "der Titel ist viel
+zu lang" bis "da sind elf Vorschlaege statt maximal zehn".
+
+**Wichtig:** Diese Pruef-Schablone wird heute von nichts im laufenden System
+benutzt. Der Schaerfungs-Knopf von vorher funktioniert exakt wie gestern.
+Das ist Absicht -- die Schablone an den Schaerfungs-Knopf anzuschliessen,
+ist ein eigener, groesserer Schritt (er aendert, was gespeichert wird und
+was die API zurueckgibt), und der bekommt einen eigenen Tag mit eigener
+Pruefung.
+
+**Kleine Nebenreparatur:** Beim Speichern von Faellen in der Datei-Datenbank
+gab es eine automatische Warnung von einem Sicherheits-Pruefwerkzeug --
+nicht weil etwas falsch war, sondern weil das Werkzeug eine bestimmte
+Code-Schreibweise generell verdaechtig findet, auch wenn sie hier
+ungefaehrlich war. Die Schreibweise wurde umgestellt, damit die Warnung
+verschwindet, ohne dass sich am Verhalten etwas aendert.
