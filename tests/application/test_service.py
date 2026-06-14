@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 
 from structlog.testing import capture_logs
 
@@ -129,8 +130,9 @@ class TestTriageServiceSharpen:
         assert sharpened is not None
         assert sharpened.case_id == case.id
         assert sharpened.original_title == sample_use_case.title
-        assert sharpened.prompt_version == "v1"
-        assert "[mock-response]" in sharpened.sharpened_text
+        assert sharpened.prompt_version == "v2"
+        assert sharpened.raw_text is not None
+        assert "[mock-response]" in sharpened.raw_text
 
     async def test_sharpen_nonexistent_case_returns_none(
         self, roi_config: ROIConfig
@@ -175,7 +177,8 @@ class TestTriageServiceSharpenInjectionDetection:
             sharpened = await service.sharpen_case(case.id)
 
         assert sharpened is not None
-        assert "[mock-response]" in sharpened.sharpened_text
+        assert sharpened.raw_text is not None
+        assert "[mock-response]" in sharpened.raw_text
 
         warnings = [log for log in logs if log["event"] == "injection_pattern_detected"]
         assert len(warnings) == 1
@@ -380,8 +383,8 @@ class TestTriageServiceSharpenPersistence:
 
         stored = repo.get(case.id)
         assert stored is not None
-        assert stored.sharpened_text is not None
-        assert "[mock-response]" in stored.sharpened_text
+        assert stored.sharpened_content_json is not None
+        assert "[mock-response]" in stored.sharpened_content_json
 
     async def test_proposal_text_remains_none_after_sharpen_only(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -394,6 +397,123 @@ class TestTriageServiceSharpenPersistence:
         stored = repo.get(case.id)
         assert stored is not None
         assert stored.proposal_text is None
+
+
+class _StructuredSharpenLLMAdapter:
+    """Liefert valides SharpenedContentV2-JSON -- belegt den Erfolgspfad von
+    ADR-0013 Teil 2. Der Graceful-Degradation-Pfad wird bereits durch
+    MockLLMAdapter (Echo, kein JSON) in TestTriageServiceSharpen abgedeckt."""
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        content = json.dumps(
+            {
+                "sharpened_title": (
+                    "Automatisierte Rechnungsverarbeitung mit OCR-Erkennung"
+                ),
+                "sharpened_current_state": (
+                    "Mitarbeiter im Finance-Team scannen Rechnungen manuell "
+                    "und uebertragen Daten per Hand in SAP, ca. 15 Minuten "
+                    "pro Vorgang."
+                ),
+                "sharpened_desired_state": (
+                    "Ein KI-System liest Rechnungen automatisch aus und "
+                    "befuellt SAP direkt, Ziel unter 2 Minuten pro Vorgang."
+                ),
+                "improvement_suggestions": [
+                    "Lege Eskalationsregeln fuer Erkennungsfehler fest.",
+                ],
+            }
+        )
+        return LLMResponse(content=content)
+
+
+class TestTriageServiceSharpenStructuredOutput:
+    """Belegt ADR-0013 Teil 2 Erfolgspfad: valides JSON -> strukturierte
+    Felder gesetzt, raw_text None, keine Validierungs-Warnung."""
+
+    async def test_valid_structured_response_populates_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_StructuredSharpenLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        sharpened = await service.sharpen_case(case.id)
+
+        assert sharpened is not None
+        assert sharpened.sharpened_title is not None
+        assert sharpened.sharpened_current_state is not None
+        assert sharpened.sharpened_desired_state is not None
+        assert len(sharpened.improvement_suggestions) == 1
+        assert sharpened.raw_text is None
+        assert sharpened.prompt_version == "v2"
+
+    async def test_valid_structured_response_does_not_log_warning(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_StructuredSharpenLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.sharpen_case(case.id)
+
+        warnings = [
+            log for log in logs if log["event"] == "structured_output_validation_failed"
+        ]
+        assert warnings == []
+
+
+class TestTriageServiceSharpenGracefulDegradation:
+    """Belegt ADR-0013 Teil 2 Degradation-Pfad: MockLLMAdapter liefert kein
+    valides JSON -> raw_text gesetzt, strukturierte Felder None/leer,
+    Validierungs-Warnung geloggt, kein Crash."""
+
+    async def test_invalid_json_falls_back_to_raw_text(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        sharpened = await service.sharpen_case(case.id)
+
+        assert sharpened is not None
+        assert sharpened.sharpened_title is None
+        assert sharpened.sharpened_current_state is None
+        assert sharpened.sharpened_desired_state is None
+        assert sharpened.improvement_suggestions == ()
+        assert sharpened.raw_text is not None
+        assert "[mock-response]" in sharpened.raw_text
+
+    async def test_invalid_json_logs_validation_warning(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.sharpen_case(case.id)
+
+        warnings = [
+            log for log in logs if log["event"] == "structured_output_validation_failed"
+        ]
+        assert len(warnings) == 1
+        assert warnings[0]["case_id"] == case.id
+        assert warnings[0]["operation"] == "sharpen_case"
 
 
 class TestTriageServiceProposeSolutionPersistence:

@@ -18,16 +18,24 @@ class SubmittedCase:
 
     Verbindet Input (UseCaseInput), Ergebnis (TriageResult), Zeitstempel und ID.
 
-    sharpened_text/proposal_text: optional persistierte LLM-Narrative aus
-    sharpen_case() bzw. propose_solution() (Tag 42, ADR-0012). None, solange
-    der jeweilige Endpoint fuer diesen Case noch nicht aufgerufen wurde.
-    Werden bei jedem erneuten Aufruf ueberschrieben (kein Verlauf, keine
-    Versionierung -- letzter Aufruf gewinnt).
+    sharpened_content_json/proposal_text: optional persistierte LLM-Narrative
+    aus sharpen_case() bzw. propose_solution() (Tag 42 ADR-0012, Spalte
+    umbenannt ADR-0013 Teil 2). None, solange der jeweilige Endpoint fuer
+    diesen Case noch nicht aufgerufen wurde. Werden bei jedem erneuten
+    Aufruf ueberschrieben (kein Verlauf, keine Versionierung -- letzter
+    Aufruf gewinnt).
+
+    sharpened_content_json ist ein JSON-String: entweder ein valides
+    SharpenedContentV2-Ergebnis (strukturierte Felder) oder ein
+    Graceful-Degradation-Objekt (raw_text gesetzt). generate_report()
+    rendert daraus den Anzeigetext (_render_sharpened_content, service.py)
+    -- das /report-Schema (BusinessSummary.sharpened_text: str | None)
+    bleibt dabei unveraendert.
 
     Kein frozen=True: TriageResult enthaelt verschachtelte Typen die nicht
     zwingend hashbar sind (list-Felder in FeasibilityResult). Immutabilitaet
     nach Konvention -- nach dem Speichern nicht mehr mutieren, ausser fuer
-    sharpened_text/proposal_text via TriageService (s. service.py).
+    sharpened_content_json/proposal_text via TriageService (s. service.py).
 
     IP-Trennung (interne Referenz (entfernt) SS5): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
@@ -37,7 +45,7 @@ class SubmittedCase:
     submitted_at: datetime
     use_case: UseCaseInput
     result: TriageResult
-    sharpened_text: str | None = None
+    sharpened_content_json: str | None = None
     proposal_text: str | None = None
 
 
@@ -45,19 +53,28 @@ class SubmittedCase:
 class SharpenedUseCase:
     """Ergebnis der Use-Case-Schaerfung -- Original + geschaerfte Version.
 
-    Original-Felder werden nie ueberschrieben (interne Referenz (entfernt) §3.1, Punkt 1):
+    Original-Felder werden nie ueberschrieben (interne Referenz (entfernt) SS3.1, Punkt 1):
     case_id verweist auf den persistierten SubmittedCase, original_*
-    sind die unveraenderten Eingabefelder, sharpened_text ist die
-    LLM-Ausgabe.
+    sind die unveraenderten Eingabefelder.
 
-    Output-Validation (aect-security-checklist v2.1, Phase C): sharpened_text
-    ist str -- die LLM-Antwort wird als Text behandelt, nicht als
-    strukturierte Daten geparst. Strikte Pydantic-Validierung der LLM-Antwort
-    folgt, sobald ein Provider strukturierte (z. B. JSON-)Antworten liefert
-    (siehe ADR-0006, offener Punkt).
+    Strukturierte Ausgabe (ADR-0013 Teil 2): die LLM-Antwort wird gegen
+    SharpenedContentV2 validiert (application.structured_output). Zwei
+    sich gegenseitig ausschliessende Formen:
+
+    - Erfolg: sharpened_title/sharpened_current_state/
+      sharpened_desired_state sind str, improvement_suggestions hat 1-10
+      Eintraege, raw_text ist None.
+    - Graceful Degradation (LLM-Output erfuellt das Schema nicht --
+      kaputtes JSON, fehlendes Feld, Laengenverstoss): die drei
+      sharpened_*-Felder sind None, improvement_suggestions ist leer,
+      raw_text enthaelt die rohe LLM-Antwort. Validierungsfehler werden
+      geloggt (structured_output_validation_failed), der Aufruf schlaegt
+      nicht fehl (aect-security-checklist v2.1: Graceful Degradation).
 
     prompt_version macht nachvollziehbar, welche Prompt-Version dieses
-    Ergebnis erzeugt hat (aect.application.prompts.load_prompt).
+    Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default
+    seit ADR-0013 Teil 2: "v2" (JSON-Output-Anweisung). v1 (Fliesstext)
+    bleibt fuer Rollback erhalten.
 
     frozen=True: Schaerfungs-Ergebnis ist nach Erstellung unveraenderlich,
     analog zu UseCaseInput.
@@ -67,7 +84,11 @@ class SharpenedUseCase:
     original_title: str
     original_current_state: str
     original_desired_state: str
-    sharpened_text: str
+    sharpened_title: str | None
+    sharpened_current_state: str | None
+    sharpened_desired_state: str | None
+    improvement_suggestions: tuple[str, ...]
+    raw_text: str | None
     prompt_version: str
 
 

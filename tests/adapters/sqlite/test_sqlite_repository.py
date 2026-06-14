@@ -10,6 +10,7 @@ Testet Serialisierungs-Roundtrip fuer alle kritischen Typen:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -292,8 +293,12 @@ class TestRoundtrip:
 
 
 class TestLLMNarrativePersistence:
-    """Belegt ADR-0012: sharpened_text/proposal_text werden korrekt
-    persistiert, geladen und ueberschrieben."""
+    """Belegt ADR-0012 (Persistenz) + ADR-0013 Teil 2 (Spalte umbenannt
+    sharpened_text -> sharpened_content_json, JSON statt Fliesstext):
+    sharpened_content_json/proposal_text werden korrekt persistiert, geladen
+    und ueberschrieben. Der konkrete JSON-Inhalt ist Sache von
+    application/service.py -- hier nur Roundtrip-Verhalten der Spalte
+    (TEXT, beliebiger String)."""
 
     def test_fields_default_to_none(
         self, repo: SQLiteRepository, sample_case: SubmittedCase
@@ -301,20 +306,28 @@ class TestLLMNarrativePersistence:
         repo.save(sample_case)
         retrieved = repo.get(sample_case.id)
         assert retrieved is not None
-        assert retrieved.sharpened_text is None
+        assert retrieved.sharpened_content_json is None
         assert retrieved.proposal_text is None
 
     def test_fields_roundtrip(
         self, repo: SQLiteRepository, sample_case: SubmittedCase
     ) -> None:
-        sample_case.sharpened_text = "Geschaerfte Version: ..."
+        sample_case.sharpened_content_json = json.dumps(
+            {
+                "sharpened_title": None,
+                "sharpened_current_state": None,
+                "sharpened_desired_state": None,
+                "improvement_suggestions": [],
+                "raw_text": "Geschaerfte Version: ...",
+            }
+        )
         sample_case.proposal_text = "Vorschlag: ..."
         repo.save(sample_case)
 
         retrieved = repo.get(sample_case.id)
 
         assert retrieved is not None
-        assert retrieved.sharpened_text == "Geschaerfte Version: ..."
+        assert retrieved.sharpened_content_json == sample_case.sharpened_content_json
         assert retrieved.proposal_text == "Vorschlag: ..."
 
     def test_resave_overwrites_narrative(
@@ -322,15 +335,17 @@ class TestLLMNarrativePersistence:
     ) -> None:
         repo.save(sample_case)
 
-        sample_case.sharpened_text = "Erste Version"
+        sample_case.sharpened_content_json = json.dumps({"raw_text": "Erste Version"})
         repo.save(sample_case)
 
-        sample_case.sharpened_text = "Zweite Version"
+        sample_case.sharpened_content_json = json.dumps({"raw_text": "Zweite Version"})
         repo.save(sample_case)
 
         retrieved = repo.get(sample_case.id)
         assert retrieved is not None
-        assert retrieved.sharpened_text == "Zweite Version"
+        assert retrieved.sharpened_content_json == json.dumps(
+            {"raw_text": "Zweite Version"}
+        )
 
     def test_list_all_includes_narrative_fields(
         self, repo: SQLiteRepository, sample_case: SubmittedCase

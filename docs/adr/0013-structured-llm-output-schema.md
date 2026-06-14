@@ -89,3 +89,34 @@ generischen Validator -- ohne heute etwas Bestehendes zu aendern:
 - `response_format`-Ergaenzung im Azure-Adapter und Prompt-v2 sind
   Voraussetzung fuer Teil 2 und werden dort als eigene Unterschritte
   gefuehrt, nicht vorab.
+
+## Teil 2 (Juni 2026): Wiring + Graceful Degradation
+
+**Entscheidung:** Bei InvalidLLMOutputError (kaputtes JSON, fehlendes Feld,
+Laengenverstoss) faellt sharpen_case() auf raw_text=response.content zurueck
+-- strukturierte Felder None/leer, Validierungsfehler geloggt
+(structured_output_validation_failed), kein Abbruch. Konsistent mit dem
+Injection-Detection-Muster (Tag 32): flaggen, nicht blocken.
+
+**Persistenz:** SubmittedCase.sharpened_text -> sharpened_content_json
+(JSON-String, SQLite-Spalte umbenannt). Breaking Change wie in ADR-0012
+dokumentiert -- lokale Dev-DB muss geloescht werden (CREATE TABLE IF NOT
+EXISTS legt das neue Schema nicht nachtraeglich in einer bestehenden Tabelle an).
+
+**Report unveraendert:** BusinessSummary.sharpened_text bleibt str | None.
+Neue reine Funktion _render_sharpened_content() (service.py, ADR-0011-
+konform, kein LLM-Call) uebersetzt das persistierte JSON in lesbaren Text.
+/report-Schema und alle bestehenden /report-Tests bleiben unveraendert.
+
+**Mock-Strategie:** MockLLMAdapter bleibt unveraendert (Echo, kein JSON) --
+deckt den Degradation-Pfad ab. Neuer Fake _StructuredSharpenLLMAdapter
+(test_service.py) deckt den Erfolgspfad ab. Kein Differenzieren von
+MockLLMAdapter nach `tools`-Parameter -- haette den allgemeinen Test-Mock
+an Service-interne Aufrufmuster gekoppelt.
+
+**Prompt v2:** prompts/sharpen_use_case/v2/ -- JSON-Output-Anweisung statt
+Fliesstext (v1). Default prompt_version in sharpen_case(): "v2". v1 bleibt
+fuer Rollback erhalten (Versionierung, ADR-0006).
+
+Schliesst ADR-0006 offenen Punkt "Output-Validation" und ADR-0011 offenen
+Punkt "Persistenz sharpened_text" (Spalte umbenannt, Konzept unveraendert).

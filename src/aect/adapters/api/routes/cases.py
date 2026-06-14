@@ -57,13 +57,25 @@ async def list_cases(
 
 
 class SharpenedCaseResponse(BaseModel):
-    """Original + geschaerfte Version eines Use Cases."""
+    """Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).
+
+    Erfolg: sharpened_title/current_state/desired_state gesetzt,
+    improvement_suggestions hat 1-10 Eintraege, raw_text ist None.
+    Graceful Degradation: die drei sharpened_*-Felder sind None,
+    improvement_suggestions ist leer, raw_text enthaelt die rohe
+    LLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,
+    kein Crash bei Format-Verstoss).
+    """
 
     case_id: str
     original_title: str
     original_current_state: str
     original_desired_state: str
-    sharpened_text: str
+    sharpened_title: str | None
+    sharpened_current_state: str | None
+    sharpened_desired_state: str | None
+    improvement_suggestions: list[str]
+    raw_text: str | None
     prompt_version: str
 
 
@@ -95,7 +107,11 @@ async def sharpen_case(
         original_title=sharpened.original_title,
         original_current_state=sharpened.original_current_state,
         original_desired_state=sharpened.original_desired_state,
-        sharpened_text=sharpened.sharpened_text,
+        sharpened_title=sharpened.sharpened_title,
+        sharpened_current_state=sharpened.sharpened_current_state,
+        sharpened_desired_state=sharpened.sharpened_desired_state,
+        improvement_suggestions=list(sharpened.improvement_suggestions),
+        raw_text=sharpened.raw_text,
         prompt_version=sharpened.prompt_version,
     )
 

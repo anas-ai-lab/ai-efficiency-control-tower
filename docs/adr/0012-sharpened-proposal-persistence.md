@@ -56,3 +56,9 @@ mit neuem Schema neu angelegt. Keine Migrations-Tooling (Alembic) im Stack
 
 Keine neuen. ADR-0011 Punkt 2 ist hiermit geschlossen. ADR-0011 Punkt 1
 (LLM-generierter Fliesstext-Report mit strikter JSON-Validierung) bleibt offen.
+
+## Addendum (ADR-0013 Teil 2, Juni 2026)
+
+Spalte sharpened_text -> sharpened_content_json umbenannt (JSON statt
+Fliesstext, strukturierte Schaerfung + Graceful-Degradation-raw_text).
+Konzept (Persistenz, Upsert-Semantik, "letzter Aufruf gewinnt") unveraendert.

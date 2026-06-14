@@ -26,12 +26,40 @@ from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.prompts import load_prompt
 from aect.application.sanitization import detect_injection_patterns
+from aect.application.structured_output import (
+    InvalidLLMOutputError,
+    SharpenedContentV2,
+    parse_structured_llm_output,
+)
 from aect.application.tools import (
     TOOL_DEFINITIONS,
     UnknownToolError,
     dispatch_tool_call,
 )
 from aect.domain import ROIConfig, TriageResult, UseCaseInput, evaluate_use_case
+
+
+def _render_sharpened_content(content_json: str | None) -> str | None:
+    """Rendert den persistierten Schaerfungs-Inhalt zu lesbarem Text.
+
+    Reine Regel-Schicht (ADR-0011: kein LLM-Call). content_json ist entweder
+    None (sharpen_case() lief nie fuer diesen Case), ein Graceful-
+    Degradation-JSON (raw_text gesetzt, ADR-0013 Teil 2) oder ein valides
+    SharpenedContentV2-JSON (strukturierte Felder gesetzt).
+    """
+    if content_json is None:
+        return None
+    data = json.loads(content_json)
+    if data.get("raw_text") is not None:
+        return str(data["raw_text"])
+    lines = [
+        f"Titel: {data['sharpened_title']}",
+        f"Ist-Zustand: {data['sharpened_current_state']}",
+        f"Soll-Zustand: {data['sharpened_desired_state']}",
+        "Verbesserungsvorschlaege:",
+    ]
+    lines += [f"- {s}" for s in data["improvement_suggestions"]]
+    return "\n".join(lines)
 
 
 def _build_business_summary(
@@ -165,18 +193,28 @@ class TriageService:
         return self._repository.list_all()
 
     async def sharpen_case(
-        self, case_id: str, prompt_version: str = "v1"
+        self, case_id: str, prompt_version: str = "v2"
     ) -> SharpenedUseCase | None:
         """Schaerft die Use-Case-Beschreibung eines persistierten Cases via LLM.
 
         Original-Felder (title, current_state, desired_state) werden aus dem
         gespeicherten Case uebernommen und nie ueberschrieben -- die
-        geschaerfte Version steht daneben (sharpened_text).
+        geschaerfte Version steht daneben (sharpened_title/current_state/
+        desired_state + improvement_suggestions).
 
-        Persistenz (Tag 42, ADR-0012): das Ergebnis wird zusaetzlich auf
-        case.sharpened_text gespeichert (self._repository.save()), damit
-        generate_report() es ohne erneuten Request-Body-Transport anzeigen
-        kann.
+        Strukturierte Ausgabe + Graceful Degradation (ADR-0013 Teil 2):
+        response.content wird gegen SharpenedContentV2 validiert
+        (parse_structured_llm_output). Erfolg -> strukturierte Felder
+        gesetzt, raw_text=None. InvalidLLMOutputError -> alle strukturierten
+        Felder None/leer, raw_text=response.content, Warnung
+        "structured_output_validation_failed" geloggt (case_id, operation,
+        error), kein Abbruch.
+
+        Persistenz (Tag 42 ADR-0012, erweitert ADR-0013 Teil 2): das
+        Ergebnis wird als JSON auf case.sharpened_content_json gespeichert
+        (self._repository.save()). generate_report() rendert daraus den
+        sichtbaren Text (_render_sharpened_content) -- /report-Schema bleibt
+        unveraendert.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -234,7 +272,37 @@ class TriageService:
             operation="sharpen_case",
         )
 
-        case.sharpened_text = response.content
+        try:
+            parsed = parse_structured_llm_output(response.content, SharpenedContentV2)
+        except InvalidLLMOutputError as exc:
+            logger = structlog.get_logger()
+            logger.warning(
+                "structured_output_validation_failed",
+                case_id=case.id,
+                operation="sharpen_case",
+                error=str(exc),
+            )
+            sharpened_title: str | None = None
+            sharpened_current_state: str | None = None
+            sharpened_desired_state: str | None = None
+            improvement_suggestions: tuple[str, ...] = ()
+            raw_text: str | None = response.content
+        else:
+            sharpened_title = parsed.sharpened_title
+            sharpened_current_state = parsed.sharpened_current_state
+            sharpened_desired_state = parsed.sharpened_desired_state
+            improvement_suggestions = tuple(parsed.improvement_suggestions)
+            raw_text = None
+
+        case.sharpened_content_json = json.dumps(
+            {
+                "sharpened_title": sharpened_title,
+                "sharpened_current_state": sharpened_current_state,
+                "sharpened_desired_state": sharpened_desired_state,
+                "improvement_suggestions": list(improvement_suggestions),
+                "raw_text": raw_text,
+            }
+        )
         self._repository.save(case)
 
         return SharpenedUseCase(
@@ -242,7 +310,11 @@ class TriageService:
             original_title=case.use_case.title,
             original_current_state=case.use_case.current_state,
             original_desired_state=case.use_case.desired_state,
-            sharpened_text=response.content,
+            sharpened_title=sharpened_title,
+            sharpened_current_state=sharpened_current_state,
+            sharpened_desired_state=sharpened_desired_state,
+            improvement_suggestions=improvement_suggestions,
+            raw_text=raw_text,
             prompt_version=prompt_version,
         )
 
@@ -395,7 +467,9 @@ class TriageService:
             return None
 
         effective_sharpened_text = (
-            sharpened_text if sharpened_text is not None else case.sharpened_text
+            sharpened_text
+            if sharpened_text is not None
+            else _render_sharpened_content(case.sharpened_content_json)
         )
         effective_proposal_text = (
             proposal_text if proposal_text is not None else case.proposal_text

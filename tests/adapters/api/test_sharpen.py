@@ -103,9 +103,11 @@ async def test_sharpen_existing_case_returns_original_and_sharpened() -> None:
     data = response.json()
     assert data["case_id"] == case_id
     assert data["original_title"] == _VALID_PAYLOAD["title"]
-    assert data["prompt_version"] == "v1"
-    assert "[mock-response]" in data["sharpened_text"]
-    assert _VALID_PAYLOAD["title"] in data["sharpened_text"]
+    assert data["prompt_version"] == "v2"
+    assert data["sharpened_title"] is None
+    assert data["improvement_suggestions"] == []
+    assert "[mock-response]" in data["raw_text"]
+    assert _VALID_PAYLOAD["title"] in data["raw_text"]
 
 
 async def test_sharpen_with_injection_payload_still_returns_200() -> None:
@@ -132,4 +134,4 @@ async def test_sharpen_with_injection_payload_still_returns_200() -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert "[mock-response]" in data["sharpened_text"]
+    assert "[mock-response]" in data["raw_text"]

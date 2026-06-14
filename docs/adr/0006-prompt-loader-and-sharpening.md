@@ -47,3 +47,9 @@ sein, damit sich Prompt-Iterationen nicht in Code-Deploys verstecken.
   folgen, sobald ein Provider den Prompt-Inhalt tatsaechlich interpretiert.
   Gegen `MockLLMAdapter` (reines Echo) liefern solche Tests keinen
   Erkenntniswert.
+
+## Addendum (ADR-0013 Teil 2, Juni 2026)
+
+Output-Validation ist umgesetzt: SharpenedContentV2 (Pydantic, striktes
+Schema) + parse_structured_llm_output() + Graceful Degradation bei
+Schema-Verstoss. Dieser offene Punkt ist geschlossen.

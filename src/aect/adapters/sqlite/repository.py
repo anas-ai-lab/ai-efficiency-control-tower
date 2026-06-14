@@ -19,10 +19,13 @@ Hinweis: SQLiteRepository wird in get_triage_service() pro Request erzeugt.
   und bei Portfolio-Traffic akzeptabel. Fuer Produktionslast: Lifespan-Singleton
   (Doku-Punkt in Phase-B-ADR).
 
-sharpened_text/proposal_text (Tag 42, ADR-0012): zwei zusaetzliche nullable
-Spalten fuer persistierte LLM-Narrative aus sharpen_case() /
-propose_solution(). save() ist weiterhin INSERT OR REPLACE -- ein erneuter
-save() mit gesetztem Feld ueberschreibt den vorherigen Wert.
+sharpened_content_json/proposal_text (Tag 42 ADR-0012, Spalte umbenannt
+ADR-0013 Teil 2): zwei zusaetzliche nullable Spalten fuer persistierte
+LLM-Narrative aus sharpen_case() / propose_solution(). sharpened_content_json
+enthaelt ein JSON-Objekt (strukturierte Schaerfung oder raw_text bei
+Graceful Degradation, siehe application/structured_output.py). save() ist
+weiterhin INSERT OR REPLACE -- ein erneuter save() mit gesetztem Feld
+ueberschreibt den vorherigen Wert.
 """
 
 from __future__ import annotations
@@ -48,17 +51,18 @@ from aect.domain.zones import ZoneResult
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS submitted_cases (
-    id             TEXT PRIMARY KEY,
-    submitted_at   TEXT NOT NULL,
-    use_case_json  TEXT NOT NULL,
-    result_json    TEXT NOT NULL,
-    sharpened_text TEXT,
-    proposal_text  TEXT
+    id                      TEXT PRIMARY KEY,
+    submitted_at            TEXT NOT NULL,
+    use_case_json           TEXT NOT NULL,
+    result_json             TEXT NOT NULL,
+    sharpened_content_json  TEXT,
+    proposal_text           TEXT
 )
 """
 
 _SELECT_COLUMNS = (
-    "id, submitted_at, use_case_json, result_json, sharpened_text, proposal_text"
+    "id, submitted_at, use_case_json, result_json, "
+    "sharpened_content_json, proposal_text"
 )
 
 _INSERT_SQL = (
@@ -196,7 +200,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         submitted_at_str,
         use_case_json,
         result_json,
-        sharpened_text,
+        sharpened_content_json,
         proposal_text,
     ) = row
     return SubmittedCase(
@@ -204,7 +208,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         submitted_at=datetime.fromisoformat(str(submitted_at_str)),
         use_case=UseCaseInput.model_validate_json(str(use_case_json)),
         result=_deserialize_result(str(result_json)),
-        sharpened_text=str(sharpened_text) if sharpened_text is not None else None,
+        sharpened_content_json=(
+            str(sharpened_content_json) if sharpened_content_json is not None else None
+        ),
         proposal_text=str(proposal_text) if proposal_text is not None else None,
     )
 
@@ -248,7 +254,7 @@ class SQLiteRepository:
                     case.submitted_at.isoformat(),
                     use_case_json,
                     result_json,
-                    case.sharpened_text,
+                    case.sharpened_content_json,
                     case.proposal_text,
                 ),
             )
