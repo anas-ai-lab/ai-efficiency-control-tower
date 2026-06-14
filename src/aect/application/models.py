@@ -18,9 +18,16 @@ class SubmittedCase:
 
     Verbindet Input (UseCaseInput), Ergebnis (TriageResult), Zeitstempel und ID.
 
+    sharpened_text/proposal_text: optional persistierte LLM-Narrative aus
+    sharpen_case() bzw. propose_solution() (Tag 42, ADR-0012). None, solange
+    der jeweilige Endpoint fuer diesen Case noch nicht aufgerufen wurde.
+    Werden bei jedem erneuten Aufruf ueberschrieben (kein Verlauf, keine
+    Versionierung -- letzter Aufruf gewinnt).
+
     Kein frozen=True: TriageResult enthaelt verschachtelte Typen die nicht
     zwingend hashbar sind (list-Felder in FeasibilityResult). Immutabilitaet
-    nach Konvention -- nach dem Speichern nicht mehr mutieren.
+    nach Konvention -- nach dem Speichern nicht mehr mutieren, ausser fuer
+    sharpened_text/proposal_text via TriageService (s. service.py).
 
     IP-Trennung (interne Referenz (entfernt) SS5): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
@@ -30,6 +37,8 @@ class SubmittedCase:
     submitted_at: datetime
     use_case: UseCaseInput
     result: TriageResult
+    sharpened_text: str | None = None
+    proposal_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,11 +101,12 @@ class BusinessSummary:
     Enthaelt nur, was fuer eine Go/No-Go-Einschaetzung noetig ist -- keine
     Rohwerte aus Vorfilter/Composite (siehe TechnicalDetail).
 
-    sharpened_text: optional vom Client uebergebene LLM-Schaerfung
-    (sharpen_case()-Ergebnis). AECT persistiert LLM-Narrative aktuell nicht
-    (Tag 41, additiv ohne Persistenz-Aenderung, siehe ADR-0011) -- der Client
-    reicht den Text erneut durch, wenn er ihn anzeigen will. Als untrusted
-    LLM-Output unveraendert weitergereicht (aect-security-checklist v2.1).
+    sharpened_text: LLM-Schaerfung des Cases. Default ist der persistierte
+    Wert aus sharpen_case() (Tag 42, ADR-0012); ein im Request-Body
+    uebergebener Wert ueberschreibt den persistierten (z. B. fuer Tests oder
+    Re-Sharpening ohne erneuten Persist). None, wenn weder persistiert noch
+    uebergeben. Als untrusted LLM-Output unveraendert weitergereicht
+    (aect-security-checklist v2.1).
     """
 
     title: str
@@ -115,8 +125,9 @@ class TechnicalDetail:
     Rohwerte aus Vorfilter, Composite-Score, Feasibility und Routing fuer
     Personen, die die Bewertung nachvollziehen wollen.
 
-    proposal_text: optional vom Client uebergebener Loesungsvorschlag
-    (propose_solution()-Ergebnis), analog sharpened_text in BusinessSummary.
+    proposal_text: Loesungsvorschlag des Cases, analog sharpened_text in
+    BusinessSummary (persistiert via propose_solution(), Tag 42, ADR-0012;
+    Request-Body-Wert ueberschreibt den persistierten).
     """
 
     passed_vorfilter: bool

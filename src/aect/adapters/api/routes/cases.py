@@ -142,14 +142,15 @@ async def propose_solution(
 
 
 class ReportRequest(BaseModel):
-    """Optionale LLM-Narrative fuer den Report.
+    """Optionale LLM-Narrative fuer den Report -- Override der Persistenz.
 
-    Tag 41 (additiv ohne Persistenz-Aenderung, ADR-0011): der Client reicht
-    sharpen_case()- und propose_solution()-Ergebnisse erneut durch, falls sie
-    im Report angezeigt werden sollen. extra="forbid" + max_length:
-    aect-security-checklist v2.1 Phase A (Token-Flooding-Schutz, LLM10) --
-    gilt als generelle Eingabe-Disziplin auch fuer Felder ohne direkten
-    LLM-Call.
+    Tag 42 (ADR-0012): generate_report() liest sharpened_text/proposal_text
+    standardmaessig aus dem persistierten SubmittedCase (gefuellt durch
+    /sharpen bzw. /propose-solution). Felder hier ueberschreiben den
+    persistierten Wert, z. B. fuer eine Vorschau ohne erneuten Persist.
+    extra="forbid" + max_length: aect-security-checklist v2.1 Phase A
+    (Token-Flooding-Schutz, LLM10) -- gilt als generelle Eingabe-Disziplin
+    auch fuer Felder ohne direkten LLM-Call.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -213,8 +214,10 @@ async def get_report(
     Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
     -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
 
-    body: optional, sharpened_text/proposal_text aus vorherigen
-    /sharpen- bzw. /propose-solution-Calls (Tag 41, kein Persistenz-Read).
+    body: optional. Ohne Body (oder mit None-Feldern) werden die
+    persistierten Werte aus /sharpen bzw. /propose-solution verwendet
+    (Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten
+    Wert fuer diese Antwort, ohne ihn zu aendern.
 
     Raises:
         HTTPException 404: case_id existiert nicht.

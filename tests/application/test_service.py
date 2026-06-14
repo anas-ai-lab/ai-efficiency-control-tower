@@ -365,3 +365,105 @@ class TestTriageServiceProposeSolutionNoToolCall:
         cost_logs = [log for log in logs if log["event"] == "llm_call_cost"]
         assert len(cost_logs) == 1
         assert cost_logs[0]["operation"] == "propose_solution"
+
+
+class TestTriageServiceSharpenPersistence:
+    """Belegt ADR-0012: sharpen_case() persistiert das Ergebnis auf SubmittedCase."""
+
+    async def test_sharpen_persists_text_on_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.sharpen_case(case.id)
+
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.sharpened_text is not None
+        assert "[mock-response]" in stored.sharpened_text
+
+    async def test_proposal_text_remains_none_after_sharpen_only(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.sharpen_case(case.id)
+
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.proposal_text is None
+
+
+class TestTriageServiceProposeSolutionPersistence:
+    """Belegt ADR-0012: propose_solution() persistiert das Ergebnis,
+    auch nach dem Tool-Call-Loop (finale response.content)."""
+
+    async def test_propose_solution_persists_text_on_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.propose_solution(case.id)
+
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.proposal_text is not None
+        assert "[mock-response]" in stored.proposal_text
+
+
+class TestTriageServiceGenerateReportUsesPersistedText:
+    """Belegt ADR-0012: generate_report() liest persistierte Narrative als
+    Default, ein explizites Argument ueberschreibt sie."""
+
+    async def test_report_uses_persisted_sharpened_text_without_argument(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.business_summary.sharpened_text is not None
+        assert "[mock-response]" in report.business_summary.sharpened_text
+
+    async def test_report_uses_persisted_proposal_text_without_argument(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.propose_solution(case.id)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.technical_detail.proposal_text is not None
+        assert "[mock-response]" in report.technical_detail.proposal_text
+
+    async def test_explicit_argument_overrides_persisted_sharpened_text(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+
+        report = service.generate_report(case.id, sharpened_text="Override-Text")
+
+        assert report is not None
+        assert report.business_summary.sharpened_text == "Override-Text"
+
+    def test_report_without_any_llm_call_has_none_narratives(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.business_summary.sharpened_text is None
+        assert report.technical_detail.proposal_text is None

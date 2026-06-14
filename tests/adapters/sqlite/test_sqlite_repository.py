@@ -289,3 +289,56 @@ class TestRoundtrip:
         assert retrieved.result.roi is None
         assert retrieved.result.composite is None
         assert retrieved.result.zone is None
+
+
+class TestLLMNarrativePersistence:
+    """Belegt ADR-0012: sharpened_text/proposal_text werden korrekt
+    persistiert, geladen und ueberschrieben."""
+
+    def test_fields_default_to_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        retrieved = repo.get(sample_case.id)
+        assert retrieved is not None
+        assert retrieved.sharpened_text is None
+        assert retrieved.proposal_text is None
+
+    def test_fields_roundtrip(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.sharpened_text = "Geschaerfte Version: ..."
+        sample_case.proposal_text = "Vorschlag: ..."
+        repo.save(sample_case)
+
+        retrieved = repo.get(sample_case.id)
+
+        assert retrieved is not None
+        assert retrieved.sharpened_text == "Geschaerfte Version: ..."
+        assert retrieved.proposal_text == "Vorschlag: ..."
+
+    def test_resave_overwrites_narrative(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+
+        sample_case.sharpened_text = "Erste Version"
+        repo.save(sample_case)
+
+        sample_case.sharpened_text = "Zweite Version"
+        repo.save(sample_case)
+
+        retrieved = repo.get(sample_case.id)
+        assert retrieved is not None
+        assert retrieved.sharpened_text == "Zweite Version"
+
+    def test_list_all_includes_narrative_fields(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.proposal_text = "Vorschlag fuer Liste"
+        repo.save(sample_case)
+
+        cases = repo.list_all()
+
+        assert len(cases) == 1
+        assert cases[0].proposal_text == "Vorschlag fuer Liste"

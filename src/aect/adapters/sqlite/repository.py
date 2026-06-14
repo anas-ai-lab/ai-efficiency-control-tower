@@ -18,6 +18,11 @@ Hinweis: SQLiteRepository wird in get_triage_service() pro Request erzeugt.
   _init_db() (CREATE TABLE IF NOT EXISTS) laeuft damit pro Request -- idempotent
   und bei Portfolio-Traffic akzeptabel. Fuer Produktionslast: Lifespan-Singleton
   (Doku-Punkt in Phase-B-ADR).
+
+sharpened_text/proposal_text (Tag 42, ADR-0012): zwei zusaetzliche nullable
+Spalten fuer persistierte LLM-Narrative aus sharpen_case() /
+propose_solution(). save() ist weiterhin INSERT OR REPLACE -- ein erneuter
+save() mit gesetztem Feld ueberschreibt den vorherigen Wert.
 """
 
 from __future__ import annotations
@@ -43,12 +48,18 @@ from aect.domain.zones import ZoneResult
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS submitted_cases (
-    id            TEXT PRIMARY KEY,
-    submitted_at  TEXT NOT NULL,
-    use_case_json TEXT NOT NULL,
-    result_json   TEXT NOT NULL
+    id             TEXT PRIMARY KEY,
+    submitted_at   TEXT NOT NULL,
+    use_case_json  TEXT NOT NULL,
+    result_json    TEXT NOT NULL,
+    sharpened_text TEXT,
+    proposal_text  TEXT
 )
 """
+
+_SELECT_COLUMNS = (
+    "id, submitted_at, use_case_json, result_json, sharpened_text, proposal_text"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -167,13 +178,22 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (4-Tupel) -> SubmittedCase."""
-    case_id, submitted_at_str, use_case_json, result_json = row
+    """SQLite-Row (6-Tupel) -> SubmittedCase."""
+    (
+        case_id,
+        submitted_at_str,
+        use_case_json,
+        result_json,
+        sharpened_text,
+        proposal_text,
+    ) = row
     return SubmittedCase(
         id=str(case_id),
         submitted_at=datetime.fromisoformat(str(submitted_at_str)),
         use_case=UseCaseInput.model_validate_json(str(use_case_json)),
         result=_deserialize_result(str(result_json)),
+        sharpened_text=str(sharpened_text) if sharpened_text is not None else None,
+        proposal_text=str(proposal_text) if proposal_text is not None else None,
     )
 
 
@@ -210,13 +230,15 @@ class SQLiteRepository:
         result_json = _serialize_result(case.result)
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO submitted_cases "
-                "(id, submitted_at, use_case_json, result_json) VALUES (?, ?, ?, ?)",
+                f"INSERT OR REPLACE INTO submitted_cases "
+                f"({_SELECT_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     case.id,
                     case.submitted_at.isoformat(),
                     use_case_json,
                     result_json,
+                    case.sharpened_text,
+                    case.proposal_text,
                 ),
             )
 
@@ -224,8 +246,7 @@ class SQLiteRepository:
         """Gibt einen Case per ID zurueck oder None."""
         with sqlite3.connect(str(self._db_path)) as conn:
             row = conn.execute(
-                "SELECT id, submitted_at, use_case_json, result_json "
-                "FROM submitted_cases WHERE id = ?",
+                f"SELECT {_SELECT_COLUMNS} FROM submitted_cases WHERE id = ?",
                 (case_id,),
             ).fetchone()
         if row is None:
@@ -236,7 +257,7 @@ class SQLiteRepository:
         """Alle gespeicherten Cases, chronologisch nach submitted_at."""
         with sqlite3.connect(str(self._db_path)) as conn:
             rows = conn.execute(
-                "SELECT id, submitted_at, use_case_json, result_json "
-                "FROM submitted_cases ORDER BY submitted_at ASC"
+                f"SELECT {_SELECT_COLUMNS} "
+                f"FROM submitted_cases ORDER BY submitted_at ASC"
             ).fetchall()
         return [_row_to_case(row) for row in rows]

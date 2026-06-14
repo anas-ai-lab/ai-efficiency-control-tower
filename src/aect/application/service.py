@@ -173,6 +173,11 @@ class TriageService:
         gespeicherten Case uebernommen und nie ueberschrieben -- die
         geschaerfte Version steht daneben (sharpened_text).
 
+        Persistenz (Tag 42, ADR-0012): das Ergebnis wird zusaetzlich auf
+        case.sharpened_text gespeichert (self._repository.save()), damit
+        generate_report() es ohne erneuten Request-Body-Transport anzeigen
+        kann.
+
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
 
@@ -229,6 +234,9 @@ class TriageService:
             operation="sharpen_case",
         )
 
+        case.sharpened_text = response.content
+        self._repository.save(case)
+
         return SharpenedUseCase(
             case_id=case.id,
             original_title=case.use_case.title,
@@ -255,6 +263,12 @@ class TriageService:
         fuer nicht registrierte Tool-Namen. Der Fehler wird als
         Tool-Ergebnis ({"error": ...}) an das LLM zurueckgegeben statt die
         Anfrage abzubrechen -- Graceful Degradation.
+
+        Persistenz (Tag 42, ADR-0012): die finale response.content (nach
+        einem etwaigen Tool-Call-Loop) wird zusaetzlich auf
+        case.proposal_text gespeichert (self._repository.save()), damit
+        generate_report() es ohne erneuten Request-Body-Transport anzeigen
+        kann.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -340,6 +354,9 @@ class TriageService:
                 operation="propose_solution",
             )
 
+        case.proposal_text = response.content
+        self._repository.save(case)
+
         return SolutionProposal(
             case_id=case.id,
             proposal_text=response.content,
@@ -357,14 +374,18 @@ class TriageService:
         Reine Regel-Schicht (Master-Plan v3.1, Phase C: "Zweischichtiger
         Report-Renderer", ADR-0011): kombiniert das deterministische
         TriageResult mit optionalen LLM-Narrativen aus sharpen_case() /
-        propose_solution(). AECT persistiert diese Narrative aktuell nicht --
-        der Client reicht sie erneut durch (Tag 41, additiv ohne
-        Persistenz-Aenderung).
+        propose_solution().
 
-        sharpened_text/proposal_text werden unveraendert als untrusted
-        LLM-Output durchgereicht (aect-security-checklist v2.1: "LLM-Output
-        immer als untrusted behandeln") -- sie fliessen nicht in
-        Berechnungen ein, nur in die Anzeige.
+        Persistenz (Tag 42, ADR-0012): sharpened_text/proposal_text werden
+        standardmaessig aus dem persistierten SubmittedCase gelesen (sofern
+        sharpen_case()/propose_solution() fuer diesen Case bereits liefen).
+        Ein hier uebergebener Wert ueberschreibt den persistierten -- z. B.
+        fuer Tests oder eine Vorschau ohne erneuten Persist.
+
+        sharpened_text/proposal_text fliessen unveraendert als untrusted
+        LLM-Output durch (aect-security-checklist v2.1: "LLM-Output immer
+        als untrusted behandeln") -- sie wirken nicht auf Berechnungen,
+        nur auf die Anzeige.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -373,8 +394,19 @@ class TriageService:
         if case is None:
             return None
 
+        effective_sharpened_text = (
+            sharpened_text if sharpened_text is not None else case.sharpened_text
+        )
+        effective_proposal_text = (
+            proposal_text if proposal_text is not None else case.proposal_text
+        )
+
         return ReportResult(
             case_id=case.id,
-            business_summary=_build_business_summary(case.result, sharpened_text),
-            technical_detail=_build_technical_detail(case.result, proposal_text),
+            business_summary=_build_business_summary(
+                case.result, effective_sharpened_text
+            ),
+            technical_detail=_build_technical_detail(
+                case.result, effective_proposal_text
+            ),
         )

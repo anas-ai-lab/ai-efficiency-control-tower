@@ -195,3 +195,59 @@ async def test_report_rejects_unknown_field() -> None:
         )
 
     assert response.status_code == 422
+
+
+async def test_report_uses_persisted_sharpened_text_after_sharpen_call() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_PASSING_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        await client.post(
+            f"/cases/{case_id}/sharpen",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+        response = await client.post(
+            f"/cases/{case_id}/report",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    sharpened = data["business_summary"]["sharpened_text"]
+    assert sharpened is not None
+    assert "[mock-response]" in sharpened
+
+
+async def test_report_uses_persisted_proposal_text_after_propose_solution_call() -> (
+    None
+):
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_PASSING_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        await client.post(
+            f"/cases/{case_id}/propose-solution",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+        response = await client.post(
+            f"/cases/{case_id}/report",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    proposal = data["technical_detail"]["proposal_text"]
+    assert proposal is not None
+    assert "[mock-response]" in proposal
