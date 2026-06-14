@@ -61,6 +61,18 @@ _SELECT_COLUMNS = (
     "id, submitted_at, use_case_json, result_json, sharpened_text, proposal_text"
 )
 
+_INSERT_SQL = (
+    "INSERT OR REPLACE INTO submitted_cases ("
+    + _SELECT_COLUMNS
+    + ") VALUES (?, ?, ?, ?, ?, ?)"
+)
+
+_SELECT_BY_ID_SQL = "SELECT " + _SELECT_COLUMNS + " FROM submitted_cases WHERE id = ?"
+
+_SELECT_ALL_SQL = (
+    "SELECT " + _SELECT_COLUMNS + " FROM submitted_cases ORDER BY submitted_at ASC"
+)
+
 
 # ---------------------------------------------------------------------------
 # JSON-Encoder
@@ -230,8 +242,7 @@ class SQLiteRepository:
         result_json = _serialize_result(case.result)
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(
-                f"INSERT OR REPLACE INTO submitted_cases "
-                f"({_SELECT_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+                _INSERT_SQL,
                 (
                     case.id,
                     case.submitted_at.isoformat(),
@@ -246,7 +257,7 @@ class SQLiteRepository:
         """Gibt einen Case per ID zurueck oder None."""
         with sqlite3.connect(str(self._db_path)) as conn:
             row = conn.execute(
-                f"SELECT {_SELECT_COLUMNS} FROM submitted_cases WHERE id = ?",
+                _SELECT_BY_ID_SQL,
                 (case_id,),
             ).fetchone()
         if row is None:
@@ -256,8 +267,5 @@ class SQLiteRepository:
     def list_all(self) -> list[SubmittedCase]:
         """Alle gespeicherten Cases, chronologisch nach submitted_at."""
         with sqlite3.connect(str(self._db_path)) as conn:
-            rows = conn.execute(
-                f"SELECT {_SELECT_COLUMNS} "
-                f"FROM submitted_cases ORDER BY submitted_at ASC"
-            ).fetchall()
+            rows = conn.execute(_SELECT_ALL_SQL).fetchall()
         return [_row_to_case(row) for row in rows]
