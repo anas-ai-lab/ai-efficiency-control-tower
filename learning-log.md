@@ -1478,3 +1478,33 @@ gehoert). Die automatische Typ-Pruefung (mypy) hat das sofort gemeldet, bevor
 es ueberhaupt zu Tests kam. Klassisches Beispiel dafuer, warum diese
 Pruef-Schritte vor jedem Commit laufen.
 EOF
+
+cat >> learning-log.md << 'EOF'
+
+## Tag 42 — KI-Texte werden gespeichert statt nur durchgereicht
+
+Bisher hat das System die beiden KI-generierten Texte -- die geschärfte
+Aufgabenbeschreibung und den Lösungsvorschlag -- nur kurz angezeigt und
+dann vergessen. Wer den zusammenfassenden Report später sehen wollte,
+musste diese Texte jedes Mal erneut mitschicken, als hätte das System sie
+nie gesehen.
+
+Heute haben wir das geändert: Beide Texte werden jetzt zusammen mit dem
+restlichen Fall abgespeichert -- egal ob der Fall aktuell im
+Arbeitsspeicher liegt (für Tests) oder in der Datei-Datenbank (für den
+echten Betrieb). Wenn man danach den Report abruft, ohne etwas erneut
+mitzuschicken, tauchen die Texte trotzdem auf.
+
+**Warum das wenig am Rest des Programms ändert:** Das Programm spricht mit
+dem Speicherort nie direkt, sondern nur über eine Art Vertrag ("speichere
+das", "hol das wieder"). Diesen Vertrag mussten wir nicht ändern --
+speichern bedeutet schon immer "überschreibe den alten Stand". Wir mussten
+also nur an zwei Stellen ein zusätzliches "speichere das jetzt mit ab"
+einfügen, plus zwei neue, leere Spalten in der Datei-Datenbank für die
+neuen Informationen.
+
+**Was offen bleibt:** Falls man die Datei-Datenbank von vor heute noch
+hat, fehlen ihr diese zwei Spalten -- die müsste man löschen, dann wird sie
+beim nächsten Start automatisch neu mit den richtigen Spalten angelegt.
+Für ein privates Projekt ohne echte Nutzerdaten ist das kein Problem.
+EOF
