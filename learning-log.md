@@ -1536,3 +1536,38 @@ nicht weil etwas falsch war, sondern weil das Werkzeug eine bestimmte
 Code-Schreibweise generell verdaechtig findet, auch wenn sie hier
 ungefaehrlich war. Die Schreibweise wurde umgestellt, damit die Warnung
 verschwindet, ohne dass sich am Verhalten etwas aendert.
+
+## Tag 43.1 — Aufräumen und die Prüf-Schablone anschließen
+
+Zwei Dinge an einem Tag, beide eher "fertigmachen" als "Neues bauen".
+
+**Teil 1 — liegengebliebene Hausaufgaben aus dem großen Rückblick.** Beim
+letzten großen Check ist aufgefallen: ein Abschlussbericht zu einem
+früheren Bauabschnitt (Phase B) wurde nie geschrieben, zwei
+Entscheidungsprotokolle hatten offene Enden ("das machen wir später,
+sobald..."), und eine Datei hatte einen Tippfehler im Namen. Alles
+nachgeholt — reine Dokumentation, kein Verhalten geändert.
+
+**Teil 2 — die Prüf-Schablone von gestern ans System angeschlossen.** Die
+Schärfungs-Funktion (aus einer unscharfen Beschreibung eine konkretere
+machen) liefert jetzt nicht mehr nur einen langen Text, sondern vier
+einzelne Teile: geschärften Titel, geschärften Ist-Zustand, geschärften
+Soll-Zustand, und eine Liste mit Verbesserungsvorschlägen.
+
+**Was passiert, wenn die Antwort der KI nicht ins erwartete Format passt?**
+Genau dafür war die Prüf-Schablone von gestern da: Sie merkt es, schreibt
+einen Vermerk ins Hintergrund-Protokoll ("Format hat nicht gepasst"), und
+zeigt stattdessen die komplette rohe Antwort. Niemand bekommt eine
+Fehlermeldung oder einen Absturz — nur manchmal "vier ordentliche Teile",
+manchmal "ein Textblock".
+
+**Wichtig für heute:** Die Test-Attrappe, mit der wir aktuell arbeiten,
+antwortet immer mit einem festen Echo-Satz, nie im neuen Format. Heute
+siehst du also immer den "Textblock"-Fall — der "vier Teile"-Fall wird erst
+sichtbar, wenn später eine echte KI im richtigen Format antwortet.
+
+**Eine kleine Verschiebung im Hintergrund:** Die Spalte in der
+Datei-Datenbank, in der die geschärfte Version gespeichert wird, heißt jetzt
+anders und enthält jetzt ein kleines Datenpaket statt nur einem Text. Der
+"Report"-Knopf merkt davon nichts — er bekommt weiterhin denselben
+Anzeigetext, nur die Übersetzung dazwischen ist neu.
