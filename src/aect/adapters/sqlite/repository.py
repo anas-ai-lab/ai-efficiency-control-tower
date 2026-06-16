@@ -60,21 +60,32 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
 )
 """
 
-_SELECT_COLUMNS = (
-    "id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text"
-)
+# Spaltenliste dreifach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
+# geteilt: jede "+"-Verkettung mit einem Namens-Knoten matcht bandit B608
+# erneut, unabhaengig vom Laufzeitwert der Variable (AST-Form entscheidet,
+# nicht Inhalt -- das war der Grund, warum der Tag-43-Fix nicht griff).
+# Reine adjazente String-Literale ohne Operator umgehen das strukturell.
+# Bei Schema-Aenderung: alle vier Stellen synchron halten (CREATE_TABLE,
+# INSERT, SELECT_BY_ID, SELECT_ALL) plus Positions-Reihenfolge in
+# _row_to_case().
 
 _INSERT_SQL = (
-    "INSERT OR REPLACE INTO submitted_cases ("
-    + _SELECT_COLUMNS
-    + ") VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT OR REPLACE INTO submitted_cases "
+    "(id, submitted_at, use_case_json, result_json, "
+    "sharpened_content_json, proposal_text) "
+    "VALUES (?, ?, ?, ?, ?, ?)"
 )
 
-_SELECT_BY_ID_SQL = "SELECT " + _SELECT_COLUMNS + " FROM submitted_cases WHERE id = ?"
+_SELECT_BY_ID_SQL = (
+    "SELECT id, submitted_at, use_case_json, result_json, "
+    "sharpened_content_json, proposal_text "
+    "FROM submitted_cases WHERE id = ?"
+)
 
 _SELECT_ALL_SQL = (
-    "SELECT " + _SELECT_COLUMNS + " FROM submitted_cases ORDER BY submitted_at ASC"
+    "SELECT id, submitted_at, use_case_json, result_json, "
+    "sharpened_content_json, proposal_text "
+    "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
 
