@@ -48,7 +48,7 @@ chroma_db/
 *.db
 
 # Test coverage
-.coverage
+.coverage*
 htmlcov/
 
 # Firmenspezifische ROI-Config (IP-Trennung, interne Referenz (entfernt) §5)

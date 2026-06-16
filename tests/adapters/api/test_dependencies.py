@@ -15,11 +15,19 @@ async def test_get_llm_adapter_returns_resilient_wrapped_mock_without_credential
 ):
     """Ohne Azure-Credentials: ResilientLLMAdapter(MockLLMAdapter()).
 
-    Settings() ohne gesetzte Azure-Env-Vars -> leere Strings -> Mock-Pfad.
+    Azure-Felder werden explizit auf "" gesetzt statt sich auf eine leere
+    .env zu verlassen (Fund Tag 45: Settings() liest automatisch aus .env --
+    sobald dort echte Azure-Credentials stehen, wuerde dieser Test sonst je
+    nach Entwicklerumgebung undeterministisch durchfallen. Test-Isolation
+    darf nicht vom Inhalt einer lokalen, nicht versionierten Datei abhaengen).
     complete() wird real durchgefuehrt: einziger Test der den Mock-Pfad
     ueber den echten DI-Pfad ausfuehrt.
     """
-    settings = Settings()  # keine Azure-Keys in .env
+    settings = Settings(
+        azure_openai_endpoint="",
+        azure_openai_api_key="",
+        azure_openai_deployment="",
+    )
     adapter = get_llm_adapter(settings=settings)
 
     assert isinstance(adapter, ResilientLLMAdapter)
