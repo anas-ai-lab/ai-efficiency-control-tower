@@ -1571,3 +1571,29 @@ Datei-Datenbank, in der die geschärfte Version gespeichert wird, heißt jetzt
 anders und enthält jetzt ein kleines Datenpaket statt nur einem Text. Der
 "Report"-Knopf merkt davon nichts — er bekommt weiterhin denselben
 Anzeigetext, nur die Übersetzung dazwischen ist neu.
+
+## Tag 44 — Budget-Sentinel: warum wir Kosten messen, bevor wir weiterbauen
+
+Ein "Budget-Sentinel" ist kein Stueck Software, sondern ein Pruefschritt: bevor
+man der KI viele Aufgaben gibt, schickt man ihr eine einzige kleine Frage und
+schaut sich genau an, was das tatsaechlich gekostet hat -- nicht geschaetzt,
+sondern echt gemessen.
+
+Warum das wichtig ist: das System schaetzt Kosten bisher nur rechnerisch
+(es zaehlt, wie viele "Wortstuecke" -- Tokens -- eine Anfrage und eine Antwort
+haben, und multipliziert das mit einem bekannten Preis pro Wortstueck). Das
+ist eine Annahme, kein Beweis. Ob die Anfrage beim echten Anbieter (Azure)
+tatsaechlich so viel kostet wie geschaetzt, weiss man erst nach dem ersten
+echten Versuch.
+
+Der Plan war, diesen einen echten Versuch heute zu machen. Das ging nicht,
+weil noch kein Azure-Konto existiert -- das wird zuerst eingerichtet (eigener
+Schritt, kein technisches Problem, eher Papierkram: Konto, Region waehlen,
+Modell "buchen", Kosten-Alarm einstellen).
+
+Der Grund, warum wir das vor dem naechsten grossen Baustein (RAG -- das
+System, das spaeter Gesetzestexte und Anleitungen nachschlaegt) erledigen
+wollen: RAG bedeutet automatisch mehr KI-Aufrufe pro Anfrage, nicht nur einen.
+Wenn die Kostenschaetzung daneben liegt, soll das auffallen, solange es nur
+um einen einzigen Aufruf geht -- nicht erst, wenn sich der Fehler schon
+hundertfach vervielfacht hat.
