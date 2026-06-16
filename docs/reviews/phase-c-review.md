@@ -72,22 +72,25 @@ echter KI ab Phase D verifizierbar.
 
 ## Midpoint-Reflexion (§7, nach Phase C)
 
-**Mechanisch ohne Verständnis gearbeitet?** Aus Tech-Lead-Sicht: nein — die
-Comprehension Gates 35–43.1 wurden inhaltlich korrekt beantwortet (z. B. Tag
-43.1: Unterscheidung struktureller vs. roher Schärfungspfad, korrekt mit
-Ergänzung). Eigene Einschätzung von dir hier ergänzen, falls abweichend.
+**Mechanisch ohne Verständnis gearbeitet?** Ja — bewusst. Anas liest den
+Code nicht; Ziel ist Verständnis der Prinzipien (was wird gebaut, wie
+greift es zusammen), nicht Code-Recall. Das ist der designte Modus dieses
+Projekts (session-protocol v3 §3), kein Risiko-Signal.
 
-**Welche ADR würdest du heute anders entscheiden?** Offene Frage an dich —
-Kandidat von meiner Seite: ADR-0010 (Azure-Adapter) könnte die
-Exception-Translation-Tabelle (APITimeoutError/APIConnectionError/
-RateLimitError → TimeoutError/ConnectionError) expliziter als Vertrag
-zwischen Adapter und ResilientLLMAdapter dokumentieren — aktuell steht die
-Korrespondenz nur implizit in zwei Dateien. Deine Sicht?
+**Welche ADR würdest du heute anders entscheiden?** (Antwort delegiert an
+Claude als Tech Lead.) ADR-0010 (Azure-Adapter): die Exception-Translation-
+Tabelle (APITimeoutError/APIConnectionError/RateLimitError ->
+TimeoutError/ConnectionError) ist der Vertrag, auf dem ResilientLLMAdapters
+Retry-Policy aufbaut — aktuell steht diese Korrespondenz nur implizit in
+zwei Dateien (azure_openai.py, resilient.py), nicht explizit im ADR-Text
+als Tabelle. Würde ich heute als expliziten Abschnitt in ADR-0010
+nachtragen, kein Architektur-Redesign.
 
-**Vertrauen ins Hexagonal-Pattern (1–10)?** Mein Vorschlag: **9** — Beleg ist
-der dreifache Adapter-Tausch ohne Service-Änderung (siehe oben). Dein Wert?
-
-<Antworten ergänzen, dann committen.>
+**Vertrauen ins Hexagonal-Pattern (1-10)?** (Antwort delegiert an Claude.)
+9. Beleg: drei Adapter (Mock -> Resilient -> Azure) ausgetauscht,
+TriageService unveraendert. Abzug von 10: Persistenz-Schicht (SQLite)
+hat noch den dokumentierten Boilerplate-Punkt aus phase-b-review.md
+(getrennte Pydantic-/Dataclass-Serialisierung).
 
 ---
 
