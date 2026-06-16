@@ -1597,3 +1597,57 @@ wollen: RAG bedeutet automatisch mehr KI-Aufrufe pro Anfrage, nicht nur einen.
 Wenn die Kostenschaetzung daneben liegt, soll das auffallen, solange es nur
 um einen einzigen Aufruf geht -- nicht erst, wenn sich der Fehler schon
 hundertfach vervielfacht hat.
+
+## Tag 45 — Wenn die Aussenwelt das Modell unter dir wegzieht
+
+Heute ging es weniger um neuen Code, mehr um die echte Cloud-Welt --
+und genau die hat zwei Ueberraschungen gebracht, die zeigen, warum gute
+Architektur sich lohnt, bevor man sie braucht.
+
+**Ueberraschung 1 -- Konto-Wirrwarr.** Bevor irgendwas mit KI passieren
+konnte, musste erst ein eigenes Microsoft-Cloud-Konto her, das niemandem
+ausser uns gehoert. Zweimal ist das schiefgelaufen: einmal, weil ein altes
+Uni-Konto im Weg stand (das gehoert technisch der Uni, nicht uns -- wie
+ein Firmenhandy, das man nicht privat nutzen darf). Einmal, weil ein
+brandneues Konto erst noch eine Art "Hausnummer" in der Cloud braucht,
+bevor es richtig funktioniert -- die bekommt man nur, wenn man den
+offiziellen Anmelde-Weg nimmt, nicht den direkten Login.
+
+**Ueberraschung 2 -- das geplante KI-Modell gab es gar nicht mehr.**
+Cloud-Anbieter mustern KI-Modelle regelmaessig aus, so wie ein
+Smartphone-Hersteller irgendwann ein altes Modell nicht mehr verkauft.
+Genau das war hier passiert: das urspruenglich vorgesehene Modell war
+fuer neue Kunden nicht mehr verfuegbar. Das ist normalerweise ein Problem
+-- bei uns war es nur eine kurze Entscheidung (welches Modell stattdessen),
+weil unser Programm das Modell nie als festen Teil von sich selbst
+behandelt, sondern nur als austauschbaren Namen, den man in einer
+Einstellungs-Datei eintraegt. Stell dir ein Steckdosen-Geraet vor, das
+mit jedem Stecker funktioniert, solange die Spannung passt -- man tauscht
+das Geraet nicht aus, nur das Kabel.
+
+**Eine versteckte Preisfrage.** Die neueste, "denkfaehigere" Generation
+von KI-Modellen braucht eine andere technische Einstellung dafuer, wie
+lang eine Antwort maximal sein darf, als die aeltere Generation. Verwendet
+man die falsche Einstellung, lehnt das Modell die Anfrage komplett ab.
+Wir haben deshalb bewusst noch das aeltere, aber voll kompatible Modell
+genommen und den Umstieg auf die neuere Generation als eigenen,
+spaeteren Schritt vorgemerkt -- nicht aus Sparsamkeit, sondern weil ein
+Modellwechsel und ein technischer Umbau nicht gleichzeitig passieren
+sollten.
+
+**Der eigentliche Test des Tages.** Bisher hat das System nur *geschaetzt*,
+was ein KI-Aufruf kostet (gezaehlte Wortstuecke mal bekannter Preis).
+Heute kam der erste *echte* Aufruf beim Anbieter, mit echter Rechnung
+dahinter: 0,000005 Euro. Praktisch nichts -- aber wichtig war nicht die
+Zahl, sondern dass wir jetzt wissen, dass die Schaetzmethode stimmt,
+bevor wir sie auf viele Aufrufe gleichzeitig hochskalieren.
+
+**Ein Pruef-Code, der sich selbst belogen hat.** Ein automatischer Test
+sollte pruefen: "ohne Cloud-Zugangsdaten benutzt das System die
+Test-Attrappe." Der Test hat aber nie wirklich dafuer gesorgt, dass keine
+Zugangsdaten da sind -- er hat sich einfach drauf verlassen, dass die
+lokale Geheimnis-Datei zufaellig leer war. Sobald da heute echte
+Zugangsdaten drinstanden, hat derselbe Test das Gegenteil von dem
+gepruefte, was er sollte. Lehre: ein Test muss seine eigenen
+Voraussetzungen selbst herstellen, nicht einfach hoffen, dass die Umgebung
+gerade passt.
