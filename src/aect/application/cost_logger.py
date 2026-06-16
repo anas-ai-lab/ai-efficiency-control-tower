@@ -5,10 +5,11 @@ wuerde keins liefern. Statt auf provider-spezifische Token-Counts zu warten,
 zaehlt dieses Modul Input- und Output-Tokens selbst -- funktioniert identisch
 fuer Mock und den spaeteren Azure-Adapter.
 
-Pricing-Konstanten: Stand Juni 2026, gpt-4o-mini (OpenAI direct / Azure Global
-Standard: $0.15 Input / $0.60 Output pro 1M Tokens). Azure Data Zone (EU) kann
-abweichen -- vor dem ersten echten Azure-Call (Budget-Sentinel,
-session-protocol v3 Paragraph 4) re-verifizieren.
+Pricing-Konstanten: Stand 16.06.2026, gpt-4.1-mini (Azure: $0.40 Input /
+$1.60 Output pro 1M Tokens). Aktualisiert von gpt-4o-mini-Default (Tag 45 --
+gpt-4o-mini war bei Azure fuer Neukunden zum Setup-Zeitpunkt nicht mehr
+deploybar, siehe phase-c-review.md). Bei jedem weiteren Modellwechsel hier
+erneut pruefen.
 
 IP-Trennung (interne Referenz (entfernt) Paragraph 5): Pricing und Encoding-Name sind
 Provider-Daten, keine firmenspezifischen Werte -- bleiben im generischen Code,
@@ -22,14 +23,14 @@ import tiktoken
 
 from aect.application.ports.llm import LLMMessage, LLMResponse
 
-# gpt-4o und gpt-4o-mini nutzen die o200k_base-Encoding (cl100k_base war
-# GPT-4/3.5). Falscher Name wuerde get_encoding() klar mit Exception
-# fehlschlagen lassen -- kein stiller Fehler.
+# gpt-4o, gpt-4o-mini und die gpt-4.1-Familie (inkl. gpt-4.1-mini) nutzen die
+# o200k_base-Encoding (cl100k_base war GPT-4/3.5). Falscher Name wuerde
+# get_encoding() klar mit Exception fehlschlagen lassen -- kein stiller Fehler.
 _ENCODING_NAME = "o200k_base"
 
-# USD pro 1 Million Tokens, gpt-4o-mini, Stand Juni 2026.
-_PRICE_INPUT_USD_PER_1M = 0.15
-_PRICE_OUTPUT_USD_PER_1M = 0.60
+# USD pro 1 Million Tokens, gpt-4.1-mini, Stand 16.06.2026.
+_PRICE_INPUT_USD_PER_1M = 0.40
+_PRICE_OUTPUT_USD_PER_1M = 1.60
 
 # Naeherungs-Wechselkurs USD->EUR, konservativ. Fuer eine grobe
 # Budget-Schaetzung ausreichend, kein Buchhaltungswert.
