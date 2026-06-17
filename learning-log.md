@@ -1688,3 +1688,26 @@ Anweisung" markiert -- damit ein manipulierter Text in der Wissensbasis
 nicht versuchen kann, die KI zu etwas zu ueberreden.
 
 Tests: 330 von 330 gruen (7 neue).
+
+## Tag 47 -- Text in Zahlen uebersetzen (Embeddings), erstmal nur als Attrappe
+
+Heute kam das Gegenstueck zu gestern dazu. Gestern haben wir gebaut, wie das
+System spaeter Textstellen aus einer Wissensbasis findet. Heute haben wir
+den ersten Baustein fuer "Embeddings" gebaut -- ein Fachbegriff fuer: ein
+Stueck Text wird in eine Reihe von Zahlen umgerechnet, die spaeter zeigen
+sollen, wie aehnlich zwei Texte inhaltlich sind. Wie eine Postleitzahl fuer
+Bedeutung: Texte mit aehnlicher Bedeutung sollen spaeter "nah beieinander"
+liegen.
+
+Aktuell ist das aber noch eine Attrappe (im Projekt "Mock" genannt): Sie
+rechnet jeden Text nach einer festen, einfachen Regel in Zahlen um, ohne die
+Bedeutung wirklich zu verstehen. Wichtig ist nur: derselbe Text ergibt immer
+dieselben Zahlen (Determinismus). Damit laesst sich zuverlaessig testen, dass
+die technische Verdrahtung -- Text rein, Zahlen raus -- funktioniert, bevor
+ueberhaupt ein echtes, "verstehendes" System angeschlossen wird. Das spart
+Zeit und verhindert, dass man am Ende nicht weiss, ob ein Fehler vom echten
+Sprachverstaendnis kommt oder von einem simplen Verkabelungsfehler.
+
+Naechster Schritt: die Attrappe durch ein echtes, kostenloses Modell
+ersetzen (laeuft lokal auf dem eigenen Rechner, keine Cloud-Kosten), das
+Texte tatsaechlich inhaltlich versteht.
