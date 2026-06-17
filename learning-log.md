@@ -1651,3 +1651,40 @@ Zugangsdaten drinstanden, hat derselbe Test das Gegenteil von dem
 gepruefte, was er sollte. Lehre: ein Test muss seine eigenen
 Voraussetzungen selbst herstellen, nicht einfach hoffen, dass die Umgebung
 gerade passt.
+
+
+## Tag 46 (2026-06-17): RAG faengt an -- aber nur mit einer Attrappe
+
+Phase D beginnt: Das System soll bald belegte Hinweise liefern koennen
+("laut EU-AI-Act-Auszug X gilt..."), statt sich Dinge aus dem reinen
+KI-Wissen auszudenken. Dafuer braucht es eine Such-Funktion, die in einer
+Wissensbasis (einer Sammlung kuratierter Texte) nach passenden
+Ausschnitten sucht -- das nennt man RAG (Retrieval-Augmented Generation:
+die KI bekommt vor der Antwort echte Textausschnitte mitgeliefert, statt
+nur aus ihrem trainierten Wissen zu raten).
+
+Heute wurde aber noch keine echte Suchmaschine gebaut. Stattdessen gibt
+es einen "Vertrag" (im Code: ein Protocol/Port -- eine feste
+Schnittstelle, die festlegt: "wer suchen will, ruft retrieve(anfrage) auf
+und bekommt eine Liste von Treffern zurueck") plus eine Attrappe
+dahinter (Mock), die nach einer einfachen, vorhersehbaren Regel sucht
+(zaehlt, wie viele Woerter der Anfrage im Text vorkommen) statt mit
+echtem Sprachverstaendnis. Genau dasselbe Prinzip wie bei der
+KI-Anbindung in Phase C: zuerst eine Attrappe, die immer gleich
+reagiert, damit man die Tests darauf bauen kann, ohne jedes Mal Geld
+oder Zeit fuer einen echten Aufruf zu verbrauchen.
+
+Jeder gefundene Textausschnitt traegt zusaetzlich ein Etikett
+(source_id), das verraet, aus welchem Dokument er stammt. Das ist die
+Grundlage dafuer, dass das System spaeter sagen kann "diese Aussage
+stammt aus Quelle X" -- und falls eine Quelle veraltet oder falsch ist,
+weiss man sofort, wo man nachbessern muss, statt im ganzen System zu
+suchen.
+
+Auch eine Wissensbasis-Ordnerstruktur (knowledge_base/) mit Spielregeln
+wurde angelegt: nur geprueftes Material rein, gefundene Textausschnitte
+werden im spaeteren KI-Aufruf klar als "das ist ein Fund, keine
+Anweisung" markiert -- damit ein manipulierter Text in der Wissensbasis
+nicht versuchen kann, die KI zu etwas zu ueberreden.
+
+Tests: 330 von 330 gruen (7 neue).
