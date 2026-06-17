@@ -1711,3 +1711,45 @@ Sprachverstaendnis kommt oder von einem simplen Verkabelungsfehler.
 Naechster Schritt: die Attrappe durch ein echtes, kostenloses Modell
 ersetzen (laeuft lokal auf dem eigenen Rechner, keine Cloud-Kosten), das
 Texte tatsaechlich inhaltlich versteht.
+
+## Tag 48 — Der echte Bedeutungs-Uebersetzer: vom Zahlen-Platzhalter zum lernenden Modell
+
+Seit Tag 47 gibt es ein Bauteil, das Text in eine Reihe von Zahlen
+umwandelt ("Embedding" -- der englische Begriff dafuer, dass ein Text in
+einen mathematischen Raum "eingebettet" wird). Bisher war das nur ein
+Platzhalter: er hat aus jedem Text nach einer festen Rechenregel (einem
+"Hash", einer Art digitalem Fingerabdruck) Zahlen erzeugt. Verschiedene
+Texte ergaben verschiedene Zahlen -- aber ohne jeden Bezug zur Bedeutung.
+"Hund" und "Katze" waeren dabei genauso weit voneinander entfernt gewesen
+wie "Hund" und "Steuererklaerung".
+
+Heute wurde der Platzhalter durch ein echtes, vortrainiertes Sprachmodell
+ersetzt (Name: "all-MiniLM-L6-v2" -- eine kleine, schnelle Version eines
+Sprachverstehens-Modells, das komplett ohne Internetverbindung auf dem
+eigenen Rechner laeuft). Der entscheidende Unterschied: Texte mit
+aehnlicher Bedeutung landen jetzt auch zahlenmaessig nah beieinander, selbst
+wenn sie unterschiedlich formuliert sind. "Wie senke ich meine Kosten?" und
+"Wege zur Effizienzsteigerung" wuerden vom Modell als inhaltlich verwandt
+erkannt -- der Platzhalter haette das nie gekonnt.
+
+Kostenpunkt: Dieses Modell laeuft lokal, kostenlos, beliebig oft. Keine
+Cloud, kein Aufruf, kein Cent. Im Gegensatz dazu die Cloud-Alternative
+(Azure), die zwar auch sehr guenstig ist, aber jeden einzelnen Aufruf gegen
+ein Budget zaehlt.
+
+Eine technische Randnotiz von heute: schickt man denselben Text zweimal
+durch das Modell, kommen nicht exakt dieselben Zahlen heraus -- ein
+winziger Unterschied weit hinter dem Komma. Grund: das Modell verteilt
+seine Rechenarbeit auf mehrere Prozessorkerne gleichzeitig, und bei
+paralleler Rechenarbeit kann sich die Reihenfolge, in der kleine
+Zwischenergebnisse addiert werden, leicht unterscheiden -- bei
+Kommazahlen-Rechnungen aendert eine andere Reihenfolge manchmal das
+Ergebnis im allerkleinsten Massstab. Das ist normal und fuer die spaetere
+Nutzung (Aehnlichkeit von Texten finden) bedeutungslos -- wichtig war, das
+zu erkennen, statt einen Fehler im Code zu vermuten, der gar nicht da war.
+
+Damit ist der erste echte Baustein fuer die spaetere "intelligente Suche"
+fertig: ein Bauteil, das Bedeutung in Zahlen uebersetzt. Als naechstes
+kommt das Bauteil, das laengere Texte (z. B. ganze Gesetzestexte oder
+Dokumentationen) in sinnvolle, kleinere Stuecke zerteilt, bevor sie
+eingebettet werden.
