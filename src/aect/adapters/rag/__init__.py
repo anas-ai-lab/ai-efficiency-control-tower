@@ -9,5 +9,11 @@ in adapters/in_memory/.
 
 from aect.adapters.rag.chunker import Chunk, chunk_document
 from aect.adapters.rag.embedder import SentenceTransformerEmbedder
+from aect.adapters.rag.retriever import ChromaRetriever
 
-__all__ = ["Chunk", "SentenceTransformerEmbedder", "chunk_document"]
+__all__ = [
+    "ChromaRetriever",
+    "Chunk",
+    "SentenceTransformerEmbedder",
+    "chunk_document",
+]
