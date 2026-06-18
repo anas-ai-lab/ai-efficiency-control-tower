@@ -1,0 +1,16 @@
+# AECT -- ChromaDB als lokaler, isolierter Vektor-Store (Phase D).
+# Bewusst nur an 127.0.0.1 gebunden: kein Zugriff aus dem lokalen Netz
+# oder Internet. Version gepinnt fuer reproduzierbare Builds (ADR-0018).
+services:
+  chromadb:
+    image: chromadb/chroma:1.5.3
+    container_name: aect-chromadb
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ./chroma_db:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
