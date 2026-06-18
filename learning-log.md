@@ -1753,3 +1753,30 @@ fertig: ein Bauteil, das Bedeutung in Zahlen uebersetzt. Als naechstes
 kommt das Bauteil, das laengere Texte (z. B. ganze Gesetzestexte oder
 Dokumentationen) in sinnvolle, kleinere Stuecke zerteilt, bevor sie
 eingebettet werden.
+
+## Tag 49: Was ist Chunking, und warum darf ein Stueck Text nicht zu gross und nicht zu klein sein?
+
+Bevor ein Computer einen Text "versteht" (also in eine Reihe von Zahlen
+umwandelt, die seine Bedeutung einfangen -- das war der Embedder von
+gestern), muss der Text in mundgerechte Stuecke geschnitten werden. Dieses
+Zerschneiden heisst Chunking, und jedes einzelne Stueck ist ein "Chunk".
+
+Warum nicht einfach den ganzen Text auf einmal nehmen? Wenn ein Stueck zu
+gross ist, vermischen sich darin zu viele unterschiedliche Themen -- die
+Zahlen-Darstellung wird dadurch verwaschen und ungenau, fast so, als wuerde
+man ein ganzes Buch in einem einzigen Wort zusammenfassen wollen. Und wenn
+ein Stueck zu klein ist, fehlt der Zusammenhang -- ein einzelner halber
+Satz ohne sein Umfeld sagt oft wenig aus.
+
+Heute haben wir eine Funktion gebaut, die einen Text moeglichst an
+natuerlichen Absatzgrenzen in passend grosse Stuecke teilt -- nicht stur
+nach Zeichenanzahl, sondern entlang der Stellen, an denen ein Gedanke
+ohnehin zu Ende ist. Falls ein einzelner Absatz selbst schon zu lang ist
+(kommt selten vor), wird er notfalls trotzdem hart durchgeschnitten, damit
+nichts verloren geht.
+
+Zusaetzlich gibt es eine optionale Funktion namens Overlap: ein Stueck vom
+Ende des vorherigen Chunks wird in den Anfang des naechsten kopiert. Das
+verhindert, dass ein wichtiger Gedanke, der genau an einer Stueck-Grenze
+beginnt, spaeter bei der Suche "verschwindet", weil er auf zwei Stuecke
+verteilt war und keines der beiden Stuecke ihn vollstaendig enthielt.
