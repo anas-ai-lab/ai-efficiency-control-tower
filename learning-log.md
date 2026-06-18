@@ -1780,3 +1780,32 @@ Ende des vorherigen Chunks wird in den Anfang des naechsten kopiert. Das
 verhindert, dass ein wichtiger Gedanke, der genau an einer Stueck-Grenze
 beginnt, spaeter bei der Suche "verschwindet", weil er auf zwei Stuecke
 verteilt war und keines der beiden Stuecke ihn vollstaendig enthielt.
+
+## Tag 50 — 2026-06-18: Docker + ChromaDB-Container
+
+**Docker** ist ein Programm, das andere Programme in abgeschotteten
+Boxen (Containern) ausfuehren kann -- jede Box hat nur das, was sie
+braucht, und sieht den Rest des Rechners nicht. Heute haben wir Docker
+zum ersten Mal installiert und benutzt.
+
+**Container sind wegwerfbar.** Das ist Absicht, kein Fehler. Wenn man
+eine Box loescht und neu erstellt, sind alle Daten, die in der Box
+selbst lagen, weg. Deshalb speichert man wichtige Daten immer in einem
+Ordner *ausserhalb* der Box, der beim Neustart einfach wieder
+eingehaengt wird -- wie ein USB-Stick, den man in eine neue Box steckt.
+
+**127.0.0.1 statt 0.0.0.0.** Jeder Dienst auf einem Rechner kann
+entscheiden, fuer wen er erreichbar ist. 0.0.0.0 heisst "alle im
+Netzwerk duerfen". 127.0.0.1 heisst "nur dieser Rechner selbst". Fuer
+ein lokales Entwicklungs-Tool wie unsere Vektordatenbank reicht das --
+und ein Angreifer im gleichen WLAN kommt nicht ran.
+
+**Versionspinning.** Wir haben das Image nicht als "latest" geladen,
+sondern als "1.5.3". Damit stellen wir sicher, dass das System in sechs
+Monaten genauso startet wie heute -- egal ob die Macher der Software
+zwischendurch etwas geaendert haben.
+
+**Persistenz-Nachweis.** Container runterfahren, schauen ob die Daten
+noch da sind, wieder hochfahren -- das war der einfachste und
+ehrlichste Test, ob das Konzept "Daten ausserhalb der Box" wirklich
+funktioniert. Hat funktioniert.
