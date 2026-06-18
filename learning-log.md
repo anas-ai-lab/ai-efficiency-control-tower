@@ -1809,3 +1809,23 @@ zwischendurch etwas geaendert haben.
 noch da sind, wieder hochfahren -- das war der einfachste und
 ehrlichste Test, ob das Konzept "Daten ausserhalb der Box" wirklich
 funktioniert. Hat funktioniert.
+
+## Tag 51 — Echte Suche statt Suchen-Attrappe
+
+Bisher hat das System Texte nur nach gleichen Woertern durchsucht (wie
+Strg+F). Heute kam die echte Variante dazu: Fragen und gespeicherte Texte
+werden zuerst in lange Zahlenreihen uebersetzt ("Embeddings" -- eine Art
+Bedeutungs-Fingerabdruck). Aehnliche Bedeutung erzeugt aehnliche Zahlenreihen,
+auch wenn andere Woerter benutzt wurden. Die Datenbank (ChromaDB, laeuft in
+einer eigenen Box) sucht dann nicht nach Woertern, sondern nach den
+naechstgelegenen Zahlenreihen.
+
+Wichtige Regel dabei: Frage und gespeicherte Texte muessen mit demselben
+Uebersetzer in Zahlen verwandelt werden. Sonst sprechen beide Seiten
+unterschiedliche "Zahlen-Sprachen" und der Vergleich wird bedeutungslos --
+die Suche findet dann zufaellige statt passende Treffer, ohne dass es
+auffaellt.
+
+Getestet wurde das auf zwei Wegen: einmal mit einer Fake-Datenbank (schnell,
+ohne die echte Box), einmal scharf gegen die echte Box -- danach wieder
+abgeschaltet, damit nichts unnoetig laeuft und Geld kostet.
