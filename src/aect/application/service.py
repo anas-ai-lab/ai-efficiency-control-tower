@@ -72,8 +72,42 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     return "\n".join(lines)
 
 
+def _render_compliance_hints(
+    content_json: str | None,
+) -> tuple[str | None, tuple[ComplianceCitation, ...]]:
+    """Rendert die persistierten Compliance-Hinweise zu Anzeige-Daten.
+
+    Reine Regel-Schicht (ADR-0026: kein LLM-Call). content_json ist
+    entweder None (generate_compliance_hints() lief nie fuer diesen Case)
+    oder ein JSON-Objekt mit hint_text (str | None) und citations (Liste
+    von Citation-Dicts) -- analog zu _render_sharpened_content().
+
+    hint_text ist None sowohl wenn generate_compliance_hints() nie lief
+    als auch wenn es lief, aber das Retrieval keine Treffer hatte (Graceful
+    Degradation, ADR-0024) -- beide Faelle sind fuer den Report-Konsumenten
+    aequivalent: kein Hinweis anzuzeigen.
+    """
+    if content_json is None:
+        return None, ()
+    data = json.loads(content_json)
+    hint_text = data.get("hint_text")
+    citations = tuple(
+        ComplianceCitation(
+            number=int(c["number"]),
+            source_id=str(c["source_id"]),
+            citation=str(c["citation"]),
+            url=c.get("url"),
+        )
+        for c in data.get("citations", [])
+    )
+    return hint_text, citations
+
+
 def _build_business_summary(
-    result: TriageResult, sharpened_text: str | None
+    result: TriageResult,
+    sharpened_text: str | None,
+    compliance_hint_text: str | None,
+    compliance_citations: tuple[ComplianceCitation, ...],
 ) -> BusinessSummary:
     """Leitet die Entscheider-Schicht deterministisch aus TriageResult ab.
 
@@ -107,6 +141,8 @@ def _build_business_summary(
         expected_benefit_eur=expected_benefit,
         summary_text=summary_text,
         sharpened_text=sharpened_text,
+        compliance_hint_text=compliance_hint_text,
+        compliance_citations=compliance_citations,
     )
 
 
@@ -499,6 +535,12 @@ class TriageService:
         Kein Freitext fliesst in die Queries -> kein Injection-Pattern-Check
         noetig an dieser Stelle (anders als sharpen_case/propose_solution).
 
+        Persistenz (ADR-0026, analog ADR-0012): das Ergebnis (hint_text +
+        citations) wird in beiden Faellen -- mit und ohne Treffer -- als
+        JSON auf case.compliance_hints_json gespeichert (self._repository.
+        save()). generate_report() rendert daraus die Anzeige-Daten
+        (_render_compliance_hints) in BusinessSummary.
+
         Graceful Degradation: liefert das Retrieval ueber alle Queries
         zusammen null Treffer, findet KEIN LLM-Call statt -- hint_text ist
         None, citations leer. Verhindert ungegruendete Hinweise und spart
@@ -532,6 +574,10 @@ class TriageService:
             retrieved.extend(await self._retriever.retrieve(query, top_k=2))
 
         if not retrieved:
+            case.compliance_hints_json = json.dumps(
+                {"hint_text": None, "citations": []}
+            )
+            self._repository.save(case)
             return ComplianceHintsResult(
                 case_id=case.id,
                 hint_text=None,
@@ -561,6 +607,22 @@ class TriageService:
             operation="generate_compliance_hints",
         )
 
+        case.compliance_hints_json = json.dumps(
+            {
+                "hint_text": response.content,
+                "citations": [
+                    {
+                        "number": c.number,
+                        "source_id": c.source_id,
+                        "citation": c.citation,
+                        "url": c.url,
+                    }
+                    for c in citations
+                ],
+            }
+        )
+        self._repository.save(case)
+
         return ComplianceHintsResult(
             case_id=case.id,
             hint_text=response.content,
@@ -579,7 +641,7 @@ class TriageService:
         Reine Regel-Schicht (Master-Plan v3.1, Phase C: "Zweischichtiger
         Report-Renderer", ADR-0011): kombiniert das deterministische
         TriageResult mit optionalen LLM-Narrativen aus sharpen_case() /
-        propose_solution().
+        propose_solution() / generate_compliance_hints().
 
         Persistenz (Tag 42, ADR-0012): sharpened_text/proposal_text werden
         standardmaessig aus dem persistierten SubmittedCase gelesen (sofern
@@ -592,10 +654,14 @@ class TriageService:
         als untrusted behandeln") -- sie wirken nicht auf Berechnungen,
         nur auf die Anzeige.
 
-        Compliance-Hinweise (generate_compliance_hints()) sind heute NICHT
-        Teil dieses Reports -- analog zu sharpen_case/propose_solution vor
-        Tag 42 (ADR-0012): erst eigenstaendiger Endpoint, Persistenz +
-        Report-Integration folgt als eigener Folge-Tag.
+        Compliance-Hinweise (ADR-0026): hint_text + citations werden aus
+        dem persistierten compliance_hints_json gelesen (generate_
+        compliance_hints()) und unveraendert in BusinessSummary uebernommen.
+        Kein Request-Body-Override hierfuer (anders als sharpened_text/
+        proposal_text) -- hint_text referenziert seine Quellen ueber
+        [N]-Marker, die exakt zur citations-Liste passen muessen; ein
+        freier Text-Override ohne passende Citation-Liste wuerde diese
+        Kopplung brechen.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -612,11 +678,17 @@ class TriageService:
         effective_proposal_text = (
             proposal_text if proposal_text is not None else case.proposal_text
         )
+        compliance_hint_text, compliance_citations = _render_compliance_hints(
+            case.compliance_hints_json
+        )
 
         return ReportResult(
             case_id=case.id,
             business_summary=_build_business_summary(
-                case.result, effective_sharpened_text
+                case.result,
+                effective_sharpened_text,
+                compliance_hint_text,
+                compliance_citations,
             ),
             technical_detail=_build_technical_detail(
                 case.result, effective_proposal_text

@@ -56,6 +56,11 @@ _FAILING_PAYLOAD: dict = {
     "affected_employees_count": 1,
 }
 
+_SENSITIVE_PASSING_PAYLOAD: dict = {
+    **_PASSING_PAYLOAD,
+    "data_classification": "sensitive_personal",
+}
+
 
 def _make_app() -> FastAPI:
     """Repository ausserhalb der Lambda -- State muss zwischen 'Case anlegen'
@@ -253,3 +258,57 @@ async def test_report_uses_persisted_proposal_text_after_propose_solution_call()
     proposal = data["technical_detail"]["proposal_text"]
     assert proposal is not None
     assert "[mock-response]" in proposal
+
+
+async def test_report_uses_persisted_compliance_hints_after_compliance_hints_call() -> (
+    None
+):
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage",
+            json=_SENSITIVE_PASSING_PAYLOAD,
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        case_id = created.json()["id"]
+
+        await client.post(
+            f"/cases/{case_id}/compliance-hints",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+        response = await client.post(
+            f"/cases/{case_id}/report",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    business = data["business_summary"]
+    assert business["compliance_hint_text"] is not None
+    assert "[mock-response]" in business["compliance_hint_text"]
+    assert len(business["compliance_citations"]) == 1
+    assert business["compliance_citations"][0]["source_id"] == "mock-compliance-dsfa"
+
+
+async def test_report_without_compliance_hints_call_has_no_hint() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_PASSING_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        response = await client.post(
+            f"/cases/{case_id}/report",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 200
+    business = response.json()["business_summary"]
+    assert business["compliance_hint_text"] is None
+    assert business["compliance_citations"] == []

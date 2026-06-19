@@ -357,3 +357,73 @@ class TestLLMNarrativePersistence:
 
         assert len(cases) == 1
         assert cases[0].proposal_text == "Vorschlag fuer Liste"
+
+
+class TestComplianceHintsPersistence:
+    """Belegt ADR-0026: compliance_hints_json roundtrippt wie
+    sharpened_content_json/proposal_text (ADR-0012)."""
+
+    def test_field_defaults_to_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        retrieved = repo.get(sample_case.id)
+        assert retrieved is not None
+        assert retrieved.compliance_hints_json is None
+
+    def test_field_roundtrips(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.compliance_hints_json = json.dumps(
+            {
+                "hint_text": "Hinweis Text [1]",
+                "citations": [
+                    {
+                        "number": 1,
+                        "source_id": "dsgvo-art-35",
+                        "citation": "DSGVO Art. 35",
+                        "url": None,
+                    }
+                ],
+            }
+        )
+        repo.save(sample_case)
+
+        retrieved = repo.get(sample_case.id)
+
+        assert retrieved is not None
+        assert retrieved.compliance_hints_json == sample_case.compliance_hints_json
+
+    def test_resave_overwrites_compliance_hints(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+
+        sample_case.compliance_hints_json = json.dumps(
+            {"hint_text": "Erste Version", "citations": []}
+        )
+        repo.save(sample_case)
+
+        sample_case.compliance_hints_json = json.dumps(
+            {"hint_text": "Zweite Version", "citations": []}
+        )
+        repo.save(sample_case)
+
+        retrieved = repo.get(sample_case.id)
+        assert retrieved is not None
+        assert retrieved.compliance_hints_json == json.dumps(
+            {"hint_text": "Zweite Version", "citations": []}
+        )
+
+    def test_list_all_includes_compliance_hints_field(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.compliance_hints_json = json.dumps(
+            {"hint_text": "x", "citations": []}
+        )
+        repo.save(sample_case)
+
+        cases = repo.list_all()
+
+        assert len(cases) == 1
+        assert cases[0].compliance_hints_json == sample_case.compliance_hints_json

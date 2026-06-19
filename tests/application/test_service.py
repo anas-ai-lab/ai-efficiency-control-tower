@@ -15,6 +15,7 @@ from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDe
 from aect.application.service import TriageService
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
+from aect.domain.types import DataClassification
 
 # ---------------------------------------------------------------------------
 # Fake-Implementierungen (kein Mocking-Framework -- strukturelles Subtyping)
@@ -594,3 +595,85 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         assert report is not None
         assert report.business_summary.sharpened_text is None
         assert report.technical_detail.proposal_text is None
+        assert report.business_summary.compliance_hint_text is None
+        assert report.business_summary.compliance_citations == ()
+
+    async def test_report_uses_persisted_compliance_hint_without_argument(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        risky_case = sample_use_case.model_copy(
+            update={"data_classification": DataClassification.SENSITIVE_PERSONAL}
+        )
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(risky_case)
+        await service.generate_compliance_hints(case.id)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.business_summary.compliance_hint_text is not None
+        assert "[mock-response]" in report.business_summary.compliance_hint_text
+        assert len(report.business_summary.compliance_citations) == 1
+        assert (
+            report.business_summary.compliance_citations[0].source_id
+            == "mock-compliance-dsfa"
+        )
+
+
+class TestTriageServiceComplianceHintsPersistence:
+    """Belegt ADR-0026: generate_compliance_hints() persistiert das
+    Ergebnis (hint_text + citations) auf SubmittedCase, analog zu
+    sharpen_case()/propose_solution() (ADR-0012)."""
+
+    async def test_compliance_hints_persists_json_on_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        risky_case = sample_use_case.model_copy(
+            update={"data_classification": DataClassification.SENSITIVE_PERSONAL}
+        )
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(risky_case)
+
+        await service.generate_compliance_hints(case.id)
+
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.compliance_hints_json is not None
+        assert "mock-compliance-dsfa" in stored.compliance_hints_json
+
+    async def test_no_hit_case_persists_empty_citations(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.generate_compliance_hints(case.id)
+
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.compliance_hints_json is not None
+        data = json.loads(stored.compliance_hints_json)
+        assert data["hint_text"] is None
+        assert data["citations"] == []
+
+    async def test_resave_overwrites_compliance_hints(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        risky_case = sample_use_case.model_copy(
+            update={"data_classification": DataClassification.SENSITIVE_PERSONAL}
+        )
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(risky_case)
+
+        await service.generate_compliance_hints(case.id)
+        first = repo.get(case.id)
+        assert first is not None
+        first_json = first.compliance_hints_json
+
+        await service.generate_compliance_hints(case.id)
+        second = repo.get(case.id)
+
+        assert second is not None
+        # Gleicher Mock-Output bei zweitem Call -- Test belegt "kein Crash,
+        # kein Anhaengen", nicht inhaltliche Verschiedenheit.
+        assert second.compliance_hints_json == first_json

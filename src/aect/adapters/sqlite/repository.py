@@ -23,9 +23,15 @@ sharpened_content_json/proposal_text (Tag 42 ADR-0012, Spalte umbenannt
 ADR-0013 Teil 2): zwei zusaetzliche nullable Spalten fuer persistierte
 LLM-Narrative aus sharpen_case() / propose_solution(). sharpened_content_json
 enthaelt ein JSON-Objekt (strukturierte Schaerfung oder raw_text bei
-Graceful Degradation, siehe application/structured_output.py). save() ist
-weiterhin INSERT OR REPLACE -- ein erneuter save() mit gesetztem Feld
-ueberschreibt den vorherigen Wert.
+Graceful Degradation, siehe application/structured_output.py).
+
+compliance_hints_json (ADR-0026): dritte nullable Spalte, analog zu den
+beiden oberen. Enthaelt ein JSON-Objekt mit hint_text (str | None) und
+citations (Liste von Citation-Dicts), gefuellt durch generate_compliance_
+hints() (application/service.py).
+
+save() ist weiterhin INSERT OR REPLACE -- ein erneuter save() mit gesetztem
+Feld ueberschreibt den vorherigen Wert.
 """
 
 from __future__ import annotations
@@ -56,11 +62,12 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     use_case_json           TEXT NOT NULL,
     result_json             TEXT NOT NULL,
     sharpened_content_json  TEXT,
-    proposal_text           TEXT
+    proposal_text           TEXT,
+    compliance_hints_json   TEXT
 )
 """
 
-# Spaltenliste dreifach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
+# Spaltenliste vierfach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
 # geteilt: jede "+"-Verkettung mit einem Namens-Knoten matcht bandit B608
 # erneut, unabhaengig vom Laufzeitwert der Variable (AST-Form entscheidet,
 # nicht Inhalt -- das war der Grund, warum der Tag-43-Fix nicht griff).
@@ -72,19 +79,19 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
 _INSERT_SQL = (
     "INSERT OR REPLACE INTO submitted_cases "
     "(id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text) "
-    "VALUES (?, ?, ?, ?, ?, ?)"
+    "sharpened_content_json, proposal_text, compliance_hints_json) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text "
+    "sharpened_content_json, proposal_text, compliance_hints_json "
     "FROM submitted_cases WHERE id = ?"
 )
 
 _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text "
+    "sharpened_content_json, proposal_text, compliance_hints_json "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -205,7 +212,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (6-Tupel) -> SubmittedCase."""
+    """SQLite-Row (7-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -213,6 +220,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         result_json,
         sharpened_content_json,
         proposal_text,
+        compliance_hints_json,
     ) = row
     return SubmittedCase(
         id=str(case_id),
@@ -223,6 +231,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
             str(sharpened_content_json) if sharpened_content_json is not None else None
         ),
         proposal_text=str(proposal_text) if proposal_text is not None else None,
+        compliance_hints_json=(
+            str(compliance_hints_json) if compliance_hints_json is not None else None
+        ),
     )
 
 
@@ -267,6 +278,7 @@ class SQLiteRepository:
                     result_json,
                     case.sharpened_content_json,
                     case.proposal_text,
+                    case.compliance_hints_json,
                 ),
             )
 

@@ -32,10 +32,19 @@ class SubmittedCase:
     -- das /report-Schema (BusinessSummary.sharpened_text: str | None)
     bleibt dabei unveraendert.
 
+    compliance_hints_json (ADR-0026): optional persistiertes Ergebnis von
+    generate_compliance_hints() -- JSON-Objekt mit hint_text (str | None)
+    und citations (Liste von Citation-Dicts). None, solange der Endpoint
+    fuer diesen Case noch nicht aufgerufen wurde. Wird bei jedem erneuten
+    Aufruf ueberschrieben, analog zu sharpened_content_json/proposal_text.
+    generate_report() rendert daraus hint_text + citations (
+    _render_compliance_hints, service.py) in BusinessSummary.
+
     Kein frozen=True: TriageResult enthaelt verschachtelte Typen die nicht
     zwingend hashbar sind (list-Felder in FeasibilityResult). Immutabilitaet
     nach Konvention -- nach dem Speichern nicht mehr mutieren, ausser fuer
-    sharpened_content_json/proposal_text via TriageService (s. service.py).
+    sharpened_content_json/proposal_text/compliance_hints_json via
+    TriageService (s. service.py).
 
     IP-Trennung (interne Referenz (entfernt) SS5): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
@@ -47,6 +56,7 @@ class SubmittedCase:
     result: TriageResult
     sharpened_content_json: str | None = None
     proposal_text: str | None = None
+    compliance_hints_json: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,6 +126,28 @@ class SolutionProposal:
 
 
 @dataclass(frozen=True)
+class ComplianceCitation:
+    """Eine einzelne Quellenangabe zu einem Compliance-Hinweis (ADR-0024).
+
+    number: 1-basierte Position, identisch zur [N]-Referenz im hint_text.
+    citation: menschenlesbares Zitat (z. B. "DSGVO Art. 35"), aus
+    RetrievedChunk.metadata['citation'] -- Fallback auf source_id, falls
+    eine Quelle (noch) kein Front-Matter-citation-Feld liefert (z. B.
+    MockRetriever, dessen Treffer kein metadata fuehren).
+    url: optional, aus RetrievedChunk.metadata.get('url').
+
+    Deterministisch aus dem Retrieval gebaut, NICHT aus der LLM-Antwort
+    geparst (ADR-0024) -- verhindert halluzinierte Artikel-Nummern
+    strukturell statt durch Prompt-Disziplin allein.
+    """
+
+    number: int
+    source_id: str
+    citation: str
+    url: str | None
+
+
+@dataclass(frozen=True)
 class BusinessSummary:
     """Entscheider-Schicht des zweischichtigen Reports (interne Referenz (entfernt) SS3.1, Punkt 6).
 
@@ -128,6 +160,17 @@ class BusinessSummary:
     Re-Sharpening ohne erneuten Persist). None, wenn weder persistiert noch
     uebergeben. Als untrusted LLM-Output unveraendert weitergereicht
     (aect-security-checklist v2.1).
+
+    compliance_hint_text/compliance_citations (ADR-0026): aus dem
+    persistierten compliance_hints_json gelesen (generate_compliance_hints()).
+    Bewusst KEIN Request-Body-Override (anders als sharpened_text/
+    proposal_text): hint_text referenziert seine Quellen ueber [N]-Marker,
+    die exakt zur citations-Liste passen muessen -- ein freier Text-Override
+    ohne passende Citation-Liste wuerde diese Kopplung brechen. Beide Felder
+    sind None bzw. leer, wenn generate_compliance_hints() fuer diesen Case
+    nie lief ODER lief, aber das Retrieval keine Treffer hatte (Graceful
+    Degradation, ADR-0024) -- fuer den Report-Konsumenten aequivalent: kein
+    Hinweis anzuzeigen.
     """
 
     title: str
@@ -137,6 +180,8 @@ class BusinessSummary:
     expected_benefit_eur: float | None
     summary_text: str
     sharpened_text: str | None
+    compliance_hint_text: str | None
+    compliance_citations: tuple[ComplianceCitation, ...]
 
 
 @dataclass(frozen=True)
@@ -179,28 +224,6 @@ class ReportResult:
     case_id: str
     business_summary: BusinessSummary
     technical_detail: TechnicalDetail
-
-
-@dataclass(frozen=True)
-class ComplianceCitation:
-    """Eine einzelne Quellenangabe zu einem Compliance-Hinweis (ADR-0024).
-
-    number: 1-basierte Position, identisch zur [N]-Referenz im hint_text.
-    citation: menschenlesbares Zitat (z. B. "DSGVO Art. 35"), aus
-    RetrievedChunk.metadata['citation'] -- Fallback auf source_id, falls
-    eine Quelle (noch) kein Front-Matter-citation-Feld liefert (z. B.
-    MockRetriever, dessen Treffer kein metadata fuehren).
-    url: optional, aus RetrievedChunk.metadata.get('url').
-
-    Deterministisch aus dem Retrieval gebaut, NICHT aus der LLM-Antwort
-    geparst (ADR-0024) -- verhindert halluzinierte Artikel-Nummern
-    strukturell statt durch Prompt-Disziplin allein.
-    """
-
-    number: int
-    source_id: str
-    citation: str
-    url: str | None
 
 
 @dataclass(frozen=True)

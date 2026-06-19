@@ -157,6 +157,17 @@ async def propose_solution(
     )
 
 
+class ComplianceCitationResponse(BaseModel):
+    """Eine einzelne Quellenangabe -- Compliance-Hinweis-Endpoint UND
+    /report (ADR-0026). Vor BusinessSummaryResponse definiert, damit
+    letztere sie referenzieren kann."""
+
+    number: int
+    source_id: str
+    citation: str
+    url: str | None
+
+
 class ReportRequest(BaseModel):
     """Optionale LLM-Narrative fuer den Report -- Override der Persistenz.
 
@@ -167,6 +178,9 @@ class ReportRequest(BaseModel):
     extra="forbid" + max_length: aect-security-checklist v2.1 Phase A
     (Token-Flooding-Schutz, LLM10) -- gilt als generelle Eingabe-Disziplin
     auch fuer Felder ohne direkten LLM-Call.
+
+    Kein Override-Feld fuer Compliance-Hinweise (ADR-0026) -- siehe
+    application/service.py generate_report()-Docstring.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -176,7 +190,12 @@ class ReportRequest(BaseModel):
 
 
 class BusinessSummaryResponse(BaseModel):
-    """Entscheider-Schicht des Reports."""
+    """Entscheider-Schicht des Reports.
+
+    compliance_hint_text/compliance_citations (ADR-0026): aus dem
+    persistierten compliance_hints_json gelesen, kein Override moeglich
+    (siehe ReportRequest-Docstring).
+    """
 
     title: str
     zone: str | None
@@ -185,6 +204,8 @@ class BusinessSummaryResponse(BaseModel):
     expected_benefit_eur: float | None
     summary_text: str
     sharpened_text: str | None
+    compliance_hint_text: str | None
+    compliance_citations: list[ComplianceCitationResponse]
 
 
 class TechnicalDetailResponse(BaseModel):
@@ -233,7 +254,9 @@ async def get_report(
     body: optional. Ohne Body (oder mit None-Feldern) werden die
     persistierten Werte aus /sharpen bzw. /propose-solution verwendet
     (Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten
-    Wert fuer diese Antwort, ohne ihn zu aendern.
+    Wert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/
+    compliance_citations kommen immer aus der Persistenz (ADR-0026), kein
+    Override.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
@@ -257,6 +280,16 @@ async def get_report(
             expected_benefit_eur=report.business_summary.expected_benefit_eur,
             summary_text=report.business_summary.summary_text,
             sharpened_text=report.business_summary.sharpened_text,
+            compliance_hint_text=report.business_summary.compliance_hint_text,
+            compliance_citations=[
+                ComplianceCitationResponse(
+                    number=c.number,
+                    source_id=c.source_id,
+                    citation=c.citation,
+                    url=c.url,
+                )
+                for c in report.business_summary.compliance_citations
+            ],
         ),
         technical_detail=TechnicalDetailResponse(
             passed_vorfilter=report.technical_detail.passed_vorfilter,
@@ -274,15 +307,6 @@ async def get_report(
             proposal_text=report.technical_detail.proposal_text,
         ),
     )
-
-
-class ComplianceCitationResponse(BaseModel):
-    """Eine einzelne Quellenangabe im Compliance-Hints-Response."""
-
-    number: int
-    source_id: str
-    citation: str
-    url: str | None
 
 
 class ComplianceHintsResponse(BaseModel):
