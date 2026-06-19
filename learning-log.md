@@ -1856,3 +1856,36 @@ Der Stand ist jetzt mit Datum und Quellen in einer Entscheidungs-Datei
 gespeichert. Naechster Schritt baut direkt darauf auf: Texte ueber
 Datenschutz- und KI-Recht schreiben, die das System spaeter automatisch
 zitieren kann, wenn jemand eine KI-Projektidee einreicht.
+
+## Tag 53 — Woher weiß das System, wo ein Fakt herkommt?
+
+Heute ging es darum, der Wissensbasis ein Gedächtnis für ihre eigene Herkunft
+zu geben. Bisher gab es zwei Gesetzestext-Auszüge als reine Markdown-Dateien —
+aber nichts, was maschinenlesbar festhält, woher ein einzelner Satz stammt,
+wenn er später aus dem Text herausgelöst und in einer Antwort zitiert wird.
+
+Die Lösung: Jede Quelldatei bekommt am Anfang einen kleinen "Steckbrief" —
+welcher Artikel das ist, wie er offiziell heißt, wo man ihn online nachlesen
+kann. Wenn ein langer Text später in kleinere Häppchen zerschnitten wird
+(nötig, weil die KI nicht beliebig lange Texte auf einmal verarbeiten kann),
+bekommt jedes einzelne Häppchen diesen Steckbrief mit auf den Weg — nicht nur
+der Text als Ganzes. Sonst würde ein gefundenes Häppchen später isoliert
+dastehen, ohne dass jemand — Mensch oder System — noch sagen könnte, aus
+welchem Gesetz es stammt.
+
+Dazu kam ein kleiner Baustein, der diese Steckbrief-Information zuverlässig
+aus den Dateien herausliest und mit jedem Text-Häppchen verknüpft — sozusagen
+ein Adressaufkleber, der bei jedem Paket draufbleibt, egal wie das Paket
+später aufgeteilt wird.
+
+Ein Stolperstein hat es kurz erwischt: Im selben Ordner liegt auch eine
+Übersichts-Datei, die den Ordner selbst erklärt (kein Gesetzestext, sondern
+eine Art Inhaltsverzeichnis). Das System wollte versehentlich auch aus dieser
+Übersichts-Datei einen "Adressaufkleber" lesen — was nicht ging, weil sie
+gar keinen hat. Kleiner, schnell behobener Fehler: Die Übersichts-Datei wird
+jetzt bewusst übersprungen.
+
+**Bewusst nicht gemacht:** Persönliche Daten aus den Texten herausfiltern
+("Schwärzen"). Die beiden heutigen Quellen sind öffentliche Gesetzestexte
+ohne Personenbezug — das Filtern wird erst relevant, sobald echte
+Nutzereingaben verarbeitet werden, und kommt dann als eigener Schritt.
