@@ -1933,3 +1933,23 @@ wollen, muesste man entweder alles nochmal neu einbetten oder mit einer
 fehleranfaelligen Zweit-Liste arbeiten, die Text und Quelle wieder
 zusammensucht. Einmal richtig mitspeichern ist guenstiger als spaeter
 nachruesten.
+
+## Tag 55 — Woher kommt die Information eigentlich?
+
+Letzte Woche haben wir beim Einspeichern der Wissens-Häppchen schon ein
+Herkunfts-Etikett mitgespeichert (z. B. "DSGVO Art. 35"). Aber beim
+Abfragen kam bisher nur der reine Text zurück, das Etikett ging verloren --
+so, als würde man in einem Buch eine wichtige Stelle finden, aber nicht mehr
+sagen können, aus welchem Buch sie stammt.
+
+Heute wurde das repariert: Jeder Suchtreffer bringt sein Etikett jetzt
+automatisch mit zurück. Das ist die Grundlage dafür, dass ein späterer
+Bericht nicht nur sagt "hier ist ein Datenschutz-Hinweis", sondern "hier ist
+ein Datenschutz-Hinweis, Quelle: DSGVO Art. 35" -- nachprüfbar statt
+behauptet.
+
+Wichtig dabei: weil das Etikett schon beim Einspeichern mit abgelegt wurde,
+musste heute nichts neu eingespeichert werden -- nur die Abfrage wurde
+erweitert, damit sie das, was sowieso schon da liegt, auch mitnimmt. Hätte
+man das Etikett erst heute "erfinden" wollen, hätte man die ganze
+Wissensbasis noch einmal komplett neu verarbeiten müssen.
