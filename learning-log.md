@@ -1889,3 +1889,47 @@ jetzt bewusst übersprungen.
 ("Schwärzen"). Die beiden heutigen Quellen sind öffentliche Gesetzestexte
 ohne Personenbezug — das Filtern wird erst relevant, sobald echte
 Nutzereingaben verarbeitet werden, und kommt dann als eigener Schritt.
+
+## Tag 54 — Wie ein Gesetzestext durchsuchbar wird
+
+Heute wurde der letzte fehlende Baustein fertig, um Gesetzestexte (DSGVO,
+EU-KI-Verordnung) tatsaechlich durchsuchbar zu machen -- nicht nur per
+Stichwort, sondern per Bedeutung.
+
+**Was ist ein Embedding?** Ein Computer kann mit Worten nicht direkt
+"rechnen". Stattdessen wird jeder Textabschnitt in eine lange Reihe von
+Zahlen uebersetzt -- man kann sich das wie einen Fingerabdruck der Bedeutung
+vorstellen. Texte mit aehnlicher Bedeutung bekommen rechnerisch aehnliche
+Zahlenreihen, auch wenn sie ganz unterschiedliche Woerter benutzen.
+
+**Warum heute zum ersten Mal "echt"?** Bisher gab es fuer diesen Schritt nur
+einen Platzhalter, der aus jedem Text einfach eine zufaellige, aber
+wiederholbare Zahlenreihe gemacht hat -- nuetzlich zum Testen, aber ohne
+echtes Sprachverstaendnis. Heute kam zum ersten Mal ein echtes,
+kostenloses, lokal laufendes Sprachmodell (MiniLM) zum Einsatz, das diese
+Uebersetzung tatsaechlich auf Basis von Bedeutung macht.
+
+**Was war die eigentliche Aufgabe?** Die kuratierten Gesetzestext-Auszuege
+liegen bereits vorbereitet vor (von Tag 53). Heute wurden sie zum ersten Mal
+wirklich eingebettet (also in Zahlen uebersetzt) und in eine durchsuchbare
+Datenbank geschrieben (ChromaDB, laeuft lokal im Hintergrund). Ein Test hat
+danach eine echte Frage gestellt ("Wann ist eine
+Datenschutz-Folgenabschaetzung noetig?") und tatsaechlich den passenden
+DSGVO-Auszug zurueckbekommen -- der erste echte Beweis, dass die Suche
+funktioniert.
+
+**Eine wichtige Regel dabei:** Die Suchfrage muss mit demselben Verfahren
+in Zahlen uebersetzt werden wie die gespeicherten Texte. Wuerde man fuer
+die Frage ein anderes Uebersetzungsverfahren benutzen als fuer die
+gespeicherten Texte, waeren die Zahlenreihen nicht miteinander vergleichbar
+-- die Suche wuerde dann scheinbar funktionieren (kein Absturz, kein
+Fehler), aber inhaltlich Zufallstreffer liefern, ohne dass das auffaellt.
+
+**Und ein Detail mit Weitblick:** Beim Speichern wurde zu jedem Textstueck
+gleich mit hinterlegt, aus welchem Gesetzestext es stammt (z. B. "DSGVO
+Art. 35") -- auch wenn die Suche dieses Etikett heute beim Antworten noch
+gar nicht herausgibt. Grund: Wuerde man das Etikett erst spaeter ergaenzen
+wollen, muesste man entweder alles nochmal neu einbetten oder mit einer
+fehleranfaelligen Zweit-Liste arbeiten, die Text und Quelle wieder
+zusammensucht. Einmal richtig mitspeichern ist guenstiger als spaeter
+nachruesten.
