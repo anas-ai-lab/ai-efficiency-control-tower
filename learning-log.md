@@ -1975,3 +1975,33 @@ Die Umschaltung läuft über einen einfachen Schalter (eine Einstellung: "gesetz
 Für die echte Suche braucht das System ein kleines KI-Modell, das Texte in Zahlenreihen ("Vektoren") übersetzt, damit ähnliche Bedeutungen nah beieinander liegen. Dieses Modell zu laden dauert ein paar Sekunden. Würde man es bei jeder einzelnen Anfrage neu laden, wäre jede Anfrage spürbar langsam. Deshalb wird es nur einmal geladen, beim ersten Gebrauch, und danach für alle weiteren Anfragen wiederverwendet — ähnlich wie man einen Wasserkocher nicht für jede Tasse Tee neu kauft, sondern einmal anschafft und immer wieder benutzt.
 
 Ein kleines technisches Skript ("Saatgut"-Skript) füllt die echten Dokumente einmalig in die Such-Datenbank ein. Das lief heute zum ersten Mal durch und hat 5 Textabschnitte erfolgreich eingetragen.
+
+## Tag 58 — Das System merkt sich jetzt auch die Datenschutz-Hinweise
+
+Bisher war es so: Wenn man fuer einen eingereichten Vorschlag die
+Datenschutz-Hinweise abgerufen hat (zum Beispiel "hier solltest du eine
+Datenschutz-Folgenabschaetzung pruefen lassen, Quelle: DSGVO Artikel 35"),
+wurden diese nicht gespeichert. Beim naechsten Abrufen des Gesamtberichts
+("Report") fuer denselben Fall waren sie wieder weg.
+
+Heute wurde das nachgeholt — genau nach dem Muster, das schon fuer zwei
+aehnliche Funktionen existierte (die "geschaerfte" Version eines Use Cases
+und der Loesungsvorschlag werden seit laengerem gespeichert). Jetzt merkt
+sich das System auch den Datenschutz-Hinweis und zeigt ihn automatisch im
+Report mit an, ohne dass man ihn erneut anfordern muss.
+
+Eine technische Besonderheit dabei: Der Hinweistext und seine Quellenangabe
+gehoeren untrennbar zusammen — der Text sagt zum Beispiel "siehe Quelle [1]",
+und Quelle 1 ist eine konkrete Gesetzesstelle. Wuerde man nur den Text
+speichern, aber nicht garantiert die passende Quelle dazu, koennte spaeter
+ein falscher Verweis entstehen. Deshalb werden Text und Quellen immer
+zusammen gespeichert und nie getrennt voneinander veraendert.
+
+**Fachbegriff geerdet — "Persistieren":** Bedeutet einfach "dauerhaft
+speichern", im Gegensatz zu Daten, die nur kurz im Arbeitsspeicher liegen
+und beim naechsten Abruf wieder weg sind.
+
+**Fachbegriff geerdet — "Spalte" (in der Datenbank):** Eine Datenbank-Tabelle
+ist wie eine Excel-Tabelle mit festen Spaltenkoepfen. Heute kam eine dritte
+neue Spalte fuer die Datenschutz-Hinweise dazu — zusaetzlich zu den beiden,
+die es schon fuer die anderen zwei gespeicherten Texte gab.
