@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     azure_openai_deployment: str = ""  # AECT_AZURE_OPENAI_DEPLOYMENT
     azure_openai_api_version: str = "2024-10-21"  # AECT_AZURE_OPENAI_API_VERSION
 
+    # ChromaDB (Phase D, ADR-0018/0019/0025) -- leer = MockRetriever.
+    # Docker-Container muss separat laufen (docker compose up -d).
+    chroma_host: str = ""  # AECT_CHROMA_HOST, z. B. 127.0.0.1
+    chroma_port: int = 8001  # AECT_CHROMA_PORT
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",

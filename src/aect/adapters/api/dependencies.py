@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader
@@ -80,17 +81,76 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def get_retriever_port() -> RetrieverPort:
-    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024).
+@lru_cache
+def _get_chroma_collection(host: str, port: int) -> Any:
+    """Baut (und cached) Chroma-HttpClient + Collection fuer die echte RAG-Wissensbasis.
 
-    Bewusst noch MockRetriever, analog get_llm_adapter() vor dem
-    Azure-Zweig (Tag 33-45): ChromaRetriever existiert bereits
-    (adapters/rag/retriever.py, ADR-0019/0023), wird hier aber noch nicht
-    verdrahtet -- braucht einen laufenden ChromaDB-Collection-Client und
-    eine Embedder-Wahl (ADR-0016/0018), eigener Folge-Tag, kein
-    Vollausbau heute (Scope-Disziplin, session-protocol v3 SS5.2).
+    Lokaler Import (kein Modulkopf-Import): haelt src/ chromadb-frei fuer den
+    Mock-Pfad (ADR-0016/0025) -- analog den Live-Tests
+    (tests/adapters/rag/test_retriever_live.py), die denselben Import bewusst
+    in die Testfunktion statt in den Modulkopf legen.
+
+    lru_cache auf (host, port): Client + Collection-Handle werden einmal pro
+    Prozess gebaut, nicht pro Request -- der Netzwerk-Handshake ist kein
+    Pro-Request-Preis (anders als der guenstige AsyncAzureOpenAI-Client in
+    get_llm_adapter(), der bewusst ungecached bleibt).
+
+    name="aect-knowledge-base": feste, generische Collection -- kein
+    firmenspezifischer Name (IP-Trennung, interne Referenz (entfernt) SS5). Wird befuellt ueber
+    scripts/seed_knowledge_base.py (ADR-0025), nicht hier.
     """
-    return MockRetriever()
+    import chromadb
+
+    client = chromadb.HttpClient(host=host, port=port)
+    return client.get_or_create_collection(name="aect-knowledge-base")
+
+
+@lru_cache
+def _get_local_embedding_model() -> Any:
+    """Laedt (und cached) das lokale sentence-transformers-Modell.
+
+    Lokaler Import, analog _get_chroma_collection -- haelt src/ torch-frei
+    fuer den Mock-Pfad. lru_cache ohne Argumente: Modellgewichte werden genau
+    einmal pro Prozess geladen (Sekunden-Kosten), nicht pro Request.
+
+    all-MiniLM-L6-v2: identisch zum Index-seitigen Modell (ADR-0016) -- Index
+    und Query MUESSEN denselben Embedder benutzen (ADR-0019), sonst ist die
+    Vektor-Aehnlichkeit nicht vergleichbar.
+    """
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer("all-MiniLM-L6-v2")
+
+
+def get_retriever_port(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> RetrieverPort:
+    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024, ADR-0025).
+
+    Settings-gesteuerter Schalter, analog get_llm_adapter(): AECT_CHROMA_HOST
+    gesetzt -> ChromaRetriever gegen die echte, lokale ChromaDB-Collection
+    (docker-compose, ADR-0018) mit SentenceTransformerEmbedder (ADR-0016) als
+    Query-Embedder. AECT_CHROMA_HOST leer (Default) -> MockRetriever -- kein
+    Container, kein Modell-Laden in normalen Testlaeufen/lokaler Entwicklung.
+
+    Kein Live-Health-Check gegen den Container: die Entscheidung haengt
+    ausschliesslich an der Einstellung, nicht daran, ob ChromaDB tatsaechlich
+    erreichbar ist. Ist AECT_CHROMA_HOST gesetzt, der Container aber nicht
+    gestartet, schlaegt der erste echte Retrieval-Call mit einem
+    Verbindungsfehler fehl -- kein stiller Fallback auf den Mock.
+
+    Lokale Imports von ChromaRetriever/SentenceTransformerEmbedder (statt
+    Modulkopf): nur der scharfe Pfad zieht chromadb/sentence-transformers.
+    """
+    if not settings.chroma_host:
+        return MockRetriever()
+
+    from aect.adapters.rag.embedder import SentenceTransformerEmbedder
+    from aect.adapters.rag.retriever import ChromaRetriever
+
+    collection = _get_chroma_collection(settings.chroma_host, settings.chroma_port)
+    embedder = SentenceTransformerEmbedder(_get_local_embedding_model())
+    return ChromaRetriever(collection, embedder)
 
 
 def get_llm_adapter(
@@ -164,8 +224,9 @@ def get_triage_service(
     SystemClock und UUIDGenerator sind zustandslos -- neue Instanz pro Call ok.
     llm: Depends(get_llm_adapter) -- aktuell ResilientLLMAdapter(MockLLMAdapter())
     (Phase C); TriageService kennt nur LLMPort und merkt vom Wrapping nichts.
-    retriever: Depends(get_retriever_port) -- aktuell MockRetriever (Phase D,
-    ADR-0024); TriageService kennt nur RetrieverPort.
+    retriever: Depends(get_retriever_port) -- MockRetriever per Default,
+    ChromaRetriever wenn AECT_CHROMA_HOST gesetzt ist (ADR-0024, ADR-0025);
+    TriageService kennt nur RetrieverPort.
     """
     repo: RepositoryPort = (
         SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository
