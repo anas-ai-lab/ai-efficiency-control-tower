@@ -1965,3 +1965,13 @@ Eine wichtige Entscheidung von heute: Die Quellenangabe ("diese Aussage kommt au
 Zweite Entscheidung: Findet die Wissensbasis zu einem Vorschlag gar nichts Passendes, wird die KI heute erst gar nicht gefragt. Lieber gibt das System dann gar keinen Hinweis aus, als einen Hinweis ohne echte Grundlage zu erzeugen. Das spart außerdem unnötige Kosten, weil kein KI-Aufruf passiert, wenn ohnehin nichts zum Belegen da ist.
 
 Technischer Nebeneffekt: Ein Werkzeug, das schon seit Wochen bereitlag (die Suchfunktion in der Wissensbasis), wurde heute zum ersten Mal tatsächlich benutzt. Vorher war es wie ein angeschlossenes, aber nie eingeschaltetes Gerät — der Anschluss war vorbereitet, aber niemand hat den Stecker reingesteckt.
+
+## Tag 57 — Echte Suche statt Test-Beispiele
+
+Bisher hat das System beim Beantworten von "was sagt das Gesetz dazu" nur in einer winzigen, selbst erfundenen Beispiel-Sammlung mit drei Sätzen nachgeschaut. Heute wurde umgeschaltet: Das System sucht jetzt in zwei echten, sorgfältig ausgewählten Dokumenten (Datenschutz- und KI-Gesetzestext).
+
+Die Umschaltung läuft über einen einfachen Schalter (eine Einstellung: "gesetzt" oder "nicht gesetzt") — nicht darüber, ob der Such-Server gerade läuft. Das ist wichtig: Wenn der Schalter auf "echt" steht, aber der Server nicht erreichbar ist, meldet das System einen Fehler, statt heimlich auf die alten Test-Beispiele zurückzufallen. Ein stiller Rückfall würde bedeuten, dass man einen Fehler im System gar nicht bemerkt — der Fehler ist also gewollt, kein Bug.
+
+Für die echte Suche braucht das System ein kleines KI-Modell, das Texte in Zahlenreihen ("Vektoren") übersetzt, damit ähnliche Bedeutungen nah beieinander liegen. Dieses Modell zu laden dauert ein paar Sekunden. Würde man es bei jeder einzelnen Anfrage neu laden, wäre jede Anfrage spürbar langsam. Deshalb wird es nur einmal geladen, beim ersten Gebrauch, und danach für alle weiteren Anfragen wiederverwendet — ähnlich wie man einen Wasserkocher nicht für jede Tasse Tee neu kauft, sondern einmal anschafft und immer wieder benutzt.
+
+Ein kleines technisches Skript ("Saatgut"-Skript) füllt die echten Dokumente einmalig in die Such-Datenbank ein. Das lief heute zum ersten Mal durch und hat 5 Textabschnitte erfolgreich eingetragen.
