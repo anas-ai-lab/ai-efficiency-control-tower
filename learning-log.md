@@ -1953,3 +1953,15 @@ musste heute nichts neu eingespeichert werden -- nur die Abfrage wurde
 erweitert, damit sie das, was sowieso schon da liegt, auch mitnimmt. Hätte
 man das Etikett erst heute "erfinden" wollen, hätte man die ganze
 Wissensbasis noch einmal komplett neu verarbeiten müssen.
+
+## Tag 56 — Belegte Hinweise statt geratener Antworten
+
+Heute kann das System selbst erkennen, wann ein eingereichter Vorschlag mit sensiblen Daten zu tun hat — und holt sich dann automatisch passende Gesetzesauszüge aus einer kleinen, selbst zusammengestellten Sammlung, um daraus einen vorsichtigen Prüfhinweis zu formulieren.
+
+Das Prinzip dahinter: Die KI darf den Hinweis nicht einfach aus ihrem eigenen "Gedächtnis" erfinden. Eine KI kann nämlich überzeugend klingen und trotzdem inhaltlich danebenliegen — das nennt man Halluzination. Deshalb läuft es heute in zwei getrennten Schritten: Erst durchsucht das System seine Sammlung kurzer Gesetzestexte (Wissensbasis genannt) und sucht die passendsten Treffer heraus. Erst danach bekommt die KI diese Treffer vorgelegt und darf nur noch daraus einen lesbaren Hinweis formulieren.
+
+Eine wichtige Entscheidung von heute: Die Quellenangabe ("diese Aussage kommt aus DSGVO Artikel 35") wird nicht von der KI selbst aufgeschrieben, sondern vom Programmcode automatisch zusammengebaut, bevor die KI überhaupt gefragt wird. Die KI verweist im Text nur noch auf eine Nummer wie "[1]". Das ist sicherer, als der KI zu vertrauen, dass sie die Quelle korrekt abschreibt — eine feste, vom Programm verwaltete Liste kann nichts verwechseln, eine frei formulierte Quellenangabe schon.
+
+Zweite Entscheidung: Findet die Wissensbasis zu einem Vorschlag gar nichts Passendes, wird die KI heute erst gar nicht gefragt. Lieber gibt das System dann gar keinen Hinweis aus, als einen Hinweis ohne echte Grundlage zu erzeugen. Das spart außerdem unnötige Kosten, weil kein KI-Aufruf passiert, wenn ohnehin nichts zum Belegen da ist.
+
+Technischer Nebeneffekt: Ein Werkzeug, das schon seit Wochen bereitlag (die Suchfunktion in der Wissensbasis), wurde heute zum ersten Mal tatsächlich benutzt. Vorher war es wie ein angeschlossenes, aber nie eingeschaltetes Gerät — der Anschluss war vorbereitet, aber niemand hat den Stecker reingesteckt.
