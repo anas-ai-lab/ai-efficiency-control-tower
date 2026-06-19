@@ -179,3 +179,45 @@ class ReportResult:
     case_id: str
     business_summary: BusinessSummary
     technical_detail: TechnicalDetail
+
+
+@dataclass(frozen=True)
+class ComplianceCitation:
+    """Eine einzelne Quellenangabe zu einem Compliance-Hinweis (ADR-0024).
+
+    number: 1-basierte Position, identisch zur [N]-Referenz im hint_text.
+    citation: menschenlesbares Zitat (z. B. "DSGVO Art. 35"), aus
+    RetrievedChunk.metadata['citation'] -- Fallback auf source_id, falls
+    eine Quelle (noch) kein Front-Matter-citation-Feld liefert (z. B.
+    MockRetriever, dessen Treffer kein metadata fuehren).
+    url: optional, aus RetrievedChunk.metadata.get('url').
+
+    Deterministisch aus dem Retrieval gebaut, NICHT aus der LLM-Antwort
+    geparst (ADR-0024) -- verhindert halluzinierte Artikel-Nummern
+    strukturell statt durch Prompt-Disziplin allein.
+    """
+
+    number: int
+    source_id: str
+    citation: str
+    url: str | None
+
+
+@dataclass(frozen=True)
+class ComplianceHintsResult:
+    """Ergebnis der RAG-gegruendeten Compliance-Hinweise (Master-Plan v3.1
+    Phase D, ADR-0024).
+
+    hint_text: LLM-formulierter Fliesstext mit [N]-Referenzen, oder None
+    wenn das Retrieval keinerlei Treffer lieferte -- in diesem Fall findet
+    KEIN LLM-Call statt (Graceful Degradation, kein ungegruendeter Hinweis).
+    citations: 1-basiert nummerierte Quellenliste, Reihenfolge identisch zu
+    den [N]-Referenzen im hint_text. Leer wenn hint_text None ist.
+
+    frozen=True: analog SharpenedUseCase/SolutionProposal.
+    """
+
+    case_id: str
+    hint_text: str | None
+    citations: tuple[ComplianceCitation, ...]
+    prompt_version: str

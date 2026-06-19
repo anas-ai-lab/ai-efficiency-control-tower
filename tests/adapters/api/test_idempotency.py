@@ -21,6 +21,7 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.service import TriageService
 from aect.domain.roi import load_roi_config
 
@@ -75,6 +76,7 @@ def _make_idempotency_app() -> FastAPI:
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
         llm=MockLLMAdapter(),
+        retriever=MockRetriever(),
     )
     app.dependency_overrides[get_idempotency_store] = lambda: idempotency_store
     return app

@@ -9,6 +9,7 @@ from structlog.testing import capture_logs
 
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.models import SubmittedCase
 from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDefinition
 from aect.application.service import TriageService
@@ -54,6 +55,7 @@ def _make_service(
         clock=_FakeClock(),
         id_generator=_FakeIdGenerator(ids=ids or ["id-001", "id-002", "id-003"]),
         roi_config=roi_config,
+        retriever=MockRetriever(),
         llm=MockLLMAdapter(),
     )
     return service, repo
@@ -218,6 +220,7 @@ class TestTriageServiceGracefulDegradation:
             clock=_FakeClock(),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
+            retriever=MockRetriever(),
             llm=_ExplodingLLMAdapter(),
         )
 
@@ -302,6 +305,7 @@ class TestTriageServiceProposeSolutionUnknownTool:
             clock=_FakeClock(),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
+            retriever=MockRetriever(),
             llm=_UnknownToolLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)
@@ -352,6 +356,7 @@ class TestTriageServiceProposeSolutionNoToolCall:
             clock=_FakeClock(),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
+            retriever=MockRetriever(),
             llm=_NoToolCallLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)
@@ -442,6 +447,7 @@ class TestTriageServiceSharpenStructuredOutput:
             clock=_FakeClock(),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
+            retriever=MockRetriever(),
             llm=_StructuredSharpenLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)
@@ -465,6 +471,7 @@ class TestTriageServiceSharpenStructuredOutput:
             clock=_FakeClock(),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
+            retriever=MockRetriever(),
             llm=_StructuredSharpenLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)

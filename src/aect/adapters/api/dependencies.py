@@ -38,6 +38,7 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.retriever import MockRetriever
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
@@ -45,6 +46,7 @@ from aect.adapters.sqlite.repository import SQLiteRepository
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.ports.llm import LLMPort
 from aect.application.ports.repository import RepositoryPort
+from aect.application.ports.retriever import RetrieverPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
 
@@ -76,6 +78,19 @@ def get_settings() -> Settings:
     eine andere Settings-Instanz injizieren ohne Cache leeren zu muessen.
     """
     return Settings()
+
+
+def get_retriever_port() -> RetrieverPort:
+    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024).
+
+    Bewusst noch MockRetriever, analog get_llm_adapter() vor dem
+    Azure-Zweig (Tag 33-45): ChromaRetriever existiert bereits
+    (adapters/rag/retriever.py, ADR-0019/0023), wird hier aber noch nicht
+    verdrahtet -- braucht einen laufenden ChromaDB-Collection-Client und
+    eine Embedder-Wahl (ADR-0016/0018), eigener Folge-Tag, kein
+    Vollausbau heute (Scope-Disziplin, session-protocol v3 SS5.2).
+    """
+    return MockRetriever()
 
 
 def get_llm_adapter(
@@ -140,6 +155,7 @@ async def require_api_key(
 def get_triage_service(
     settings: Settings = Depends(get_settings),  # noqa: B008
     llm: LLMPort = Depends(get_llm_adapter),  # noqa: B008
+    retriever: RetrieverPort = Depends(get_retriever_port),  # noqa: B008
 ) -> TriageService:
     """Liefert TriageService mit echten Produktions-Abhaengigkeiten.
 
@@ -148,6 +164,8 @@ def get_triage_service(
     SystemClock und UUIDGenerator sind zustandslos -- neue Instanz pro Call ok.
     llm: Depends(get_llm_adapter) -- aktuell ResilientLLMAdapter(MockLLMAdapter())
     (Phase C); TriageService kennt nur LLMPort und merkt vom Wrapping nichts.
+    retriever: Depends(get_retriever_port) -- aktuell MockRetriever (Phase D,
+    ADR-0024); TriageService kennt nur RetrieverPort.
     """
     repo: RepositoryPort = (
         SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository
@@ -158,6 +176,7 @@ def get_triage_service(
         id_generator=UUIDGenerator(),
         roi_config=get_roi_config(),
         llm=llm,
+        retriever=retriever,
     )
 
 

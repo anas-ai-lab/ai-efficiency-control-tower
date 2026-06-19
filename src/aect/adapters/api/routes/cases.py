@@ -274,3 +274,67 @@ async def get_report(
             proposal_text=report.technical_detail.proposal_text,
         ),
     )
+
+
+class ComplianceCitationResponse(BaseModel):
+    """Eine einzelne Quellenangabe im Compliance-Hints-Response."""
+
+    number: int
+    source_id: str
+    citation: str
+    url: str | None
+
+
+class ComplianceHintsResponse(BaseModel):
+    """RAG-gegruendete Compliance-Hinweise (Master-Plan v3.1 Phase D, ADR-0024).
+
+    hint_text: None wenn das Retrieval keine Treffer lieferte (Graceful
+    Degradation, kein ungegruendeter Hinweis -- kein LLM-Call in diesem Fall).
+    citations: leer wenn hint_text None ist, sonst 1-basiert nummeriert,
+    identisch zu den [N]-Referenzen in hint_text.
+    """
+
+    case_id: str
+    hint_text: str | None
+    citations: list[ComplianceCitationResponse]
+    prompt_version: str
+
+
+@router.post("/{case_id}/compliance-hints", response_model=ComplianceHintsResponse)
+@limiter.limit("10/minute")
+async def compliance_hints(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> ComplianceHintsResponse:
+    """Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und
+    /propose-solution (aect-security-checklist v2.1, Phase B: "LLM-Endpoints
+    strenger").
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    result = await service.generate_compliance_hints(case_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return ComplianceHintsResponse(
+        case_id=result.case_id,
+        hint_text=result.hint_text,
+        citations=[
+            ComplianceCitationResponse(
+                number=citation.number,
+                source_id=citation.source_id,
+                citation=citation.citation,
+                url=citation.url,
+            )
+            for citation in result.citations
+        ],
+        prompt_version=result.prompt_version,
+    )

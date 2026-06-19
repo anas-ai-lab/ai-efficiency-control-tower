@@ -14,6 +14,8 @@ import structlog
 from aect.application.cost_logger import log_llm_cost
 from aect.application.models import (
     BusinessSummary,
+    ComplianceCitation,
+    ComplianceHintsResult,
     ReportResult,
     SharpenedUseCase,
     SolutionProposal,
@@ -24,6 +26,7 @@ from aect.application.ports.clock import ClockPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
+from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.prompts import load_prompt
 from aect.application.sanitization import detect_injection_patterns
 from aect.application.structured_output import (
@@ -37,6 +40,13 @@ from aect.application.tools import (
     dispatch_tool_call,
 )
 from aect.domain import ROIConfig, TriageResult, UseCaseInput, evaluate_use_case
+
+# Canonical Retrieval-Queries fuer Compliance-Hinweise (ADR-0024). Bewusst
+# fest, nicht aus Use-Case-Freitext abgeleitet -- vermeidet jede
+# Injection-Flaeche im Retrieval-Pfad selbst (anders als sharpen_case/
+# propose_solution, wo Nutzereingabe in den Prompt fliesst).
+_DSFA_QUERY = "Datenschutz-Folgenabschaetzung personenbezogene Daten Risiko"
+_TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
 
 
 def _render_sharpened_content(content_json: str | None) -> str | None:
@@ -137,6 +147,37 @@ def _build_technical_detail(
     )
 
 
+def _build_compliance_data_block(chunks: list[RetrievedChunk]) -> str:
+    """Baut den nummerierten DATA-Block fuer den compliance_hints-Prompt.
+
+    Nummerierung (1-basiert) ist identisch zur spaeteren Citation-Liste
+    (ComplianceCitation.number) -- das LLM referenziert nur die Nummer im
+    Fliesstext, die eigentliche Quellenaufloesung passiert deterministisch
+    in generate_compliance_hints() (ADR-0024), nicht aus der LLM-Antwort.
+    """
+    return "\n\n".join(f"[{i + 1}] {chunk.text}" for i, chunk in enumerate(chunks))
+
+
+def _build_compliance_citations(
+    chunks: list[RetrievedChunk],
+) -> tuple[ComplianceCitation, ...]:
+    """Baut die Citation-Liste deterministisch aus den Retrieval-Treffern.
+
+    citation faellt auf source_id zurueck, wenn ein Treffer kein
+    metadata['citation'] traegt (z. B. MockRetriever, dessen Treffer
+    metadata={} liefern, ADR-0014).
+    """
+    return tuple(
+        ComplianceCitation(
+            number=index + 1,
+            source_id=chunk.source_id,
+            citation=chunk.metadata.get("citation", chunk.source_id),
+            url=chunk.metadata.get("url"),
+        )
+        for index, chunk in enumerate(chunks)
+    )
+
+
 class TriageService:
     """Orchestriert Use-Case-Einreichung: ID -> Zeitstempel -> Domain -> Persistenz.
 
@@ -144,10 +185,11 @@ class TriageService:
     Die Domain-Logik liegt vollstaendig in evaluate_use_case() -- der Service
     ist ausschliesslich fuer Orchestrierung und Persistenz zustaendig.
 
-    llm: LLMPort -- Phase C, fuer sharpen_case(). Pflicht-Parameter, kein
-    Default: ein Default auf MockLLMAdapter() wuerde aus aect.adapters
-    importieren und die Dependency-Inversion-Grenze verletzen (siehe
-    Modul-Docstring).
+    llm: LLMPort -- Phase C, fuer sharpen_case()/propose_solution()/
+    generate_compliance_hints(). retriever: RetrieverPort -- Phase D, fuer
+    generate_compliance_hints() (ADR-0024). Beide Pflicht-Parameter, kein
+    Default: ein Default wuerde aus aect.adapters importieren und die
+    Dependency-Inversion-Grenze verletzen (siehe Modul-Docstring).
     """
 
     def __init__(
@@ -157,6 +199,7 @@ class TriageService:
         id_generator: IdGeneratorPort,
         roi_config: ROIConfig,
         llm: LLMPort,
+        retriever: RetrieverPort,
         country: str = "DE",
     ) -> None:
         self._repository = repository
@@ -164,6 +207,7 @@ class TriageService:
         self._id_generator = id_generator
         self._roi_config = roi_config
         self._llm = llm
+        self._retriever = retriever
         self._country = country
 
     def submit_use_case(self, use_case: UseCaseInput) -> SubmittedCase:
@@ -435,6 +479,95 @@ class TriageService:
             prompt_version=prompt_version,
         )
 
+    async def generate_compliance_hints(
+        self, case_id: str, prompt_version: str = "v1"
+    ) -> ComplianceHintsResult | None:
+        """RAG-gegruendete Compliance-Hinweise fuer einen persistierten Case.
+
+        Retrieval-Trigger ist regelbasiert (interne Referenz (entfernt) SS3.2: Regeln triggern,
+        RAG belegt), nicht aus Use-Case-Freitext:
+        - Transparenz-Query (EU AI Act Art. 50): immer -- jeder Report wird
+          fuer Menschen ausgegeben, der Transparenzhinweis ist nicht an
+          Risikoflags gebunden (knowledge_base/eu-ai-act-art-50-transparenz.md).
+        - DSFA-Query (DSGVO Art. 35): zusaetzlich, wenn
+          case.result.routing.risk_flags nicht leer ist -- dasselbe Signal,
+          das _build_technical_detail() bereits ausgibt (domain/routing.py).
+          Bewusst KEINE zweite, lose PII-Schwelle in dieser Methode: eine
+          Quelle der Wahrheit, analog zur in ADR-0023 verworfenen
+          Zweit-Lookup-Tabelle fuer Citations.
+
+        Kein Freitext fliesst in die Queries -> kein Injection-Pattern-Check
+        noetig an dieser Stelle (anders als sharpen_case/propose_solution).
+
+        Graceful Degradation: liefert das Retrieval ueber alle Queries
+        zusammen null Treffer, findet KEIN LLM-Call statt -- hint_text ist
+        None, citations leer. Verhindert ungegruendete Hinweise und spart
+        Kosten (passiert planmaessig mit MockRetriever fuer Cases ohne
+        Risikoflags, dessen Corpus keinen Art.-50-Eintrag hat).
+
+        Citations werden deterministisch aus den Retrieval-Treffern gebaut
+        (_build_compliance_citations), NICHT aus der LLM-Antwort geparst --
+        einzige Methode, "keine halluzinierte Artikel-Nummer"
+        (Master-Plan v3.1 Phase-D-Gate) strukturell statt durch
+        Prompt-Disziplin allein zu garantieren. Das LLM referenziert nur die
+        Nummer [N] im Fliesstext.
+
+        Bekannte Einschraenkung (v1): keine Deduplizierung, falls derselbe
+        Chunk ueber beide Queries zurueckkommt -- bei der heutigen, kleinen
+        Wissensbasis nicht relevant, Folge-Punkt sobald sie waechst.
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = self._repository.get(case_id)
+        if case is None:
+            return None
+
+        queries = [_TRANSPARENCY_QUERY]
+        if case.result.routing.risk_flags:
+            queries.append(_DSFA_QUERY)
+
+        retrieved: list[RetrievedChunk] = []
+        for query in queries:
+            retrieved.extend(await self._retriever.retrieve(query, top_k=2))
+
+        if not retrieved:
+            return ComplianceHintsResult(
+                case_id=case.id,
+                hint_text=None,
+                citations=(),
+                prompt_version=prompt_version,
+            )
+
+        citations = _build_compliance_citations(retrieved)
+
+        system_prompt = load_prompt("compliance_hints", "system", prompt_version)
+        user_template = load_prompt("compliance_hints", "user", prompt_version)
+        user_content = user_template.format(
+            title=case.use_case.title,
+            retrieved_chunks=_build_compliance_data_block(retrieved),
+        )
+
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self._llm.complete(messages)
+
+        log_llm_cost(
+            case_id=case.id,
+            messages=messages,
+            response=response,
+            operation="generate_compliance_hints",
+        )
+
+        return ComplianceHintsResult(
+            case_id=case.id,
+            hint_text=response.content,
+            citations=citations,
+            prompt_version=prompt_version,
+        )
+
     def generate_report(
         self,
         case_id: str,
@@ -458,6 +591,11 @@ class TriageService:
         LLM-Output durch (aect-security-checklist v2.1: "LLM-Output immer
         als untrusted behandeln") -- sie wirken nicht auf Berechnungen,
         nur auf die Anzeige.
+
+        Compliance-Hinweise (generate_compliance_hints()) sind heute NICHT
+        Teil dieses Reports -- analog zu sharpen_case/propose_solution vor
+        Tag 42 (ADR-0012): erst eigenstaendiger Endpoint, Persistenz +
+        Report-Integration folgt als eigener Folge-Tag.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).

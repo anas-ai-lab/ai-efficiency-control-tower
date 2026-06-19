@@ -21,6 +21,7 @@ from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.service import TriageService
 from aect.domain.roi import load_roi_config
 
@@ -35,6 +36,7 @@ def _make_app(api_key: str) -> FastAPI:
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
         llm=MockLLMAdapter(),
+        retriever=MockRetriever(),
     )
     return app
 
