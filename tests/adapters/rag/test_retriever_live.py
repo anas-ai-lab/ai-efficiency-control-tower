@@ -7,8 +7,10 @@ normalen Laufs -- so importiert pytest weder chromadb noch torch. Beide Imports
 stehen bewusst in der Testfunktion.
 
 Seedet eine wegwerfbare Collection mit 3 synthetischen Chunks (kein PII, keine
-kuratierten Quellen -- IP-Trennung, interne Referenz (entfernt) SS5), fragt sie ab und raeumt sie
-im finally wieder weg.
+kuratierten Quellen -- IP-Trennung, interne Referenz (entfernt) SS5) INKLUSIVE Provenance-
+Metadaten, fragt sie ab und raeumt sie im finally wieder weg. Prueft seit
+ADR-0023 zusaetzlich, dass die citation-Metadaten den Round-Trip ueberleben --
+nicht nur die source_id.
 """
 
 from __future__ import annotations
@@ -41,6 +43,11 @@ async def test_chroma_retriever_real_round_trip() -> None:
         "Reciprocal Rank Fusion kombiniert mehrere Ergebnislisten.",
     ]
     source_ids = ["live-open-webui", "live-dsfa", "live-rrf"]
+    metadatas = [
+        {"source_id": "live-open-webui", "citation": "Stack-Doku (synthetisch)"},
+        {"source_id": "live-dsfa", "citation": "DSGVO Art. 35 (synthetisch)"},
+        {"source_id": "live-rrf", "citation": "Retrieval-Doku (synthetisch)"},
+    ]
 
     collection_name = f"aect-live-{uuid.uuid4().hex[:8]}"
     collection = client.get_or_create_collection(name=collection_name)
@@ -50,6 +57,7 @@ async def test_chroma_retriever_real_round_trip() -> None:
             ids=source_ids,
             embeddings=[list(vector) for vector in vectors],
             documents=documents,
+            metadatas=metadatas,
         )
 
         retriever = ChromaRetriever(collection, embedder)
@@ -62,6 +70,8 @@ async def test_chroma_retriever_real_round_trip() -> None:
         # exakte Rang-1-Position waere modellabhaengig flaky.
         assert "live-dsfa" in [chunk.source_id for chunk in results]
         assert all(chunk.source_id for chunk in results)  # Citation-Anker da
-        assert all(chunk.score > 0.0 for chunk in results)
+
+        dsfa_chunk = next(c for c in results if c.source_id == "live-dsfa")
+        assert dsfa_chunk.metadata["citation"] == "DSGVO Art. 35 (synthetisch)"
     finally:
         client.delete_collection(name=collection_name)

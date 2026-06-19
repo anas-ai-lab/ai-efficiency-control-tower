@@ -32,26 +32,35 @@ class _FakeCollection:
         self._response = response
         self.last_n_results: int | None = None
         self.last_query_embeddings: list[list[float]] | None = None
+        self.last_include: list[str] | None = None
 
     def query(
         self,
         query_embeddings: list[list[float]],
         n_results: int,
+        include: list[str],
     ) -> Mapping[str, Any]:
         self.last_n_results = n_results
         self.last_query_embeddings = query_embeddings
+        self.last_include = include
         return self._response
 
 
 def _response(
-    ids: list[str], documents: list[str], distances: list[float]
+    ids: list[str],
+    documents: list[str],
+    distances: list[float],
+    metadatas: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Chroma verschachtelt pro Query eine Ergebnisliste -> [[...]]."""
-    return {
+    response: dict[str, Any] = {
         "ids": [ids],
         "documents": [documents],
         "distances": [distances],
     }
+    if metadatas is not None:
+        response["metadatas"] = [metadatas]
+    return response
 
 
 @pytest.fixture
@@ -94,6 +103,15 @@ async def test_retrieve_forwards_top_k_as_n_results(
     assert collection.last_n_results == 3
 
 
+async def test_retrieve_requests_metadatas_explicitly(
+    embedder: _FakeEmbedder,
+) -> None:
+    collection = _FakeCollection(_response(["s"], ["t"], [0.2]))
+    retriever = ChromaRetriever(collection, embedder)
+    await retriever.retrieve("q")
+    assert collection.last_include == ["documents", "distances", "metadatas"]
+
+
 async def test_retrieve_score_positive_and_decreasing(
     embedder: _FakeEmbedder,
 ) -> None:
@@ -126,9 +144,53 @@ async def test_retrieve_empty_collection_returns_empty(
 async def test_retrieve_handles_none_rows(
     embedder: _FakeEmbedder,
 ) -> None:
-    collection = _FakeCollection({"ids": [["a"]], "documents": None, "distances": None})
+    collection = _FakeCollection(
+        {"ids": [["a"]], "documents": None, "distances": None, "metadatas": None}
+    )
     retriever = ChromaRetriever(collection, embedder)
     results = await retriever.retrieve("q")
     assert len(results) == 1
     assert results[0].source_id == "a"
     assert results[0].text == ""
+    assert results[0].metadata == {}
+
+
+async def test_retrieve_includes_metadata_from_chroma_response(
+    embedder: _FakeEmbedder,
+) -> None:
+    collection = _FakeCollection(
+        _response(
+            ids=["dsgvo-art-35:0"],
+            documents=["Eine DSFA ist erforderlich, wenn..."],
+            distances=[0.05],
+            metadatas=[
+                {
+                    "source_id": "dsgvo-art-35",
+                    "title": "DSGVO Art. 35",
+                    "citation": "DSGVO Art. 35",
+                    "chunk_index": "0",
+                }
+            ],
+        )
+    )
+    retriever = ChromaRetriever(collection, embedder)
+    results = await retriever.retrieve("DSFA noetig?")
+    assert results[0].metadata["citation"] == "DSGVO Art. 35"
+    assert results[0].metadata["source_id"] == "dsgvo-art-35"
+
+
+async def test_retrieve_missing_metadata_entry_defaults_to_empty(
+    embedder: _FakeEmbedder,
+) -> None:
+    collection = _FakeCollection(
+        _response(
+            ids=["a", "b"],
+            documents=["ta", "tb"],
+            distances=[0.1, 0.2],
+            metadatas=[{"citation": "Quelle A"}],
+        )
+    )
+    retriever = ChromaRetriever(collection, embedder)
+    results = await retriever.retrieve("q")
+    assert results[0].metadata == {"citation": "Quelle A"}
+    assert results[1].metadata == {}

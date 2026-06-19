@@ -16,6 +16,10 @@ Design (analog SentenceTransformerEmbedder, ADR-0016):
   ungenutzt.
 - Blockierender .query()-Netz-Call laeuft in asyncio.to_thread, damit der
   Event-Loop frei bleibt (RetrieverPort ist async, ADR-0014).
+- include wird explizit gesetzt (["documents", "distances", "metadatas"])
+  statt sich auf den Chroma-Default zu verlassen (ADR-0023): macht den
+  Vertrag mit dem Server sichtbar und versionsfest, statt von Default-
+  Verhalten einer Fremdbibliothek abzuhaengen.
 
 PII-Redaction vor dem Embedding (LLM08, aect-security-checklist v2.1 Phase D)
 ist NICHT Aufgabe dieses Adapters -- sie gehoert in die Indexing-Pipeline vor
@@ -48,6 +52,7 @@ class ChromaCollection(Protocol):
         self,
         query_embeddings: list[list[float]],
         n_results: int,
+        include: list[str],
     ) -> Mapping[str, Any]: ...
 
 
@@ -86,6 +91,7 @@ class ChromaRetriever:
         return self._collection.query(
             query_embeddings=[query_vector],
             n_results=top_k,
+            include=["documents", "distances", "metadatas"],
         )
 
     @staticmethod
@@ -93,10 +99,13 @@ class ChromaRetriever:
         ids = _first_row(raw.get("ids"))
         documents = _first_row(raw.get("documents"))
         distances = _first_row(raw.get("distances"))
+        metadatas = _first_row(raw.get("metadatas"))
         chunks: list[RetrievedChunk] = []
         for index, source_id in enumerate(ids):
             text = documents[index] if index < len(documents) else ""
             distance = distances[index] if index < len(distances) else 0.0
+            raw_metadata = metadatas[index] if index < len(metadatas) else None
+            metadata: Mapping[str, str] = dict(raw_metadata) if raw_metadata else {}
             # Chroma liefert Distanzen (kleiner = naeher). RetrievedChunk.score
             # ist "hoeher = relevanter" -> monoton fallende, positive, metrik-
             # unabhaengige Transformation. Nur fuer Anzeige/Reihenfolge
@@ -107,6 +116,7 @@ class ChromaRetriever:
                     text=str(text) if text is not None else "",
                     source_id=str(source_id),
                     score=score,
+                    metadata=metadata,
                 )
             )
         return chunks

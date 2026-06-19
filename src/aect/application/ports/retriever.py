@@ -11,7 +11,8 @@ Importiert NICHT aus aect.adapters -- das waere eine DI-Verletzung.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Protocol
 
 
@@ -34,6 +35,15 @@ class RetrievedChunk:
     skaliert (Mock: Anzahl Query-Token-Treffer; spaeter: Vektor-Distanz bzw.
     RRF-Score). Nur fuer Reihenfolge/Anzeige, nicht fuer Berechnungen.
 
+    metadata: Provenance-Felder aus der Indexierung (ADR-0021/0022), z. B.
+    citation, title, url, source_id, chunk_index -- ausschliesslich
+    str-Werte, analog IndexRecord.metadata (adapters/rag/indexing.py).
+    Default leer: Adapter ohne Provenance (MockRetriever) bleiben gueltig,
+    ohne diesen Konstruktor-Parameter angeben zu muessen. Wie text: beim
+    spaeteren Prompt-Aufbau als Daten behandeln, nie als Instruktion -- auch
+    wenn die Werte heute ausschliesslich aus kuratiertem, selbst
+    geschriebenem Front-Matter stammen (ADR-0021), nicht aus Nutzereingabe.
+
     frozen=True: Wertobjekt, nach Erstellung unveraenderlich -- analog
     LLMResponse (ports/llm.py).
     """
@@ -41,6 +51,7 @@ class RetrievedChunk:
     text: str
     source_id: str
     score: float
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
 
 class RetrieverPort(Protocol):

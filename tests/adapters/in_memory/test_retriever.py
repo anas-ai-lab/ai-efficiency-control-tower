@@ -52,3 +52,10 @@ async def test_retrieved_chunk_carries_provenance(retriever: MockRetriever) -> N
     results = await retriever.retrieve("lizenzkosten")
     assert results[0].source_id != ""
     assert results[0].text != ""
+
+
+async def test_retrieved_chunk_default_metadata_is_empty(
+    retriever: MockRetriever,
+) -> None:
+    results = await retriever.retrieve("lizenzkosten")
+    assert results[0].metadata == {}
