@@ -1829,3 +1829,30 @@ auffaellt.
 Getestet wurde das auf zwei Wegen: einmal mit einer Fake-Datenbank (schnell,
 ohne die echte Box), einmal scharf gegen die echte Box -- danach wieder
 abgeschaltet, damit nichts unnoetig laeuft und Geld kostet.
+
+## Tag 52 — Rechts-Check statt Code
+
+Heute kein Code. Stattdessen: geprueft, was sich bei der neuen EU-KI-Regel
+(genannt "AI Act") gerade tut, und das Ergebnis schriftlich festgehalten.
+
+Hintergrund: Die EU hatte beschlossen, dass strenge Regeln fuer "riskante"
+KI-Systeme (z.B. KI, die ueber Menschen entscheidet — Bewerbungen, Kredite)
+ab August 2026 gelten. Inzwischen hat sich die EU darauf geeinigt, diese
+Regeln spaeter greifen zu lassen — fuer die meisten Faelle erst Ende 2027.
+Aber: Das ist bisher nur eine politische Absprache. Damit sie wirklich
+gilt, muss sie noch offiziell im "Amtsblatt" (so etwas wie das offizielle
+Gesetzblatt der EU) veroeffentlicht werden. Bis das passiert, gilt
+rechtlich noch der alte, fruehere Termin.
+
+Was bedeutet das fuer unser Projekt (AECT)? Eigentlich nichts. AECT
+bewertet keine Menschen — es bewertet Projekt-Ideen ("sollten wir KI fuer
+Aufgabe X einsetzen?"). Die strengen EU-Regeln greifen nur, wenn ein
+KI-System ueber Menschen entscheidet (Einstellung, Kredit, Bildung). Weil
+AECT das nicht tut, faellt es gar nicht in die strenge Kategorie —
+unabhaengig davon, wann sich die Fristen am Ende verschieben.
+
+Der Stand ist jetzt mit Datum und Quellen in einer Entscheidungs-Datei
+(ADR — ein begruendetes Protokoll einer wichtigen Festlegung) im Projekt
+gespeichert. Naechster Schritt baut direkt darauf auf: Texte ueber
+Datenschutz- und KI-Recht schreiben, die das System spaeter automatisch
+zitieren kann, wenn jemand eine KI-Projektidee einreicht.
