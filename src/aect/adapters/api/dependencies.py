@@ -62,6 +62,13 @@ _idempotency_store: InMemoryIdempotencyStore = InMemoryIdempotencyStore()
 # Unser require_api_key gibt dann einheitlich 401 zurueck.
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# Standard-Reranking-Modell aus dem sentence-transformers-Oekosystem
+# (trainiert auf MS MARCO Passage Ranking, ADR-0028). Generischer,
+# oeffentlicher Modellname -- kein firmenspezifischer Wert, daher als
+# Code-Konstante gefuehrt statt als Settings-Feld (anders als kb_dir/
+# chroma_host, die Infrastruktur-Adressen sind, kein Modell-Identifier).
+_CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
 
 @lru_cache
 def get_roi_config() -> ROIConfig:
@@ -141,22 +148,42 @@ def _get_bm25_index(kb_dir: str) -> Any:
     return build_bm25_index(records)
 
 
+@lru_cache
+def _get_cross_encoder_model() -> Any:
+    """Laedt (und cached) das lokale Cross-Encoder-Modell fuer Reranking.
+
+    Lokaler Import, analog _get_local_embedding_model -- haelt src/
+    torch-frei fuer den Mock-Pfad. lru_cache ohne Argumente: Modellgewichte
+    werden genau einmal pro Prozess geladen, nicht pro Request.
+
+    cross-encoder/ms-marco-MiniLM-L-6-v2: Standard-Reranking-Modell aus dem
+    sentence-transformers-Oekosystem (trainiert auf MS MARCO Passage
+    Ranking) -- bereits als Dependency vorhanden (sentence-transformers,
+    pyproject.toml), kein neues Paket noetig (ADR-0028).
+    """
+    from sentence_transformers import CrossEncoder
+
+    return CrossEncoder(_CROSS_ENCODER_MODEL_NAME)
+
+
 def get_retriever_port(
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> RetrieverPort:
-    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024/0025/0027).
+    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024/0025/0027/0028).
 
     Settings-gesteuerter Schalter, analog get_llm_adapter(): AECT_CHROMA_HOST
-    gesetzt -> HybridRetriever(ChromaRetriever, BM25Retriever) -- Vektor-
-    suche (ADR-0019) kombiniert per Reciprocal Rank Fusion mit BM25-
-    Stichwortsuche ueber dieselbe Wissensbasis (ADR-0027). AECT_CHROMA_HOST
-    leer (Default) -> MockRetriever -- kein Container, kein Modell-Laden,
-    kein BM25-Index-Bau in normalen Testlaeufen/lokaler Entwicklung.
+    gesetzt -> CrossEncoderReranker(HybridRetriever(ChromaRetriever,
+    BM25Retriever), CrossEncoderModel) -- Hybrid-Retrieval (Vektor + BM25,
+    RRF, ADR-0027) liefert eine breite Kandidatenmenge, der Cross-Encoder
+    sortiert sie praeziser nach (ADR-0028). AECT_CHROMA_HOST leer (Default)
+    -> MockRetriever -- kein Container, kein Modell-Laden, kein BM25-
+    Index-Bau, kein Cross-Encoder-Laden in normalen Testlaeufen/lokaler
+    Entwicklung.
 
     Derselbe Container-Erreichbarkeits-Hinweis wie zuvor gilt unveraendert:
     ist AECT_CHROMA_HOST gesetzt, der Container aber nicht gestartet,
     schlaegt der erste echte Chroma-Call mit einem Verbindungsfehler fehl --
-    kein stiller Fallback. Der BM25-Teil des Hybrid-Pfads bleibt davon
+    kein stiller Fallback. BM25- und Reranking-Teil des Pfads bleiben davon
     unberuehrt (rein lokal, kein Netzwerk).
 
     Lokale Imports (statt Modulkopf): konsistent mit dem bestehenden Muster
@@ -168,6 +195,7 @@ def get_retriever_port(
     from aect.adapters.rag.bm25_retriever import BM25Retriever
     from aect.adapters.rag.embedder import SentenceTransformerEmbedder
     from aect.adapters.rag.hybrid_retriever import HybridRetriever
+    from aect.adapters.rag.reranker import CrossEncoderReranker
     from aect.adapters.rag.retriever import ChromaRetriever
 
     collection = _get_chroma_collection(settings.chroma_host, settings.chroma_port)
@@ -177,7 +205,10 @@ def get_retriever_port(
     bm25_index = _get_bm25_index(settings.kb_dir)
     bm25_retriever = BM25Retriever(bm25_index)
 
-    return HybridRetriever(vector_retriever, bm25_retriever)
+    hybrid = HybridRetriever(vector_retriever, bm25_retriever)
+
+    cross_encoder_model = _get_cross_encoder_model()
+    return CrossEncoderReranker(hybrid, cross_encoder_model)
 
 
 def get_llm_adapter(
@@ -252,8 +283,9 @@ def get_triage_service(
     llm: Depends(get_llm_adapter) -- aktuell ResilientLLMAdapter(MockLLMAdapter())
     (Phase C); TriageService kennt nur LLMPort und merkt vom Wrapping nichts.
     retriever: Depends(get_retriever_port) -- MockRetriever per Default,
-    ChromaRetriever wenn AECT_CHROMA_HOST gesetzt ist (ADR-0024, ADR-0025);
-    TriageService kennt nur RetrieverPort.
+    CrossEncoderReranker(HybridRetriever(...)) wenn AECT_CHROMA_HOST gesetzt
+    ist (ADR-0024, ADR-0025, ADR-0027, ADR-0028); TriageService kennt nur
+    RetrieverPort.
     """
     repo: RepositoryPort = (
         SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository

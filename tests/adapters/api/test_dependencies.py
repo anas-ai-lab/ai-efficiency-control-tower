@@ -12,6 +12,7 @@ from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.rag.bm25_retriever import BM25Index
 from aect.adapters.rag.hybrid_retriever import HybridRetriever
+from aect.adapters.rag.reranker import CrossEncoderReranker
 from aect.adapters.rag.retriever import ChromaRetriever
 from aect.application.ports.llm import LLMMessage
 
@@ -74,31 +75,41 @@ async def test_get_retriever_port_returns_mock_without_chroma_host() -> None:
     assert isinstance(retriever, MockRetriever)
 
 
-async def test_get_retriever_port_wires_hybrid_retriever_with_host_set(
+async def test_get_retriever_port_wires_cross_encoder_reranker_with_host_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Mit AECT_CHROMA_HOST gesetzt: HybridRetriever(ChromaRetriever, BM25Retriever).
+    """Mit AECT_CHROMA_HOST gesetzt:
+    CrossEncoderReranker(HybridRetriever(ChromaRetriever, BM25Retriever), model).
 
-    _get_chroma_collection/_get_local_embedding_model/_get_bm25_index werden
-    gefakt -- der Test prueft die Verdrahtungs-Entscheidung, nicht echte
-    Netzwerk-/Modell-/Datei-Operationen (die deckt der Live-Test ab).
+    _get_chroma_collection/_get_local_embedding_model/_get_bm25_index/
+    _get_cross_encoder_model werden gefakt -- der Test prueft die
+    Verdrahtungs-Entscheidung, nicht echte Netzwerk-/Modell-/Datei-
+    Operationen (die deckt der Live-Test ab).
     """
     import aect.adapters.api.dependencies as deps_module
 
     fake_collection = object()
     fake_model = object()
     fake_bm25_index = BM25Index([])
+    fake_cross_encoder = object()
     monkeypatch.setattr(
         deps_module, "_get_chroma_collection", lambda host, port: fake_collection
     )
     monkeypatch.setattr(deps_module, "_get_local_embedding_model", lambda: fake_model)
     monkeypatch.setattr(deps_module, "_get_bm25_index", lambda kb_dir: fake_bm25_index)
+    monkeypatch.setattr(
+        deps_module, "_get_cross_encoder_model", lambda: fake_cross_encoder
+    )
 
     settings = Settings(chroma_host="127.0.0.1", chroma_port=8001)
     retriever = get_retriever_port(settings=settings)
 
-    assert isinstance(retriever, HybridRetriever)
-    assert isinstance(retriever._vector, ChromaRetriever)
-    assert retriever._vector._collection is fake_collection
-    assert retriever._vector._embedder._model is fake_model
-    assert retriever._bm25._index is fake_bm25_index
+    assert isinstance(retriever, CrossEncoderReranker)
+    assert retriever._model is fake_cross_encoder
+
+    hybrid = retriever._inner
+    assert isinstance(hybrid, HybridRetriever)
+    assert isinstance(hybrid._vector, ChromaRetriever)
+    assert hybrid._vector._collection is fake_collection
+    assert hybrid._vector._embedder._model is fake_model
+    assert hybrid._bm25._index is fake_bm25_index

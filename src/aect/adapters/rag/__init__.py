@@ -1,7 +1,8 @@
 """RAG-Adapter (Phase D): echte Embedding-/Retrieval-Implementierungen
 sowie der Chunker (deterministische Funktion ohne Port, ADR-0017), die
-KB-Indexing-Vorbereitung (ADR-0021), der KB-Schreib-Pfad (ADR-0022) und
-der Hybrid-Retrieval-Pfad (BM25 + Vektor + RRF, ADR-0027).
+KB-Indexing-Vorbereitung (ADR-0021), der KB-Schreib-Pfad (ADR-0022), der
+Hybrid-Retrieval-Pfad (BM25 + Vektor + RRF, ADR-0027) und das
+Cross-Encoder-Reranking (ADR-0028).
 
 Mock-Varianten liegen weiterhin in adapters/in_memory/ (MockEmbedder,
 MockRetriever); hier leben die echten Provider-Adapter -- analog dazu, dass
@@ -19,6 +20,7 @@ from aect.adapters.rag.indexing import (
     build_index_records,
     parse_kb_document,
 )
+from aect.adapters.rag.reranker import CrossEncoderReranker
 from aect.adapters.rag.retriever import ChromaRetriever
 
 __all__ = [
@@ -26,6 +28,7 @@ __all__ = [
     "BM25Retriever",
     "ChromaRetriever",
     "Chunk",
+    "CrossEncoderReranker",
     "HybridRetriever",
     "IndexRecord",
     "SentenceTransformerEmbedder",
