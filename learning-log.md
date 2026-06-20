@@ -2035,3 +2035,11 @@ Technische Randnotiz, falls sie irgendwo auftaucht: der Stichwort-Algorithmus
 wurde selbst geschrieben statt eine fertige Bibliothek einzubinden — bei
 einer so kleinen, klar abgegrenzten Aufgabe ist das hier bewusst die
 einfachere und kontrollierbarere Lösung.
+
+## Tag 60 — Eine zweite Prüfung für die Suchtreffer
+
+Seit gestern findet das System Antworten über zwei verschiedene Suchwege gleichzeitig — einen, der nach Bedeutung sucht, und einen, der nach exakten Wörtern sucht. Beide Listen wurden zu einer gemeinsamen Rangliste verschmolzen.
+
+Heute kam ein dritter Schritt dazu: ein "Cross-Encoder". Der Name klingt technisch, das Prinzip ist einfach. Die ersten beiden Suchverfahren schauen sich Frage und Textstelle getrennt an und vergleichen sie danach — wie wenn man zwei Personen unabhängig voneinander nach ihrer Meinung fragt und die Antworten erst danach abgleicht. Der Cross-Encoder schaut sich Frage und Textstelle direkt gemeinsam an, bevor er ein Urteil fällt — wie ein Gutachter, der beide Dokumente nebeneinanderlegt statt sie nacheinander zu lesen. Das ist genauer, aber auch aufwendiger — deshalb läuft es nicht über die ganze Wissensbasis, sondern nur über die besten Kandidaten, die die ersten beiden Suchverfahren bereits eingegrenzt haben.
+
+Das fertige Modell dafür kam mit einer bereits installierten Programmbibliothek mit (`sentence-transformers`) — keine neue Installation nötig.
