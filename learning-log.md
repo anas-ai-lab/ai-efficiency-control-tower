@@ -2005,3 +2005,33 @@ und beim naechsten Abruf wieder weg sind.
 ist wie eine Excel-Tabelle mit festen Spaltenkoepfen. Heute kam eine dritte
 neue Spalte fuer die Datenschutz-Hinweise dazu — zusaetzlich zu den beiden,
 die es schon fuer die anderen zwei gespeicherten Texte gab.
+
+## Tag 59 — Zwei Suchmethoden kombiniert (Hybrid Search)
+
+Bisher hat das System Fragen an seine Wissensbasis nur über
+"Bedeutungssuche" beantwortet: ein Modell wandelt Text in Zahlenreihen um
+(Embeddings) und vergleicht, welche Texte sich ähnlich "anfühlen". Das
+Problem: wenn jemand exakt nach "Art. 35" fragt, kann es passieren, dass
+das Bedeutungs-Modell andere Formulierungen für ähnlicher hält als den Text,
+der die Antwort tatsächlich enthält.
+
+Heute kam eine zweite, klassische Suchmethode dazu: Stichwortsuche
+(BM25 — ein seit Jahrzehnten bewährter Algorithmus, den auch klassische
+Suchmaschinen nutzen). Sie zählt, wie oft und wie selten ein gesuchtes Wort
+in einem Text vorkommt, und bevorzugt seltene, treffsichere Begriffe
+gegenüber häufigen, austauschbaren.
+
+Beide Suchmethoden laufen jetzt parallel und liefern je eine eigene
+Rangliste. Diese zwei Listen werden anschließend zu einer einzigen
+zusammengeführt (genannt "Reciprocal Rank Fusion") — nicht über die rohen
+Punktzahlen (die sind bei den zwei Methoden nicht vergleichbar), sondern
+über die *Platzierung*: ein Dokument, das in beiden Listen weit vorne
+steht, gewinnt gegenüber einem, das nur in einer Liste ganz oben war.
+
+Ergebnis: Treffer aus reiner Bedeutungsähnlichkeit UND aus exakter
+Stichwortübereinstimmung fließen jetzt in dieselbe Antwort ein.
+
+Technische Randnotiz, falls sie irgendwo auftaucht: der Stichwort-Algorithmus
+wurde selbst geschrieben statt eine fertige Bibliothek einzubinden — bei
+einer so kleinen, klar abgegrenzten Aufgabe ist das hier bewusst die
+einfachere und kontrollierbarere Lösung.
