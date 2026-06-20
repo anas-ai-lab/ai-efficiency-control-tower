@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     chroma_host: str = ""  # AECT_CHROMA_HOST, z. B. 127.0.0.1
     chroma_port: int = 8001  # AECT_CHROMA_PORT
 
+    # Wissensbasis-Verzeichnis (Phase D, ADR-0027) -- Quelle fuer den
+    # BM25-Index im Hybrid-Pfad, relativ zum Arbeitsverzeichnis (uv run
+    # laeuft immer aus dem Projektordner, Fallen-Katalog SS6 Punkt 11).
+    kb_dir: str = "knowledge_base"  # AECT_KB_DIR
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",

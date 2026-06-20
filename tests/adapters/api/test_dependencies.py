@@ -10,6 +10,8 @@ from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
+from aect.adapters.rag.bm25_retriever import BM25Index
+from aect.adapters.rag.hybrid_retriever import HybridRetriever
 from aect.adapters.rag.retriever import ChromaRetriever
 from aect.application.ports.llm import LLMMessage
 
@@ -72,28 +74,31 @@ async def test_get_retriever_port_returns_mock_without_chroma_host() -> None:
     assert isinstance(retriever, MockRetriever)
 
 
-async def test_get_retriever_port_wires_chroma_retriever_with_host_set(
+async def test_get_retriever_port_wires_hybrid_retriever_with_host_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Mit AECT_CHROMA_HOST gesetzt: ChromaRetriever, ohne echten Chroma-/Torch-Aufruf.
+    """Mit AECT_CHROMA_HOST gesetzt: HybridRetriever(ChromaRetriever, BM25Retriever).
 
-    _get_chroma_collection/_get_local_embedding_model werden gefakt -- der
-    Test prueft die Verdrahtungs-Entscheidung (welcher Pfad, welche Klasse,
-    welche Objekte landen wo), nicht echte Netzwerk-/Modell-Inferenz (die
-    deckt der Live-Test ab: tests/adapters/api/test_dependencies_live.py).
+    _get_chroma_collection/_get_local_embedding_model/_get_bm25_index werden
+    gefakt -- der Test prueft die Verdrahtungs-Entscheidung, nicht echte
+    Netzwerk-/Modell-/Datei-Operationen (die deckt der Live-Test ab).
     """
     import aect.adapters.api.dependencies as deps_module
 
     fake_collection = object()
     fake_model = object()
+    fake_bm25_index = BM25Index([])
     monkeypatch.setattr(
         deps_module, "_get_chroma_collection", lambda host, port: fake_collection
     )
     monkeypatch.setattr(deps_module, "_get_local_embedding_model", lambda: fake_model)
+    monkeypatch.setattr(deps_module, "_get_bm25_index", lambda kb_dir: fake_bm25_index)
 
     settings = Settings(chroma_host="127.0.0.1", chroma_port=8001)
     retriever = get_retriever_port(settings=settings)
 
-    assert isinstance(retriever, ChromaRetriever)
-    assert retriever._collection is fake_collection
-    assert retriever._embedder._model is fake_model
+    assert isinstance(retriever, HybridRetriever)
+    assert isinstance(retriever._vector, ChromaRetriever)
+    assert retriever._vector._collection is fake_collection
+    assert retriever._vector._embedder._model is fake_model
+    assert retriever._bm25._index is fake_bm25_index

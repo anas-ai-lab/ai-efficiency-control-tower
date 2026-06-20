@@ -122,35 +122,62 @@ def _get_local_embedding_model() -> Any:
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 
+@lru_cache
+def _get_bm25_index(kb_dir: str) -> Any:
+    """Baut (und cached) den BM25-Index aus der Wissensbasis fuer den Hybrid-Pfad.
+
+    Lokaler Import, analog _get_chroma_collection/_get_local_embedding_model
+    (Konsistenz mit dem etablierten Muster, auch wenn BM25 selbst keine
+    schweren Dependencies zieht). lru_cache auf kb_dir: der Index wird
+    einmal pro Prozess aus den *.md-Dateien gebaut, nicht pro Request --
+    aendert sich die Wissensbasis, braucht es einen Prozess-Neustart
+    (gleiche Limitation wie bei der Chroma-Collection und dem lokalen
+    Embedding-Modell).
+    """
+    from aect.adapters.rag.bm25_retriever import build_bm25_index
+    from aect.adapters.rag.indexing import build_index_records
+
+    records = build_index_records(Path(kb_dir))
+    return build_bm25_index(records)
+
+
 def get_retriever_port(
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> RetrieverPort:
-    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024, ADR-0025).
+    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024/0025/0027).
 
     Settings-gesteuerter Schalter, analog get_llm_adapter(): AECT_CHROMA_HOST
-    gesetzt -> ChromaRetriever gegen die echte, lokale ChromaDB-Collection
-    (docker-compose, ADR-0018) mit SentenceTransformerEmbedder (ADR-0016) als
-    Query-Embedder. AECT_CHROMA_HOST leer (Default) -> MockRetriever -- kein
-    Container, kein Modell-Laden in normalen Testlaeufen/lokaler Entwicklung.
+    gesetzt -> HybridRetriever(ChromaRetriever, BM25Retriever) -- Vektor-
+    suche (ADR-0019) kombiniert per Reciprocal Rank Fusion mit BM25-
+    Stichwortsuche ueber dieselbe Wissensbasis (ADR-0027). AECT_CHROMA_HOST
+    leer (Default) -> MockRetriever -- kein Container, kein Modell-Laden,
+    kein BM25-Index-Bau in normalen Testlaeufen/lokaler Entwicklung.
 
-    Kein Live-Health-Check gegen den Container: die Entscheidung haengt
-    ausschliesslich an der Einstellung, nicht daran, ob ChromaDB tatsaechlich
-    erreichbar ist. Ist AECT_CHROMA_HOST gesetzt, der Container aber nicht
-    gestartet, schlaegt der erste echte Retrieval-Call mit einem
-    Verbindungsfehler fehl -- kein stiller Fallback auf den Mock.
+    Derselbe Container-Erreichbarkeits-Hinweis wie zuvor gilt unveraendert:
+    ist AECT_CHROMA_HOST gesetzt, der Container aber nicht gestartet,
+    schlaegt der erste echte Chroma-Call mit einem Verbindungsfehler fehl --
+    kein stiller Fallback. Der BM25-Teil des Hybrid-Pfads bleibt davon
+    unberuehrt (rein lokal, kein Netzwerk).
 
-    Lokale Imports von ChromaRetriever/SentenceTransformerEmbedder (statt
-    Modulkopf): nur der scharfe Pfad zieht chromadb/sentence-transformers.
+    Lokale Imports (statt Modulkopf): konsistent mit dem bestehenden Muster
+    fuer den scharfen Pfad.
     """
     if not settings.chroma_host:
         return MockRetriever()
 
+    from aect.adapters.rag.bm25_retriever import BM25Retriever
     from aect.adapters.rag.embedder import SentenceTransformerEmbedder
+    from aect.adapters.rag.hybrid_retriever import HybridRetriever
     from aect.adapters.rag.retriever import ChromaRetriever
 
     collection = _get_chroma_collection(settings.chroma_host, settings.chroma_port)
     embedder = SentenceTransformerEmbedder(_get_local_embedding_model())
-    return ChromaRetriever(collection, embedder)
+    vector_retriever = ChromaRetriever(collection, embedder)
+
+    bm25_index = _get_bm25_index(settings.kb_dir)
+    bm25_retriever = BM25Retriever(bm25_index)
+
+    return HybridRetriever(vector_retriever, bm25_retriever)
 
 
 def get_llm_adapter(
