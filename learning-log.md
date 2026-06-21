@@ -2079,3 +2079,26 @@ Ernstfall tatsaechlich greift.
 **Naechster Schritt:** Phase D (die Such- und Beleg-Funktion) ist damit fertig. Als
 naechstes kommt Phase E — dort wird systematisch geprueft, wie gut das Gesamtsystem
 ueber viele Testfaelle hinweg wirklich ist, nicht nur in einzelnen Stichproben wie heute.
+
+## Tag 62 — Testfaelle fuer die spaetere Qualitaetspruefung
+
+Heute habe ich keine neue Funktion fuer die Bewertung selbst gebaut, sondern die
+Grundlage dafuer, wie ich spaeter pruefe, ob die Bewertung gut funktioniert.
+
+Stell dir vor, du willst testen, ob ein Pruefer faire Noten vergibt. Dafuer brauchst
+du Beispielarbeiten mit bekannten "richtigen" Noten, gegen die du den Pruefer laufen
+laesst. Genau das sind die "Eval-Cases": vier erfundene Beispiel-Antraege (z. B. ein
+HR-Onboarding-Prozess, ein IT-Support-Ticket), die genauso aussehen wie ein echter
+Antrag, aber komplett ausgedacht sind -- keine echten Firmendaten.
+
+Jeder dieser Beispiel-Faelle hat ein Feld fuer eine "erwartete Bewertung" -- aber das
+Feld ist heute bewusst leer gelassen. Der Grund: Wenn das System selbst seine eigene
+Bewertung als "erwartete" Antwort eintraegt, vergleicht man am Ende das System nur mit
+sich selbst. Das stimmt dann immer ueberein, beweist aber gar nichts -- so wie ein
+Schueler, der seine eigene Klausur korrigiert, immer eine Eins bekommt. Die "erwartete
+Bewertung" muss spaeter von einem Menschen (mir) unabhaengig eingetragen werden, damit
+der Vergleich ueberhaupt aussagekraeftig ist.
+
+Zusaetzlich habe ich ein Format festgelegt, in dem diese Testfaelle gespeichert werden
+(eine Zeile pro Fall, statt einer grossen Liste) -- das macht es einfacher, einzelne
+Faelle hinzuzufuegen oder zu vergleichen, ohne die ganze Datei neu zu schreiben.
