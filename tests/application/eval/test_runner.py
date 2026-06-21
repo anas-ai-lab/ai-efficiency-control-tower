@@ -79,12 +79,19 @@ class TestRunEval:
         assert len(results) == 4
         assert all(isinstance(r, EvalCaseResult) for r in results)
 
-    def test_unlabeled_golden_cases_have_none_match(
-        self, roi_config: ROIConfig
-    ) -> None:
+    def test_only_golden_004_has_none_match(self, roi_config: ROIConfig) -> None:
+        """Seit Tag 64 tragen golden-001 bis golden-003 ein Experten-Label;
+        nur golden-004 (Vorfilter-Grenzfall, bewusst unlabeled) hat kein
+        Vergleichsergebnis. Ob die drei gelabelten Cases tatsaechlich
+        uebereinstimmen (is_match True oder False), ist das Eval-Ergebnis --
+        keine Testvoraussetzung."""
         cases = load_eval_cases(GOLDEN_CASES_PATH)
         results = run_eval(cases, roi_config)
-        assert all(r.is_match is None for r in results)
+        by_id = {r.case_id: r for r in results}
+
+        assert by_id["golden-004"].is_match is None
+        for case_id in ("golden-001", "golden-002", "golden-003"):
+            assert by_id[case_id].is_match is not None
 
     def test_predicted_zone_is_consistent_with_pipeline(
         self, roi_config: ROIConfig
@@ -139,9 +146,11 @@ class TestRunEval:
 
 
 class TestWriteReport:
-    def test_report_structure_for_unlabeled_cases(
+    def test_report_structure_for_golden_cases(
         self, roi_config: ROIConfig, tmp_path: Path
     ) -> None:
+        """Seit Tag 64: 3 von 4 Golden-Cases sind gelabelt (golden-004 bleibt
+        bewusst unlabeled, siehe test_only_golden_004_has_none_match)."""
         cases = load_eval_cases(GOLDEN_CASES_PATH)
         results = run_eval(cases, roi_config)
         report_path = tmp_path / "report.json"
@@ -150,9 +159,9 @@ class TestWriteReport:
 
         report = json.loads(report_path.read_text(encoding="utf-8"))
         assert report["total_cases"] == 4
-        assert report["labeled_cases"] == 0
-        assert report["agreement_count"] == 0
-        assert report["agreement_rate"] is None
+        assert report["labeled_cases"] == 3
+        assert report["agreement_count"] <= 3
+        assert report["agreement_rate"] is not None
         assert len(report["results"]) == 4
 
     def test_agreement_rate_computed_over_labeled_cases_only(

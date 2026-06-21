@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from aect.application.eval import EvalCase, EvalCaseLoadError, load_eval_cases
+from aect.domain import TriageZone
 
 GOLDEN_CASES_PATH = Path("evals/golden/use_cases.jsonl")
 
@@ -22,10 +23,18 @@ class TestLoadEvalCases:
         case_ids = [case.case_id for case in cases]
         assert len(case_ids) == len(set(case_ids))
 
-    def test_golden_cases_have_no_expert_label_yet(self) -> None:
-        """Expert-Labels werden bewusst an einem spaeteren Phase-E-Tag ergaenzt."""
+    def test_golden_cases_expert_labels_set_tag_64(self) -> None:
+        """Seit Tag 64: drei der vier Golden-Cases tragen ein unabhaengiges
+        Experten-Label (vor Kenntnis der Pipeline-Berechnung gesetzt). golden-004
+        bleibt bewusst unlabeled -- testet den Vorfilter-Grenzfall, bei dem ein
+        Zonen-Label ohnehin bedeutungslos waere (ADR-0029)."""
         cases = load_eval_cases(GOLDEN_CASES_PATH)
-        assert all(case.expected_zone is None for case in cases)
+        labels = {case.case_id: case.expected_zone for case in cases}
+
+        assert labels["golden-001"] is TriageZone.LIKELY_WIN
+        assert labels["golden-002"] is TriageZone.LIKELY_WIN
+        assert labels["golden-003"] is TriageZone.CALCULATED_RISK
+        assert labels["golden-004"] is None
 
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(EvalCaseLoadError, match="nicht gefunden"):

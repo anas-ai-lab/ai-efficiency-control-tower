@@ -1,0 +1,36 @@
+{
+  "total_cases": 4,
+  "labeled_cases": 3,
+  "agreement_count": 1,
+  "agreement_rate": 0.3333333333333333,
+  "results": [
+    {
+      "case_id": "golden-001",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-002",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-003",
+      "passed_vorfilter": true,
+      "predicted_zone": "MARGINAL_GAIN",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-004",
+      "passed_vorfilter": false,
+      "predicted_zone": null,
+      "expected_zone": null,
+      "is_match": null
+    }
+  ]
+}
