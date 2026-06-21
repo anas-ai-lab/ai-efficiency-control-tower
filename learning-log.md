@@ -2043,3 +2043,39 @@ Seit gestern findet das System Antworten über zwei verschiedene Suchwege gleich
 Heute kam ein dritter Schritt dazu: ein "Cross-Encoder". Der Name klingt technisch, das Prinzip ist einfach. Die ersten beiden Suchverfahren schauen sich Frage und Textstelle getrennt an und vergleichen sie danach — wie wenn man zwei Personen unabhängig voneinander nach ihrer Meinung fragt und die Antworten erst danach abgleicht. Der Cross-Encoder schaut sich Frage und Textstelle direkt gemeinsam an, bevor er ein Urteil fällt — wie ein Gutachter, der beide Dokumente nebeneinanderlegt statt sie nacheinander zu lesen. Das ist genauer, aber auch aufwendiger — deshalb läuft es nicht über die ganze Wissensbasis, sondern nur über die besten Kandidaten, die die ersten beiden Suchverfahren bereits eingegrenzt haben.
 
 Das fertige Modell dafür kam mit einer bereits installierten Programmbibliothek mit (`sentence-transformers`) — keine neue Installation nötig.
+
+## Tag 61 — Hat das System wirklich verstanden, was es gefunden hat?
+
+Bisher hatte das Projekt drei Suchschritte gebaut, aber nie live ausprobiert, ob sie
+zusammen tatsaechlich funktionieren. Heute war der Tag, an dem genau das geprueft
+wurde — mit echten Beispiel-Faellen, nicht nur mit automatischen Tests.
+
+**Was getestet wurde:** Ein Fall mit sensiblen persoenlichen Daten (eine KI, die
+Bewerbungen vorsortiert) und ein harmloser Fall (automatische Raumbuchung) wurden
+durch das System geschickt. Bei beiden wurde geprueft: Findet das System die richtigen
+Gesetzestexte, und gibt es im Antworttext die Quelle korrekt an?
+
+**Das wichtigste Ergebnis:** Es hat funktioniert, und zwar auf eine Art, die besonders
+vertrauenswuerdig ist. Die Quellenangabe im Text (zum Beispiel "[1]" fuer einen
+bestimmten Paragrafen) wird nicht von der KI selbst erfunden. Stattdessen sucht das
+System zuerst die passende Textstelle, vergibt ihr eine Nummer, und die KI darf in
+ihrem Text nur auf diese vorgegebene Nummer zeigen. Die KI kann also keine falsche
+Gesetzes-Nummer erfinden — sie kann nur auf etwas zeigen, das wirklich gefunden wurde.
+
+**Ein Nebenfund:** Bei einer Suchanfrage, die absichtlich nichts mit dem Thema zu tun
+hatte ("Mittagessen Kantine"), hat das System trotzdem zwei Treffer zurueckgegeben —
+nur eben mit erkennbar schlechten Bewertungen. Das System sagt also nicht von selbst
+"dazu habe ich nichts gefunden", es liefert immer etwas. Für den jetzigen Einsatz ist
+das unproblematisch, weil das System nur mit fest vorgegebenen Suchanfragen arbeitet,
+nie mit freiem Nutzertext — aber es ist ein Punkt, den man im Hinterkopf behalten muss,
+falls sich das spaeter aendert.
+
+**Eine technische Lektion am Rande:** Mitten im Testen ist die Programmierumgebung kurz
+kaputt gegangen — ein bekanntes, bereits dokumentiertes Problem auf macOS, bei dem
+Systemdateien doppelt angelegt werden koennen. Der bekannte Reparaturschritt hat sofort
+funktioniert. Gut zu sehen, dass die eigene Dokumentation aus frueheren Taegen im
+Ernstfall tatsaechlich greift.
+
+**Naechster Schritt:** Phase D (die Such- und Beleg-Funktion) ist damit fertig. Als
+naechstes kommt Phase E — dort wird systematisch geprueft, wie gut das Gesamtsystem
+ueber viele Testfaelle hinweg wirklich ist, nicht nur in einzelnen Stichproben wie heute.
