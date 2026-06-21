@@ -12,6 +12,9 @@ Design notes:
 - Thresholds are injected via constructor (config-driven, not hardcoded).
   IP separation: threshold *values* live in config/zone_thresholds.yaml;
   the *logic* here is generic and shareable (interne Referenz (entfernt) §5).
+- Read-only properties (Tag 65) expose the injected thresholds for
+  diagnostic consumers (application/eval/breakdown.py) without changing
+  behavior — classify() is untouched.
 """
 
 from __future__ import annotations
@@ -77,6 +80,31 @@ class ZoneClassifier:
         self._cr_min = calculated_risk_min_benefit
         self._cr_max_c = calculated_risk_max_composite
         self._hd_threshold = handlungsdruck_elevation_threshold
+
+    @property
+    def likely_win_min_benefit(self) -> Decimal:
+        """Minimum expected benefit (EUR) required for LIKELY_WIN."""
+        return self._lw_min
+
+    @property
+    def likely_win_max_composite(self) -> int:
+        """Maximum composite score allowed for LIKELY_WIN."""
+        return self._lw_max_c
+
+    @property
+    def calculated_risk_min_benefit(self) -> Decimal:
+        """Minimum expected benefit (EUR) required for CALCULATED_RISK."""
+        return self._cr_min
+
+    @property
+    def calculated_risk_max_composite(self) -> int:
+        """Maximum composite score allowed for CALCULATED_RISK."""
+        return self._cr_max_c
+
+    @property
+    def handlungsdruck_elevation_threshold(self) -> int:
+        """Handlungsdruck score (1-5) at or above which elevation triggers."""
+        return self._hd_threshold
 
     def classify(
         self,

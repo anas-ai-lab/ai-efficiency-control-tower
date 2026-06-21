@@ -52,8 +52,13 @@ class TriageResult:
 _feasibility_checker = FeasibilityChecker()
 
 
-def _handlungsdruck_score(use_case: UseCaseInput) -> int:
-    """1-4 Handlungsdruck-Score aus drei Boolean-Feldern (Shift +1 fuer 1-Basis)."""
+def handlungsdruck_score(use_case: UseCaseInput) -> int:
+    """1-4 Handlungsdruck-Score aus drei Boolean-Feldern (Shift +1 fuer 1-Basis).
+
+    Oeffentlich seit Tag 65 (ADR-0031) -- wird neben evaluate_use_case() auch
+    von application/eval/breakdown.py genutzt, um den Score-Breakdown ohne
+    Verdopplung der Pipeline-Logik zu bauen.
+    """
     return (
         1
         + int(use_case.regulatory_pressure)
@@ -120,17 +125,15 @@ def evaluate_use_case(
     zone: ZoneResult | None = None
 
     if vorfilter.passes:
-        # ANPASSEN: Feldnamen fuer complexity (int 1-5) und cost (int 1-3) aus models.py
-        # Tipp: grep -n "complexity\|cost_level\|kosten" src/aect/domain/models.py
         composite = compute_composite_score(
-            complexity=use_case.implementation_complexity,  # ANPASSEN
-            cost=_cost_tier(use_case.estimated_license_cost_eur),  # ANPASSEN
+            complexity=use_case.implementation_complexity,
+            cost=_cost_tier(use_case.estimated_license_cost_eur),
             data_classification=use_case.data_classification,
         )
         zone = load_zone_classifier().classify(
             expected_benefit_eur=roi.expected_benefit_eur,
             composite_score=composite.total,
-            handlungsdruck_score=_handlungsdruck_score(use_case),
+            handlungsdruck_score=handlungsdruck_score(use_case),
         )
 
     return TriageResult(

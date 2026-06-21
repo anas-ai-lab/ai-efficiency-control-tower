@@ -16,7 +16,12 @@ import pytest
 from aect.domain.feasibility import FeasibilityResult
 from aect.domain.filters import FilterResult
 from aect.domain.models import UseCaseInput
-from aect.domain.pipeline import TriageResult, _cost_tier, evaluate_use_case
+from aect.domain.pipeline import (
+    TriageResult,
+    _cost_tier,
+    evaluate_use_case,
+    handlungsdruck_score,
+)
 from aect.domain.roi import ROIConfig, ROIResult, load_roi_config
 from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore
@@ -375,3 +380,16 @@ def test_is_actionable_all_branches(
     """is_actionable ist True genau fuer LIKELY_WIN und CALCULATED_RISK."""
     result = _minimal_triage(passed=passed, zone=zone)
     assert result.is_actionable == expected
+
+
+def test_handlungsdruck_score_counts_active_flags() -> None:
+    """1 Basis-Punkt + 1 pro aktivem Flag, Wertebereich 1-4."""
+    base = _make_use_case()
+    assert handlungsdruck_score(base) == 1
+
+    all_flags = _make_use_case(
+        regulatory_pressure=True,
+        competitive_pressure=True,
+        strategic_priority=True,
+    )
+    assert handlungsdruck_score(all_flags) == 4

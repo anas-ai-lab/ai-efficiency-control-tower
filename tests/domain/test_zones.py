@@ -130,6 +130,15 @@ class TestHandlungsdruckElevation:
         assert "3" in r.reason
 
 
+class TestThresholdProperties:
+    def test_exposes_configured_thresholds(self, clf: ZoneClassifier) -> None:
+        assert clf.likely_win_min_benefit == _LW_MIN
+        assert clf.likely_win_max_composite == _LW_MAX_C
+        assert clf.calculated_risk_min_benefit == _CR_MIN
+        assert clf.calculated_risk_max_composite == _CR_MAX_C
+        assert clf.handlungsdruck_elevation_threshold == _HD_THRESHOLD
+
+
 # ---------------------------------------------------------------------------
 # Property-based tests
 # ---------------------------------------------------------------------------

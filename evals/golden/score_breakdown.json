@@ -1,0 +1,101 @@
+{
+  "total_cases": 4,
+  "results": [
+    {
+      "case_id": "golden-001",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false,
+      "expected_benefit_eur": 52650.0,
+      "composite_total": 6,
+      "composite_complexity": 2,
+      "composite_cost": 2,
+      "composite_data_protection": 2,
+      "handlungsdruck_score": 1,
+      "base_zone": "CALCULATED_RISK",
+      "final_zone": "CALCULATED_RISK",
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 52,650 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+    },
+    {
+      "case_id": "golden-002",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true,
+      "expected_benefit_eur": 2700000.0,
+      "composite_total": 4,
+      "composite_complexity": 2,
+      "composite_cost": 2,
+      "composite_data_protection": 0,
+      "handlungsdruck_score": 2,
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Nutzen 2,700,000 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+    },
+    {
+      "case_id": "golden-003",
+      "passed_vorfilter": true,
+      "predicted_zone": "MARGINAL_GAIN",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false,
+      "expected_benefit_eur": 255150.0,
+      "composite_total": 8,
+      "composite_complexity": 5,
+      "composite_cost": 1,
+      "composite_data_protection": 2,
+      "handlungsdruck_score": 3,
+      "base_zone": "MARGINAL_GAIN",
+      "final_zone": "MARGINAL_GAIN",
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Composite 8 > CALCULATED_RISK-Obergrenze 7 -> Basis-Zone MARGINAL_GAIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
+    },
+    {
+      "case_id": "golden-004",
+      "passed_vorfilter": false,
+      "predicted_zone": null,
+      "expected_zone": null,
+      "is_match": null,
+      "expected_benefit_eur": null,
+      "composite_total": null,
+      "composite_complexity": null,
+      "composite_cost": null,
+      "composite_data_protection": null,
+      "handlungsdruck_score": 1,
+      "base_zone": null,
+      "final_zone": null,
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Vorfilter nicht bestanden (Theoretisches Potenzial, Stundeneinsparung, Nettonutzen). Keine Zonen-Bewertung moeglich."
+    }
+  ]
+}
