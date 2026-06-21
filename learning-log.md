@@ -2129,3 +2129,26 @@ Technischer Begriff dahinter, einfach erklaert: Es gibt nicht nur "stimmt uebere
 und "stimmt nicht ueberein", sondern noch einen dritten Zustand "kann (noch) nicht
 verglichen werden" -- und der wird bewusst nicht mit "stimmt nicht ueberein"
 verwechselt, weil das ein falsches Signal waere.
+
+## Tag 64 (21. Juni 2026): Wenn Mensch und Maschine sich nicht einig sind
+
+Heute ist zum ersten Mal getestet worden, ob das System und ein echter Mensch zu
+denselben Einschaetzungen kommen. Dafuer hat Anas drei Beispiel-Faelle gelesen und
+sich selbst ein Urteil gebildet ("lohnt sich das?") — bevor er wusste, was die
+Berechnung im Hintergrund sagen wuerde. Erst danach wurden beide Urteile
+verglichen.
+
+Ergebnis: bei einem von drei Faellen stimmten Mensch und System ueberein, bei
+zwei nicht. Das ist kein schlechtes Ergebnis fuer den ersten Versuch — es zeigt
+vor allem, dass die Vergleichsmethode funktioniert. Ob das System grundsaetzlich
+zu vorsichtig oder zu optimistisch rechnet, laesst sich aus drei Faellen noch
+nicht sagen.
+
+Ein Nebenbefund war wichtiger als die Zahl selbst: Bei der Beschreibung eines
+Falls wurde Anas versehentlich eine falsche Information genannt (zu viele
+"Dringlichkeits-Gruende" fuer den Fall). Nachdem das korrigiert wurde, blieb sein
+Urteil trotzdem gleich. Das zeigt zweierlei — zum einen, dass sein Urteil nicht
+einfach an Details haengt, zum anderen aber auch eine wichtige Lehre: Wie ein
+Fall einem Menschen vorgestellt wird, kann das Ergebnis eines Vergleichstests
+selbst beeinflussen. Das muss man im Hinterkopf behalten, sobald mehr Faelle auf
+diese Weise getestet werden.
