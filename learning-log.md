@@ -2152,3 +2152,32 @@ einfach an Details haengt, zum anderen aber auch eine wichtige Lehre: Wie ein
 Fall einem Menschen vorgestellt wird, kann das Ergebnis eines Vergleichstests
 selbst beeinflussen. Das muss man im Hinterkopf behalten, sobald mehr Faelle auf
 diese Weise getestet werden.
+
+## Tag 65 -- Warum stimmt die Maschine nicht mit dem Experten ueberein?
+
+Gestern hatte das System bei zwei von drei Testfaellen ein anderes Urteil
+gefaellt als ich selbst. Heute ging es darum, herauszufinden, woran das
+genau liegt -- nicht nur "es stimmt nicht ueberein", sondern "an dieser
+einen Stelle kippt die Entscheidung".
+
+Das System bewertet jeden Fall ueber mehrere Zwischenwerte: wie viel Nutzen
+er bringt, wie aufwaendig/riskant er ist (ein Punktwert aus Komplexitaet,
+Kosten und Datenschutz-Einstufung zusammengesetzt), und wie dringend er ist.
+Aus diesen Zwischenwerten ergibt sich am Ende eine von drei Kategorien:
+"lohnt sich klar", "lohnt sich mit Vorsicht" oder "lohnt sich eher nicht".
+Bisher sah man nur das Endergebnis, nicht die Zwischenwerte.
+
+Heute habe ich diese Zwischenwerte sichtbar gemacht. Ergebnis: bei beiden
+abweichenden Faellen lag der Aufwand-Punktwert nur knapp ueber der Grenze
+zur naechstbesseren Kategorie -- bei einem Fall fehlte sogar nur ein
+einziger zusaetzlicher Dringlichkeits-Grund, um automatisch hochgestuft zu
+werden.
+
+Das klingt erstmal beruhigend ("nur knapp daneben"), ist es aber nicht
+unbedingt. Es bedeutet: die Grenzen zwischen den drei Kategorien sind harte
+Kanten. Ein einziger Punkt mehr oder weniger entscheidet ueber eine ganz
+andere Einstufung, obwohl der zugrunde liegende Fall sich kaum veraendert
+hat. Mit nur drei Testfaellen kann ich nicht sagen, ob das System die
+Grenzen richtig gezogen hat und meine drei Faelle zufaellig nah dran liegen,
+oder ob die Grenzen grundsaetzlich zu scharf gezogen sind. Das ist ein
+ehrlich offener Punkt, kein geloestes Problem.
