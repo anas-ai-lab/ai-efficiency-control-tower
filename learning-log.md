@@ -2102,3 +2102,30 @@ der Vergleich ueberhaupt aussagekraeftig ist.
 Zusaetzlich habe ich ein Format festgelegt, in dem diese Testfaelle gespeichert werden
 (eine Zeile pro Fall, statt einer grossen Liste) -- das macht es einfacher, einzelne
 Faelle hinzuzufuegen oder zu vergleichen, ohne die ganze Datei neu zu schreiben.
+
+## Tag 63 — Der Pruefer fuer das System
+
+Heute hat das Projekt einen "Pruefer" bekommen, der die vier Beispiel-Faelle aus dem
+letzten Tag nimmt und durch dieselbe Berechnung schickt, die spaeter jede echte
+Einreichung durchlaeuft. Stell dir das vor wie eine Pruefung, bei der man die
+Musterloesung schon hat, aber dem Pruefer absichtlich erstmal keine verraet -- er
+rechnet trotzdem, kann sein Ergebnis nur noch nicht mit einem menschlichen Urteil
+abgleichen.
+
+Genau deshalb sagt der heutige Bericht bei allen vier Faellen "kein Vergleich
+moeglich" und nicht "richtig" oder "falsch". Das ist kein Fehler, sondern Absicht:
+Solange niemand von Hand gesagt hat, welche Einstufung ein Fall eigentlich verdient
+haette, darf das System das nicht selbst behaupten -- sonst wuerde man am Ende nur
+pruefen, ob das System sich selbst zustimmt. Das waere wie ein Schueler, der seine
+eigene Klausur korrigiert.
+
+Wichtig fuer spaeter: Sobald jemand (aktuell: ich selbst als Experte) bei einem Fall
+ein eigenes Urteil eintraegt, vergleicht der Pruefer ab sofort genau bei diesem einen
+Fall "hat die Maschine richtig gelegen oder nicht" -- die anderen, noch unbeurteilten
+Faelle bleiben davon komplett unberuehrt. Jeder Fall wird einzeln behandelt, keiner
+beeinflusst den anderen.
+
+Technischer Begriff dahinter, einfach erklaert: Es gibt nicht nur "stimmt ueberein"
+und "stimmt nicht ueberein", sondern noch einen dritten Zustand "kann (noch) nicht
+verglichen werden" -- und der wird bewusst nicht mit "stimmt nicht ueberein"
+verwechselt, weil das ein falsches Signal waere.
