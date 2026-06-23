@@ -1,111 +1,229 @@
-# AI Efficiency Control Tower
+# AI Efficiency Control Tower (AECT)
 
-> AI Use Case Intake & Triage Assistant for internal AI requests
+> Intelligenter Vorbewertungs- und Beratungs-Layer fuer interne AI-Use-Case-Antraege.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
-[![Status: In Development](https://img.shields.io/badge/status-in%20development-orange.svg)]()
-[![CI](https://github.com/USERNAME/REPO-NAME/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/REPO-NAME/actions/workflows/ci.yml)
+[![CI](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml)
+[![Coverage: 97%](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Problem
 
-Companies receive a growing number of internal AI requests — from HR, IT, Finance, Legal, and Operations.
-Most organizations have no structured process to evaluate these requests.
+Unternehmen erhalten eine wachsende Zahl interner AI-Anfragen -- aus HR, IT, Finance,
+Legal, Operations. Die meisten Organisationen haben keinen strukturierten Prozess um
+diese Anfragen zu bewerten.
 
-The result:
-- AI is applied where simple automation would suffice
-- High-risk use cases skip compliance review
-- Costs are unpredictable
-- Teams waste weeks building the wrong thing
+**Das Ergebnis:**
+- AI wird eingesetzt, wo einfache Automation ausreicht
+- Hochrisiko-Use-Cases umgehen Compliance-Reviews
+- Kosten sind nicht planbar
+- Teams verschwenden Wochen mit dem Aufbau der falschen Sache
 
-There is no lightweight, opinionated triage system that evaluates AI requests across business value, technical feasibility, cost, risk, and compliance — before a single line of code is written.
-
----
-
-## Solution
-
-The **AI Efficiency Control Tower** is a production-oriented intake and triage system for internal AI use cases.
-
-It evaluates incoming requests across:
-
-- **AI suitability** — Is AI the right tool, or is rule-based automation better?
-- **Privacy & compliance risk** — Does this touch personal data? Is a DPIA required?
-- **Technical complexity** — RAG needed? Function calling? Human review?
-- **Cost estimate** — Monthly token cost, low/expected/high range
-- **Implementation effort** — Rough person-week estimate
-- **Recommended approach** — With rationale and next steps
-
-Output: A structured, source-grounded assessment report — not a chatbot response.
+Kein leichtgewichtiges, meinungsstarkes Triage-System bewertet AI-Anfragen ueber
+Geschaeftswert, technische Machbarkeit, Kosten, Risiko und Compliance -- bevor eine
+einzige Zeile Code geschrieben wird.
 
 ---
 
-## What this is NOT
+## Loesung
 
-- Not a generic AI chatbot
-- Not a project management tool
-- Not a decision engine that replaces human judgment on high-risk cases
-- Not a fine-tuned model
-- Not a SaaS product (MVP scope)
-- Not a replacement for a DPIA or legal review
+**AECT** ist ein produktionsorientiertes Intake- und Triage-System fuer interne AI-Use-Cases.
+
+Es bewertet Einreichungen entlang von:
+
+- **AI-Eignung** -- Ist AI das richtige Werkzeug, oder reicht Regelbasierung / RPA?
+- **ROI-Schaetzung** -- Erwarteter Jahresnutzen minus Lizenzkosten, differenziert nach Mitarbeiterkategorie
+- **Privacy & Compliance** -- Beruehrt das personenbezogene Daten? DSFA-Pflicht?
+- **Technische Machbarkeit** -- Aufwandsscore, Stack-Fit, Komplexitaets-Einschaetzung
+- **Loesungsvorschlag** -- Konkrete Zielplattform mit Begruendung (Open WebUI, Copilot Studio, Foundry, SAP BTP)
+- **Compliance-Hinweise** -- RAG-gegruendete Hinweise mit Quellenangabe (DSGVO, EU AI Act)
+
+**Output:** Ein zweischichtiger, maschinell validierter Report -- Business-Zusammenfassung
+fuer Entscheider und technische Detailebene fuer Reviewer.
 
 ---
 
-## Architecture (High-Level)
-Intake (n8n Form / API) → Rule-based Triage → LLM Assessment (optional)
-→ RAG Knowledge Base (Governance, GDPR, Cost) → Structured Report
-→ Human Review (if risk: high or critical) → Audit Trail
-Full architecture: see `docs/architecture.md` (in progress)
+## Was AECT nicht ist
+
+- Kein Ersatz fuer das Internes Gremium / die menschliche Entscheidung -- es liefert Entscheidungsunterstuetzung
+- Keine Rechts- oder Datenschutzberatung -- nur belegte Hinweise zur eigenen Pruefung
+- Kein produktives Firmensystem -- privates Portfolio-Build
+- Kein Fine-tuned Model -- Regelengine + RAG + LLM-Prompting
+- Kein SaaS-Produkt
 
 ---
 
-## Tech Stack (Planned)
+## Architektur
 
-| Layer | Technology |
+```
+POST /triage
+     |
+     v
+Pydantic V2 Input Validation (extra="forbid", max_length)
+     |
+     v
+Rule Engine (deterministisch, kein LLM)
+  +-- ROI / Value Model     (Lookup-Tabellen aus Config)
+  +-- Vorfilter             (Potenzial >= 20k EUR, Stunden >= 120h)
+  +-- AI-vs-Automation      (Entscheidungsbaum)
+  +-- Composite Effort Score
+  +-- 3-Zonen-Einstufung   (MARGINAL GAIN / CALCULATED RISK / LIKELY WIN)
+     |
+     v
+LLM Layer -- Azure OpenAI gpt-4.1-mini (optional, graceful degradation)
+  +-- POST /cases/{id}/sharpen           Use-Case-Schaerfung (Original + geschaerft)
+  +-- POST /cases/{id}/propose-solution  Stack-passender Loesungsvorschlag
+  +-- POST /cases/{id}/compliance-hints  RAG-gegruendete Compliance-Hinweise
+               |
+               v
+          RAG Pipeline
+            +-- ChromaDB (Dense Vector, all-MiniLM-L6-v2)
+            +-- BM25 (hand-rolled Okapi BM25, k1=1.5, b=0.75)
+            +-- Hybrid Search (Reciprocal Rank Fusion)
+            +-- Cross-Encoder Reranking
+     |
+     v
+POST /cases/{id}/report
+  +-- BusinessSummary  (Entscheider-Schicht)
+  +-- TechnicalDetail  (Reviewer-Schicht)
+```
+
+**Drei-Schichten-Prinzip:**
+- **Regeln** fuer das Eindeutige (ROI, Zonen, Routing) -- deterministisch, getestet, nie halluziniert
+- **RAG** fuer Belege (DSGVO, EU AI Act, Stack-Doku) -- jeder Hinweis mit Quelle
+- **LLM** fuer Ambiguitaet und Sprache (Schaerfung, Loesungsskizze) -- entscheidet nichts ueber Compliance oder Freigabe
+
+Vollstaendige Architektur-Dokumentation: `docs/architecture.md`
+
+---
+
+## Tech Stack
+
+| Schicht | Technologie |
 |---|---|
-| Language | Python 3.12 |
-| API | FastAPI (async) |
-| Domain Models | Pydantic V2 |
-| Database | SQLite + SQLModel |
-| LLM Provider | Azure OpenAI (GPT-4.1-mini) |
-| Vector DB | ChromaDB (local) |
-| Search | BM25 + Dense Hybrid |
-| Workflow | n8n (self-hosted) |
-| Deployment | Docker + Azure Container Apps |
-| Observability | structlog + OpenTelemetry |
+| Sprache | Python 3.12 |
+| API | FastAPI (async) + Pydantic V2 |
+| Datenbank | SQLite (raw, kein ORM) |
+| LLM Provider | Azure OpenAI (gpt-4.1-mini, EU-Data-Zone Sweden Central) |
+| Vector DB | ChromaDB 1.5.x (lokal, Docker) |
+| Embedding | sentence-transformers all-MiniLM-L6-v2 (lokal, in-process) |
+| Search | BM25 (hand-rolled) + Dense Vector + RRF-Hybrid + Cross-Encoder Reranking |
+| Resilience | tenacity (Retry / Backoff / Timeout) |
+| Auth | API-Key (X-API-Key Header, pydantic-settings) |
+| Rate Limiting | slowapi |
+| Logging | structlog (JSON, Correlation-ID, PII-Allowlist) |
+| Testing | pytest, pytest-asyncio, hypothesis, respx |
+| Qualitaet | ruff, mypy --strict, bandit, pip-audit |
+| Package Mgmt | uv |
+| CI | GitHub Actions (Node 24, gitleaks, pip-audit, bandit) |
 
 ---
 
-## Project Status
+## Engineering-Entscheidungen (Auswahl)
 
-**Week 1 of 24 — Setup & Foundation**
+| Entscheidung | ADR | Begruendung |
+|---|---|---|
+| Regelengine vor LLM | [ADR-001](docs/adr/ADR-001-roi-modell.md), [ADR-003](docs/adr/ADR-003-ai-vs-automation.md) | Deterministisches Verhalten, testbar, keine Halluzinierung fuer klare Kriterien |
+| Hexagonale Architektur | [ADR-002](docs/adr/ADR-004-hexagonal-architecture.md), [0002](docs/adr/0002-hexagonale-architektur.md) | Austauschbare Adapter fuer LLM, DB, Embeddings ohne Domain-Kopplung |
+| Hybrid Search (BM25 + Vektor + RRF) | [0027](docs/adr/0027-hybrid-search-bm25-rrf.md) | Keyword-Treffer (BM25) + semantische Naehe ergaenzen sich; RRF robuster als Score-Fusion |
+| Cross-Encoder Reranking | [0028](docs/adr/0028-cross-encoder-reranking.md) | Bi-Encoder-Recall + Cross-Encoder-Precision: hoehere Retrieval-Qualitaet fuer Compliance-Hinweise |
+| Citations-before-LLM | [0024](docs/adr/0024-rag-grounded-compliance-hints.md) | Halluzinierte Gesetzesartikel strukturell verhindert: Quellen aus Retrieval-Metadaten, nicht aus Modellwissen |
+| Semantic Caching / Model Routing abgelehnt | [0034](docs/adr/0034-semantic-caching-model-routing.md) | 0,003 EUR/Case, PII-in-Cache-Risiko, semantisch einzigartige Einreichungen = niedrige Hit-Rate |
+| Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung ausstehend; Demo via localhost vollstaendig erfuellbar |
 
-This project is being built as part of a 24-week AI Engineering learning plan.
-See `learning-log.md` for weekly progress.
+Alle 41 ADRs: `docs/adr/`
 
 ---
 
-## Repository Structure
-src/aect/          # Application source code
-tests/             # Test suite
-docs/              # Architecture, ADRs, frameworks
-knowledge_base/    # Governance and compliance documents
-evals/             # Evaluation datasets and reports
-workflows/         # n8n workflow exports
-prompts/           # Versioned prompt files
-sample_reports/    # Example triage outputs
-src/aect/          # Application source code
-tests/             # Test suite
-docs/              # Architecture, ADRs, frameworks
-knowledge_base/    # Governance and compliance documents
-evals/             # Evaluation datasets and reports
-workflows/         # n8n workflow exports
-prompts/           # Versioned prompt files
-sample_reports/    # Example triage outputs
+## Evaluation
+
+Evaluiert auf 4 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen Faellen:
+
+| Metrik | Wert |
+|---|---|
+| Agreement Rate (Golden Cases, n=3 gelabelt) | 1/3 (33 %) |
+| Identifiziertes Problem | Hard-Threshold-Brittleness: Off-by-one-Mismatches an Zonengrenzen |
+| Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
+| Test-Coverage | 97 % (448 Tests) |
+
+Bekannte Limitation: praeiktive Validitaet (Plan-Nutzen vs. realisierter Nutzen) nicht
+messbar im privaten Build -- dokumentiert in `docs/limitations.md`.
+
 ---
 
-## Author
+## Quick Start
 
-Built by [Anas] as a capstone project for the AI Engineering Master Plan v2.
-GitHub: [github.com/anas-ai-lab](https://github.com/anas-ai-lab)
+**Voraussetzungen:** Python 3.12, uv, Docker
+
+```bash
+git clone https://github.com/anas-ai-lab/ai-efficiency-control-tower.git
+cd ai-efficiency-control-tower
+
+uv sync
+docker compose up -d          # ChromaDB starten
+uv run python scripts/seed_knowledge_base.py
+uv run uvicorn aect.adapters.api.app:app --reload
+uv run pytest -q
+```
+
+API-Dokumentation nach Start: http://localhost:8000/docs
+
+**Umgebungsvariablen** (`.env`, nicht committed):
+
+```
+AECT_API_KEY=<beliebiger-string>
+AECT_DB_PATH=aect.db
+
+# Leer lassen -> Mock-LLM-Adapter (Rule Engine laeuft vollstaendig)
+AECT_AZURE_OPENAI_ENDPOINT=https://...
+AECT_AZURE_OPENAI_API_KEY=<key>
+AECT_AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
+
+# Leer lassen -> Mock-Retriever (Compliance-Hinweise als Platzhalter)
+AECT_CHROMA_HOST=127.0.0.1
+AECT_CHROMA_PORT=8001
+```
+
+Ohne Azure- und Chroma-Konfiguration laeuft das System vollstaendig mit Mock-Adaptern --
+Rule Engine, ROI-Modell, Zonen-Einstufung und Triage-Report funktionieren, LLM-Schaerfung
+und RAG-Hinweise liefern Platzhalter-Antworten.
+
+---
+
+## Repository-Struktur
+
+```
+src/aect/
+  domain/        # Regelengine, ROI-Modell, Zonen-Logik (kein Framework-Import)
+  application/   # Application Service, Ports (LLM, RAG, Repo), Eval-Runner
+  adapters/
+    api/         # FastAPI-Routen, Auth, Rate-Limiting, Middleware
+    llm/         # Azure-OpenAI-Adapter, Resilience-Wrapper
+    rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
+    sqlite/      # SQLite-Repository, Idempotency-Store
+    in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
+tests/           # 448 Tests, 97 % Coverage (pytest, hypothesis, respx)
+evals/
+  golden/        # 4 manuell gelabelte Golden Cases (JSONL)
+  synthetic/     # 36 synthetisch generierte Faelle (JSONL)
+knowledge_base/  # Kuratierte Markdown-Quellen (DSGVO, EU AI Act, Stack-Doku)
+prompts/         # Versionierte Prompt-Dateien (v1)
+config/          # TOML/YAML-Config (ROI-Faktoren, Zonen-Schwellen, Stack-Optionen)
+scripts/         # Seeder, Eval-Runner, Diagnostics, synthetische Case-Generierung
+docs/
+  adr/           # 41 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
+  reviews/       # Phasen-Reviews (A-F)
+  threat-model.md
+  limitations.md
+  architecture.md
+```
+
+---
+
+## Autor
+
+Gebaut von Anas als privates Karriere-Portfolio-Projekt (AI Engineer / Solution Architect, DACH-Markt).
+
+GitHub: [anas-ai-lab](https://github.com/anas-ai-lab)
