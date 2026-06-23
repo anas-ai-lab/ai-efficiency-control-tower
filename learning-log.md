@@ -2216,3 +2216,35 @@ dauerhaft laufenden CI-Test statt zu einem einmaligen Handcheck. Ohne
 diese Trennung -- Golden-Cases fuer Korrektheit, Synthetic-Cases fuer
 Robustheit -- haette man entweder wenig Vertrauen in die Stabilitaet
 oder Zahlen produziert, die wie Guete-Beweis aussehen aber keiner sind.
+
+## Tag 67 — Ein Schalter der nichts umschaltet ist keiner
+
+Im Gate-Dokument stand ein Befehl, der das Eval-System mit einem
+Provider-Flag aufrufen sollte: mock oder azure. Das Problem -- der Befehl
+existierte nicht, und der Wrapper haette auch nichts gebracht. Der
+Eval-Runner schickt Use Cases durch Rechenregeln, nicht durch ein
+KI-Modell. Ob du mock oder azure einstellst, das Ergebnis waere dasselbe
+gewesen -- wie ein Lichtschalter, der an beiden Stellungen dasselbe Licht
+anmacht.
+
+Die Entscheidung war: Wrapper bauen oder Protokoll korrigieren. Bauen
+haette ein Interface erzeugt das von aussen eine Auswahl verspricht die
+innen nicht existiert. Das ist teurer als es klingt -- wer das System
+spaeter betrachtet, wuerde einen Provider-Schalter sehen und annehmen,
+dass mock und azure sich im Eval unterschiedlich verhalten. Tun sie nicht.
+Falsches Interface, falsches Verstaendnis.
+
+Also: Protokoll korrigieren, ADR schreiben, erklaeren warum kein Wrapper.
+Dieselbe Logik steckt in der limitations.md, die heute ebenfalls entstand.
+Sie sagt nicht "das System funktioniert", sie sagt was das System beweist
+und was nicht. Agreement-Rate 1/3 klingt schlecht -- ist es nicht, wenn
+man weiss dass die zwei Mismatches Grenzwert-Faelle sind, keine groben
+Fehlurteile. Und praediktive Validitaet, also ob die ROI-Schaetzung
+hinterher gestimmt hat, laesst sich im privaten Build strukturell nicht
+messen, weil kein einziger Use Case je produktiv umgesetzt wird und
+Ergebnisse zurueckfliessen.
+
+Ohne limitations.md wuerde jemand die Agreement-Rate lesen und ein
+Urteil faellen ohne Kontext. Mit ihr faellt dasselbe Urteil informiert.
+Das ist der Unterschied zwischen einem Ergebnis das sich selbst erklaert
+und einem das interpretiert werden muss ohne Schluessel.
