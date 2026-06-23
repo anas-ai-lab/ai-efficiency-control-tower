@@ -2248,3 +2248,34 @@ Ohne limitations.md wuerde jemand die Agreement-Rate lesen und ein
 Urteil faellen ohne Kontext. Mit ihr faellt dasselbe Urteil informiert.
 Das ist der Unterschied zwischen einem Ergebnis das sich selbst erklaert
 und einem das interpretiert werden muss ohne Schluessel.
+
+## Tag 68 — Warum sich ein System nicht selbst pruefen darf
+
+In Phase E haben wir am Ende keine neue Funktion gebaut, sondern aufgeschrieben
+was wir herausgefunden haben -- und wo die Grenzen des Herausgefundenen liegen.
+Das klingt nach Verwaltungsarbeit, ist aber der Punkt an dem Bauen und Denken
+sich trennen.
+
+Die interessante Frage war: Wir haben 36 Faelle automatisch erzeugt und durch
+das System geschickt. Warum koennen diese Faelle kein erwartetes Urteil bekommen?
+Der Rechenkern ist deterministisch -- gleiche Eingabe, gleiches Ergebnis, immer.
+Man koennte also das System einmal laufen lassen, das Ergebnis als "erwartet"
+eintragen, und beim naechsten Lauf pruefen ob es noch stimmt.
+
+Das Problem: Man wuerde nur messen ob das System sich selbst treu bleibt.
+Nicht ob es recht hat. Stell dir vor, eine Waage kalibriert sich dadurch, dass
+sie heute ihr eigenes Ergebnis als Eichgewicht nimmt. Sie bleibt danach konsistent
+-- aber wer sagt, dass sie beim ersten Mal richtig lag?
+
+Deshalb gibt es zwei getrennte Dinge: 36 Faelle die pruefen ob das System unter
+verschiedenen Eingaben stabil laeuft, ohne je eine rote Zahl zu werfen. Und 4
+Goldene Cases, bei denen ein Mensch unabhaengig geurteilt hat -- "diesen Fall
+wuerde ich als LIKELY WIN einschaetzen" -- und das System sich daran messen lassen
+muss. Die 36 belegen Robustheit. Die 4 belegen Richtigkeit. Beides braucht man,
+keines ersetzt das andere.
+
+Was heute noch dazukam: der Phase-F-Kickoff. Drei Bloecke -- zuerst Dokumentation
+(die Architektur-Entscheidungen die bewusst nicht gebaut wurden kommen in
+schriftliche ADRs), dann das Frontend, dann Haertung und Karriere-Assets. Der
+Reihe nach, nicht parallel -- weil ein Frontend auf einem nicht-erklaeerten System
+das schwaecher ist, nicht staerker.
