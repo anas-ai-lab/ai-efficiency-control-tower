@@ -2307,3 +2307,38 @@ fuer laufende Cloud-Ressourcen unverhältнismaessig).
 Was waere ohne diese Dokumente gewesen? Drei Luecken, die wie drei
 Wissensmangel aussehen. Mit Dokumentation: drei Abwaegungen, die
 zeigen dass Scope-Disziplin eine Entscheidung ist, kein Versaehen.
+
+## Tag 70 — Wann ein ⚠️ kein Fehler ist
+
+Ein Threat Model das nur gruene Haekchen zeigt luegt. Nicht weil
+alle Bedrohungen mitigiert waeren -- sondern weil jedes System
+Risiken hat die man akzeptiert, und der Unterschied zwischen
+"akzeptiert" und "uebersehen" nur durch Dokumentation sichtbar wird.
+
+Heute war das konkrete Problem: ChromaDB, die Vektor-Datenbank, hat
+keine Authentifizierung. Wer weiss wo der Port liegt, kann lesen.
+Das klingt nach Luecke. Ist es aber nicht -- weil der Port nur
+innerhalb von Docker erreichbar ist, genau ein Mensch das System
+bedient, und kein oeffentlicher Server dahintersteht. Ein WARN
+bedeutet: "das wuerde sich aendern muessen, wenn der Kontext sich
+aendert." Wer das nicht dokumentiert, kann den Unterschied zwischen
+bewusster Entscheidung und schlampiger Ausfuehrung von aussen nicht
+zeigen. Ein Interviewer sieht beides gleich aus -- ausser wenn ein
+STRIDE-Dokument auf dem Tisch liegt das erklaert warum der Kontext
+die Einschaetzung bestimmt.
+
+Dasselbe Prinzip in der README: Ein "Was dieses System nicht ist"-
+Abschnitt klingt defensiv. Ist es nicht. Er verhindert dass jemand
+das System mit dem falschen Massstab bewertet. Ein Compliance-
+Verantwortlicher der liest "keine Rechtsberatung, nur belegte
+Hinweise zur eigenen Pruefung" stellt eine andere Frage als jemand
+der das ueberspringt und dann fragt warum das Tool keinen DSB
+ersetzt. Den Rahmen zu setzen bevor jemand den falschen anlegt ist
+keine Schwaeche -- es ist Kontrolle ueber das Gespraech.
+
+Ohne diese Dokumentation haette das System denselben Code, aber
+weniger Verteidigbarkeit. Die Bedrohungsanalyse waere im Kopf,
+nicht auf Papier. Ein Interview-Fragesteller der "Wie habt ihr
+euer System abgesichert?" fragt bekommt dann eine Antwort die
+klingt wie eine Aufzaehlung -- statt einer die zeigt, dass jede
+Entscheidung einen Kontext und eine Begruendung hat.
