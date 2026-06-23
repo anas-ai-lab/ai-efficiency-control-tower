@@ -34,6 +34,8 @@ from aect.domain import (
 
 GOLDEN_CASES_PATH = Path("evals/golden/use_cases.jsonl")
 
+SYNTHETIC_CASES_PATH = Path("evals/synthetic/use_cases.jsonl")
+
 
 @pytest.fixture(scope="module")
 def roi_config() -> ROIConfig:
@@ -201,3 +203,31 @@ class TestWriteReport:
         write_report(results, nested_path)
 
         assert nested_path.exists()
+
+
+class TestRunEvalOnSyntheticCases:
+    """Tag 66: operationalisiert das Gate-E->F-Kriterium aus
+    session-protocol v3 SS2 (>= 30 Cases ohne Crash) als pytest-Regression
+    statt als einmaligen Skript-Lauf."""
+
+    def test_runs_without_crash_on_all_synthetic_cases(
+        self, roi_config: ROIConfig
+    ) -> None:
+        cases = load_eval_cases(SYNTHETIC_CASES_PATH)
+        assert len(cases) >= 30
+        results = run_eval(cases, roi_config)
+        assert len(results) == len(cases)
+
+    def test_report_has_no_labeled_cases(
+        self, roi_config: ROIConfig, tmp_path: Path
+    ) -> None:
+        """Synthetic-Cases sind unlabeled -- agreement_rate ist strukturell
+        None, kein Fehlerfall (siehe write_report())."""
+        cases = load_eval_cases(SYNTHETIC_CASES_PATH)
+        results = run_eval(cases, roi_config)
+        report_path = tmp_path / "synthetic_report.json"
+        write_report(results, report_path)
+
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert report["labeled_cases"] == 0
+        assert report["agreement_rate"] is None

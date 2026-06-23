@@ -10,6 +10,7 @@ from aect.application.eval import EvalCase, EvalCaseLoadError, load_eval_cases
 from aect.domain import TriageZone
 
 GOLDEN_CASES_PATH = Path("evals/golden/use_cases.jsonl")
+SYNTHETIC_CASES_PATH = Path("evals/synthetic/use_cases.jsonl")
 
 
 class TestLoadEvalCases:
@@ -62,3 +63,23 @@ class TestLoadEvalCases:
         f.write_text(f"\n{good_line}\n\n", encoding="utf-8")
         cases = load_eval_cases(f)
         assert len(cases) == 1
+
+
+class TestLoadSyntheticCases:
+    """Tag 66: Volumen-/Crash-Test-Cases (Gate E->F, Master-Plan v3.1)."""
+
+    def test_loads_at_least_30_cases(self) -> None:
+        cases = load_eval_cases(SYNTHETIC_CASES_PATH)
+        assert len(cases) >= 30
+
+    def test_case_ids_are_unique(self) -> None:
+        cases = load_eval_cases(SYNTHETIC_CASES_PATH)
+        case_ids = [case.case_id for case in cases]
+        assert len(case_ids) == len(set(case_ids))
+
+    def test_all_cases_unlabeled(self) -> None:
+        """Synthetic-Cases sind bewusst ohne Experten-Label (siehe
+        generate_synthetic_cases.py) -- der Abgleich laeuft ueber die
+        Golden-Cases."""
+        cases = load_eval_cases(SYNTHETIC_CASES_PATH)
+        assert all(case.expected_zone is None for case in cases)
