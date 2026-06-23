@@ -2279,3 +2279,31 @@ Was heute noch dazukam: der Phase-F-Kickoff. Drei Bloecke -- zuerst Dokumentatio
 schriftliche ADRs), dann das Frontend, dann Haertung und Karriere-Assets. Der
 Reihe nach, nicht parallel -- weil ein Frontend auf einem nicht-erklaeerten System
 das schwaecher ist, nicht staerker.
+
+## Tag 69 — Warum ein dokumentiertes "Nein" mehr wert ist als Schweigen
+
+Heute haben wir drei Dinge nicht gebaut — und genau das dokumentiert.
+Das klingt zuerst sinnlos, ist aber ein konkretes Portfolio-Problem:
+Wer von aussen auf ein GitHub-Repo schaut, sieht nur was drin ist.
+Was bewusst weggelassen wurde, ist unsichtbar — ausser wenn es ein
+Dokument gibt, das erklaert warum.
+
+Das ist dasselbe Problem wie bei einem Arzt, der keine Operation
+durchfuehrt. Der Befund ohne Dokumentation lautet: "hat nichts gemacht."
+Mit Dokumentation: "hat Alternativen geprueft, Risiken abgewaegt,
+entschieden dass konservative Behandlung ueberlegen ist." Gleiche
+Entscheidung, voellig andere Aussenwirkung.
+
+Konkret: Distributed Tracing via OpenTelemetry waere technisch trivial
+gewesen — die Bibliotheken sind bereits als transitive Abhaengigkeit
+installiert, ein Jaeger-Container waere eine Zeile Docker. Die
+Entscheidung dagegen (Single-Service, kein Microservice-Verbund, kein
+Problem das Tracing loest) steht jetzt im ADR mit Design-Skizze.
+Dasselbe fuer Semantic Caching (PII wuerde im Cache landen und kaskadierte
+Loeschung bei Datenschutzanfragen erzwingen) und fuer den Azure-Deploy
+(IP-Klaerung ausstehend, Demo via localhost vollstaendig, Teardown-Pflicht
+fuer laufende Cloud-Ressourcen unverhältнismaessig).
+
+Was waere ohne diese Dokumente gewesen? Drei Luecken, die wie drei
+Wissensmangel aussehen. Mit Dokumentation: drei Abwaegungen, die
+zeigen dass Scope-Disziplin eine Entscheidung ist, kein Versaehen.
