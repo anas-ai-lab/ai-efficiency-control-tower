@@ -2181,3 +2181,38 @@ hat. Mit nur drei Testfaellen kann ich nicht sagen, ob das System die
 Grenzen richtig gezogen hat und meine drei Faelle zufaellig nah dran liegen,
 oder ob die Grenzen grundsaetzlich zu scharf gezogen sind. Das ist ein
 ehrlich offener Punkt, kein geloestes Problem.
+
+## Tag 66 — Warum eine Maschine sich nicht selbst benoten kann
+
+Das Problem war ein bekanntes: der Eval-Runner hatte vier haendisch
+kuratierte Testfaelle, aber das Gate zum naechsten Projektabschnitt
+verlangte mindestens dreissig. Dreissig Cases von Hand erstellen waere
+Fleissarbeit ohne Erkenntnisgewinn -- also ein Generator, der per
+Raster arbeitet: fuenf verschiedene Abteilungen (HR, IT, Finanzen,
+Recht, Einkauf) als Prozess-Vorlagen, sechs quantitative Muster
+(winziges Volumen, mittleres Risikoprofil, alle Dringlichkeits-Flags
+gleichzeitig, hohe Frequenz bei kleiner Zeitersparnis pro Fall), plus
+sechs Grenzwert-Faelle an den Enden der erlaubten Eingabebereiche.
+Ergebnis: 36 Cases, die systematisch verschiedene Bereiche der
+Bewertungslogik abdecken.
+
+Die entscheidende Entwurfsfrage war, ob diese Cases ein "richtiges
+Ergebnis" bekommen sollten. Man haette einfach die Pipeline laufen
+lassen und das Ergebnis als Soll-Wert speichern koennen. Das waere so
+als wuerde ein Schueler seine eigene Pruefung korrigieren: er besteht
+garantiert, weil die Loesung per Definition mit dem uebereinstimmt,
+was er aufgeschrieben hat. Gemessen waere dann nur, ob der Code sich
+morgen noch genauso verhaelt wie heute -- Selbstkonsistenz, keine
+Korrektheit. Die vier Golden-Cases aus Tag 64 koennen als Massstab
+dienen, weil die Experten-Labels gesetzt wurden bevor die Pipeline
+ueberhaupt lief: unabhaengiges Urteil, das der Maschine gegenueber
+gestellt werden kann. Fuer die synthetischen Cases fehlt diese
+Unabhaengigkeit -- also bekommen sie bewusst kein Label.
+
+Was die 36 Cases stattdessen leisten: sie stellen sicher, dass die
+Pipeline bei breiterem Eingabe-Spektrum nicht abschmiert, und sie
+machen das Gate-Kriterium (dreissig Cases ohne Crash) zu einem
+dauerhaft laufenden CI-Test statt zu einem einmaligen Handcheck. Ohne
+diese Trennung -- Golden-Cases fuer Korrektheit, Synthetic-Cases fuer
+Robustheit -- haette man entweder wenig Vertrauen in die Stabilitaet
+oder Zahlen produziert, die wie Guete-Beweis aussehen aber keiner sind.
