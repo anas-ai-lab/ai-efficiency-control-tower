@@ -2342,3 +2342,28 @@ nicht auf Papier. Ein Interview-Fragesteller der "Wie habt ihr
 euer System abgesichert?" fragt bekommt dann eine Antwort die
 klingt wie eine Aufzaehlung -- statt einer die zeigt, dass jede
 Entscheidung einen Kontext und eine Begruendung hat.
+
+## Tag 71 -- Warum "PARTIAL" ehrlicher ist als "MITIGATED"
+
+Das System hat Citations-before-LLM. Das LLM erfindet keine Artikel-Nummern
+mehr, weil die Belege aus der Wissensbasis kommen, bevor das LLM formuliert.
+Das ist ein struktureller Schutz, kein bloss promptbasierter. Trotzdem steht
+LLM09 auf PARTIAL, nicht MITIGATED.
+
+Der Grund: Citations loesen nur das Problem der erfundenen Quelle. Was sie
+nicht loesen ist die Frage, ob der vorhergesagte Nutzen -- sagen wir 80.000 EUR
+Jahreseinsparung -- tatsaechlich eintritt. Das koennte man nur pruefen, wenn
+das System echte Use Cases bewertet hat, diese tatsaechlich umgesetzt wurden,
+und ein Jahr spaeter jemand nachschaut. Diesen Kreislauf gibt es im privaten
+Build nicht. Wer das verschweigt und trotzdem MITIGATED schreibt, beluegt den
+naechsten Leser der Checkliste.
+
+Dasselbe Prinzip galt fuer das Dockerfile. Der Non-root-User ist kein
+Selbstzweck: wenn ein Angreifer einen Weg in den Container findet, kann er
+ohne Root-Rechte nur den Prozess beschaedigen, nicht das Host-System darunter.
+Das ist keine Garantie, nur eine Huerde mehr -- und eine Huerde die nichts
+kostet ausser einer Zeile `USER aect` am richtigen Ort.
+
+Ohne diese Unterscheidung zwischen "strukturell geloest" und "nicht messbar
+unter diesen Bedingungen" waere die Checkliste ein Dokument das gut aussieht
+und nichts sagt. Mit ihr ist sie ein Dokument das verteidigt werden kann.
