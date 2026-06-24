@@ -2397,3 +2397,38 @@ warum 1/3 Agreement-Rate wertvoller ist als 36/36. Fuer Entscheider:
 warum "ist das ueberhaupt ein AI-Problem?" die erste Frage sein muss.
 Dasselbe System, drei verschiedene Argumente -- alle aus denselben Dateien
 im Repo belegbar.
+
+## Tag 73 -- Warum der Browser den API-Schluessel nie sehen darf
+
+Das Frontend ist das sichtbarste Teil von AECT, und genau hier
+lauert die unscheinbarste Sicherheitsfalle des ganzen Projekts.
+Ein einziges `NEXT_PUBLIC_` vor dem Variablennamen, und der
+API-Key landet im JavaScript-Bundle das jeder Browser-Nutzer
+herunterlaed und im Quelltext nachlesen kann. Die Loesung heisst
+Server Actions: eine Funktion die im gleichen Codebase steht,
+aber ausschliesslich auf dem Node.js-Server laeuft. Der Browser
+schickt seinen Request an Next.js auf Port 3000, Next.js leitet
+ihn mit dem Key weiter ans AECT-Backend auf Port 8000. So sieht
+der Browser weder den Key noch den direkten API-Endpunkt -- so
+als wuerde ein Empfang einen Besucher nicht selbst ins Buero
+schicken, sondern den Weg fuer ihn gehen.
+
+Der zweite Lernpunkt des Tages kam beim API-Key-Fehler selbst.
+`AECT_API_KEY` hat nichts mit Azure zu tun -- es ist ein
+beliebiger selbstdefinierter String der nur die FastAPI-Endpoints
+absichert, kein Credential das irgendwo ausgestellt wird. Der
+Azure-Key gehoert in `AZURE_OPENAI_API_KEY`. Beide Variablen
+haben aehnlich klingende Namen aber voellig unterschiedliche
+Zwecke: eine authentifiziert den Menschen gegenueber dem System,
+die andere authentifiziert das System gegenueber Azure. Wer das
+verwechselt bekommt 401-Fehler die aussehen als waere das System
+kaputt, obwohl nur die falsche Tuer aufgemacht wurde.
+
+Was ohne Server Actions passiert waere: direktes fetch() im
+Browser-Code, NEXT_PUBLIC_AECT_API_KEY als Env-Variable,
+und der Key sichtbar fuer jeden der F12 drueckt. Das ist nicht
+eine theoretische Schwaeche sondern der Standard-Fehler den
+Entwickler machen die schnell ein Frontend hochziehen wollen.
+Der Umweg ueber den Server kostet eine Abstraktionsebene,
+gibt aber strukturelle Sicherheit die keine Prompt-Regel
+nachtraeglich reparieren kann.
