@@ -1,0 +1,179 @@
+# Known Limitations — AI Efficiency Control Tower (AECT)
+
+> Limitationen offen benennen ist das staerkste Glaubwuerdigkeits-Asset
+> dieses Projekts (interne Referenz (entfernt) SS7). Gilt fuer v1 — Stand Juni 2026.
+
+---
+
+## 1. Praediktive Validitaet nicht messbar
+
+**Was:** AECT bewertet Use Cases im Vorfeld. Ob die vorhergesagten ROI-Werte
+tatsaechlich eintreten, laesst sich im privaten Build nicht messen.
+
+**Warum:** Praediktive Validitaet braeuchte einen geschlossenen Monitoring-Loop:
+eingereichter Case -> Bewertung -> Umsetzung -> gemessener Nutzen. Dieser
+Loop ist nur im produktiven Einsatz mit abgeschlossenen Cases messbar.
+
+**Konsequenz:** Die Agreement-Rate (AECT vs. Experten-Urteil) misst
+*Konsistenz* mit einer Bewertungsrubrik, nicht *Korrektheit* im Sinne
+tatsaechlicher Nutzeneintritt.
+
+**Stand:** Experten-Abgleich Tag 64 — Agreement X von Y gelabelten
+Golden-Cases. Detail in `evals/golden/report.json`.
+
+---
+
+## 2. Hard-Threshold-Brittleness
+
+**Was:** Die drei Zonen (MARGINAL_GAIN / CALCULATED_RISK / LIKELY_WIN) werden
+durch harte Zahlenschwellen in `config/zone_thresholds.yaml` getrennt.
+Werte knapp unterhalb einer Schwelle landen in der niedrigeren Zone,
+obwohl der Unterschied wirtschaftlich minimal ist.
+
+**Evidenz:** golden-001 und golden-003: beide predicted zones liegen je
+eine Zone neben der Experten-Einschaetzung (off-by-one). Score-Breakdown
+zeigt, dass die Abweichung aus kleinen Differenzen beim `expected_benefit_eur`
+oder `composite_total` resultiert -- keine falsche Berechnung, sondern
+eine Eigenschaft harter Grenzen auf kontinuierlichen Werten.
+
+**Konsequenz:** Ein Use Case mit 99.999 EUR Nutzen bei einer
+LIKELY_WIN-Schwelle von 100.000 EUR erhaelt eine andere Zone als der
+identische Case mit 100.001 EUR -- trotz wirtschaftlicher Aequivalenz.
+
+**v2-Kandidat:** Fuzzy-Zonen (Konfidenz-Intervall um die Schwelle) oder
+kontinuierlicher Bewertungs-Score statt diskreter Zonen.
+
+---
+
+## 3. Expert-Agreement auf kleinem Sample
+
+**Was:** 3 von 4 Golden-Cases sind gelabelt. Agreement-Rate: 1/3 (Stand
+Tag 64, golden-002 = match; golden-001, golden-003 = mismatch).
+
+**Konsequenz:** Statistisch nicht signifikant bei n=3. Eine Rate von 33%
+erlaubt keine Aussagen ueber die allgemeine Treffsicherheit des Systems.
+
+**Naechster Schritt (Post-v1):** Mehr Golden-Cases mit unabhaengigen
+Experten labeln, Cross-Rater-Agreement messen.
+
+---
+
+## 4. Synthetische Cases absichtlich unlabeled
+
+**Was:** 36 synthetische Cases in `evals/synthetic/use_cases.jsonl` sind
+bewusst `expected_zone: null` (ADR-0029).
+
+**Warum:** Self-Labeling (Pipeline generiert Ergebnis -> Ergebnis wird als
+expected_zone gesetzt -> Pipeline wird dagegen evaluiert) ist zirkulaere
+Validierung ohne Aussagewert. Synthetic Cases testen ausschliesslich
+Konsistenz (kein Crash, deterministisch) -- nicht inhaltliche Korrektheit.
+
+---
+
+## 5. Statische Wissensbasis
+
+**Was:** `knowledge_base/` enthaelt kuratierte Markdown-Dateien.
+Kein Live-Update aus EU-Amtsblatt, BSI oder anderen regulatorischen Quellen.
+
+**Konsequenz:** Nach Rechtsaenderungen (z. B. Digital Omnibus in Kraft)
+muessen KB-Dateien manuell aktualisiert werden. AECT prueft nicht,
+ob seine Compliance-Hinweise noch dem aktuellen Rechtsstand entsprechen.
+
+**v2-Kandidat:** Versioniertes KB-Update-Verfahren mit `last_reviewed`-Datum
+und automatisiertem Staleness-Alert (> 90 Tage ohne Review).
+
+---
+
+## 6. Fehlende Deduplizierung in Compliance-Hints
+
+**Was:** `generate_compliance_hints()` stellt bis zu zwei Retrieval-Queries
+(`_TRANSPARENCY_QUERY` + `_DSFA_QUERY`). Wenn beide Queries denselben Chunk
+zurueckgeben, erscheint er doppelt in der Citation-Liste.
+
+**Konsequenz:** Hinweistext kann doppelte [N]-Referenzen enthalten. Bei
+heutiger KB-Groesse (< 20 Dokumente) selten -- wae chst die KB, haeufiger.
+
+**Workaround:** Chunk-IDs vor dem Citation-Bau auf Set-Basis deduplizieren.
+Dokumentiert in `application/service.py` generate_compliance_hints() Docstring.
+
+---
+
+## 7. PII-Erkennung: Regex, kein NER
+
+**Was:** `sanitization.py` prueft Freitextfelder mit 4 Regex-Patterns auf
+Injection-Muster (DE/EN). Kein Named-Entity-Recognition fuer echte PII
+(Namen, IBAN, Geburtsdaten).
+
+**Konsequenz:** Ein Text mit "Max Mustermann" wird nicht erkannt und
+ungefiltert an den LLM-Call weitergereicht. PII-Schutz liegt beim Einreicher.
+
+**v2-Kandidat:** spaCy-NER als optionaler Pre-Processor vor LLM-Calls.
+
+---
+
+## 8. LLM-Output: Graceful Degradation, nicht Qualitaetspruefung
+
+**Was:** Bei strukturierten LLM-Outputs (Use-Case-Schaerfung) validiert AECT
+gegen ein Pydantic-Schema (ADR-0013). Validierungsfehler -> `raw_text` statt
+strukturierter Felder. Keine inhaltliche Qualitaetspruefung.
+
+**Konsequenz:** Eine sachlich falsche, aber schema-konforme Schaerfung wird
+akzeptiert. Human Review vor Freigabe ist nicht optional -- AECT unterstuetzt,
+ersetzt kein Urteil.
+
+---
+
+## 9. Compliance-Hinweise: Advisory, kein Rechtsurteil
+
+**Was:** Compliance-Hinweise sind belegte Hinweise mit Quellenangabe, immer
+als "zu pruefen" markiert (interne Referenz (entfernt) SS6). Kein juristisches Urteil,
+kein `dpia_required: true`.
+
+**Konsequenz:** Ein Hinweis "DSFA-Pruefung empfohlen" ersetzt keine
+Rechtsberatung und keine tatsaechliche DSFA.
+
+---
+
+## 10. Embedding-Modell: Nicht domain-spezifisch
+
+**Was:** `all-MiniLM-L6-v2` ist ein General-Purpose-Modell.
+Kein Fine-Tuning auf DSGVO/EU-AI-Act-Fachterminologie.
+
+**Konsequenz:** Semantische Aehnlichkeit bei Rechtsbegriffen ist approximiert.
+Cross-Encoder-Reranking kompensiert teilweise (ADR-0028), loest das Problem
+aber nicht vollstaendig.
+
+---
+
+## 11. Kein Produktivbetrieb
+
+**Was:** AECT ist ein privates Portfolio-Projekt (interne Referenz (entfernt) SS1).
+Kein Clustering, kein HA, kein automatisiertes Backup, kein Monitoring
+(Alerting-Konzept dokumentiert, nicht implementiert).
+
+**Konsequenz:** Kein SLA. Nicht fuer Kundendaten geeignet ohne
+Security-Hardening-Pass und IP-Klaerung (interne Referenz (entfernt) SS5).
+
+---
+
+## 12. Frontend fehlt (Phase F)
+
+**Was:** AECT ist aktuell API-only. Das benutzbare Frontend wird in Phase F
+mit Claude Code gebaut.
+
+**Konsequenz:** Demo erfordert laufenden uvicorn-Prozess und HTTP-Client
+(Demo-Skript oder curl). Kein Web-UI.
+
+---
+
+## 13. ADR-Doppelserie (Technische Schuld)
+
+**Was:** Zwei koexistierende ADR-Serien: `ADR-00X` (Phase A/B) und `0XXX`
+(Phase C+). Historisch gewachsen (session-protocol v3 SS6 Punkt 13).
+
+**Konsequenz:** Neue ADRs muessen `ls docs/adr/` pruefen statt eine Serie
+anzunehmen. Konsolidierung geplant fuer den Phase-F-ADR-Review-Pass.
+
+---
+
+*Letzte Aktualisierung: Juni 2026 -- v1. Post-v1-Punkte als Backlog.*

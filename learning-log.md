@@ -2367,3 +2367,33 @@ kostet ausser einer Zeile `USER aect` am richtigen Ort.
 Ohne diese Unterscheidung zwischen "strukturell geloest" und "nicht messbar
 unter diesen Bedingungen" waere die Checkliste ein Dokument das gut aussieht
 und nichts sagt. Mit ihr ist sie ein Dokument das verteidigt werden kann.
+
+## Tag 72 — Was ein fertiges System ausmacht
+
+Wer ein System baut, baut zwei Dinge gleichzeitig: das System selbst und
+das Argument dafuer. Heute war der Tag, an dem das zweite sichtbar wurde.
+
+Die technische Arbeit war ueberschaubar -- ein SBOM-Generator, ein
+Python-Skript, ein paar Markdown-Dateien. Das Aufwendige war die Frage,
+was ein Interviewer oder Hiring Manager in drei Minuten verstehen muss,
+um zu sagen: "Der weiss, was er tut."
+
+Die Antwort liegt nicht in der Coverage-Rate. Sie liegt darin, dass
+someone the weakness selbst benennt, bevor er gefragt wird. known_limitations.md
+mit 13 Punkten ist kein Beichtstuhl -- es ist ein Signal: wer die Grenzen
+seines Systems kennt, hat es verstanden. Wer sie verschweigt, hofft dass
+niemand fragt.
+
+Das Demo-Skript zeigt das Gleiche aus einer anderen Richtung: Der erste
+Schritt laedt die Test-Cases aus derselben JSONL-Datei, die das Eval-System
+verwendet. Kein hartkodierter Payload. Wenn sich das Input-Schema aendert,
+bricht das Demo -- und das soll so sein. Ein Demo das still falsche Werte
+zeigt ist schlimmer als eines, das mit einer klaren Fehlermeldung stoppt.
+
+Die LinkedIn-Posts waren die interessanteste Uebung. Drei Versionen,
+drei Zielgruppen. Fuer Techniker: die Citations-before-LLM-Entscheidung
+-- strukturelle Sicherheit statt Prompt-Disziplin. Fuer Evaluatoren:
+warum 1/3 Agreement-Rate wertvoller ist als 36/36. Fuer Entscheider:
+warum "ist das ueberhaupt ein AI-Problem?" die erste Frage sein muss.
+Dasselbe System, drei verschiedene Argumente -- alle aus denselben Dateien
+im Repo belegbar.
