@@ -112,7 +112,6 @@ def main() -> None:
         )
 
     _sep("SCHRITT 2: Use Case schaerfen  POST /cases/{id}/sharpen")
-    sharpened_text = None
     try:
         r = httpx.post(
             f"{BASE_URL}/cases/{case_id}/sharpen", headers=HEADERS, timeout=15
@@ -130,7 +129,7 @@ def main() -> None:
                     print(f"    - {textwrap.shorten(s, 72)}")
         elif sh.get("raw_text"):
             print(f"  [Mock] raw_text: {textwrap.shorten(sh['raw_text'], 80)}")
-    else:
+    elif r is not None:
         print(f"  [Schaerfung: {r.status_code}]")
 
     _sep("SCHRITT 3: Loesungsvorschlag  POST /cases/{id}/propose-solution")
