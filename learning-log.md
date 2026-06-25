@@ -2432,3 +2432,42 @@ Entwickler machen die schnell ein Frontend hochziehen wollen.
 Der Umweg ueber den Server kostet eine Abstraktionsebene,
 gibt aber strukturelle Sicherheit die keine Prompt-Regel
 nachtraeglich reparieren kann.
+
+## Tag 74 — Was passiert wenn die Werkzeuge streiken
+
+Heute sollte ein klarer Bautag werden: vier Komponenten, ein Commit,
+fertig. Stattdessen verbrachten wir zwei Stunden damit herauszufinden
+warum Next.js einfach nicht startete — kein Fehler, kein Output, nichts.
+Das ist die unangenehmste Art von Problem: wenn das System schweigt
+statt zu schreien.
+
+Die Ursache war eine stille Inkompatibilitaet. Node.js 24 und Next.js 16
+passen nicht zusammen — die nativen Compiler-Bibliotheken (SWC) werden
+fuer eine bestimmte Node-Version kompiliert und funktionieren mit einer
+anderen einfach nicht. Kein Warnhinweis, kein Absturz. Der Prozess
+startet, tut so als ob er arbeitet, und liefert nie ein Ergebnis. Als
+Analogie: wie ein Handwerker der mit dem falschen Schluesselsatz vor
+dem Schloss steht und schweigend wartet, statt zu sagen dass keiner
+der Schluessel passt. Die Loesung war Node 20 — eine aeltere, stabile
+Version — kombiniert mit einem Downgrade von Next.js 16 auf 15.
+
+Parallel dazu haben wir etwas Wichtiges an den Claude Code Prompts
+gelernt. Bisher lasen die Prompts wie Prosa-Anleitungen: "zeige das
+Original links, das Geschaerfte rechts, verwende dieses Styling".
+Claude Code interpretiert Prosa und fuellt Luecken mit eigenen
+Entscheidungen — meistens generische, die das Ergebnis nach
+"AI-generiertem" Design aussehen lassen. Der Unterschied zwischen
+einem guten und einem schlechten Prompt ist der Unterschied zwischen
+einem Bauplan und einer Beschreibung eines Gebaudes. Der neue Standard
+schreibt den vollstaendigen JSX-Render-Tree vor, erklaert jede
+Design-Entscheidung mit Begruendung, und stellt am Ende eine Frage
+die zeigt ob Claude Code den Sinn verstanden hat — nicht ob es die
+Regeln gelesen hat.
+
+Die vier gebauten Komponenten folgen diesem Prinzip konsequent.
+Die Zone-Anzeige ist das sichtbarste Beispiel: vorher ein kleines
+Pill-Element wie ein Filter-Tag, jetzt ein vollbreiter farbiger Block
+mit grosser Schrift. Dieselbe Information, voellig andere Aussage.
+Ein Pill sagt "Kategorie". Ein Block sagt "Urteil". Beides sind
+technisch Divs mit Hintergrundfarbe — der Unterschied liegt
+ausschliesslich in Groesse, Breite und Schriftgewicht.
