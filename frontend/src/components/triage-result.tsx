@@ -1,5 +1,6 @@
 "use client"
 
+import type { TriageResponse } from "@/types/api"
 import { formatEUR, ZONE_CONFIG, ZoneKey } from "@/lib/formatters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"

@@ -66,7 +66,7 @@ SentenceTransformer
 |---|---|---|---|---|---|
 | T-01 | Prompt Injection via Use-Case-Eingabe | FastAPI -> Azure | Mittel | `detect_injection_patterns()`, User-Input in abgegrenztem Block, Flag-not-block, LLM-Red-Team-Tests | OK LLM01 |
 | T-02 | Direkte SQLite-Datei-Manipulation | TB-4 (Filesystem) | Niedrig | OS-Rechte; kein oeffentlicher Zugriff | INFO Dokumentierte Limitation, lokales Build |
-| T-03 | ChromaDB-Embedding-Manipulation | TB-3 (Docker Volume) | Niedrig | chmod 700 auf Persist-Dir; Non-root im Container | WARN Non-root im Dockerfile noch offen (Phase-F-Hardening) |
+| T-03 | ChromaDB-Embedding-Manipulation | TB-3 (Docker Volume) | Niedrig | chmod 700 auf Persist-Dir; Non-root im Container | OK Non-root-User aect:aect (uid/gid 1000) im Dockerfile implementiert (Tag 75) |
 | T-04 | Knowledge-Base-Vergiftung | TB-4 (Filesystem) | Niedrig | Nur kuratierte Quellen, kein Upload-Endpoint | OK |
 | T-05 | LLM-Output-Injection in Downstream | FastAPI (Pydantic) | Mittel | Pydantic-Schema-Validation auf LLM-Output als untrusted; kein direktes SQL/Exec | OK LLM05 |
 
@@ -111,9 +111,9 @@ SentenceTransformer
 | ID | Punkt | Wird relevant bei |
 |---|---|---|
 | O-01 | ChromaDB ohne Auth (Port 8001) | Server-Deploy / Mehrbenutzerbetrieb |
-| O-02 | Non-root-User im Dockerfile | Server-Deploy |
+| O-02 | Non-root-User im Dockerfile | Erledigt Tag 75 -- USER aect:aect (uid/gid 1000) implementiert |
 | O-03 | Flaches API-Key-Auth (kein RBAC) | Mehrbenutzerbetrieb |
-| O-04 | SHA-Pinning der GitHub-Actions | Phase-F-Hardening-Pass (naechster Tag) |
+| O-04 | SHA-Pinning der GitHub-Actions | Erledigt Tag 75 -- alle Actions gepinnt |
 | O-05 | Branch Protection auf main (GitHub Free, privat) | Dokumentierte Limitation -- kein Handlungspunkt |
 
 ---
@@ -128,7 +128,7 @@ strukturell adressiert -- nicht nur durch Prompt-Disziplin, sondern durch Archit
 Pydantic-Validation als Pflichtschritt, Delimiter im Prompt, Rate Limiting, Max-Tokens-Cap.
 
 Drei Punkte werden handlungsrelevant sobald das System auf einem Server laeuft oder
-mehrere Nutzer hat: O-01, O-02, O-03. Dokumentiert in `docs/limitations.md`.
+mehrere Nutzer hat: O-01, O-03, S-03. Dokumentiert in `docs/limitations.md`.
 
 **Referenzen:** OWASP LLM Top 10 (2025) - STRIDE-Methodik - aect-security-checklist v2.1
 - ADR-006 (Auth) - ADR-0003 (LLM-Provider) - ADR-0010 (Azure-Adapter)
