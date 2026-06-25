@@ -1,13 +1,25 @@
 "use client"
 
 import { useState } from "react"
-import { TriageResponse, SharpenedCaseResponse, SolutionProposalResponse } from "@/types/api"
-import { sharpenCase, proposeSolution } from "@/app/actions"
+import type {
+  TriageResponse,
+  SharpenedCaseResponse,
+  SolutionProposalResponse,
+  ComplianceHintsResponse,
+  ReportResponse,
+} from "@/types/api"
+import {
+  sharpenCase,
+  proposeSolution,
+  generateComplianceHints,
+  generateReport,
+} from "@/app/actions"
 import IntakeForm from "@/components/intake-form"
 import TriageResult from "@/components/triage-result"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+import SharpenedView from "@/components/sharpened-view"
+import SolutionView from "@/components/solution-view"
+import ComplianceView from "@/components/compliance-view"
+import ReportView from "@/components/report-view"
 
 type Step = "form" | "triage" | "sharpened" | "solution" | "compliance" | "report"
 
@@ -25,24 +37,29 @@ export default function AectApp() {
   const [triageResult, setTriageResult] = useState<TriageResponse | null>(null)
   const [sharpenedResult, setSharpenedResult] = useState<SharpenedCaseResponse | null>(null)
   const [solutionResult, setSolutionResult] = useState<SolutionProposalResponse | null>(null)
+  const [complianceResult, setComplianceResult] = useState<ComplianceHintsResponse | null>(null)
+  const [reportResult, setReportResult] = useState<ReportResponse | null>(null)
 
   const [isSharpenLoading, setIsSharpenLoading] = useState(false)
-  const [isSolutionLoading, setIsSolutionLoading] = useState(false)
+  const [isProposeLoading, setIsProposeLoading] = useState(false)
+  const [isComplianceLoading, setIsComplianceLoading] = useState(false)
+  const [isReportLoading, setIsReportLoading] = useState(false)
 
   const [sharpenError, setSharpenError] = useState<string | null>(null)
   const [solutionError, setSolutionError] = useState<string | null>(null)
+  const [complianceError, setComplianceError] = useState<string | null>(null)
+  const [reportError, setReportError] = useState<string | null>(null)
 
-  function handleTriageSuccess(result: TriageResponse) {
+  function handleTriageSuccess(result: TriageResponse): void {
     setTriageResult(result)
     setCurrentStep("triage")
   }
 
-  async function handleSharpen() {
-    if (!triageResult) return
+  async function handleSharpen(): Promise<void> {
     setSharpenError(null)
     setIsSharpenLoading(true)
     try {
-      const result = await sharpenCase(triageResult.id)
+      const result = await sharpenCase(triageResult!.id)
       setSharpenedResult(result)
       setCurrentStep("sharpened")
     } catch (e) {
@@ -52,17 +69,45 @@ export default function AectApp() {
     }
   }
 
-  async function handlePropose() {
-    if (!triageResult) return
+  async function handlePropose(): Promise<void> {
     setSolutionError(null)
-    setIsSolutionLoading(true)
+    setIsProposeLoading(true)
     try {
-      const result = await proposeSolution(triageResult.id)
+      const result = await proposeSolution(triageResult!.id)
       setSolutionResult(result)
+      setCurrentStep("solution")
     } catch (e) {
       setSolutionError(e instanceof Error ? e.message : "Loesungsvorschlag fehlgeschlagen")
     } finally {
-      setIsSolutionLoading(false)
+      setIsProposeLoading(false)
+    }
+  }
+
+  async function handleCompliance(): Promise<void> {
+    setComplianceError(null)
+    setIsComplianceLoading(true)
+    try {
+      const result = await generateComplianceHints(triageResult!.id)
+      setComplianceResult(result)
+      setCurrentStep("compliance")
+    } catch (e) {
+      setComplianceError(e instanceof Error ? e.message : "Compliance-Pruefung fehlgeschlagen")
+    } finally {
+      setIsComplianceLoading(false)
+    }
+  }
+
+  async function handleReport(): Promise<void> {
+    setReportError(null)
+    setIsReportLoading(true)
+    try {
+      const result = await generateReport(triageResult!.id)
+      setReportResult(result)
+      setCurrentStep("report")
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : "Report-Generierung fehlgeschlagen")
+    } finally {
+      setIsReportLoading(false)
     }
   }
 
@@ -103,7 +148,8 @@ export default function AectApp() {
       {currentStep === "triage" && (
         <div className="space-y-4">
           {sharpenError !== null && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <div className="rounded-md border border-red-200 bg-red-50
+                            p-3 text-sm text-red-800">
               {sharpenError}
             </div>
           )}
@@ -116,133 +162,34 @@ export default function AectApp() {
       )}
 
       {currentStep === "sharpened" && sharpenedResult !== null && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Geschaerfte Beschreibung</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {sharpenedResult.sharpened_title !== null ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Original
-                      </p>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Titel</p>
-                          <p className="text-sm">{sharpenedResult.original_title}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Ist-Zustand</p>
-                          <p className="text-sm">{sharpenedResult.original_current_state}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Soll-Zustand</p>
-                          <p className="text-sm">{sharpenedResult.original_desired_state}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Geschaerft
-                      </p>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Titel</p>
-                          <p className="text-sm font-medium">
-                            {sharpenedResult.sharpened_title}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Ist-Zustand</p>
-                          <p className="text-sm">
-                            {sharpenedResult.sharpened_current_state ?? ""}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Soll-Zustand</p>
-                          <p className="text-sm">
-                            {sharpenedResult.sharpened_desired_state ?? ""}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {sharpenedResult.improvement_suggestions.length > 0 && (
-                    <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Verbesserungsvorschlaege
-                      </p>
-                      <ol className="list-decimal space-y-1 pl-5">
-                        {sharpenedResult.improvement_suggestions.map((s, i) => (
-                          <li key={i} className="text-sm">
-                            {s}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm font-medium text-yellow-900">
-                    Strukturierte Schaerfen nicht verfuegbar
-                  </div>
-                  {sharpenedResult.raw_text !== null && (
-                    <pre className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
-                      {sharpenedResult.raw_text}
-                    </pre>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {solutionResult !== null ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Loesungsvorschlag</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{solutionResult.proposal_text}</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {solutionError !== null && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                  {solutionError}
-                </div>
-              )}
-              <Button
-                onClick={handlePropose}
-                disabled={isSolutionLoading}
-                className="w-full"
-              >
-                {isSolutionLoading && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isSolutionLoading
-                  ? "Wird generiert..."
-                  : "Loesungsvorschlag generieren (KI)"}
-              </Button>
-            </div>
-          )}
-        </div>
+        <SharpenedView
+          result={sharpenedResult}
+          onPropose={handlePropose}
+          isProposeLoading={isProposeLoading}
+          proposeError={solutionError}
+        />
       )}
 
-      {currentStep === "solution" && (
-        <div>Naechster Schritt: solution wird in Tag 74 implementiert.</div>
+      {currentStep === "solution" && solutionResult !== null && (
+        <SolutionView
+          result={solutionResult}
+          onCompliance={handleCompliance}
+          isComplianceLoading={isComplianceLoading}
+          complianceError={complianceError}
+        />
       )}
 
-      {currentStep === "compliance" && (
-        <div>Naechster Schritt: compliance wird in Tag 74 implementiert.</div>
+      {currentStep === "compliance" && complianceResult !== null && (
+        <ComplianceView
+          result={complianceResult}
+          onReport={handleReport}
+          isReportLoading={isReportLoading}
+          reportError={reportError}
+        />
       )}
 
-      {currentStep === "report" && (
-        <div>Naechster Schritt: report wird in Tag 74 implementiert.</div>
+      {currentStep === "report" && reportResult !== null && (
+        <ReportView result={reportResult} />
       )}
     </main>
   )

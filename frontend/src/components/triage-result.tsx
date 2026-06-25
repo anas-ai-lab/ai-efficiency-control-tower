@@ -1,14 +1,11 @@
 "use client"
 
-import { TriageResponse, TriageZone } from "@/types/api"
 import { formatEUR, ZONE_CONFIG, ZoneKey } from "@/lib/formatters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
 
-// TriageZone is the canonical type for zone.final_zone values
-type _TriageZoneRef = TriageZone
 
 interface TriageResultProps {
   result: TriageResponse
@@ -22,22 +19,16 @@ export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResu
 
   return (
     <div className="space-y-4">
-      {/* 1. Zone-Badge */}
+      {/* 1. Zone-Verdikt */}
       {zone !== null && (
-        <div className="flex flex-col gap-1">
-          <span
-            className={`inline-flex items-center rounded-full px-4 py-2 text-base font-semibold ${zoneConfig?.badgeClass}`}
-          >
-            {zoneConfig?.labelDE}
-          </span>
-          <p className="text-sm text-muted-foreground">{zone.reason}</p>
-        </div>
-      )}
-
-      {/* 2. Handlungsdruck-Banner */}
-      {zone !== null && zone.handlungsdruck_elevated === true && (
-        <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm font-medium text-yellow-900">
-          Handlungsdruck erkannt — dieser Use Case wurde in eine hoehere Zone hochgestuft.
+        <div className={`rounded-lg px-4 py-4 ${zoneConfig?.badgeClass}`}>
+          <p className="text-lg font-bold">{zoneConfig?.labelDE}</p>
+          <p className="mt-1 text-sm opacity-75">{zone.reason}</p>
+          {zone.handlungsdruck_elevated && (
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wide opacity-70">
+              Hochgestuft wegen Handlungsdruck
+            </p>
+          )}
         </div>
       )}
 
