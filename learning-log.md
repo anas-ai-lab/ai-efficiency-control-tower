@@ -2471,3 +2471,45 @@ mit grosser Schrift. Dieselbe Information, voellig andere Aussage.
 Ein Pill sagt "Kategorie". Ein Block sagt "Urteil". Beides sind
 technisch Divs mit Hintergrundfarbe — der Unterschied liegt
 ausschliesslich in Groesse, Breite und Schriftgewicht.
+
+## Tag 75 — Ein Repo in der Cloud ist kein Repo
+
+Der Tag begann mit einem einzeiligen Bug: `triage-result.tsx` verwendete einen
+TypeScript-Typ ohne ihn zu importieren. Build rot, Fix trivial, zehn Sekunden.
+Was danach kam, dauerte laenger.
+
+Das geplante Hauptthema war SHA-Pinning von CI-Actions -- die Idee, dass
+`actions/checkout@v4` ein bewegliches Ziel ist. Wer den Tag `v4` auf GitHub
+umschreibt, liefert beim naechsten Automatik-Lauf beliebigen Code in die
+Pipeline. Ein SHA wie `de0fac2e...` zeigt dagegen auf exakt einen Commit,
+fuer immer, unveraenderlich. Das Script dafuer wurde gebaut -- und stellte dann
+fest, dass alle drei Actions laengst gepinnt waren. Null Aenderungen, korrektes
+Ergebnis.
+
+Die eigentliche Lektion kam beim Commit-Versuch. Der Push starb mit
+`pack-objects died of signal 10` -- auf macOS ist das ein SIGBUS, ein
+Speicher-Zugriffsfehler. `git fsck` folgte mit `mmap failed: Operation timed
+out`. Kein Speichermangel, kein korruptes Repo -- das Desktop-Verzeichnis ist
+unter iCloud Drive synchronisiert, erkennbar am `@`-Zeichen an den
+Verzeichnis-Rechten. iCloud und git wollten dieselbe Pack-Datei gleichzeitig
+anfassen: iCloud um sie in die Cloud zu laden, git um sie zu lesen. iCloud
+gewann, git starb.
+
+Die Analogie: ein Archiv das gleichzeitig von zwei Personen durchsucht wird,
+wobei eine gerade alle Akten in Umzugskartons packt. Wer dann versucht eine
+Akte zu oeffnen, findet nichts. Icloud-Sync pausiert, Push erfolgreich.
+
+Was ohne diesen Fehler nicht aufgefallen waere: Git-Repos gehoeren nicht in
+iCloud-synchronisierte Ordner. Das ist kein Einzelfall -- es ist ein bekanntes
+Inkompatibilitaetsproblem. Die Dauerloesung ist das Repo in einen Pfad
+ausserhalb von Desktop/Documents zu verschieben.
+
+Die zweite Lektion war methodischer Art. Zwei Dokumente -- OWASP-Checklist
+und Threat Model -- wurden im Guide als fehlend behandelt und neu generiert.
+Beide existierten bereits, vollstaendig, aus einem frueheren Commit. Der Fehler
+war, `ls docs/` nicht vor dem Schreiben angefordert zu haben. Die cat-Pflicht
+aus dem Session-Protokoll gilt nicht nur fuer Code-Interfaces, sondern fuer
+jedes Artefakt das ein Schritt beruehren wuerde. Haette ich das getan, waere
+der Guide halb so lang gewesen -- und die bestehenden Dokumente sind besser
+als meine generierten Versionen, weil sie konkrete ADR-Referenzen und
+differenzierte Status-Eintraege enthalten statt generischer Prosa.
