@@ -2574,3 +2574,48 @@ Phase D ist seit Tag 55 abgeschlossen. Der Satz war nie falsch gewesen, aber er
 war ueberholt, und wer den Prompt im Interview liest, sieht eine unfertige
 Implementierung statt einer bewussten Design-Entscheidung. Ohne den Audit
 waere er still im System geblieben bis zur ersten Praesentation.
+
+## Tag 78 — Der Guide war nicht die Wahrheit, das Repository war die Wahrheit
+
+G-S2 begann mit einer Anleitung, die sehr sicher klang: ADR-0020 lesen,
+Art.-50(2)-Nuance wahrscheinlich ergaenzen, Chunking pruefen, Dedup testen,
+Findings dokumentieren. Der erste wichtige Lerneffekt war, dass ein Guide kein
+Fakt ist. Er ist eine Hypothese. Das Repository entscheidet.
+
+Bei ADR-0020 zeigte sich genau das. Die Anleitung erwartete, dass die
+Art.-50(2)-Nuance wahrscheinlich fehlt: Art. 50 nicht verschoben, aber
+maschinenlesbare Wasserzeichen fuer Bestandssysteme mit Schonfrist bis
+2026-12-02. Beim Lesen der echten Datei war diese Nuance bereits vorhanden.
+Ein blindes Einfuegen haette keinen Mehrwert gebracht, sondern die Doku
+redundant gemacht. Die richtige Entscheidung war deshalb nicht "Fix anwenden",
+sondern "PASS dokumentieren".
+
+Der zweite Lerneffekt war technischer: Der vorgegebene Chunking-Befehl war
+kaputt. `build_index_records('knowledge_base')` uebergibt einen String, aber
+die Funktion ruft intern `.glob("*.md")` auf. Strings haben keine `.glob()`-
+Methode. Der korrekte Aufruf ist `build_index_records(Path("knowledge_base"))`.
+Nach dieser Korrektur lief der Test sauber: 5 Records, kein Front-Matter-Leak,
+vollstaendige Metadata. Damit war nicht das System fehlerhaft, sondern der
+Testbefehl im Guide.
+
+Besonders wichtig war die Citation-Pruefung. In `generate_compliance_hints()`
+werden die Quellenangaben vor dem LLM-Call gebaut. Das ist der entscheidende
+Architekturpunkt: Die Quelle kommt aus Retrieval-Metadaten, nicht aus dem
+Modell. Das LLM sieht nur nummerierte Chunks und darf im Text `[1]` oder `[2]`
+referenzieren. Welche echte Quelle dahintersteht, wird durch Code bestimmt.
+Damit wird eine ganze Fehlerklasse strukturell reduziert: halluzinierte
+Artikelnummern und nachtraeglich erfundene Quellen.
+
+Die Dedup-Pruefung war kein akuter Bug, aber ein sauberer v2-Punkt. Der Mock
+lieferte keine Duplikate. Trotzdem sammelt der echte Code Treffer aus mehreren
+Queries per `retrieved.extend(...)`. Wenn spaeter eine groessere Knowledge Base
+oder ein anderer Retriever denselben Chunk fuer mehrere Queries liefert, koennen
+doppelte Citations entstehen. Das ist kein P0 und kein Grund fuer einen v1-Fix,
+aber genau die Art von technischer Schuld, die in einem glaubwuerdigen Audit
+sichtbar sein sollte.
+
+Der Tag war damit weniger ein Coding-Tag als ein Review-Tag. Die wichtigste
+Faehigkeit war nicht, Text in Dateien zu kopieren, sondern falsche Annahmen zu
+stoppen. Gute Audits bestehen nicht daraus, Checklisten mechanisch abzuhaken.
+Sie bestehen daraus, jede Checklisten-Aussage gegen den echten Stand zu pruefen
+und dann eine klare Entscheidung zu treffen: Fix, PASS oder v2-Backlog.
