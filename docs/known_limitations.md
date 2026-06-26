@@ -156,13 +156,19 @@ Security-Hardening-Pass und IP-Klaerung (interne Referenz (entfernt) SS5).
 
 ---
 
-## 12. Frontend fehlt (Phase F)
+## 12. Frontend: lokal laufend, kein Cloud-Deploy
 
-**Was:** AECT ist aktuell API-only. Das benutzbare Frontend wird in Phase F
-mit Claude Code gebaut.
+**Was:** Das Next.js 15 Frontend (App Router, shadcn/ui) ist fertig und laeuft
+lokal auf Port 3000. 6-Schritt-Flow: Intake -> Triage -> Sharpen -> Solution ->
+Compliance -> Report.
 
-**Konsequenz:** Demo erfordert laufenden uvicorn-Prozess und HTTP-Client
-(Demo-Skript oder curl). Kein Web-UI.
+**Konsequenz:** Demo erfordert zwei laufende Prozesse (uvicorn + npm run dev)
+und Docker fuer ChromaDB. Kein öffentlicher URL -- privates Portfolio-Build
+(interne Referenz (entfernt) §1, §5, IP-Klaerung ausstehend).
+
+**Produktivbetrieb-Anforderungen:** Reverse-Proxy (NGINX/Caddy) vor beiden
+Services, HTTPS-Terminierung, Dockerfile fuer Frontend. Dokumentiert als
+Post-v1-Punkt (ADR-0035).
 
 ---
 

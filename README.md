@@ -58,6 +58,16 @@ fuer Entscheider und technische Detailebene fuer Reviewer.
 ## Architektur
 
 ```
+Browser (Next.js 15, App Router)
+  +-- Intake Form     (shadcn/ui + Zod, 10 Felder)
+  +-- Server Actions  (actions.ts) -- API-Key server-seitig, nie im Client
+  +-- Result Views    Triage | Sharpen | Solution | Compliance | Report
+      |
+      | HTTP (localhost:8000)
+      v
+FastAPI Backend (async, Python 3.12)
+      |
+      v
 POST /triage
      |
      v
@@ -148,6 +158,19 @@ Evaluiert auf 4 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen 
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
 | Test-Coverage | 97 % (448 Tests) |
 
+**Was die Eval-Zahlen bedeuten:**
+1/3 Agreement ist schwach -- und das ist der Punkt. Beide Abweichungen (golden-001, golden-003)
+sind Off-by-one-Fehler an Zonengrenzen: Das System berechnet korrekt, aber harte Schwellen
+auf kontinuierlichen Werten erzeugen Cliff-Effekte. Ein Use Case mit 99.999 EUR Jahresnutzen
+landet in einer anderen Zone als derselbe Case mit 100.001 EUR.
+
+Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
+Fuzzy-Zonen mit Konfidenz-Intervallen waeren robuster. Dokumentiert als v2-Kandidat
+in `docs/known_limitations.md` (Limitation #2).
+
+Die 36 synthetischen Cases beweisen Robustheit (kein Crash, deterministisch) --
+nicht inhaltliche Korrektheit. Zwei verschiedene Dinge, absichtlich nicht vermischt.
+
 Bekannte Limitation: praeiktive Validitaet (Plan-Nutzen vs. realisierter Nutzen) nicht
 messbar im privaten Build -- dokumentiert in `docs/limitations.md`.
 
@@ -169,6 +192,19 @@ uv run pytest -q
 ```
 
 API-Dokumentation nach Start: http://localhost:8000/docs
+
+**Frontend starten** (zweites Terminal, parallel zum uvicorn-Prozess):
+
+```bash
+cd frontend
+npm install        # einmalig
+npm run dev
+```
+
+UI nach Start: http://localhost:3000
+
+**Ohne Azure- und Chroma-Konfiguration** (Mock-Modus): Triage-Formular und Zone-Anzeige funktionieren,
+LLM-Schärfung und Compliance-Hints geben Platzhalter zurück.
 
 **Umgebungsvariablen** (`.env`, nicht committed):
 
@@ -221,6 +257,29 @@ docs/
 ```
 
 ---
+
+## Security & Privacy
+
+| Massnahme | Status | Artefakt |
+|---|---|---|
+| OWASP LLM Top 10 (2025) | Abgedeckt | `docs/owasp-llm-checklist.md` |
+| STRIDE Threat Model | Abgedeckt | `docs/threat-model.md` |
+| Secret Scanning (gitleaks) | CI-Job, jeder Push | `.github/workflows/ci.yml` |
+| SAST (bandit MEDIUM+) | CI-Job | `.github/workflows/ci.yml` |
+| Dependency CVE Scan (pip-audit) | CI-Job | 1 ignoriert (CVE-2025-3000, doc'd in CI) |
+| GitHub Actions SHA-Pinned | Erledigt | Alle 4 Action-Refs durch Commit-SHA |
+| PII-Redaction | Vor jedem LLM-Call | `application/sanitization.py` |
+| Prompt Injection Detection | pytest-Cases | `tests/adapters/api/test_triage.py` |
+| Azure EU-Datenpflicht | Durchgesetzt | Sweden Central (EU Data Zone), nie Global |
+| Non-root Docker User | Dockerfile | `aect:aect` (uid/gid 1000) |
+| ChromaDB-Isolation | Docker-Netz | Nur `127.0.0.1:8001`, kein Netz-Zugriff |
+| SBOM | Vorhanden | `docs/sbom.json` (CycloneDX) |
+| AI-BOM | Vorhanden | `docs/ai-bom.md` |
+
+**Compliance-Philosophie:** AECT gibt ausschliesslich belegte Hinweise mit Quellenangabe aus --
+kein verbindliches Rechtsurteil. Jeder Compliance-Hinweis ist explizit als "zu pruefen" markiert
+(interne Referenz (entfernt) §6). Halluzinierte Artikel-Nummern sind durch das Citations-before-LLM-Pattern
+strukturell ausgeschlossen.
 
 ## Autor
 

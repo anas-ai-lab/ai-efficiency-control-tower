@@ -1,0 +1,18 @@
+{
+  "title": "Automatische Klassifikation eingehender Kundenreklamationen",
+  "department": "Customer Service",
+  "submitter": "Demo User",
+  "current_situation": "Eingehende Kunden-E-Mails werden manuell gelesen und kategorisiert. 3 Mitarbeitende, ca. 120 Stunden pro Woche.",
+  "target_situation": "KI-Klassifikation nach Typ und Prioritaet automatisiert 80 % der Faelle ohne manuelle Intervention.",
+  "example_case": "Kunde sendet Beschwerde wegen Lieferverzoegerung. Sachbearbeiter liest, weist Ticket zu Support-Queue zu.",
+  "weekly_hours": 120.0,
+  "affected_employees": 3,
+  "employee_category": "professional",
+  "annual_license_cost": 24000.0,
+  "has_personal_data": true,
+  "data_sensitivity": "medium",
+  "implementation_type": "buy",
+  "action_pressure": "high",
+  "evidence_quality": "documented",
+  "usage_factor": 0.8
+}

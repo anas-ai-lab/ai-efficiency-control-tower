@@ -30,6 +30,10 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - LLM-Integration: Azure OpenAI EU-Datenzone, Function-Calling-Loop,
   Graceful Degradation, Cost-Logger (tiktoken), Resilience (tenacity)
 
+- Frontend: Next.js 15 (App Router, shadcn/ui, TypeScript strict),
+  6-Schritt-Flow Intake bis Report, Server Actions fuer API-Key-
+  Sicherheit (kein Secret im Client-Bundle)
+
 - Eval-Framework: JSONL Golden-Cases, 3-valued Match (True/False/None),
   Score-Breakdown-Diagnostik, 36 synthetische Cases fuer Konsistenz-Test,
   dokumentierter Experten-Abgleich inkl. Limitationsanalyse
@@ -41,11 +45,14 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - CI/CD: GitHub Actions mit gitleaks, bandit, pip-audit, SHA-gepinnte
   Actions, mypy strict, ruff, pre-commit (10 Hooks)
 
+- API-Key-Auth, Rate-Limiting, EU AI Act Limited-Risk-
+  Klassifikation hergeleitet (ADR-0020, 41 ADRs gesamt)
+
 ---
 
 ## Entscheidungs-Bullets
 
-- 35 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
+- 41 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
 
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
   (begruendet in interne Referenz (entfernt) -- Strategiedokument mit Aenderungshistorie)

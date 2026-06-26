@@ -13,7 +13,7 @@ packages = ["src/aect"]
 
 [project]
 name = "aect"
-version = "0.1.0"
+version = "1.0.0"
 description = "AI Efficiency Control Tower — AI Use Case Intake & Triage Assistant"
 readme = "README.md"
 requires-python = ">=3.12"
