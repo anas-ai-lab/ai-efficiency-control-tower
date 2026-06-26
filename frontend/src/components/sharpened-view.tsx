@@ -80,7 +80,7 @@ export function SharpenedView({
             <>
               <Separator />
               <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                VERBESSERUNGSVORSCHLAEGE
+                VERBESSERUNGSVORSCHLÄGE
               </p>
               <div className="space-y-2">
                 {result.improvement_suggestions.map((suggestion, index) => (
@@ -98,7 +98,7 @@ export function SharpenedView({
       ) : (
         <>
           <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm font-medium text-yellow-900">
-            Strukturierte Schaerfen nicht verfuegbar
+            Strukturiertes Schärfen nicht verfügbar
           </div>
           {result.raw_text !== null && (
             <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">
@@ -118,7 +118,7 @@ export function SharpenedView({
 
       <Button onClick={onPropose} disabled={isProposeLoading} className="w-full">
         {isProposeLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isProposeLoading ? "Wird generiert..." : "Loesungsvorschlag generieren (KI)"}
+        {isProposeLoading ? "Wird generiert..." : "Lösungsvorschlag generieren (KI)"}
       </Button>
 
       <p className="mt-2 text-center text-xs text-muted-foreground">

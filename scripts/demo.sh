@@ -31,8 +31,8 @@ TRIAGE=$(curl -fs -X POST "$BASE_URL/triage" \
   --data-binary "@$PAYLOAD_FILE")
 echo "$TRIAGE" | python3 -m json.tool
 CASE_ID=$(echo "$TRIAGE" | python3 -c \
-  "import sys,json; print(json.load(sys.stdin).get('case_id',''))" 2>/dev/null)
-[ -n "$CASE_ID" ] || err "Kein case_id in Response. Payload korrekt? (GET $BASE_URL/docs)"
+  "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+[ -n "$CASE_ID" ] || err "Kein id in Response. Payload korrekt? (GET $BASE_URL/docs)"
 ok "Case ID: $CASE_ID"
 
 h "3. POST /cases/$CASE_ID/sharpen -- Use-Case-Schaerfung"

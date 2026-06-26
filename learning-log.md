@@ -2619,3 +2619,41 @@ Faehigkeit war nicht, Text in Dateien zu kopieren, sondern falsche Annahmen zu
 stoppen. Gute Audits bestehen nicht daraus, Checklisten mechanisch abzuhaken.
 Sie bestehen daraus, jede Checklisten-Aussage gegen den echten Stand zu pruefen
 und dann eine klare Entscheidung zu treffen: Fix, PASS oder v2-Backlog.
+
+## Tag 79 — Ein Zeichen Unterschied, eine Demo kaputt
+
+G-S3 begann mit einer Sensitivitaetsanalyse: fuenf konstruierte Cases durch das
+ROI-Modell und die Zonen-Klassifikation. Alle fuenf Faelle lieferten plausible
+Ergebnisse. Das entscheidende Counterfactual war Case E: golden-001 erhielt die
+Zone CALCULATED_RISK statt LIKELY_WIN -- einziger Unterschied zu einer identischen
+Einreichung ohne Personendaten war das Feld `data_classification=personal`. Dieses
+eine Feld addiert +2 zum Composite-Score, schiebt ihn von 4 auf 6, und 6 > 4
+bedeutet: nicht LIKELY_WIN. Die Berechnung ist korrekt. Das ist der Cliff-Effekt
+in seiner reinsten Form: ein Eingabewert bestimmt die Zone, weil er genau auf der
+Schwelle liegt.
+
+Das staerkste Lernmoment des Tages war der demo.sh-Bug, und er war denkbar simpel.
+Das Demo-Script extrahierte die Case-ID aus der /triage-Response mit dem Schlussel
+`case_id`. Der tatsaechliche Schlussel im JSON heisst `id`. Python's `dict.get()`
+gibt bei einem unbekannten Schlussel einen leeren String zurueck, kein Fehler,
+keine Warnung. Das Script prueft den naechsten Moment, ob die Variable leer ist --
+und bricht dann mit "Kein case_id in Response" ab. Alle vier LLM-Schritte
+(Schaerfen, Loesungsvorschlag, Compliance, Report) liefen nie. Ein einziger
+Zeichenunterschied (`case_id` vs. `id`) sperrt die gesamte Demo-Demonstration.
+
+Der Kontrast zum vorherigen Tag ist gross: Tag 78 war ein konzeptueller Audit
+(Faktencheck, Architektur-Pruefung, Dokumentation). Tag 79 war ein operativer
+Audit (Felder-Drift, UI-Strings, Demo-Regressions). Beides ist notwendig, beides
+erfordert Aufmerksamkeit, aber die Fehler sehen anders aus. Ein falscher Feldname
+in einem Bash-Script ist kein architektonisches Problem -- er ist ein
+Integrations-Drift, der entsteht, wenn man eine Schnittstelle anpasst und das
+Skript vergisst. Der einzige Schutz dagegen: regelmaessige End-to-End-Tests
+auch der nicht-Python-Artefakte.
+
+Auf der Frontend-Seite waren die Befunde aehnlich operational. Sechs Komponenten
+nutzten ASCII-ified Umlaute (ae/oe/ue) statt Ä/Ö/Ü in user-visible Strings.
+Technisch funktioniert das. Aber ein DACH-Entscheider, der "Bitte waehlen" oder
+"Loesungsvorschlag" liest, nimmt das Werkzeug nicht als professionell wahr.
+Das ist kein Test, der fehlschlaegt -- es ist ein Qualitaetsmerkmal, das nur
+durch manuelle Review oder Demo-Begutachtung sichtbar wird. Genau dafuer ist
+der G-S4-Audit da.

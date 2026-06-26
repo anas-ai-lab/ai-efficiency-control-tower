@@ -274,7 +274,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -300,7 +300,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -333,7 +333,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -355,7 +355,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -376,7 +376,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -457,7 +457,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte waehlen" />
+                        <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

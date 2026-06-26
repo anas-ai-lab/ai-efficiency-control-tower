@@ -249,7 +249,7 @@ export function ReportView({ result }: ReportViewProps) {
               <Separator />
               <div className="space-y-1">
                 <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                  LOESUNGSVORSCHLAG
+                  LÖSUNGSVORSCHLAG
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   {td.proposal_text}

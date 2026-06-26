@@ -91,6 +91,31 @@ vom Handlungsdruck-Score.
 
 ---
 
+## Interview-Verteidigbarkeit (Zonen-Schwellen)
+
+**LIKELY_WIN: benefit >= 50.000 EUR, composite <= 4:**
+50.000 EUR entspricht grob einer Senior-AI-Engineer-Jahresstelle in der DACH-Region.
+Ein Use Case muss diesen Betrag mindestens einsparen, um die Umsetzungsinvestition zu
+rechtfertigen. Composite <= 4 (NIEDRIG) bedeutet ueberschaubare Komplexitaet und kein
+erhoehtes Datenschutzrisiko -- typisch fuer klare LIKELY_WIN-Kandidaten.
+
+**CALCULATED_RISK: benefit >= 5.000 EUR, composite <= 7:**
+Die untere Nutzen-Schwelle entspricht dem Netto-Nutzen-Vorfilter -- alles darunter ist
+MARGINAL_GAIN per Definition. Composite <= 7 erlaubt mittlere bis hohe Komplexitaet,
+solange der Nutzen das rechtfertigt. CALCULATED_RISK signalisiert: wirtschaftlich
+grundsaetzlich sinnvoll, aber mit Vorbehalten (Datenschutz, Kosten, Komplexitaet).
+
+**Handlungsdruck-Elevation (Schwelle >= 4, alle 3 Flags):**
+Drei aktive Flags (regulatorisch + Wettbewerb + strategisch) sind ein starkes externes
+Signal. Ein einzelner oder zwei externe Druckfaktoren begruenden allein keine
+Zone-Hochstufung -- das wuerde das ROI-Modell aushebeln. Alle drei gleichzeitig aktiv
+ist in der Praxis selten und dann tatsaechlich ein Ausnahmefall.
+
+**v2-Kandidat (Elevation-Schwelle = 3):** Zwei von drei Flags (statt alle drei) als
+Elevation-Trigger wuerde Grenzfaelle wie golden-003 (Handlungsdruck=3) korrekt stufen.
+Nicht implementiert in v1, weil n=3 Golden Cases keine ausreichende empirische Basis
+fuer eine Schwellen-Aenderung bilden. Adressieren in Phase G+/v2 nach mehr Golden-Case-Labels.
+
 ## Verworfene Alternativen
 
 **Kontinuierliche Scoring-Funktion statt Zonen:** Flexibler, aber

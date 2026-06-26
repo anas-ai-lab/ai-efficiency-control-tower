@@ -94,6 +94,22 @@ neuen Config-Key.
 
 ---
 
+## Interview-Verteidigbarkeit (Vorfilter-Schwellen)
+
+**20.000 EUR theoretisches Potenzial:** Unterhalb dieser Schwelle deckt das theoretische
+Potenzial nicht einmal den administrativen Overhead einer Umsetzung (Projektmanagement,
+Change Management, initialer Aufwand). Eine 2:1-Mindest-Ratio ist konservativ und
+vertretbar.
+
+**120 Stunden/Jahr:** Entspricht ca. 0,06 FTE. Unterhalb dieser Marke ist der
+Automatisierungsgewinn marginal und der Change-Management-Aufwand uebersteigt den Ertrag.
+Der Schwellenwert stammt aus dem v5-Bewertungsmodell und wurde als generischer Platzhalter
+mit IP-Trennung implementiert (interne Referenz (entfernt) SS5).
+
+**5.000 EUR Netto-Nutzen:** Stellt sicher, dass der Use Case nach Abzug der Lizenzkosten
+einen positiven Beitrag leistet. Ohne diesen Filter koennte ein Use Case mit hohem Potenzial,
+aber hohen Lizenzkosten faelschlicherweise als wirtschaftlich attraktiv eingestuft werden.
+
 ## Verworfene Alternativen
 
 **Pandas-basierte Berechnung:** Overhead unnoetig fuer diese Datenmenge.

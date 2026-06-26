@@ -86,7 +86,7 @@ export function ComplianceView({
 
       <Button onClick={onReport} disabled={isReportLoading} className="w-full">
         {isReportLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isReportLoading ? "Wird generiert..." : "Vollstaendigen Report generieren (KI)"}
+        {isReportLoading ? "Wird generiert..." : "Vollständigen Report generieren (KI)"}
       </Button>
     </div>
   )

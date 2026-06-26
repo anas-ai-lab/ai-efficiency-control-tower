@@ -190,4 +190,25 @@ anzunehmen. Konsolidierung geplant fuer den Phase-F-ADR-Review-Pass.
 
 ---
 
+---
+
+## 14. Vorfilter-Schwellen: Zwei Quellen (Technical Debt)
+
+**Was:** Die Vorfilter-Schwellen (20.000 EUR / 120 h / 5.000 EUR Netto) sind doppelt
+vorhanden: als Python-Defaults in `src/aect/domain/filters.py` UND als Config-Werte in
+`config/roi_config.toml`. `evaluate_use_case()` in `pipeline.py` nutzt beim Aufruf von
+`apply_prefilter()` die Python-Defaults, nicht die ROIConfig-Werte.
+
+**Konsequenz:** Aktuell synchron -- beide Quellen haben identische Werte, kein
+Verhaltensfehler. Aendern sich die TOML-Schwellen ohne gleichzeitige Anpassung der
+`filters.py`-Defaults, divergiert `vorfilter.passes` (domain-Pipeline) von
+`roi.passes_prefilter` (ROI-Engine). Die domain-Pipeline-Entscheidung hat Vorrang
+fuer die Zone-Klassifikation.
+
+**v2-Kandidat:** `evaluate_use_case()` uebergibt ROIConfig-Schwellen explizit an
+`apply_prefilter()`. Eliminiert die doppelte Quelle und macht die Pipeline
+vollstaendig config-getrieben.
+
+---
+
 *Letzte Aktualisierung: Juni 2026 -- v1. Post-v1-Punkte als Backlog.*

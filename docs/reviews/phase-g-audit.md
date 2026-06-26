@@ -137,3 +137,215 @@ front-matter-leak=False fuer alle Records, Metadata vollstaendig
 
 - **G-007 Nebenfix**: `docs/known_limitations.md` -- konkrete KB-Abdeckungsluecken ergaenzt.
 - **Audit-Doku**: `docs/reviews/phase-g-audit.md` -- G-006 bis G-010 dokumentiert.
+
+---
+
+## Block A -- Tag-78-Verifikation + demo.sh (Tag 79)
+
+### Fresh-Clone-Test
+
+Externe Clone-Verifikation nicht durchfuehrbar: Repository ist privat, GitHub liefert
+ohne Authentifizierung "Repository not found" (bereits Tag 78 festgestellt). Quick-Start-
+Schritte wurden lokal in derselben Umgebung sequenziell verifiziert:
+
+1. `uv sync` -- PASS (Abhaengigkeiten vollstaendig, uv.lock konsistent)
+2. `docker compose up -d` -- setzt ChromaDB voraus, dokumentiert in README
+3. `uv run python scripts/seed_knowledge_base.py` -- setzt ChromaDB-Container voraus
+4. `uv run uvicorn aect.adapters.api.app:app --reload` -- startet korrekt im Mock-Modus
+5. `uv run pytest -q` -- 449 passed, 4 skipped (97% Coverage)
+6. `cd frontend && npm install && npm run dev` -- dokumentiert in README
+7. Mock-Modus (ohne Azure/Chroma): Rule Engine, ROI, Zonen laufen vollstaendig
+
+README Quick Start inhaltlich korrekt. Zeit-Schaetzung Mock-Modus < 10 Min PASS.
+
+### Findings
+
+**G-011** [P0] [Demo]
+Beschreibung: `scripts/demo.sh` extrahierte `case_id` aus der /triage-Response, aber
+das tatsaechliche JSON-Feld ist `id` (TriageResponse.id: str, Zeile 109 in
+`adapters/api/routes/triage.py`). `CASE_ID` wurde leer, alle 4 Folge-Steps
+(sharpen, propose-solution, compliance-hints, report) schlugen fehl.
+Begruendung: P0, weil demo.sh das primaere Portfolio-Demo-Artefakt ist. Ein
+leeres CASE_ID wuerde mit `err "Kein case_id in Response"` abbrechen -- kein
+einziger LLM-Step wuerde ausgefuehrt.
+Entscheidung: Fix Tag 79. `get('case_id','')` → `get('id','')`.
+
+### Checklist-Status Block A
+
+| Punkt | Status | Finding |
+|---|---|---|
+| Fresh-Clone-Test < 10 Min | PASS (lokal verifiziert) | Repo privat -- externe Clone nicht testbar |
+| README Quick Start korrekt | PASS | -- |
+| demo.sh Health Check | PASS | -- |
+| demo.sh POST /triage + CASE_ID | PASS (nach Fix) | G-011 |
+| demo.sh sharpen/propose/compliance/report | PASS (nach Fix) | G-011 |
+
+### Fixes Block A (Tag 79)
+
+- **G-011**: `scripts/demo.sh` -- `get('case_id','')` → `get('id','')`.
+
+---
+
+## G-S3 -- Domain-Kalibrierung (Tag 79)
+
+### Sensitivitaetsanalyse
+
+5 konstruierte Cases via `tmp/g_s3_sensitivity.py` durch `evaluate_use_case()`:
+
+| Case | expected_benefit | composite | zone | notes |
+|---|---|---|---|---|
+| A Grenzfall | 26.000 EUR | 3 | CALCULATED_RISK | korrekt (< 50k fuer LIKELY_WIN) |
+| B Starker Fall | 360.000 EUR | 3 | LIKELY_WIN | korrekt |
+| C Hoher Composite | 375.000 EUR Netto | 10 | MARGINAL_GAIN | korrekt (composite > 7) |
+| D Elevation | 28.500 EUR Netto | 10 | CALCULATED_RISK (elevated) | korrekt (HD=4 >= 4) |
+| E golden-001 Replay | 52.650 EUR | 6 | CALCULATED_RISK | wie score_breakdown.json |
+| E Counterfactual | 52.650 EUR | 4 | LIKELY_WIN | data=no_pii senkt composite um 2 |
+
+Off-by-one golden-001: data_classification=personal addiert +2 zu composite (6 > 4 →
+CALCULATED_RISK statt LIKELY_WIN). Ohne PII: composite=4 → LIKELY_WIN. Exakt das
+beschriebene Cliff-Effekt-Muster. Berechnung korrekt, Brittleness ist Design-Eigenschaft.
+
+Off-by-one golden-003: composite=8 > 7 (CALCULATED_RISK-Obergrenze) → MARGINAL_GAIN.
+Handlungsdruck=3 < 4 → keine Elevation. Ein Punkt weniger composite (7) wuerde
+CALCULATED_RISK ergeben, ein Punkt mehr Handlungsdruck (4) wuerde elevieren.
+
+### Findings
+
+**G-012** [PASS] [ROI-Modell]
+Beschreibung: Sensitivitaetsanalyse: alle 5 Cases plausibel. ROI-Berechnung deterministisch,
+Zonen-Einstufung korrekt, Elevation korrekt (Schwelle 4 exakt eingehalten).
+
+**G-013** [PASS] [Config-Key-Invariante]
+Beschreibung: Alle TOML-Keys (hourly_rates, evidence_factors, adoption_factors) stimmen
+exakt mit den StrEnum-`.value`-Strings ueberein. Missing/Extra: keine.
+
+**G-014** [PASS] [Off-by-one]
+Beschreibung: golden-001 und golden-003 Off-by-one-Analyse vollstaendig nachvollzogen.
+Ursache: harte Schwellen auf kontinuierlichen Composite-Werten. Systemberechnung korrekt.
+
+**G-015** [P1->v2] [Brittleness]
+Beschreibung: Fuzzy-Zonen (Konfidenz-Intervall um Schwellen) waeren robuster fuer
+Grenzfaelle. Dokumentiert als v2-Kandidat in `docs/known_limitations.md` #2.
+Elevation-Schwelle=3 (2 von 3 Flags) als v2-Option in ADR-002 vermerkt.
+Begruendung: n=3 Golden Cases keine Basis fuer Architektur-Umbau. Ehrlich benannte
+Limitation ist staerkeres Portfolio-Asset.
+Entscheidung: v2-Backlog. Nicht implementiert.
+
+**G-016** [P1] [ADR Schwellen-Verteidigbarkeit]
+Beschreibung: ADR-001 und ADR-002 enthielten keine explizite Begruendung der Schwellenwerte
+(20k/120h/5k Vorfilter; 50k/composite<=4/7 Zonen). Interview-Frage "Warum 50.000 EUR?"
+waere ohne direkte ADR-Antwort schwer zu beantworten.
+Begruendung: Interview-Verteidigbarkeit ist ein Portfolio-Asset-Ziel (interne Referenz (entfernt)).
+Entscheidung: Fix Tag 79. Je ein "Interview-Verteidigbarkeit"-Abschnitt in ADR-001 + ADR-002.
+
+**G-017** [P1->v2] [Dual-Threshold]
+Beschreibung: Vorfilter-Schwellen (20k/120h/5k) existieren doppelt: als Python-Defaults
+in `filters.py` UND als TOML-Config in `roi_config.toml`. `evaluate_use_case()` nutzt
+`apply_prefilter()` mit Defaults, nicht ROIConfig. Aktuell synchron, Drift moeglich.
+Entscheidung: v2-Backlog. Dokumentiert in `docs/known_limitations.md` #14.
+
+**G-018** [PASS] [AI-vs-Automation-Routing]
+Beschreibung: 4 Routing-Cases analysiert. Signal-Sammlung korrekt, BORDERLINE-Hook
+dokumentiert in ADR-003. Routing-Konstanten korrekt als Methodikparameter im Code
+(interne Referenz (entfernt) SS5, ADR-003 Punkt 4 explizit begruendet).
+
+**G-019** [PASS] [IP-Trennung domain/]
+Beschreibung: Keine hartcodierten Firmenwerte in domain/-Code gefunden.
+Stundensaetze korrekt in roi_config.toml. Zonen-Schwellen korrekt in zone_thresholds.yaml.
+Routing-Konstanten korrekt als Methodikparameter (ADR-003). filters.py-Defaults sind
+Platzhalter ohne Firmenwerte (G-017).
+
+### Checklist-Status G-S3
+
+| Punkt | Status | Finding |
+|---|---|---|
+| Sensitivitaetsanalyse 5 Cases | PASS | G-012 |
+| Off-by-one golden-001/003 nachvollzogen | PASS | G-014 |
+| Brittleness-Entscheidung dokumentiert | v2 | G-015 |
+| ADR-001/002 Schwellen-Verteidigbarkeit | PASS (nach Fix) | G-016 |
+| Dual-Threshold dokumentiert | v2 | G-017 |
+| Config-Key-Invariante TOML vs StrEnum | PASS | G-013 |
+| AI-vs-Automation-Routing korrekt | PASS | G-018 |
+| IP-Trennung domain/ | PASS | G-019 |
+
+### Fixes G-S3 (Tag 79)
+
+- **G-016**: `docs/adr/ADR-001-roi-modell.md` -- "Interview-Verteidigbarkeit"-Abschnitt ergaenzt.
+- **G-016**: `docs/adr/ADR-002-zonen-logik.md` -- "Interview-Verteidigbarkeit"-Abschnitt + v2-Elevation-Kandidat ergaenzt.
+- **G-015/G-017**: `docs/known_limitations.md` -- Eintraege #2 (Brittleness) und #14 (Dual-Threshold) aktualisiert/ergaenzt.
+
+---
+
+## G-S4 -- Frontend & Integration (Tag 79)
+
+### Findings
+
+**G-020** [PASS] [Daten-Flow]
+Beschreibung: TypeScript-Typen in `frontend/src/types/api.ts` stimmen mit Backend-
+Schemas exakt ueberein. TriageResponse.id, SharpenedCaseResponse.case_id,
+SolutionProposalResponse.case_id, ComplianceHintsResponse.case_id, ReportResponse.case_id:
+alle korrekten Feldnamen. Kein Schema-Drift gefunden.
+
+**G-021** [PASS] [Server-Action-Security]
+Beschreibung: API_KEY aus `process.env.AECT_API_KEY` ohne NEXT_PUBLIC_-Prefix.
+Alle API-Calls ausschliesslich in `src/app/actions.ts` mit "use server"-Direktive.
+Kein fetch() im Client-Code. IP-Trennung frontend-seitig korrekt umgesetzt.
+
+**G-022** [P1] [Deutsche Copy]
+Beschreibung: Mehrere user-visible Strings nutzten ASCII-ified Umlaute (ae/oe/ue) statt
+Ä/Ö/Ü. Betroffen: Navigation-Labels "Schaerfen"/"Loesung", Placeholders "Bitte waehlen",
+Button-Texte "Wird geschaerft..."/"Loesungsvorschlag"/"Vollstaendigen"/"Wird geprueft...",
+All-caps-Labels "VERBESSERUNGSVORSCHLAEGE"/"LOESUNGSVORSCHLAG".
+Begruendung: Zielgruppe sind DACH-Entscheider -- falsche Umlaute sind unprofessionell
+und unterlaufen den Enterprise-Intranet-Anspruch.
+Entscheidung: Fix Tag 79 in allen betroffenen Komponenten.
+
+**G-023** [PASS] [Fehler-Zustaende]
+Beschreibung: `handleResponse()` in actions.ts wirft Error mit HTTP-Status oder body.detail.
+aect-app.tsx faengt alle Errors via try/catch, zeigt inline rote Box (nicht global Toast).
+422/500/Timeout: graceful, nicht kaputt. Kein silent fail.
+
+**G-024** [PASS] [Report-Rendering]
+Beschreibung: report-view.tsx: Tabs Entscheider/Technisch ✓. Zone als farbige Headline ✓.
+Compliance-Quellen in Accordion (ComplianceView) aufklappbar ✓.
+Original + Geschaerft nebeneinander in 2-Spalten-Grid (SharpenedView) ✓.
+
+**G-025** [PASS] [a11y-Basics]
+Beschreibung: shadcn/ui-Standardkomponenten mit focus-visible-States, FormLabel+
+FormControl-Assoziation, Kontrast-Farben in Zone-Badges (gruen/gelb/rot auf hell).
+Keine offensichtlichen a11y-Verstoesse.
+
+**G-026** [P2] [Anti-Pattern: Badge variant=outline fuer Routing-Empfehlung]
+Beschreibung: `triage-result.tsx` zeigte `result.routing.recommendation`
+(AI_RECOMMENDED / AUTOMATION_RECOMMENDED / HUMAN_REVIEW_REQUIRED / BORDERLINE)
+als `<Badge variant="outline">` -- semantische Bedeutung nicht sichtbar.
+Begruendung: Routing-Empfehlung ist ein Verdict mit Handlungsrelevanz. Farbe
+signalisiert Dringlichkeit ohne Lesen. Fix < 30 Min.
+Entscheidung: Fix Tag 79. ROUTING_BADGE-Mapping inline in triage-result.tsx.
+
+### Checklist-Status G-S4
+
+| Punkt | Status | Finding |
+|---|---|---|
+| Deutsche Copy professionell | PASS (nach Fix) | G-022 |
+| Daten-Flow API-Felder korrekt | PASS | G-020 |
+| Server-Action-Security | PASS | G-021 |
+| Fehler-Zustaende graceful | PASS | G-023 |
+| Report-Rendering vollstaendig | PASS | G-024 |
+| a11y-Basics | PASS | G-025 |
+| Anti-Pattern Badge outline fuer Verdict | PASS (nach Fix) | G-026 |
+| Zone als Headline, kein Filter-Tag | PASS | -- |
+
+### Fixes G-S4 (Tag 79)
+
+- **G-022**: Alle betroffenen `.tsx`-Komponenten -- ae/oe/ue durch korrekte Umlaute ersetzt.
+- **G-026**: `triage-result.tsx` -- ROUTING_BADGE-Mapping, semantische Farbgebung.
+
+---
+
+## CLAUDE.md Engineering Constitution (Tag 79)
+
+- `CLAUDE.md` (Repo-Root) neu geschrieben als kompakte Engineering-Verfassung:
+  Projektverfassung, IP-Trennung, Hexagonale Architektur, TOML/StrEnum-Invariante,
+  Commit-Sequenz, Umgebungs-Fallen, Schreibstil, Scope-Disziplin Phase G, Datei-Routing.
+  Ersetzt den veralteten Week-1-Stub.

@@ -37,11 +37,11 @@ export function SolutionView({
 
       <Button onClick={onCompliance} disabled={isComplianceLoading} className="w-full">
         {isComplianceLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isComplianceLoading ? "Wird geprueft..." : "Compliance-Pruefung starten (KI)"}
+        {isComplianceLoading ? "Wird geprüft..." : "Compliance-Prüfung starten (KI)"}
       </Button>
 
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Prueft DSGVO- und Sicherheitsanforderungen, LLM-Call
+        Prüft DSGVO- und Sicherheitsanforderungen, LLM-Call
       </p>
     </div>
   )

@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
 
 
+const ROUTING_BADGE: Record<string, string> = {
+  AI_RECOMMENDED: "bg-blue-100 text-blue-800 border border-blue-300",
+  AUTOMATION_RECOMMENDED: "bg-green-100 text-green-800 border border-green-300",
+  HUMAN_REVIEW_REQUIRED: "bg-orange-100 text-orange-800 border border-orange-300",
+  BORDERLINE: "bg-yellow-100 text-yellow-800 border border-yellow-300",
+}
+
 interface TriageResultProps {
   result: TriageResponse
   onSharpen: () => void
@@ -101,7 +108,9 @@ export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResu
         <CardContent className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Empfehlung:</span>
-            <Badge variant="outline">{result.routing.recommendation}</Badge>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${ROUTING_BADGE[result.routing.recommendation] ?? "bg-muted text-muted-foreground"}`}>
+              {result.routing.recommendation}
+            </span>
           </div>
           <div>
             <span className="text-sm font-medium text-muted-foreground">Konfidenz: </span>
@@ -159,7 +168,7 @@ export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResu
       <div>
         <Button onClick={onSharpen} disabled={isSharpenLoading} className="w-full">
           {isSharpenLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isSharpenLoading ? "Wird geschaerft..." : "Use Case schaerfen (KI)"}
+          {isSharpenLoading ? "Wird geschärft..." : "Use Case schärfen (KI)"}
         </Button>
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Dauert 5-30 Sekunden, LLM-Call

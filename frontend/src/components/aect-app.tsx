@@ -26,8 +26,8 @@ type Step = "form" | "triage" | "sharpened" | "solution" | "compliance" | "repor
 const STEPS: { key: Step; label: string }[] = [
   { key: "form", label: "Einreichung" },
   { key: "triage", label: "Bewertung" },
-  { key: "sharpened", label: "Schaerfen" },
-  { key: "solution", label: "Loesung" },
+  { key: "sharpened", label: "Schärfen" },
+  { key: "solution", label: "Lösung" },
   { key: "compliance", label: "Compliance" },
   { key: "report", label: "Report" },
 ]
