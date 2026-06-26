@@ -82,6 +82,14 @@ ob seine Compliance-Hinweise noch dem aktuellen Rechtsstand entsprechen.
 **v2-Kandidat:** Versioniertes KB-Update-Verfahren mit `last_reviewed`-Datum
 und automatisiertem Staleness-Alert (> 90 Tage ohne Review).
 
+**Konkrete Abdeckungsluecken v1:** Die Wissensbasis enthaelt aktuell DSGVO Art. 35
+(DSFA-Trigger) und EU AI Act Art. 50 (Transparenzpflicht). Nicht abgedeckt sind
+u. a. DSGVO Art. 28 (AVV), DSGVO Art. 6 (Rechtsgrundlage), EU AI Act Art. 4
+(AI Literacy), EU AI Act Art. 5 (verbotene Praktiken) und Stack-Dokumentation
+(Open WebUI, Copilot Studio, Azure Foundry, SAP BTP). Die RAG-/Citation-Kette
+funktioniert strukturell; die Qualitaet der Compliance-Hinweise bleibt aber
+proportional zum Umfang der kuratierten Wissensbasis. Erweiterung: v2-Backlog.
+
 ---
 
 ## 6. Fehlende Deduplizierung in Compliance-Hints

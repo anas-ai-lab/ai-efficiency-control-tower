@@ -70,3 +70,70 @@ Entscheidung: Kein Handlungsbedarf. Rollback-Faehigkeit ist Staerke, kein Schuld
   UseCaseInput-Schema. Regression-Test: `tests/test_demo_payload.py`.
 - **G-002**: `prompts/propose_solution/v2/system.md` -- Planungstext durch praezise
   Formulierung ersetzt. Vorsichts-Anweisung erhalten.
+
+## G-S2 -- Knowledge Base & Compliance (Tag 78)
+
+### EU AI Act Stand (re-verifiziert 2026-06-26)
+
+- Digital Omnibus on AI: Trilog-Einigung 2026-05-07, Coreper-Bestaetigung
+  2026-05-13. Status am 2026-06-26: close to adoption; OJ-Publikation nicht
+  als abgeschlossen verifiziert.
+- Art. 50 Transparenzpflichten: 2026-08-02 bleibt relevante Compliance-Date.
+  Art. 50 Abs. 2/4: Uebergangsfrist bis 2026-12-02 fuer Systeme, die vor
+  2026-08-02 in Verkehr gebracht wurden.
+- AECT: Limited Risk bleibt plausibel, weil AECT Use Cases/Projekte bewertet,
+  nicht natuerliche Personen und keinen Annex-III-Tatbestand ausloest.
+
+### Findings
+
+**G-006** [PASS] [ADR-0020]
+Beschreibung: ADR-0020 enthaelt die Art.-50(2)-Nuance bereits: Art. 50 nicht
+pauschal verschoben; Ausnahme fuer maschinenlesbare Wasserzeichen bei
+Bestandssystemen bis 2026-12-02.
+Entscheidung: Kein ADR-Fix noetig. Nur Re-Verifizierung im Audit dokumentiert.
+
+**G-007** [P1->v2] [KB-Abdeckung]
+Beschreibung: KB hat 2 fachliche Quellen: DSGVO Art. 35 und EU AI Act Art. 50.
+Fehlend: DSGVO Art. 28, DSGVO Art. 6, EU AI Act Art. 4, EU AI Act Art. 5,
+Stack-Dokumentation.
+Begruendung: Fuer privates Portfolio vertretbar, weil Citation-Kette korrekt
+funktioniert und Compliance-Hinweise als "zu pruefen" markiert sind.
+Entscheidung: v2-Backlog. known_limitations.md konkretisiert.
+
+**G-008** [P2->v2] [Dedup]
+Beschreibung: generate_compliance_hints() dedupliziert Retrieval-Treffer ueber
+mehrere Queries nicht. Beide Queries werden per retrieved.extend() gesammelt.
+Mock-Test: Transparency-Query [], DSFA-Query ['mock-compliance-dsfa'],
+Duplikate: keine.
+Entscheidung: v2-Backlog. Kein v1-Blocker, weil keine falschen Quellen erzeugt
+werden; moeglich sind nur doppelte Citations.
+
+**G-009** [PASS] [Citation-Korrektheit]
+Beschreibung: _build_compliance_citations(retrieved) steht vor
+self._llm.complete(messages). Citations-before-LLM ist strukturell korrekt.
+
+**G-010** [PASS] [Chunking-Qualitaet]
+Beschreibung: Front-Matter wird vor dem Chunking entfernt; Metadata wird aus
+Front-Matter plus chunk_index aufgebaut. Lokaler Test bestaetigt: 5 Records,
+front-matter-leak=False fuer alle Records, Metadata vollstaendig
+(source_id/title/citation/url/chunk_index).
+
+### Checklist-Status G-S2
+
+| Punkt | Status | Finding |
+|---|---|---|
+| EU AI Act re-verifiziert | ✅ PASS | -- |
+| ADR-0020 aktuell mit Art.-50(2)-Nuance | ✅ PASS | G-006 |
+| KB DSGVO Art. 35 faktisch plausibel | ✅ PASS | -- |
+| KB EU AI Act Art. 50 faktisch plausibel | ✅ PASS | -- |
+| Timing zu ADR-0020 delegiert | ✅ PASS | -- |
+| Abdeckungsluecken klassifiziert | ✅ v2 | G-007 |
+| known_limitations.md KB-Eintrag konkretisiert | ✅ PASS | G-007 |
+| Citation-Korrektheit before-LLM | ✅ PASS | G-009 |
+| Chunking-Qualitaet ohne Front-Matter-Leak | ✅ PASS | G-010 |
+| Dedup-Entscheidung dokumentiert | ✅ v2 | G-008 |
+
+### Fixes G-S2 (Tag 78)
+
+- **G-007 Nebenfix**: `docs/known_limitations.md` -- konkrete KB-Abdeckungsluecken ergaenzt.
+- **Audit-Doku**: `docs/reviews/phase-g-audit.md` -- G-006 bis G-010 dokumentiert.
