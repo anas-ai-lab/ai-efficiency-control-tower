@@ -2513,3 +2513,29 @@ jedes Artefakt das ein Schritt beruehren wuerde. Haette ich das getan, waere
 der Guide halb so lang gewesen -- und die bestehenden Dokumente sind besser
 als meine generierten Versionen, weil sie konkrete ADR-Referenzen und
 differenzierte Status-Eintraege enthalten statt generischer Prosa.
+
+## Tag 76 — Ein System ist erst fertig, wenn du erklären kannst, warum es nicht perfekt ist
+
+Heute war kein Bautag. Kein neuer Adapter, kein neues Endpoint, kein Framework.
+Stattdessen die eigentlich schwierigere Arbeit: das System so dokumentieren, dass
+ein fremder Mensch es in zehn Minuten versteht -- und dass du selbst in einem
+Interview nicht ins Stocken gerätst.
+
+Der Kern-Konflikt dabei war die Eval-Zahl. 1/3 Agreement klingt wie ein
+Eingeständnis. Im README stand sie bisher als nackte Zahl in einer Tabelle.
+Heute kam die Analyse dazu: beide Mismatches sind off-by-one an Zonengrenzen,
+verursacht durch harte Schwellen auf kontinuierlichen Werten. Ein Use Case mit
+99.999 EUR Jahresnutzen landet eine Zone tiefer als derselbe Case mit 100.001 EUR --
+obwohl wirtschaftlich identisch. Das ist kein Rechenfehler. Das ist eine Eigenschaft
+des Designs, und die einfachste Milderung -- eine Puffer-Zone um jede Schwelle, in
+der das System beide Optionen mit Konfidenz-Hinweis ausgibt -- ist bewusst nicht
+gebaut worden. Nicht weil die Zeit fehlte, sondern weil ein nicht-additiver Eingriff
+ins Domain-Modell kurz vor dem Release schlechter wäre als eine sauber dokumentierte
+Limitation. Wer das erkennt, zeigt mehr Engineering-Reife als wer die Zahl versteckt.
+
+Das v1.0.0-Tag ist jetzt auf GitHub. Annotated, mit Message, mit allem was drinsteckt.
+448 Tests, 97 % Coverage, 41 ADRs, sechs Phasen. Was es nicht hat, steht in
+docs/known_limitations.md -- 13 Punkte, offen benannt.
+
+Hätte das README die Eval-Schwäche nicht erklärt, wäre es ein Marketing-Dokument
+geworden. So ist es ein technisches Argument.
