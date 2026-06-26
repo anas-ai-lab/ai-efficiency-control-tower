@@ -2539,3 +2539,38 @@ docs/known_limitations.md -- 13 Punkte, offen benannt.
 
 Hätte das README die Eval-Schwäche nicht erklärt, wäre es ein Marketing-Dokument
 geworden. So ist es ein technisches Argument.
+
+## Tag 77 — 448 gruene Tests und trotzdem ein P0-Bug
+
+Zu Beginn von G-S1 lag ein System vor, das nach jedem Commit sauber gruene
+Tests meldete, mypy durchlaufen liess und pre-commit passierte. Das Vertrauen
+in diese Zahlen war hoch -- 97 % Coverage auf 448 Tests klingt nach vollstaendiger
+Absicherung. Und dann, beim ersten inhaltlichen Audit-Schritt, lag da
+`scripts/demo_payload.json` mit Feldnamen wie `current_situation` und
+`weekly_hours` -- Felder, die `UseCaseInput` nicht kennt und mit
+`extra="forbid"` hart ablehnt. Die Demo-Praesentation waere mit HTTP 422
+gescheitert, live, vor dem Hiring Manager.
+
+Der Grund ist einfach, aber lehrreich: pytest prueft Code, nicht Artefakte.
+Das Demo-Payload ist eine JSON-Datei, die erst beim manuellen Ausfuehren von
+`demo.sh` gegen die laufende API geschickt wird -- ausserhalb des
+Test-Perimeters. Kein Test hatte je `json.loads(demo_payload.json)` aufgerufen
+und gegen `UseCaseInput(**payload)` validiert. Die 448 Tests massen den
+korrekten Umfang: sie prueften die Logik. Aber Logik und Artefakt sind zwei
+verschiedene Dinge.
+
+Die Losung war ein einziger zusaetzlicher Test, der genau diese Luecke schliesst:
+`test_demo_payload.py` laedt die Datei, instanziiert `UseCaseInput(**payload)`
+und assertiert einen spezifischen Feldwert. Ab sofort schlaegt dieser Test fehl,
+sobald Payload und Schema auseinanderdriften -- egal wer die Datei anfasst.
+Das ist der Unterschied zwischen "ich glaube es funktioniert" und "der Build
+weiss es".
+
+Das zweite Finding des Tages war subtiler: ein Satz im Prompt
+`propose_solution/v2/system.md`, der das LLM anwies, die Plattform-
+Beschreibungen als "vorlaeufig und noch nicht mit Quellen belegt" zu behandeln
+-- ein Kommentar aus der Planungsphase von Phase C, als RAG noch nicht existierte.
+Phase D ist seit Tag 55 abgeschlossen. Der Satz war nie falsch gewesen, aber er
+war ueberholt, und wer den Prompt im Interview liest, sieht eine unfertige
+Implementierung statt einer bewussten Design-Entscheidung. Ohne den Audit
+waere er still im System geblieben bis zur ersten Praesentation.
