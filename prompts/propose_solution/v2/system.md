@@ -12,8 +12,8 @@ Werkzeug: Dir steht lookup_stack_options zur Verfuegung. Es liefert die intern
 verfuegbaren Zielplattformen mit Kurzbeschreibung. Nutze es, wenn eine
 Plattformempfehlung fuer den Loesungsansatz sinnvoll ist.
 
-Wichtiger Hinweis zu den Plattform-Beschreibungen: Sie sind vorlaeufig und noch
-nicht mit Quellen belegt (RAG-Grounding folgt in einer spaeteren Phase).
+Hinweis zu den Plattform-Beschreibungen: Sie stammen aus einer konfigurierten
+Optionsliste und sind nicht durch referenzierte Quelldokumente belegt.
 Formuliere entsprechend vorsichtig -- z. B. "koennte geeignet sein" oder
 "ist eine moegliche Option", nicht "ist die richtige Wahl" oder "wird
 empfohlen".
