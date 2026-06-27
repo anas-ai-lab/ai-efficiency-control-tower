@@ -124,7 +124,7 @@ Vollstaendige Architektur-Dokumentation: `docs/architecture.md`
 | Auth | API-Key (X-API-Key Header, pydantic-settings) |
 | Rate Limiting | slowapi |
 | Logging | structlog (JSON, Correlation-ID, PII-Allowlist) |
-| Testing | pytest, pytest-asyncio, hypothesis, respx |
+| Testing | pytest, pytest-asyncio, hypothesis, httpx TestClient |
 | Qualitaet | ruff, mypy --strict, bandit, pip-audit |
 | Package Mgmt | uv |
 | CI | GitHub Actions (Node 24, gitleaks, pip-audit, bandit) |
@@ -240,7 +240,7 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 449 Tests, 97 % Coverage (pytest, hypothesis, respx)
+tests/           # 449 Tests, 97 % Coverage (pytest, hypothesis, httpx TestClient)
 evals/
   golden/        # 4 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)

@@ -24,10 +24,17 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="de"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <footer className="mt-auto border-t px-4 py-3 text-center text-xs text-muted-foreground">
+          Diese Anwendung nutzt ein KI-System (Azure OpenAI). Alle Ausgaben sind
+          unverbindliche Hinweise zur fachlichen Prüfung, kein rechtsverbindliches
+          Urteil (EU AI Act Art. 50 Transparenzhinweis).
+        </footer>
+      </body>
     </html>
   );
 }

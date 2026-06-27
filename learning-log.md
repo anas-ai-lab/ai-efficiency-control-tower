@@ -2817,3 +2817,37 @@ einzelner dieser Punkte ist dramatisch, aber zusammen sind sie der Unterschied
 zwischen "ich behaupte, sicher zu sein" und "ich kann zeigen, dass es stimmt". Am
 Ende von Phase G stimmt die Doku mit dem Code ueberein -- und das ist, fuer ein
 Portfolio-Projekt mit Karriereziel, mehr wert als jedes zusaetzliche Feature.
+
+## Tag 84 — Der Motor ist gut, die Schwaechen sitzen am Rand
+
+Tag 84 war der breiteste Audit bisher: zwoelf Domaenen auf einmal, von Architektur
+ueber Datenschutz und EU AI Act bis Doku, jeder Befund gegen echten Code geprueft.
+Das uebergreifende Muster war aufschlussreich: der Kerncode ist sehr reif (die
+Hexagonal-Grenze haelt grep-hart, jedes Eingabefeld hat Laengen-Limits, die
+Security wurde in Phase G gehaertet), aber die Schwaechen sitzen konsequent an den
+Raendern -- Infrastruktur, Datenschutz-Betroffenenrechte, Frontend-CI, Doku-
+Currency. Das ist typisch fuer ein Projekt, das mit Engineering-Disziplin gebaut
+wurde, aber die "letzten Meter" zur Produktreife (Loeschpfade, Runbooks,
+Build-Pipelines fuers Frontend) bewusst nicht gegangen ist. Ein Audit, der nur den
+Kern prueft, haette "alles gruen" gemeldet und das Falsche bestaetigt.
+
+Der schaerfste Einzelbefund wiederholte ein Muster aus Phase G: der EU-AI-Act-
+Art.-50-Transparenzhinweis war in der Doku als Pflicht erkannt ("im Frontend zu
+zeigen"), aber nirgends im Frontend implementiert -- ein grep ueber den gesamten
+UI-Code kam leer zurueck. Das ist dieselbe Doku-luegt-gegen-Code-Klasse wie der
+PII-Overclaim. Der Fix war trivial (ein Hinweis im Seitenfuss), aber das
+Bemerkenswerte ist die Wiederholung des Musters: Anspruch und Code driften
+auseinander, und nur ein Audit, der beides nebeneinanderlegt, faengt es. Nebenbei
+fiel auf, dass die Seite `lang="en"` deklarierte, obwohl die gesamte UI deutsch
+ist -- eine Kleinigkeit fuer Screenreader, aber genau die Art Detail, die ein
+oberflaechlicher Blick uebersieht.
+
+Die disziplinierteste Entscheidung war wieder eine Nicht-Entscheidung. Die
+fehlende DSGVO-Loeschfunktion ist eine echte Luecke -- aber Loeschen muss
+kaskadieren (DB, Embeddings, Logs) und ist ein Feature mit eigener Abwaegung, kein
+Audit-Schnellfix. Der Auftrag war, alles sichtbar zu machen und zu priorisieren,
+nicht alles zu bauen. Also: ehrlich als v2 gefuehrt, mit Begruendung, warum es
+fuer ein Localhost-Build vertretbar und ab echtem Datenbetrieb ein Muss ist. Ein
+guter Audit fixt nicht alles -- er macht alles sichtbar und zwingt jede Luecke in
+eine bewusste Entscheidung. Der Reifegrad gesamt liegt bei 3,7 von 5: ein starker
+Kern mit ehrlich benannten, priorisierten Raendern.
