@@ -266,7 +266,7 @@ docs/
 | STRIDE Threat Model | Abgedeckt | `docs/threat-model.md` |
 | Secret Scanning (gitleaks) | CI-Job, jeder Push | `.github/workflows/ci.yml` |
 | SAST (bandit MEDIUM+) | CI-Job | `.github/workflows/ci.yml` |
-| Dependency CVE Scan (pip-audit) | CI-Job, jeder Push | Keine Ignores (CVE-2025-3000 durch torch 2.12.0 behoben) |
+| Dependency CVE Scan (pip-audit) | CI-Job, jeder Push | 1 begruendeter Ignore (CVE-2025-3000: torch gepatcht in 2.12.0, OSV-DB ohne Fix-Range, nicht exploitierbar -- doc'd in CI) |
 | GitHub Actions SHA-Pinned | Erledigt | Alle 4 Action-Refs durch Commit-SHA |
 | Prompt-Injection-Detection (LLM01) | Flag + Log vor LLM-Call (Delimiter primaer) | `application/sanitization.py` |
 | Prompt-Injection-Tests | pytest Red-Team-Cases | `tests/adapters/api/test_triage.py` |

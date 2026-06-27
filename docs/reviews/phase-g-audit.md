@@ -414,17 +414,26 @@ Degradation auf raw_text). Die OWASP-Doku zitiert genau diese Datei als
 LLM05-Evidenz -- ein Reviewer findet die stale Aussage.
 Entscheidung: Fix Tag 80 -- Docstring auf "Verdrahtet (ADR-0013 Teil 2)" korrigiert.
 
-**G-031** [P1] [CVE-2025-3000-Ignore veraltet -- Fix existiert]
+**G-031** [P2] [CVE-2025-3000-Ignore: Kommentar veraltet, Ignore bleibt noetig]
 Beschreibung: CI ignorierte CVE-2025-3000 (`torch.jit.script` memory corruption,
 CVSS 5.3 MEDIUM) mit Begruendung "Fix Versions leer (Stand 2026-06-18)".
-Web-Recherche (2026-06-27): Fix in torch 2.10.0. `uv.lock` haelt bereits torch
-2.12.0. `uv run pip-audit` OHNE Ignore laeuft gruen (exit 0).
-Begruendung: Reale Exploitierbarkeit war ohnehin null (AECT ruft `torch.jit.script`
-nie auf), aber der Ignore ist jetzt toter, irrefuehrender CI-Ballast -- und die
-Begruendung im Kommentar faktisch ueberholt.
-Entscheidung: Fix Tag 80 -- `--ignore-vuln CVE-2025-3000` aus `ci.yml` entfernt,
-Kommentar aktualisiert. README-Security-Zeile entsprechend (kein "1 ignoriert" mehr
-noetig -- siehe G-S6-Konsistenzpruefung).
+Selbstkorrektur (wichtig): Ich habe zuerst aus einer Web-Recherche (NVD/Wiz:
+"Fix in torch 2.10.0", `uv.lock` haelt 2.12.0) geschlossen, der Ignore sei
+ueberfluessig, und ihn entfernt -- der erste `pip-audit`-Lauf schien gruen.
+Dieser Lauf war aber durch den iCloud-Metadata-Fehler (G-033) MASKIERT: er hat
+nie real gescannt. Der saubere Lauf nach venv-Rebuild zeigte: `pip-audit` flaggt
+CVE-2025-3000 fuer torch 2.12.0 WEITERHIN, mit leerer "Fix Versions"-Spalte. Die
+von pip-audit genutzte OSV/PyPI-Advisory-DB hat die Fix-Range (anders als NVD/Wiz)
+NICHT eingetragen -- ohne Ignore wird CI rot.
+Begruendung: Die Binary ist real gepatcht (2.12.0 > 2.10.0) und AECT ruft
+`torch.jit.script` nie auf -> nicht exploitierbar. Aber der Ignore bleibt
+technisch noetig, bis OSV/PyPI die Fix-Range nachtraegt. Lehre: dem Tool-Output
+trauen, nicht der menschlichen CVE-DB -- und nie aus einem maskierten Lauf
+schliessen.
+Entscheidung: Ignore WIEDERHERGESTELLT mit ehrlichem Kommentar (beide Fakten:
+gepatcht + DB-Luecke + nicht exploitierbar). README-Zeile entsprechend
+("1 begruendeter Ignore"). Severity auf P2 herabgestuft -- reiner Doku-/Kommentar-
+Fix, kein CI-Verhalten geaendert.
 
 **G-032** [P1] [Threat-Model kennt das Frontend nicht]
 Beschreibung: `threat-model.md` war auf "v0.1.0, Localhost, Einzelbenutzer"
@@ -488,7 +497,7 @@ Phase-G-Fix.
 | Globaler Exception-Handler ohne Trace | PASS | -- |
 | Logs-Allowlist (kein Body/Prompt/PII) | PASS | -- |
 | Threat-Model-Vollstaendigkeit (Frontend) | PASS (nach Fix) | G-032 |
-| CI: gitleaks/bandit/pip-audit | PASS (CVE-Ignore entfernt) | G-031 |
+| CI: gitleaks/bandit/pip-audit | PASS (CVE-Ignore noetig, Kommentar ehrlich) | G-031 |
 | Cost-Sanity < 0,01 EUR/Case | PASS (arithmetisch) | -- |
 | PII-Redaction-Anspruch vs. Realitaet | PASS (nach Doku-Fix) | G-028 |
 
@@ -498,6 +507,7 @@ Phase-G-Fix.
 - **G-028**: `README.md` -- PII-Redaction-Overclaim durch 4 wahre Zeilen ersetzt.
 - **G-029**: `owasp-llm-checklist.md` -- LLM08-Mechanismus auf realen Grund.
 - **G-030**: `structured_output.py` -- Docstring "verdrahtet" statt "noch nicht".
-- **G-031**: `ci.yml` -- `--ignore-vuln CVE-2025-3000` entfernt.
+- **G-031**: `ci.yml` -- Ignore beibehalten, Kommentar auf wahren Stand (Binary
+  gepatcht, OSV-DB ohne Fix-Range, nicht exploitierbar). README-Zeile angepasst.
 - **G-032**: `threat-model.md` -- TB-5, S-04, I-06, Versions-Header.
 - **G-033**: venv-Repair + Umgebungs-Falle in `CLAUDE.md`.

@@ -65,10 +65,15 @@ jobs:
         run: uv run bandit -r src/ -ll
 
       - name: Dependency CVE scan — pip-audit
-        # CVE-2025-3000 (torch.jit.script memory corruption) war bis Tag 79
-        # ignoriert (Fix Versions in advisory-DB leer). torch 2.10.0 behebt
-        # es; uv.lock haelt 2.12.0 -- Ignore entfernt (G-S5, 2026-06-27).
-        run: uv run pip-audit
+        # CVE-2025-3000: torch.jit.script memory corruption (CVSS 5.3 MEDIUM,
+        # transitive via sentence-transformers). NVD/Wiz weisen den Fix in
+        # torch 2.10.0 aus, uv.lock haelt 2.12.0 -- die Binary ist also gepatcht.
+        # ABER die von pip-audit genutzte OSV/PyPI-Advisory-DB hat KEINE Fix-
+        # Version eingetragen (Spalte "Fix Versions" leer, verifiziert 2026-06-27),
+        # daher flaggt pip-audit weiterhin. AECT ruft torch.jit.script nie auf ->
+        # nicht exploitierbar. Ignore bleibt, bis die OSV/PyPI-Advisory die
+        # Fix-Range nachtraegt; bei jedem Dependency-Update neu pruefen.
+        run: uv run pip-audit --ignore-vuln CVE-2025-3000
 
   # ─── Job 3: Secret scan ─────────────────────────────────────────────────────
   secrets:
