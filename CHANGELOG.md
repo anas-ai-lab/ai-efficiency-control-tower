@@ -3,6 +3,31 @@
 Alle nennenswerten Aenderungen an AECT. Format orientiert an Keep a Changelog,
 Versionierung nach SemVer.
 
+## [1.2.0] -- 2026-06-27
+
+Post-v1-Vollaudit + Peak-Optimization: eine user-facing Compliance-Aenderung und
+substanzielle Portfolio-Dokumentation. Domain/API-Verhalten unveraendert.
+
+### Added (Compliance)
+- EU-AI-Act-Art.-50-Transparenzhinweis im Frontend (`layout.tsx`): Footer-
+  Disclaimer "Diese Anwendung nutzt ein KI-System" -- die in ADR-0020 als Pflicht
+  erkannte, bis dato nicht implementierte Anforderung (AUDIT-010).
+- `lang="en"` -> `lang="de"` im Root-Layout (UI ist durchgehend deutsch).
+
+### Added (Portfolio-Dokumentation)
+- C4-Architektur (Level 1/2/3) + 3 Sequenzdiagramme (Triage, RAG-Compliance,
+  Function-Calling-Loop) in `docs/architecture.md` -- ersetzt den veralteten
+  Woche-1-Stub, der nie gebaute Features beschrieb.
+- Architecture Decision Log `docs/adr/README.md` -- 41 ADRs thematisch gruppiert.
+- `docs/peak-optimization-roadmap.md` -- klassifizierte Opportunity-Liste
+  (Wirkung x Aufwand x IP-Risiko x Scope), umgesetzt/v2/verworfen, Top-5-Hebel.
+- 3 haertere Senior-Reviewer-Fragen in `docs/interview-qa.md`.
+- Mutation-Spot-Check auf dem Domain-Kern dokumentiert (2/2 Mutationen gefangen);
+  mutmut-Volllauf als v2 (Tool-Konflikt mit Coverage-Stats).
+
+### Fixed (Dokumentations-Wahrheit)
+- README: `respx` -> real genutztes `httpx TestClient` korrigiert (AUDIT-014).
+
 ## [1.1.0] -- 2026-06-27
 
 Post-v1-Audit (Phase G, G-S1 bis G-S8): Security-Hardening und Dokumentations-

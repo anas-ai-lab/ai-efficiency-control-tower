@@ -67,7 +67,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AECT - AI Efficiency Control Tower",
         description="AI Use Case Intake & Triage Assistant",
-        version="1.1.0",
+        version="1.2.0",
         debug=False,
         docs_url="/docs",
         redoc_url=None,
