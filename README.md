@@ -105,7 +105,8 @@ POST /cases/{id}/report
 - **RAG** fuer Belege (DSGVO, EU AI Act, Stack-Doku) -- jeder Hinweis mit Quelle
 - **LLM** fuer Ambiguitaet und Sprache (Schaerfung, Loesungsskizze) -- entscheidet nichts ueber Compliance oder Freigabe
 
-Vollstaendige Architektur-Dokumentation: `docs/architecture.md`
+Vollstaendige Architektur-Dokumentation mit C4-Diagrammen (L1-L3) und
+Sequenzdiagrammen (Triage, RAG-Compliance, Function-Calling): [`docs/architecture.md`](docs/architecture.md)
 
 ---
 
@@ -143,7 +144,7 @@ Vollstaendige Architektur-Dokumentation: `docs/architecture.md`
 | Semantic Caching / Model Routing abgelehnt | [0034](docs/adr/0034-semantic-caching-model-routing.md) | 0,003 EUR/Case, PII-in-Cache-Risiko, semantisch einzigartige Einreichungen = niedrige Hit-Rate |
 | Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung ausstehend; Demo via localhost vollstaendig erfuellbar |
 
-Alle 41 ADRs: `docs/adr/`
+Alle 41 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
 ---
 

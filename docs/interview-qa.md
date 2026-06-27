@@ -143,6 +143,39 @@ interne Referenz (entfernt) SS3.3 ("Menschen fuer Verantwortung").
 
 ---
 
+## Haertere Reviewer-Fragen (Senior-Challenge)
+
+**Ist Hexagonal fuer ein Single-User-Tool nicht Over-Engineering?**
+
+Berechtigte Frage -- die ehrliche Antwort ist: teils ja, und das ist bewusst. Der
+Nutzen ist nicht die theoretische Austauschbarkeit, sondern dass die Domain ohne
+laufende Infrastruktur testbar ist (449 Tests, kein Azure/Chroma noetig, MockLLM/
+MockRetriever per DI) und dass der LLM-Provider-Wechsel eine Adapter-Zeile ist.
+Der Preis sind Ports/Protocols, die bei einem Wegwerf-Skript Overhead waeren. Fuer
+ein Portfolio-Projekt, das Architektur-Kompetenz zeigen soll, ist genau diese
+Trennung der Punkt -- und sie hat sich beim Mock-First-Testen real ausgezahlt.
+Bei einem echten Wegwerf-Tool haette ich es nicht gemacht (ADR-004).
+
+**97% Coverage -- aber sind die Tests gut, oder testen sie nur Implementierung?**
+
+Coverage misst Quantitaet, nicht Qualitaet. Deshalb gibt es Property-Tests
+(hypothesis) auf dem ROI-/Zonen-Kern, die Verhalten gegen Invarianten pruefen,
+nicht Zeilen abhaken. Mutation-Testing (mutmut) auf dem Domain-Kern ist als
+naechster Schritt dokumentiert (peak-optimization-roadmap.md) -- ueberlebende
+Mutanten zeigen, wo ein Test gruen bleibt, obwohl die Logik kaputt ist. Das ist
+das ehrliche Mass; 97% ist nur die Eintrittskarte.
+
+**Warum kein Semantic Caching oder Model Routing?**
+
+Datenbasis statt Bauchgefuehl: der Cost-Logger zeigt ~0,003 EUR/Case bei
+gpt-4.1-mini. Bei dem Volumen ist Caching Optimierung ohne Problem -- und
+Cache-PII-Invalidierung (DSGVO-Kaskade) waere neue Komplexitaet ohne Gegenwert.
+Model Routing braeuchte Eval-Daten, die zeigen, dass ein guenstigeres Modell
+reicht; die habe ich nicht. Beide Designs sind in ADR-0034 skizziert und bewusst
+nicht gebaut -- eine Entscheidung mit Datenbasis, keine Wissensluecke.
+
+---
+
 ## Vor echten Interviews vertiefen (ehrliche Lern-Luecken, G-S6 Tag 81)
 
 Die Antworten oben sind aus dem Repo verteidigbar. Bei tiefer Nachfrage wird
