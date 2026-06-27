@@ -2851,3 +2851,55 @@ fuer ein Localhost-Build vertretbar und ab echtem Datenbetrieb ein Muss ist. Ein
 guter Audit fixt nicht alles -- er macht alles sichtbar und zwingt jede Luecke in
 eine bewusste Entscheidung. Der Reifegrad gesamt liegt bei 3,7 von 5: ein starker
 Kern mit ehrlich benannten, priorisierten Raendern.
+
+---
+
+## Tag 85 -- Maximum heisst Verteidigbarkeit pro Aufwand, nicht alles bauen
+
+Der Auftrag klang nach einer Einladung zur Gießkanne: bring das fertige Projekt
+auf sein "absolutes Maximum". Die eigentliche Arbeit bestand darin, genau das
+nicht zu tun. "Maximum" als "lückenlos perfekt" zu lesen, ist eine Scope-Falle --
+ein privates Portfolio-Projekt wird nicht dadurch besser, dass man jede denkbare
+Erweiterung anbaut, sondern dadurch, dass ein Reviewer in zehn Minuten sieht, was
+gut entschieden wurde und warum. Also zuerst die vollständige Opportunity-Liste
+ueber alle Dimensionen erzeugt -- Code, Architektur, Test-Qualität, Eval,
+Career -- und dann jede einzelne gegen vier Achsen geprüft: Wirkung aufs
+Karriereziel, Aufwand, IP-Risiko, Scope-Fit. Erst diese Klassifizierung trennt den
+Win vom Ballast.
+
+Der höchste Hebel war kein Feature, sondern eine Korrektur. Die Datei
+architecture.md, das Erste, was ein Solution-Architect-Reviewer öffnet, war noch
+der Woche-1-Stub und beschrieb Dinge, die nie gebaut wurden -- n8n-Formulare,
+einen anderen Risk-Scorer, einen MCP-Server. Eine Doku, die etwas anderes behauptet
+als der Code, ist schlimmer als gar keine: sie lässt das Projekt abgebrochen oder
+unverstanden wirken. Der Fix war reines Schreiben, null Codeänderung, und trotzdem
+die wertvollste Stunde des Tages: drei C4-Diagramme (System, Container,
+Komponente) plus Sequenzdiagramme der drei Kern-Flows. Daneben ein lesbarer
+ADR-Index ueber die 41 Entscheidungs-Records und drei härtere Interview-Fragen --
+genau die, die ein Senior stellt ("ist Hexagonal nicht Over-Engineering fuer ein
+Single-User-Tool?"), ehrlich beantwortet statt weggelassen.
+
+Das interessanteste Stück war die Test-Qualität. 97% Coverage klingt gut, sagt
+aber nur, dass eine Zeile beim Test durchlaufen wurde -- nicht, ob der Test merkt,
+wenn sie kaputtgeht. Mutation-Testing dreht das um: man verändert absichtlich die
+Logik und schaut, ob ein Test rot wird. Aus "benefit <= max" wurde "<", aus
+"expected - license" wurde "+"; beide Mutationen im Rechenkern wurden sofort von
+Tests gefangen. Der vollständige mutmut-Lauf scheiterte allerdings an einem
+Werkzeug-Konflikt -- das Coverage-Tool und das Mutations-Tool greifen auf denselben
+Mechanismus zu. Hier lag die Disziplin im Nicht-Eskalieren: statt die gesamte
+Test-Konfiguration für ein Nebenziel umzubauen, der Beleg per Stichprobe und der
+Volllauf sauber als v2 dokumentiert. Genauso bei den Frontend-Typen aus dem
+OpenAPI-Schema: ein hoher Portfolio-Wert, aber das Frontend ist nicht in CI und
+durch iCloud build-blockiert -- ungeprüften Codegen einzuchecken hätte Drift
+erzeugt statt sie zu beseitigen.
+
+Ohne diese Klassifizierungs-Disziplin wäre der Tag in Beschäftigung verlaufen:
+openapi-typescript halb gebaut und ungeprüft eingecheckt, mutmut mit kaputter
+Test-Konfiguration erzwungen, CV und LinkedIn neu geschrieben, obwohl sie in G-S6
+schon faktengecheckt waren. Mehr Zeilen, mehr Dateien, mehr Risiko -- und ein
+Projekt, das größer, aber nicht verteidigbarer ist. Stattdessen steht jetzt
+schwarz auf weiß, dass drei der fünf wichtigsten Hebel gar kein Code sind: die
+IP-Entscheidung, die alles Öffentliche erst freischaltet, der iCloud-Move, der die
+Umgebung entgiftet, und die heute erledigte Architektur-Doku. Die ehrlichste
+Erkenntnis dieser Runde ist, dass das Karriereziel nicht an fehlenden Features
+hängt, sondern an einer Entscheidung, die nur der Mensch treffen kann.
