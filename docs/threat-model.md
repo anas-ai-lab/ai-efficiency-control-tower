@@ -2,8 +2,10 @@
 
 **Methodik:** STRIDE
 **Stand:** Juni 2026
-**System:** AI Efficiency Control Tower v0.1.0
+**System:** AI Efficiency Control Tower v1.0.0
 **Deployment-Scope:** Localhost, Einzelbenutzer, privates Portfolio-Build.
+**Frontend-Update:** Phase F (Tag 73+) hat Next.js 15 mit Server Actions
+ergaenzt. TB-5 (Browser -> Next.js) und S-04/I-06 unten dokumentiert.
 
 ---
 
@@ -13,6 +15,8 @@
 
 | Komponente | Typ | Trust-Stufe |
 |---|---|---|
+| Browser (Next.js-Frontend) | Extern | Niedrig -- kein direkter API-Zugriff |
+| Next.js Server Actions (Port 3000) | Intern | Hoch -- kein NEXT_PUBLIC_ API-Key |
 | API-Consumer | Extern | Niedrig -- nur API-Key-Auth |
 | FastAPI (Port 8000) | Intern | Hoch |
 | SQLite (aect.db) | Lokal Filesystem | Hoch |
@@ -47,6 +51,10 @@ SentenceTransformer
 - **TB-2:** FastAPI <-> Azure OpenAI -- Internet, HTTPS, TLS
 - **TB-3:** FastAPI <-> ChromaDB -- Docker-internes Netz, localhost-only
 - **TB-4:** FastAPI <-> SQLite / KB-Markdown -- lokales Filesystem, OS-Rechte
+- **TB-5 (Phase F):** Browser <-> Next.js Server Actions -- HTTP localhost:3000.
+  AECT_API_KEY nur serverseitig (process.env, kein NEXT_PUBLIC_). Der Browser
+  sieht nie den API-Key -- nur die Server-Action-Response.
+  S-04 / I-06 (unten) dokumentieren die daraus folgenden Threats.
 
 ---
 
@@ -56,9 +64,10 @@ SentenceTransformer
 
 | ID | Bedrohung | Komponente | Wahrscheinlichkeit | Mitigation | Status |
 |---|---|---|---|---|---|
-| S-01 | Brute-Force / Leak des API-Keys | TB-1 | Mittel | Rate Limiting (slowapi, 30/min POST /triage); starke Key-Entropie deployment-seitig | OK aktiv |
+| S-01 | Brute-Force / Leak des API-Keys | TB-1 | Mittel | Rate Limiting (slowapi, 30/min POST /triage); starke Key-Entropie deployment-seitig; `secrets.compare_digest` (G-S5) | OK aktiv |
 | S-02 | MITM auf Azure-OpenAI-Verbindung | TB-2 | Niedrig | TLS, openai-Library erzwingt HTTPS, Microsoft CA | OK |
 | S-03 | ChromaDB-Port von aussen erreichbar | TB-3 | Niedrig (localhost) | Kein oeffentlicher Bind; Docker-internes Netz | WARN Hardening-Punkt bei Server-Deploy |
+| S-04 | API-Key-Exfil aus Next.js-Bundle | TB-5 (Phase F) | Niedrig | AECT_API_KEY als server-only env (kein NEXT_PUBLIC_); Server Action holt Creds nie an Client | OK -- frontend/CLAUDE.md Pflicht-Regel |
 
 ### T -- Tampering
 
@@ -86,6 +95,7 @@ SentenceTransformer
 | I-03 | PII in structlog-Logs | FastAPI -> Logfile | Niedrig | Allowlist: request_id, route, status, latency, token_count -- kein Body, kein Prompt | OK |
 | I-04 | Use-Case-Inhalt ausserhalb EU-Data-Zone | TB-2 | Niedrig (by config) | Deployment-Pflicht: swedencentral/westeurope; ADR-0003, ADR-0010 | OK deployment-seitig |
 | I-05 | ChromaDB-Embeddings extern lesbar | TB-3 (Port 8001) | Niedrig (localhost) | Kein oeffentlicher Bind; bei Server-Deploy: Netzwerk-Isolation erforderlich | WARN Server-Deploy-Punkt |
+| I-06 | Case-Inhalt in Browser-Netzwerktab sichtbar | TB-5 (Phase F) | Niedrig | Server Actions geben nur das typisierte Response-DTO zurueck; kein Prompt, kein Key im Browser-Traffic | OK by design |
 
 ### D -- Denial of Service
 

@@ -179,8 +179,14 @@ Retrieval-Ergebnisse. Embeddings koennen PII enthalten die unbemerkt persistiert
 
 **AECT-Mitigation:**
 
-- **PII-Redaction vor Embedding:** Use-Case-Inhalte werden sanitisiert bevor
-  sie embedded oder in ChromaDB geschrieben werden (Phase-D-Pflicht).
+- **Kein User-PII im Embedding-Pfad (by design):** Use-Case-Freitext wird nie
+  embedded. Indexiert wird ausschliesslich kuratierter oeffentlicher Rechtstext
+  (`knowledge_base/`, ADR-0021); die Compliance-Retrieval-Queries sind feste
+  kanonische Strings (`_TRANSPARENCY_QUERY`/`_DSFA_QUERY` in `service.py`), kein
+  Nutzer-Freitext. Damit erreicht strukturell kein personenbezogener Inhalt den
+  Embedder -- staerker als nachtraegliche Redaction. Ein PII-Redactor auf einem
+  kuenftigen User-Query-Pfad ist als Folge-Punkt dokumentiert
+  (`indexer.py`-Docstring, `known_limitations.md` #7).
 - Nur kuratierte Quellen werden indexed -- keine User-Inputs in die KB.
 - `source_id`-Tag pro Dokument: gezielte Loeschung ohne KB-Neuaufbau moeglich.
 - ChromaDB an `127.0.0.1:8001` gebunden: kein externer Netzwerkzugriff

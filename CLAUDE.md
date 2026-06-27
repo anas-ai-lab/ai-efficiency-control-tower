@@ -68,6 +68,10 @@ Regression-Guard: pytest gruen + mypy 0 Issues BEVOR committet wird.
 - Python-Umgebung existiert NUR via `uv run` (nie direkt `python`).
 - venv-Schaden: `rm -rf .venv && uv sync` (einzige erlaubte rm -rf-Ausnahme).
 - pytest maskiert venv-Schaeden. Gesunde Umgebung: `uv run python -c "import aect; print(aect.__file__)"`.
+- iCloud-Falle: Repo liegt unter `~/Desktop` (iCloud-synchronisiert). iCloud
+  erzeugt bei Sync-Konflikten " 2"-Kopien (z. B. `paket-0.0.4 2.dist-info`) im
+  `.venv` -- `uv run` wirft dann Metadata-Parse-Fehler und verseucht Test-Output.
+  Symptom-Fix: venv-Rebuild oben. Stray-Dir-Check: `ls .venv/.../site-packages | grep " 2"`.
 - macOS: `sed -i` braucht `sed -i ''`. Kein GNU-only-Syntax.
 - Neue Dependencies: `uv add`, nie pip. `uv.lock` committen.
 - ruff RUF001/002/003: ASCII in Python-Code/Kommentaren (x statt x, - statt -).

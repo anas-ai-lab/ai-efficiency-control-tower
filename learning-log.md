@@ -2657,3 +2657,59 @@ Technisch funktioniert das. Aber ein DACH-Entscheider, der "Bitte waehlen" oder
 Das ist kein Test, der fehlschlaegt -- es ist ein Qualitaetsmerkmal, das nur
 durch manuelle Review oder Demo-Begutachtung sichtbar wird. Genau dafuer ist
 der G-S4-Audit da.
+
+## Tag 80 — Das Versprechen, das der Code nicht hielt
+
+G-S5 war der Security-Audit, und die Regel dabei war: keine Checkliste abnicken.
+Eine OWASP-LLM-Checkliste und ein STRIDE-Threat-Model behaupten Dutzende
+Schutzmassnahmen -- aber eine Checkliste ist nur ein Versprechen, und ein Audit
+ist das Nachzaehlen der Belege, wie ein Buchpruefer, der nicht der Bilanz glaubt,
+sondern den Quittungen. Ich bin jede behauptete Mitigation einzeln in den echten
+Code gegangen. Die meisten hielten: Rate-Limiting deckt wirklich alle
+LLM-Endpoints, der Function-Calling-Loop ist hart auf zwei Aufrufe begrenzt, der
+Exception-Handler gibt keinen Stack-Trace preis. Aber zwei Versprechen waren nicht
+gedeckt, und das interessantere von beiden war kein Code-Bug, sondern ein
+Doku-Bug.
+
+Die README fuehrte in ihrer Security-Tabelle "PII-Redaction -- vor jedem LLM-Call
+-- application/sanitization.py". Ich habe die Datei geoeffnet: sie enthaelt
+ausschliesslich vier Regex-Muster zur Erkennung von Prompt-Injection, kein
+einziges Stueck PII-Redaction. Der Use-Case-Freitext geht unredigiert an das
+Modell. Das Bemerkenswerte ist, dass die eigene `known_limitations.md` das ehrlich
+zugibt -- Limitation #7 sagt woertlich, dass ohne NER ein "Max Mustermann"
+ungefiltert durchlaeuft. Das Projekt widersprach sich also selbst: die Schaufront
+versprach etwas, das das Kellergeschoss als bewusste Grenze dokumentierte. Ein
+Overclaim bei Security ist der gefaehrlichste Befundtyp ueberhaupt, weil er im
+Interview in dem Moment zerbricht, in dem jemand die Datei oeffnet -- und dann
+steht nicht eine fehlende Funktion im Raum, sondern die Glaubwuerdigkeit aller
+anderen Aussagen.
+
+Der entscheidende Reflex war hier, NICHT die PII-Redaction schnell nachzubauen.
+Das waere der naheliegende Fehler gewesen: ein Versprechen sehen, das nicht
+eingeloest ist, und es hastig einloesen. Aber Phase G auditiert und plant, sie
+baut nicht -- und echte PII-Erkennung mit NER ist ein Feature mit eigener
+Abwaegung, kein 30-Minuten-Patch. Der eigentliche Defekt war nicht die fehlende
+Redaction, sondern die unwahre README. Also habe ich die Realitaet dokumentiert,
+nicht die Behauptung erfuellt: die Zeile durch vier wahre ersetzt -- was
+sanitization.py wirklich tut (Injection-Detection), dass die Logs eine
+PII-Allowlist haben, und dass PII-Redaction-vor-LLM eine bewusste v1-Grenze ist.
+Gegenprobe: haette ich stattdessen das Feature gebaut, haette ich in einer
+Audit-Phase ungetesteten Sicherheits-Code eingefuehrt, der selbst wieder ein
+Audit braucht -- und die ehrlichere, im Interview staerkere Aussage ("ich weiss
+genau, was mein System nicht tut, und warum das fuer einen privaten Build vertretbar
+ist") verschenkt.
+
+Der zweite Code-Befund war klassisch: der API-Key wurde mit `!=` verglichen. Das
+ist funktional korrekt -- falscher Key, 401 -- aber nicht konstant in der Laufzeit.
+Ein String-Vergleich bricht beim ersten falschen Byte ab, und wer die Antwortzeit
+misst, lernt daraus, wie viele Anfangszeichen stimmen, und raet den Schluessel Byte
+fuer Byte statt im Brute-Force-Raum. `secrets.compare_digest` braucht immer
+gleich lang. Auf einem Single-User-Localhost ist das real kaum ausnutzbar, und
+trotzdem war es richtig zu fixen: ein Projekt, das Security als Kompetenz
+ausstellt, darf den bekanntesten Constant-Time-Patzer nicht ausgerechnet in seiner
+einzigen Auth-Pruefung tragen. Dazu kam eine Umgebungs-Lehre fast nebenbei: ueber
+Nacht hatte iCloud -- das Repo liegt unter ~/Desktop -- eine Konfliktkopie eines
+Paket-Metadaten-Ordners mit " 2" im Namen angelegt, und genau die verseuchte mein
+Test-Output so, dass ich ein sauberes Gruen erst nach einem venv-Rebuild
+bestaetigen konnte. Manchmal ist der Stolperstein nicht der Code, sondern der
+Dateisynchronisierer unter ihm.

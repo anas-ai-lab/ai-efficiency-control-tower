@@ -57,3 +57,6 @@ config/roi_config.local.toml
 # setuptools build artifacts
 src/*.egg-info/
 frontend/.env.local
+
+# Scratch / Wegwerf-Analysen (z. B. G-S3-Sensitivitaetsscript)
+tmp/

@@ -9,9 +9,10 @@ validiert einen rohen JSON-String gegen ein striktes Pydantic-Schema
 (extra="forbid", max_length auf allen Feldern) und wirft
 InvalidLLMOutputError bei Verstoss, statt fehlerhafte Daten durchzulassen.
 
-Noch nicht verdrahtet (ADR-0013, offene Punkte): SharpenedContentV2 wird von
-sharpen_case() noch nicht erzeugt oder konsumiert -- das ist Teil 2, eigener
-Tag mit Wiring + Migration.
+Verdrahtet (ADR-0013 Teil 2): SharpenedContentV2 wird von sharpen_case()
+(application/service.py) gegen die rohe LLM-Antwort validiert. Bei Verstoss
+Graceful Degradation auf raw_text statt Crash -- kein Fallback auf
+ungepruefte strukturierte Felder.
 """
 
 from __future__ import annotations

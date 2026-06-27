@@ -266,10 +266,12 @@ docs/
 | STRIDE Threat Model | Abgedeckt | `docs/threat-model.md` |
 | Secret Scanning (gitleaks) | CI-Job, jeder Push | `.github/workflows/ci.yml` |
 | SAST (bandit MEDIUM+) | CI-Job | `.github/workflows/ci.yml` |
-| Dependency CVE Scan (pip-audit) | CI-Job | 1 ignoriert (CVE-2025-3000, doc'd in CI) |
+| Dependency CVE Scan (pip-audit) | CI-Job, jeder Push | Keine Ignores (CVE-2025-3000 durch torch 2.12.0 behoben) |
 | GitHub Actions SHA-Pinned | Erledigt | Alle 4 Action-Refs durch Commit-SHA |
-| PII-Redaction | Vor jedem LLM-Call | `application/sanitization.py` |
-| Prompt Injection Detection | pytest-Cases | `tests/adapters/api/test_triage.py` |
+| Prompt-Injection-Detection (LLM01) | Flag + Log vor LLM-Call (Delimiter primaer) | `application/sanitization.py` |
+| Prompt-Injection-Tests | pytest Red-Team-Cases | `tests/adapters/api/test_triage.py` |
+| PII in Logs | Allowlist -- kein Body/Prompt/PII | `adapters/api/logging_config.py` |
+| PII-Redaction vor LLM (NER) | Bewusste v1-Grenze (Regex statt NER) | `docs/known_limitations.md` #7 |
 | Azure EU-Datenpflicht | Durchgesetzt | Sweden Central (EU Data Zone), nie Global |
 | Non-root Docker User | Dockerfile | `aect:aect` (uid/gid 1000) |
 | ChromaDB-Isolation | Docker-Netz | Nur `127.0.0.1:8001`, kein Netz-Zugriff |

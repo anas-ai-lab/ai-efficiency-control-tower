@@ -349,3 +349,155 @@ Entscheidung: Fix Tag 79. ROUTING_BADGE-Mapping inline in triage-result.tsx.
   Projektverfassung, IP-Trennung, Hexagonale Architektur, TOML/StrEnum-Invariante,
   Commit-Sequenz, Umgebungs-Fallen, Schreibstil, Scope-Disziplin Phase G, Datei-Routing.
   Ersetzt den veralteten Week-1-Stub.
+
+---
+
+## G-S5 -- Security & Hardening (Tag 80)
+
+Methodik: keine Checklist abgenickt. Jede in `owasp-llm-checklist.md` und
+`threat-model.md` behauptete Mitigation gegen den echten Code stichprobenartig
+verifiziert. Befunde sind die Stellen, wo Doku und Code auseinanderliefen.
+
+### Findings
+
+**G-027** [P1] [Auth: API-Key-Vergleich nicht timing-safe]
+Beschreibung: `require_api_key()` (`adapters/api/dependencies.py`) verglich den
+X-API-Key-Header mit `api_key != settings.api_key` -- ein nicht-konstanter
+String-Vergleich. CPython bricht beim ersten falschen Byte ab; die Vergleichsdauer
+verraet die Anzahl korrekter Praefix-Bytes (Timing-Side-Channel, byte-fuer-byte-
+Erraten des Keys theoretisch moeglich).
+Begruendung: Auf Localhost/Single-User ist die reale Exploitierbarkeit nahe null
+(Jitter, viele Samples noetig). Aber: ein Projekt, das eine OWASP-Checkliste und
+ein STRIDE-Threat-Model als Security-Posture ausstellt, mit dem klassischen
+Constant-Time-Patzer in der einzigen Auth-Pruefung -- das ist ein
+Interview-Glaubwuerdigkeitsleck. Fix < 5 Min.
+Entscheidung: Fix Tag 80. `secrets.compare_digest()` auf UTF-8-Bytes (str-Variante
+wirft TypeError bei Nicht-ASCII), None-Guard fuer fehlenden Header vorgeschaltet.
+Verhalten unveraendert: 401 bei fehlend/falsch, 500 bei serverseitig nicht
+konfiguriertem Key.
+
+**G-028** [P0] [README behauptet PII-Redaction, die es nicht gibt]
+Beschreibung: README-Security-Tabelle fuehrte "PII-Redaction | Vor jedem LLM-Call |
+`application/sanitization.py`". `sanitization.py` enthaelt aber ausschliesslich
+`detect_injection_patterns()` (4 Regex-Muster, Flag-not-block) -- KEINE
+PII-Redaction. `service.py` reicht Use-Case-Freitext (title/current_state/
+desired_state/example_process) unredigiert an den LLM-Call weiter.
+`known_limitations.md` #7 sagt korrekt das Gegenteil ("kein NER ... ungefiltert
+an den LLM-Call weitergereicht").
+Begruendung: Falsche Security-Aussage im oeffentlichen Showcase, die der eigenen
+known_limitations widerspricht. Ein Interviewer, der die README-Zeile liest und
+`sanitization.py` oeffnet, findet den Widerspruch in 30 Sekunden -- der
+gefaehrlichste Befundtyp (Overclaim bei Security). P0.
+Entscheidung: Fix Tag 80 -- KEIN Feature-Build (PII-NER bleibt korrekt v2,
+known_limitations #7). README-Zeile durch vier wahre Zeilen ersetzt:
+Injection-Detection (sanitization.py), Red-Team-Tests, PII-in-Logs-Allowlist
+(logging_config.py), und PII-Redaction-vor-LLM explizit als v1-Grenze
+(-> known_limitations #7).
+
+**G-029** [P1] [OWASP LLM08: Mechanismus falsch beschrieben]
+Beschreibung: LLM08 behauptete "PII-Redaction vor Embedding: Use-Case-Inhalte
+werden sanitisiert bevor sie embedded werden". Tatsaechlich wird Use-Case-Freitext
+NIE embedded: indexiert wird nur kuratierter oeffentlicher Rechtstext
+(`knowledge_base/`), und die Compliance-Retrieval-Queries sind feste kanonische
+Strings (`_TRANSPARENCY_QUERY`/`_DSFA_QUERY`), kein Nutzer-Freitext.
+Begruendung: Der Schluss (kein PII in Embeddings) ist richtig, aber der
+beschriebene Mechanismus existiert nicht. Die wahre Begruendung ("by design kein
+User-PII im Embedding-Pfad") ist sogar staerker als nachtraegliche Redaction.
+Entscheidung: Fix Tag 80 -- LLM08-Mitigation umformuliert auf den realen,
+staerkeren Grund. Status MITIGATED bleibt (Schluss war korrekt).
+
+**G-030** [P2] [Veraltete Docstring in structured_output.py]
+Beschreibung: Modul-Docstring sagte "Noch nicht verdrahtet ... SharpenedContentV2
+wird von sharpen_case() noch nicht erzeugt oder konsumiert". `service.py:356`
+verdrahtet es aber (parse_structured_llm_output gegen SharpenedContentV2, Graceful
+Degradation auf raw_text). Die OWASP-Doku zitiert genau diese Datei als
+LLM05-Evidenz -- ein Reviewer findet die stale Aussage.
+Entscheidung: Fix Tag 80 -- Docstring auf "Verdrahtet (ADR-0013 Teil 2)" korrigiert.
+
+**G-031** [P1] [CVE-2025-3000-Ignore veraltet -- Fix existiert]
+Beschreibung: CI ignorierte CVE-2025-3000 (`torch.jit.script` memory corruption,
+CVSS 5.3 MEDIUM) mit Begruendung "Fix Versions leer (Stand 2026-06-18)".
+Web-Recherche (2026-06-27): Fix in torch 2.10.0. `uv.lock` haelt bereits torch
+2.12.0. `uv run pip-audit` OHNE Ignore laeuft gruen (exit 0).
+Begruendung: Reale Exploitierbarkeit war ohnehin null (AECT ruft `torch.jit.script`
+nie auf), aber der Ignore ist jetzt toter, irrefuehrender CI-Ballast -- und die
+Begruendung im Kommentar faktisch ueberholt.
+Entscheidung: Fix Tag 80 -- `--ignore-vuln CVE-2025-3000` aus `ci.yml` entfernt,
+Kommentar aktualisiert. README-Security-Zeile entsprechend (kein "1 ignoriert" mehr
+noetig -- siehe G-S6-Konsistenzpruefung).
+
+**G-032** [P1] [Threat-Model kennt das Frontend nicht]
+Beschreibung: `threat-model.md` war auf "v0.1.0, Localhost, Einzelbenutzer"
+datiert und deckte das Tag-73+-Next.js-Frontend nicht ab -- keine
+Browser/Server-Action-Trust-Boundary, kein Threat fuer API-Key-Leak ins
+Client-Bundle, kein Hinweis auf das Server-Action-Muster.
+Begruendung: Das Threat-Model ist das ausgestellte Security-Artefakt; eine
+fehlende ganze Schicht ist eine Vollstaendigkeitsluecke. Die Mitigation existiert
+bereits (G-021 PASS: kein NEXT_PUBLIC_), nur das Model spiegelte sie nicht.
+Entscheidung: Fix Tag 80 (Doku, kein Code) -- TB-5 (Browser <-> Next.js Server
+Actions), S-04 (API-Key-Exfil aus Bundle -> server-only env), I-06 (Case-Inhalt
+im Browser-Traffic -> nur typisiertes DTO) ergaenzt. Version-Header 0.1.0 -> 1.0.0.
+
+**G-033** [P3] [Umgebungs-Falle: iCloud-Desktop erzeugt " 2"-Konfliktkopien im venv]
+Beschreibung: `~/Desktop` ist iCloud-synchronisiert. Ueber Nacht entstand
+`.venv/.../annotated_doc-0.0.4 2.dist-info` (Verzeichnisname mit Leerzeichen +
+" 2"-Suffix, klassisches iCloud-Konflikt-Artefakt). Folge: `uv run` warf einen
+Metadata-Parse-Fehler, der die Regression-Outputs verseuchte und ein sauberes
+pytest-Gruen verschleierte.
+Begruendung: Kein Code-Defekt, aber ein realer, wiederkehrender Fallstrick fuer
+jede Session in diesem Pfad. Maskiert die Regression-Bestaetigung.
+Entscheidung: Tag 80 dokumentierter venv-Fix (`rm -rf .venv && uv sync`, einzige
+erlaubte rm-rf-Ausnahme). Als Umgebungs-Falle in `CLAUDE.md` ergaenzt. Dauerhafte
+Loesung (Repo aus iCloud-Pfad verschieben) ist eine Nutzer-Entscheidung, kein
+Phase-G-Fix.
+
+### Verifiziert ohne Befund (Doku == Code)
+
+- **Rate-Limiting LLM-Endpoints**: 10/min auf /sharpen, /propose-solution,
+  /compliance-hints; 30/min /report; 60/min GET /cases; 30/min POST /triage. Deckt
+  Intake UND LLM-Endpoints (`cases.py`, `rate_limit.py`). PASS.
+- **Function-Calling-Loop**: maximal 2 `complete()`-Aufrufe, kein while-Loop
+  (`service.py` propose_solution). LLM06/LLM10 strukturell. PASS.
+- **Structured-Output-Validierung**: `parse_structured_llm_output` mit
+  `extra="forbid"`/`frozen`/max_length verdrahtet (LLM05). PASS.
+- **Globaler Exception-Handler**: `{"detail": "Internal error", "request_id"}`,
+  kein Stack-Trace, `debug=False` (`app.py`). PASS.
+- **CORS**: `allow_origins=[]` + `allow_credentials=False`. Bricht das Frontend
+  nicht, da Server Actions serverseitig fetchen (kein Browser-Cross-Origin). PASS.
+- **Logging-Allowlist**: kein body/prompt/PII, nur Metadaten
+  (`logging_config.py`, `cost_logger.py`). PASS.
+- **Docker**: Non-root `aect:aect` (uid/gid 1000), `USER aect`. ChromaDB nur an
+  `127.0.0.1:8001`. SHA-gepinnte GitHub-Actions (alle 4). PASS.
+- **Cost-Sanity**: arithmetisch ~4 LLM-Calls/Case bei gpt-4.1-mini
+  ($0.40/$1.60 pro 1M, x0.95 EUR) ~ 0,0065 EUR/Case < 0,01 EUR/Case. KEIN
+  Live-Azure-Call gemacht (HARD STOP: kein unbeaufsichtigter Cloud-Spend). PASS.
+- **Dependency-Health**: alle Deps lower-bound, `chromadb-client` zusaetzlich
+  oben begrenzt; Reproduzierbarkeit via `uv.lock` + `uv sync --frozen` in CI
+  (korrekte Trennung App-Pins vs. Lock). Keine riskanten veralteten Pins. PASS.
+- **PII-NER statt Regex**: bewusst v2 (known_limitations #7), korrekt fuer
+  privaten Build. Kein Handlungspunkt.
+
+### Checklist-Status G-S5
+
+| Punkt | Status | Finding |
+|---|---|---|
+| OWASP LLM Top 10 Stichproben im Code | PASS (2 Doku-Korrekturen) | G-028, G-029 |
+| Auth timing-safe | PASS (nach Fix) | G-027 |
+| Rate-Limiting Intake + LLM | PASS | -- |
+| CORS-Allowlist, nie ["*"]+credentials | PASS | -- |
+| Globaler Exception-Handler ohne Trace | PASS | -- |
+| Logs-Allowlist (kein Body/Prompt/PII) | PASS | -- |
+| Threat-Model-Vollstaendigkeit (Frontend) | PASS (nach Fix) | G-032 |
+| CI: gitleaks/bandit/pip-audit | PASS (CVE-Ignore entfernt) | G-031 |
+| Cost-Sanity < 0,01 EUR/Case | PASS (arithmetisch) | -- |
+| PII-Redaction-Anspruch vs. Realitaet | PASS (nach Doku-Fix) | G-028 |
+
+### Fixes G-S5 (Tag 80)
+
+- **G-027**: `dependencies.py` -- `secrets.compare_digest` (Bytes), None-Guard.
+- **G-028**: `README.md` -- PII-Redaction-Overclaim durch 4 wahre Zeilen ersetzt.
+- **G-029**: `owasp-llm-checklist.md` -- LLM08-Mechanismus auf realen Grund.
+- **G-030**: `structured_output.py` -- Docstring "verdrahtet" statt "noch nicht".
+- **G-031**: `ci.yml` -- `--ignore-vuln CVE-2025-3000` entfernt.
+- **G-032**: `threat-model.md` -- TB-5, S-04, I-06, Versions-Header.
+- **G-033**: venv-Repair + Umgebungs-Falle in `CLAUDE.md`.

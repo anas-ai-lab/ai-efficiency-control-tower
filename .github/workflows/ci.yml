@@ -65,11 +65,10 @@ jobs:
         run: uv run bandit -r src/ -ll
 
       - name: Dependency CVE scan — pip-audit
-        # CVE-2025-3000: torch.jit.script memory corruption (transitive dep via
-        # sentence-transformers). AECT ruft torch.jit.script nie auf -- kein
-        # reales Risiko. Fix Versions leer in pip-audit-DB (Stand 2026-06-18).
-        # Ignoriert bis advisory-DB einen Fix-Release ausweist.
-        run: uv run pip-audit --ignore-vuln CVE-2025-3000
+        # CVE-2025-3000 (torch.jit.script memory corruption) war bis Tag 79
+        # ignoriert (Fix Versions in advisory-DB leer). torch 2.10.0 behebt
+        # es; uv.lock haelt 2.12.0 -- Ignore entfernt (G-S5, 2026-06-27).
+        run: uv run pip-audit
 
   # ─── Job 3: Secret scan ─────────────────────────────────────────────────────
   secrets:

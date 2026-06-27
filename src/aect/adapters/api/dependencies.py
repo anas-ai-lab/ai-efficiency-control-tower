@@ -14,6 +14,8 @@ Security (aect-security-checklist v2.1, Phase B):
   falschem Key, 500 wenn Server-seitig kein Key konfiguriert.
   APIKeyHeader auto_error=False: fehlender Header gibt None statt 403 --
   wir liefern einheitlich 401 (kein Info-Leak ueber Mechanismus).
+  Schluessel-Vergleich via secrets.compare_digest (konstante Laufzeit) --
+  kein timing-basiertes Byte-fuer-Byte-Erraten des Keys (G-S5-Hardening).
 InMemoryRepository: prozessgebunden, kein State nach Neustart.
 Phase B: SQLiteRepository ersetzt dies.
 
@@ -25,6 +27,7 @@ Idempotency (aect-security-checklist v2.1, Phase B):
 
 from __future__ import annotations
 
+import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -261,7 +264,12 @@ async def require_api_key(
             status_code=500,
             detail="API key not configured on server",
         )
-    if api_key != settings.api_key:
+    # Konstante Laufzeit: compare_digest verhindert, dass die Vergleichsdauer
+    # die Anzahl korrekter Praefix-Bytes verraet (Timing-Side-Channel). Bytes
+    # statt str -- compare_digest auf str wirft TypeError bei Nicht-ASCII.
+    if api_key is None or not secrets.compare_digest(
+        api_key.encode("utf-8"), settings.api_key.encode("utf-8")
+    ):
         raise HTTPException(
             status_code=401,
             detail="Invalid or missing API key",
