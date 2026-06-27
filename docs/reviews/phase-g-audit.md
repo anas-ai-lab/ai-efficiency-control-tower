@@ -666,3 +666,60 @@ Top-3 stattdessen: L-1 Portfolio-View, L-5 Fuzzy-Zonen, L-3 Dedup
 
 - `docs/roadmap-v2.md` -- Luecken-Analyse, Markt-Findings (7 Quellen),
   Opportunity-Scoring, Top-3, Ideation-Re-Evaluierung, "eigener-Record"-Marker.
+
+---
+
+## G-S8 -- Closeout & SHIP-Gate (Tag 83)
+
+Abschluss. Findings-/Limitations-Triage, Regression-Endlauf, Fresh-Clone,
+Versions-Entscheidung, IP-Vorlage, SHIP-Deklaration. Vollstaendig in
+`docs/reviews/phase-g-review.md`.
+
+### Findings
+
+**G-045** [P0 -- Nutzer-Aktion] [Exponierter GitHub-PAT in lokaler .git/config]
+Beschreibung: Die Remote-URL in der lokalen `.git/config` enthaelt einen
+GitHub-Personal-Access-Token im Klartext (plus unersetzten Platzhalter-Username).
+Verifiziert: Token NICHT in getrackten Dateien oder Git-History (`git grep ghp_`
+leer) -- kein Repo-Leak, gitleaks-CI bleibt gruen. Aber Klartext-Credential lokal.
+Begruendung: Ein exponiertes Credential ist P0, auch wenn nur lokal. Der wirksame
+Fix ist Rotation (der Token ist durch Klartext-Lagerung kompromittiert).
+Entscheidung: GEMELDET, nicht automatisch geaendert -- ein Aendern der Remote-URL
+braeche die Push-Auth dieser Arbeitsumgebung. Nutzer rotiert den Token (GitHub
+Settings -> PATs -> revoke) und setzt die Remote sauber (Credential-Helper statt
+Token-in-URL). In phase-g-review.md SS6 als naechster konkreter Schritt gelistet.
+
+### Versions-Entscheidung
+
+**v1.1.0** (annotierter Tag). Begruendung: substanzielle Content-Fixes (P0
+PII-Overclaim, timing-safe Auth, CVE-Handling, Threat-Model, roadmap). Zusaetzlich
+die interne 0.1.0-Inkonsistenz (`__init__`/`app.py`/`/health`) auf 1.1.0
+vereinheitlicht. Changelog: `CHANGELOG.md`.
+
+### Checklist-Status G-S8
+
+| Punkt | Status |
+|---|---|
+| Findings-Triage (kein offener P0 im Code) | PASS (G-045 = Nutzer-Aktion) |
+| Limitations-Triage (alle 14 entschieden) | PASS |
+| Regression-Endlauf (pre-commit/pytest/mypy/bandit/pip-audit) | PASS (siehe review SS4) |
+| Frontend-Build | PASS (siehe review SS4) |
+| Fresh-Clone < 10 Min | PASS (siehe review SS4) |
+| IP-Entscheidung entscheidungsreif vorgelegt | PASS (review SS6) |
+| SHIP-Deklaration | PASS (review SS7) |
+| Versions-Entscheidung | PASS (v1.1.0) |
+
+### Artefakte G-S8
+
+- `docs/reviews/phase-g-review.md` -- Closeout (neu).
+- `CHANGELOG.md` -- v1.1.0-Eintrag (neu).
+- Version-Bump 1.1.0 (pyproject + `__init__` + app.py + health.py).
+- Git-Tag v1.1.0 (annotiert).
+
+---
+
+## Phase G abgeschlossen
+
+8 Sessions, 45 Befunde, 3 P0 im Code (alle gefixt) + 1 P0 Nutzer-Aktion (G-045).
+Kein offener Code-P0. v1.1.0 deklariert. Naechster Schritt ist keine Code-Arbeit,
+sondern die IP-Entscheidung (phase-g-review.md SS6).

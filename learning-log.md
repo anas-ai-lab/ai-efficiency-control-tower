@@ -2782,3 +2782,38 @@ Portfolio-View, nicht auf Ideation. Eine Roadmap aus frueheren Phasen ist kein
 Vertrag; bessere Information darf sie revidieren. Und das Ganze blieb Analyse --
 kein Pivot, kein Code, jede echte Option mit "braucht eigenen Entscheidungs-Record"
 markiert. Die kreative Session war kreativ im Denken, diszipliniert im Nicht-Tun.
+
+## Tag 83 — Fertig heisst nicht perfekt
+
+G-S8 war der Closeout, und das Ziel war ungewohnt: nichts mehr bauen, sondern
+abnehmen. Jeden der 45 Befunde aus acht Sessions mit einer Entscheidung versehen,
+jede der 14 Limitationen klassifizieren, alle Gates gruen fahren, einen sauberen
+Versionsstempel setzen. Der schwierigste Teil daran ist nicht technisch, sondern
+mental: dem Reflex widerstehen, die offenen Limitationen "schnell noch" zu
+schliessen. v1 hat einen klaren Zweck, und der ist erfuellt. Die offenen Punkte
+sind dokumentierte, begruendete Grenzen -- kein unfertiger Code. Sie jetzt alle
+anzugehen waere der Perfektions-Trap: man baut endlos weiter, und v1 ist nie
+fertig. Also habe ich v1.1.0 explizit fuer abgeschlossen erklaert und jede
+Weiterarbeit als opt-in v2 mit eigenem Record markiert.
+
+Die Ueberraschung kam beim Fresh-Clone-Test. Um einen sauberen Clone zu pruefen,
+schaute ich auf die Remote-URL -- und da stand ein GitHub-Token im Klartext,
+mitten in der `.git/config`, plus ein nie ersetzter Platzhalter-Username. Der
+erste Reflex bei "Token gefunden" ist Panik ueber ein Repo-Leak. Aber die ruhige
+Pruefung zeigte: der Token ist nicht in getrackten Dateien und nicht in der
+History -- gitleaks scannt den committed Code, nicht die lokale `.git/config`. Kein
+Repo-Leak, CI bleibt gruen. Trotzdem ist es ein P0: ein Klartext-Credential ist
+ein Risiko, egal ob ein bestimmtes Tool es findet. Der lehrreiche Teil war die
+Reaktion: NICHT die Remote-URL eigenmaechtig saeubern (das haette die Push-Auth
+gebrochen, mit der ich gerade arbeite), sondern den wirksamen Fix benennen --
+Rotation -- und ihn dem Nutzer als naechsten Schritt vorlegen. Manche Fixes
+gehoeren nicht dem Auditor, sondern dem Eigentuemer.
+
+Der rote Faden ueber alle vier Sessions dieser Runde (G-S5 bis G-S8) war
+Doku-Wahrheit. Ein Sicherheits-Projekt lebt von der Deckung zwischen Behauptung
+und Code. Der PII-Redaction-Overclaim zog sich durch README, CV und OWASP-Doku;
+die Versionsnummer log an drei Stellen; eine ADR-Zahl widersprach sich selbst. Kein
+einzelner dieser Punkte ist dramatisch, aber zusammen sind sie der Unterschied
+zwischen "ich behaupte, sicher zu sein" und "ich kann zeigen, dass es stimmt". Am
+Ende von Phase G stimmt die Doku mit dem Code ueberein -- und das ist, fuer ein
+Portfolio-Projekt mit Karriereziel, mehr wert als jedes zusaetzliche Feature.

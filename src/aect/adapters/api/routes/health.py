@@ -22,4 +22,4 @@ class HealthResponse(BaseModel):
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Gibt HTTP 200 zurueck, solange der Prozess laeuft."""
-    return HealthResponse(status="ok", version="0.1.0")
+    return HealthResponse(status="ok", version="1.1.0")

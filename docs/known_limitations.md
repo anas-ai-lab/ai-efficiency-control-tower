@@ -218,4 +218,6 @@ vollstaendig config-getrieben.
 
 ---
 
-*Letzte Aktualisierung: Juni 2026 -- v1. Post-v1-Punkte als Backlog.*
+*Letzte Aktualisierung: Tag 83 (2026-06-27) -- v1.1.0. Phase-G-Triage aller 14
+Punkte (bewusstes Design / v1-Grenze + v2-Roadmap) in
+`docs/reviews/phase-g-review.md` SS3.*
