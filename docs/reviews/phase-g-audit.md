@@ -616,3 +616,53 @@ Entscheidung: Fix Tag 81 -- Abschnitt "Vor echten Interviews vertiefen" mit
 - **G-038**: `known_limitations.md` #13 -- Doppelserie-Entscheidung dokumentiert.
 - **G-040**: `limitations.md` -- Scope-Header + Cross-Reference.
 - **G-041**: `interview-qa.md` -- Vertiefungsliste.
+
+---
+
+## G-S7 -- Innovation, Luecken & Markt (Tag 82)
+
+Kreative Session: Synthese aus G-S1-S6 + belegte Web-Recherche. KEIN Code, KEIN
+Pivot-Commitment. Vollstaendiges Artefakt: `docs/roadmap-v2.md`.
+
+### Findings (Analyse, keine P0-P3-Defekte)
+
+**G-042** [Analyse] [Name-Funktion-Luecke: "Control Tower" ohne Fleet-View]
+Beschreibung: AECT bewertet Cases isoliert; es gibt keine Portfolio-/Quervergleichs-
+Ansicht. Der Name verspricht einen Tower (Flotten-Ueberblick), die Funktion liefert
+Einzelfall-Triage. Staerkste funktionale Luecke (L-1 in roadmap-v2.md).
+Entscheidung: Dokumentiert als Top-v2-Kandidat. Bau braucht eigenen ADR/SDR.
+
+**G-043** [Analyse] [Markt-Positionierung belegt]
+Beschreibung: Markt 2026 = schwere Enterprise-System-of-Record (Purview/Agent 365,
+ServiceNow "AI Control Tower", Trustible, EQS) vs. nicht-Software-Consulting-
+Frameworks (Wavestone/IBM). AECTs Nische: leichtgewichtige deterministische Triage
+UPSTREAM der Governance. Namensueberschneidung mit ServiceNow "AI Control Tower"
+ehrlich benannt -- AECT ist Portfolio-Projekt, kein Konkurrent.
+Entscheidung: Markt-Findings mit 7 Quellen in roadmap-v2.md SS2. Interview-Asset,
+keine Startup-These.
+
+**G-044** [Entscheidung] [Ideation-Modul herabgestuft]
+Beschreibung: Ideation-Modul war v2-Backlog #1. Nach Vollaudit nicht mehr bester
+naechster Schritt -- es generiert Eingaben statt die vorhandene Bewertungs-
+Rigorositaet zu hebeln (Differenzierung niedrig, konkurriert mit generischem
+LLM-Brainstorming).
+Entscheidung: Von "v2-Backlog #1" auf "spaeter / niedrige Prioritaet" herabgestuft.
+Top-3 stattdessen: L-1 Portfolio-View, L-5 Fuzzy-Zonen, L-3 Dedup
+(Opportunity-Scoring in roadmap-v2.md SS3-4).
+
+### Checklist-Status G-S7
+
+| Punkt | Status |
+|---|---|
+| Funktionale Luecken identifiziert | PASS (L-1..L-7) |
+| Markt-Recherche, alles belegt | PASS (7 Quellen) |
+| Opportunity-Scoring 5 Achsen | PASS (Tabelle) |
+| Top-2-3-Empfehlung | PASS (L-1/L-5/L-3) |
+| Ideation-Modul re-evaluiert | PASS (herabgestuft) |
+| "Eigener Record noetig" markiert | PASS (roadmap SS6) |
+| Kein Pivot-Commit | PASS (Analyse-only) |
+
+### Artefakt G-S7
+
+- `docs/roadmap-v2.md` -- Luecken-Analyse, Markt-Findings (7 Quellen),
+  Opportunity-Scoring, Top-3, Ideation-Re-Evaluierung, "eigener-Record"-Marker.

@@ -2746,3 +2746,39 @@ guenstigere Pfad. Ich habe die Schuld also bewusst belassen und die Entscheidung
 samt Begruendung dokumentiert. Eine begruendete Nicht-Aenderung ist im Audit
 genauso ein Ergebnis wie ein Fix -- nur dass sie disziplinierter ist, weil sie
 dem Reflex widersteht, Bewegung mit Fortschritt zu verwechseln.
+
+## Tag 82 — Der Name, der mehr verspricht als die Funktion
+
+G-S7 war die Markt- und Innovationssession, und der schaerfste Befund kam aus dem
+eigenen Projektnamen. AECT heisst "AI Efficiency Control Tower". Ein Control Tower
+ueberblickt eine Flotte -- viele Objekte gleichzeitig, vergleicht, priorisiert,
+dirigiert. AECT bewertet aber jeweils einen Use Case isoliert; es gibt keine
+Ansicht, die zwei Cases nebeneinanderstellt oder rangiert. Der Name verspricht
+einen Ueberblick, den die Funktion nicht liefert. Das ist keine kosmetische
+Beobachtung: die namensgebende Faehigkeit fehlt, und sie ist zugleich die
+kohaerenteste Erweiterung, weil die Pro-Case-Bewertung schon vollstaendig
+existiert -- ein Portfolio-Ranking baut nur darauf auf.
+
+Die Marktrecherche hat eine Demutslektion mitgeliefert: ServiceNow hat
+buchstaeblich eine "AI Control Tower" im Programm, Microsoft eine Agent-365-
+Control-Plane, Trustible orchestriert "AI use case intake" als Feature. Die
+Versuchung waere, das wegzuargumentieren. Stattdessen habe ich es offen benannt --
+AECT ist ein privates Portfolio-Projekt, kein Konkurrent, und sein Wert im
+Interview ist nicht die Marktneuheit, sondern die artikulierbare Positionierung:
+zwischen den schweren Enterprise-System-of-Record und den nicht-softwarebasierten
+Consulting-Frameworks liegt ein schmaler Streifen -- leichtgewichtige,
+deterministische Triage upstream der Governance. Jede dieser Marktaussagen ist mit
+einer Quelle belegt, keine behauptet. Eine unbelegte Marktthese im Interview ist
+dasselbe wie eine halluzinierte Artikel-Nummer im Compliance-Hinweis: sie klingt
+fundiert und faellt beim ersten Nachhaken.
+
+Der lehrreichste Moment war die Revision einer frueheren Entscheidung. Das
+Ideation-Modul stand als v2-Backlog #1. Nach dem Vollaudit habe ich es
+herabgestuft -- nicht weil es schlecht ist, sondern weil es gegen die Staerke des
+Systems arbeitet: AECT ist gut im rigorosen Bewerten, ein Ideation-Modul wuerde
+Eingaben generieren, die Gegenrichtung, wo AECT mit jedem Chatbot konkurriert. Die
+Gegenprobe (was nutzt die vorhandene Rigorositaet am besten?) zeigt auf die
+Portfolio-View, nicht auf Ideation. Eine Roadmap aus frueheren Phasen ist kein
+Vertrag; bessere Information darf sie revidieren. Und das Ganze blieb Analyse --
+kein Pivot, kein Code, jede echte Option mit "braucht eigenen Entscheidungs-Record"
+markiert. Die kreative Session war kreativ im Denken, diszipliniert im Nicht-Tun.
