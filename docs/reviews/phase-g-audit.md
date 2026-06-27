@@ -511,3 +511,108 @@ Phase-G-Fix.
   gepatcht, OSV-DB ohne Fix-Range, nicht exploitierbar). README-Zeile angepasst.
 - **G-032**: `threat-model.md` -- TB-5, S-04, I-06, Versions-Header.
 - **G-033**: venv-Repair + Umgebungs-Falle in `CLAUDE.md`.
+
+---
+
+## G-S6 -- Docs & Career-Verteidigbarkeit (Tag 81)
+
+Fokus: Kann jede Doku-Aussage und jeder CV-Bullet im Interview verteidigt werden?
+Jede Zahl gegen Repo-Realitaet gehalten. ADR-Echtheit stichprobenartig geprueft.
+
+### Findings
+
+**G-034** [P1] [CV behauptet PII-Redaction vor LLM-Calls]
+Beschreibung: `cv-bullets.md` Security-Bullet fuehrte "PII-Redaction vor
+LLM-Calls" -- derselbe Overclaim wie G-028, diesmal im Karriere-Artefakt.
+Begruendung: Der CV ist die direkteste Interview-Angriffsflaeche. Eine falsche
+Security-Aussage dort ist gravierender als in der README.
+Entscheidung: Fix Tag 81 -- Bullet auf reale Massnahmen (Injection-Detection
+mit Flagging, Logging-Allowlist, constant-time API-Key-Auth, STRIDE).
+
+**G-035** [P1] [CV: widerspruechliche ADR-Zahl + Duplikat-Bullet]
+Beschreibung: `cv-bullets.md` nannte in einem Bullet "35 ADRs gesamt", in einem
+zweiten (orphan/Duplikat) "41 ADRs gesamt". Repo-Realitaet: 41 ADRs (34 in der
+000X-Serie + 7 in der ADR-00X-Serie, template.md ausgenommen). Der Duplikat-Bullet
+war ein Merge-Artefakt.
+Begruendung: Eine sich selbst widersprechende Zahl im CV ist ein sofortiger
+Glaubwuerdigkeitsverlust.
+Entscheidung: Fix Tag 81 -- Duplikat entfernt, korrekte Zahl 41 (steht ohnehin
+korrekt im Entscheidungs-Bullet).
+
+**G-036** [P2] [Stale Zahlen ueber mehrere Dateien]
+Beschreibung: "448 Tests" in `cv-bullets.md`, `README.md` (2x) -- aktuell sind es
+449 (pytest-Bestaetigung). "13 Limitationen" im CV -- known_limitations.md hat 14
+(seit #14 Dual-Threshold, Tag 79).
+Entscheidung: Fix Tag 81 -- 448 -> 449 (3 Stellen), 13 -> 14 (CV).
+
+**G-037** [P2] [known_limitations #1: unausgefuellter Platzhalter]
+Beschreibung: "Agreement X von Y gelabelten Golden-Cases" -- die Platzhalter X/Y
+waren nie ersetzt, obwohl #3 die Zahl (1/3) nennt.
+Entscheidung: Fix Tag 81 -- "1 von 3" mit Verweis auf #2/#3.
+
+**G-038** [P2] [known_limitations #13: stale Plan; ADR-Doppelserie-Entscheidung]
+Beschreibung: #13 sagte "Konsolidierung geplant fuer den Phase-F-ADR-Review-Pass" --
+Phase F ist vorbei, nichts konsolidiert. Der Prompt verlangt eine Entscheidung.
+Entscheidung: Bewusst als dokumentierte Schuld belassen, NICHT konsolidiert.
+Rename aller 41 ADRs + Quer-Referenzen = hohe Churn, Null funktionaler Gewinn,
+Link-Bruch-Risiko. `ls docs/adr/`-Regel (CLAUDE.md) ist der guenstigere Workaround.
+#13 entsprechend umgeschrieben.
+
+**G-039** [P2] [README: falsches ADR-Link-Label]
+Beschreibung: Architektur-Tabelle verlinkte "Hexagonale Architektur | [ADR-002]"
+-- der Href zeigte aber korrekt auf ADR-004 (Hexagonal). ADR-002 ist die
+Zonen-Logik. Label-Fehler.
+Entscheidung: Fix Tag 81 -- Label ADR-002 -> ADR-004.
+
+**G-040** [P2] [Doku-Dedup: limitations.md vs known_limitations.md]
+Beschreibung: Zwei Limitations-Dateien mit drei ueberlappenden Punkten
+(Hard-Threshold, Praediktive Validitaet, Golden-Sample). Unklar, welche
+autoritativ ist.
+Entscheidung: Fix Tag 81 (bewusst belassen + klaeren, nicht mergen) --
+`limitations.md` bekommt einen Scope-Header: Phase-E-Eval-Gate-Artefakt
+(Tag 67, eingefroren), `known_limitations.md` ist die kanonische, lebende
+Gesamtliste. Bei Konflikt gilt known_limitations.md. Merge wuerde die
+Eval-Gate-Provenienz zerstoeren.
+
+**G-041** [P3] [interview-qa: Lern-Luecken fuer echte Interviews fehlten]
+Beschreibung: Die Q&A sind aus dem Repo verteidigbar, aber bei tiefer Nachfrage
+(RRF-k-Sensitivitaet, Cross-Encoder-Mechanik, EU-AI-Act-Aktualitaet,
+v5-ROI-Herleitung, Production-Hardening) wird das Wissen duenn -- nirgends als
+Vertiefungsliste markiert.
+Entscheidung: Fix Tag 81 -- Abschnitt "Vor echten Interviews vertiefen" mit
+5 konkreten Themen ergaenzt.
+
+### Verifiziert ohne Befund
+
+- **ADR-Echtheit (Spot-Check 5 Kern-ADRs):** 0024 (Citations-before-LLM),
+  0027 (Hybrid-Search/RRF), 0034 (Caching/Routing-Ablehnung), ADR-001 (ROI),
+  ADR-004 (Hexagonal) -- alle echte Entscheidungen mit ernsthaft erwogenen,
+  begruendet verworfenen Alternativen und Trade-off-Tabellen. Keine nachtraegliche
+  Rationalisierung. PASS. (ADR-004 nennt "PII-Redaction" als Beispiel fuer einen
+  Adapter-Concern -- historischer Phase-B-Record, kein Implementierungs-Claim;
+  bewusst nicht umgeschrieben, ADRs sind Zeitpunkt-Dokumente.)
+- **interview-qa.md inhaltlich:** Jede Antwort blind beantwortbar, mit Datei-/
+  ADR-Anker. Security-LLM01-Antwort beschreibt korrekt Injection-Detection
+  (nicht PII-Redaction) -- konsistent mit G-028. PASS.
+- **README Coverage-Badge 97%:** stimmt mit pytest ueberein. PASS.
+
+### Checklist-Status G-S6
+
+| Punkt | Status | Finding |
+|---|---|---|
+| Interview-QA blind beantwortbar | PASS (+ Vertiefungsliste) | G-041 |
+| ADR-Echtheit (5 Kern-ADRs) | PASS | -- |
+| CV-Bullets Faktencheck | PASS (nach Fix) | G-034/035/036 |
+| README-Konsistenz nach G-S1-S5 | PASS (nach Fix) | G-039, G-036 |
+| Doppel-Doku limitations | PASS (Scope geklaert) | G-040 |
+| ADR-Doppelserie-Entscheidung | PASS (dokumentierte Schuld) | G-038 |
+
+### Fixes G-S6 (Tag 81)
+
+- **G-034/035/036**: `cv-bullets.md` -- PII-Overclaim raus, Duplikat raus,
+  41 ADRs, 449 Tests, 14 Limitationen.
+- **G-036/039**: `README.md` -- 448->449 (2x), ADR-Label 002->004.
+- **G-037**: `known_limitations.md` #1 -- Platzhalter -> "1 von 3".
+- **G-038**: `known_limitations.md` #13 -- Doppelserie-Entscheidung dokumentiert.
+- **G-040**: `limitations.md` -- Scope-Header + Cross-Reference.
+- **G-041**: `interview-qa.md` -- Vertiefungsliste.

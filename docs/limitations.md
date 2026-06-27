@@ -1,6 +1,13 @@
 # AECT v1 — Bekannte Grenzen der Validierung
 
-> Dieses Dokument benennt die Grenzen der Phase-E-Evaluation offen.
+> **Scope dieses Dokuments:** ausschliesslich die Phase-E-EVALUATION
+> (Eval-Gate E->F, Tag 67). Die kanonische, projektweite Limitations-Liste ist
+> `docs/known_limitations.md` (14 Punkte). Drei Punkte hier ueberschneiden sich
+> bewusst mit dort (#1 Hard-Threshold = known #2, #2 Praediktive Validitaet =
+> known #1, #4 Golden-Sample = known #3) -- dieses Dokument haelt die
+> Eval-Gate-Provenienz fest, known_limitations.md den Gesamtstand. Bei Konflikt
+> gilt known_limitations.md.
+>
 > Limitationen zu verbergen untergraebt die Glaubwuerdigkeit staerker
 > als sie offenzulegen (interne Referenz (entfernt) SS7).
 

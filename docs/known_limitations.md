@@ -18,8 +18,9 @@ Loop ist nur im produktiven Einsatz mit abgeschlossenen Cases messbar.
 *Konsistenz* mit einer Bewertungsrubrik, nicht *Korrektheit* im Sinne
 tatsaechlicher Nutzeneintritt.
 
-**Stand:** Experten-Abgleich Tag 64 — Agreement X von Y gelabelten
-Golden-Cases. Detail in `evals/golden/report.json`.
+**Stand:** Experten-Abgleich Tag 64 — Agreement 1 von 3 gelabelten
+Golden-Cases (golden-002 match; golden-001/003 off-by-one, siehe #2/#3).
+Detail in `evals/golden/report.json`.
 
 ---
 
@@ -186,7 +187,13 @@ Post-v1-Punkt (ADR-0035).
 (Phase C+). Historisch gewachsen (session-protocol v3 SS6 Punkt 13).
 
 **Konsequenz:** Neue ADRs muessen `ls docs/adr/` pruefen statt eine Serie
-anzunehmen. Konsolidierung geplant fuer den Phase-F-ADR-Review-Pass.
+anzunehmen.
+
+**Entscheidung (G-S6, Tag 81):** Bewusst als dokumentierte Schuld belassen, NICHT
+konsolidiert. Ein Rename aller 41 ADRs plus Nachziehen jeder Quer-Referenz (README,
+CLAUDE.md, Code-Docstrings, andere ADRs) ist hohe Churn mit Null funktionalem
+Gewinn und realem Bruch-Risiko fuer Links. Die `ls docs/adr/`-Regel (CLAUDE.md)
+ist der guenstigere Workaround. Re-Evaluierung nur falls eine dritte Serie droht.
 
 ---
 

@@ -136,7 +136,7 @@ Vollstaendige Architektur-Dokumentation: `docs/architecture.md`
 | Entscheidung | ADR | Begruendung |
 |---|---|---|
 | Regelengine vor LLM | [ADR-001](docs/adr/ADR-001-roi-modell.md), [ADR-003](docs/adr/ADR-003-ai-vs-automation.md) | Deterministisches Verhalten, testbar, keine Halluzinierung fuer klare Kriterien |
-| Hexagonale Architektur | [ADR-002](docs/adr/ADR-004-hexagonal-architecture.md), [0002](docs/adr/0002-hexagonale-architektur.md) | Austauschbare Adapter fuer LLM, DB, Embeddings ohne Domain-Kopplung |
+| Hexagonale Architektur | [ADR-004](docs/adr/ADR-004-hexagonal-architecture.md), [0002](docs/adr/0002-hexagonale-architektur.md) | Austauschbare Adapter fuer LLM, DB, Embeddings ohne Domain-Kopplung |
 | Hybrid Search (BM25 + Vektor + RRF) | [0027](docs/adr/0027-hybrid-search-bm25-rrf.md) | Keyword-Treffer (BM25) + semantische Naehe ergaenzen sich; RRF robuster als Score-Fusion |
 | Cross-Encoder Reranking | [0028](docs/adr/0028-cross-encoder-reranking.md) | Bi-Encoder-Recall + Cross-Encoder-Precision: hoehere Retrieval-Qualitaet fuer Compliance-Hinweise |
 | Citations-before-LLM | [0024](docs/adr/0024-rag-grounded-compliance-hints.md) | Halluzinierte Gesetzesartikel strukturell verhindert: Quellen aus Retrieval-Metadaten, nicht aus Modellwissen |
@@ -156,7 +156,7 @@ Evaluiert auf 4 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen 
 | Agreement Rate (Golden Cases, n=3 gelabelt) | 1/3 (33 %) |
 | Identifiziertes Problem | Hard-Threshold-Brittleness: Off-by-one-Mismatches an Zonengrenzen |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
-| Test-Coverage | 97 % (448 Tests) |
+| Test-Coverage | 97 % (449 Tests) |
 
 **Was die Eval-Zahlen bedeuten:**
 1/3 Agreement ist schwach -- und das ist der Punkt. Beide Abweichungen (golden-001, golden-003)
@@ -240,7 +240,7 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 448 Tests, 97 % Coverage (pytest, hypothesis, respx)
+tests/           # 449 Tests, 97 % Coverage (pytest, hypothesis, respx)
 evals/
   golden/        # 4 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)

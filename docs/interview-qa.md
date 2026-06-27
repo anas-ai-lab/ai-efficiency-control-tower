@@ -140,3 +140,23 @@ bleibt Entscheider. Jede Compliance-Ausgabe ist als "zu pruefen, kein Urteil"
 markiert. Das ist bewusst: ein System ohne Human-in-the-Loop, das
 Use-Case-Prioritaeten falsch setzt, kostet reale Budgets. Verteidigt in
 interne Referenz (entfernt) SS3.3 ("Menschen fuer Verantwortung").
+
+---
+
+## Vor echten Interviews vertiefen (ehrliche Lern-Luecken, G-S6 Tag 81)
+
+Die Antworten oben sind aus dem Repo verteidigbar. Bei tiefer Nachfrage wird
+folgendes Wissen duenn -- vor echten Gespraechen auffrischen, nicht erst im Raum:
+
+- **RRF-Sensitivitaet:** Warum k=60 und nicht 10 oder 100? Literaturwert
+  (Cormack 2009), aber die Wirkung von k auf die Fusion eigenstaendig erklaeren
+  koennen, nicht nur zitieren.
+- **Cross-Encoder-Mechanik:** Warum betrachtet ein Cross-Encoder Query+Dokument
+  gemeinsam genauer als zwei getrennte Embeddings? Attention ueber das Paar --
+  konkreter als "10-50x langsamer".
+- **EU AI Act aktuell:** Art.-50-Zeitleiste, GPAI-Regeln, Stand nach Digital
+  Omnibus. Das Gesetz bewegt sich; ADR-0020 ist ein Zeitpunkt-Stand.
+- **v5-ROI-Herleitung:** Warum die Faktoren adoption_factor/evidence_factor
+  multiplikativ? Die Modell-Logik aus ADR-001 frei herleiten koennen.
+- **Production-Hardening-Pfad:** ChromaDB-Auth, RBAC, Reverse-Proxy -- die
+  Server-Deploy-Punkte aus threat-model.md (O-01/O-03/S-03) als Plan erklaeren.

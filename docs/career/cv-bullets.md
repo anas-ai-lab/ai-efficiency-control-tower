@@ -17,7 +17,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 - Vollstaendiges ROI-Bewertungsmodell deterministisch implementiert
   (Lookup-Tabellen je Land x Senioraet, Composite-Aufwand-Score,
-  3-Zonen-Einstufung) -- 448 Tests, 97% Coverage, kein LLM fuer Zahlen
+  3-Zonen-Einstufung) -- 449 Tests, 97% Coverage, kein LLM fuer Zahlen
 
 - Hexagonale Architektur: Domain-Layer vollstaendig isoliert von LLM-,
   Datenbank- und API-Adaptern; Adapter-Swap ohne Domain-Code-Aenderung
@@ -38,15 +38,12 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
   Score-Breakdown-Diagnostik, 36 synthetische Cases fuer Konsistenz-Test,
   dokumentierter Experten-Abgleich inkl. Limitationsanalyse
 
-- Security: OWASP LLM Top 10 gegen AECT geprueft, PII-Redaction vor
-  LLM-Calls, API-Key-Auth, Rate-Limiting, EU AI Act Limited-Risk-
-  Klassifikation hergeleitet (ADR-0020, 35 ADRs gesamt)
+- Security: OWASP LLM Top 10 gegen AECT geprueft (Prompt-Injection-Detection
+  mit Flagging, Logging-Allowlist, constant-time API-Key-Auth, Rate-Limiting),
+  STRIDE-Threat-Model, EU AI Act Limited-Risk-Klassifikation hergeleitet (ADR-0020)
 
 - CI/CD: GitHub Actions mit gitleaks, bandit, pip-audit, SHA-gepinnte
   Actions, mypy strict, ruff, pre-commit (10 Hooks)
-
-- API-Key-Auth, Rate-Limiting, EU AI Act Limited-Risk-
-  Klassifikation hergeleitet (ADR-0020, 41 ADRs gesamt)
 
 ---
 
@@ -57,7 +54,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
   (begruendet in interne Referenz (entfernt) -- Strategiedokument mit Aenderungshistorie)
 
-- 13 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
+- 14 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
   staerker als Marketing-Darstellung ohne Schwaechen
 
 ---

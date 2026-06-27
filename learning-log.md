@@ -2713,3 +2713,36 @@ Paket-Metadaten-Ordners mit " 2" im Namen angelegt, und genau die verseuchte mei
 Test-Output so, dass ich ein sauberes Gruen erst nach einem venv-Rebuild
 bestaetigen konnte. Manchmal ist der Stolperstein nicht der Code, sondern der
 Dateisynchronisierer unter ihm.
+
+## Tag 81 — Eine Zahl, die sich selbst widerspricht
+
+G-S6 war der Doku- und Karriere-Audit, und der schaerfste Befund stand im
+Lebenslauf-Entwurf: ein Bullet behauptete "35 ADRs gesamt", ein zweiter "41 ADRs
+gesamt" -- im selben Dokument. Das ist nicht dasselbe wie eine veraltete Zahl. Eine
+einzelne falsche Zahl ist ein Versehen; ein Widerspruch im selben Dokument ist ein
+Signal, dass niemand die Angaben gegengeprueft hat. Und im Interview uebertraegt
+sich dieses Signal: wer der eigenen ADR-Zahl nicht traut, warum sollte man der
+behaupteten Coverage, der Architektur-Aussage, dem Security-Claim trauen? Die
+Korrektur war trivial (Repo zaehlen: 34 in der 000X-Serie, 7 in der ADR-00X-Serie,
+macht 41, Duplikat raus). Der Befund selbst war der wertvolle Teil.
+
+Daneben tauchte derselbe PII-Redaction-Overclaim wieder auf, den ich gestern in
+der README gefunden hatte -- diesmal im CV. Das zeigt etwas ueber Overclaims: sie
+breiten sich ueber Artefakte aus, weil man eine plausibel klingende Formulierung
+einmal schreibt und dann kopiert. Ein einzelner Fix reicht nicht; man muss die
+gleiche Luege an allen Stellen jagen. README gestern, CV heute, und ich habe
+zur Sicherheit auch die OWASP-Checkliste und das Threat-Model gegengelesen.
+
+Der lehrreichste Nicht-Fix war die ADR-Doppelserie. Das Projekt hat zwei
+Namensschemata fuer ADRs (ADR-00X aus Phase A/B, 0XXX ab Phase C) -- historisch
+gewachsen, dokumentiert als technische Schuld, mit einem stale Kommentar
+"Konsolidierung geplant fuer Phase F". Phase F ist vorbei. Die naheliegende
+Reaktion waere, jetzt aufzuraeumen. Aber Aufraeumen heisst hier: 41 Dateien
+umbenennen und jede Querverweis-Stelle nachziehen -- README, CLAUDE.md, andere
+ADRs, Code-Docstrings -- mit echtem Risiko fuer kaputte Links und null
+funktionalem Gewinn. Die Gegenprobe: was kostet es, NICHT aufzuraeumen? Eine Zeile
+in CLAUDE.md, die sagt "vor neuer ADR `ls docs/adr/` pruefen". Das ist der
+guenstigere Pfad. Ich habe die Schuld also bewusst belassen und die Entscheidung
+samt Begruendung dokumentiert. Eine begruendete Nicht-Aenderung ist im Audit
+genauso ein Ergebnis wie ein Fix -- nur dass sie disziplinierter ist, weil sie
+dem Reflex widersteht, Bewegung mit Fortschritt zu verwechseln.
