@@ -32,7 +32,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 from openai import AsyncAzureOpenAI
 
@@ -169,32 +169,24 @@ def _get_cross_encoder_model() -> Any:
     return CrossEncoder(_CROSS_ENCODER_MODEL_NAME)
 
 
-def get_retriever_port(
-    settings: Settings = Depends(get_settings),  # noqa: B008
-) -> RetrieverPort:
-    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024/0025/0027/0028).
+def _build_real_retriever(settings: Settings) -> RetrieverPort:
+    """Baut den echten Hybrid+Reranker-Retriever (ADR-0024/0025/0027/0028).
 
-    Settings-gesteuerter Schalter, analog get_llm_adapter(): AECT_CHROMA_HOST
-    gesetzt -> CrossEncoderReranker(HybridRetriever(ChromaRetriever,
-    BM25Retriever), CrossEncoderModel) -- Hybrid-Retrieval (Vektor + BM25,
-    RRF, ADR-0027) liefert eine breite Kandidatenmenge, der Cross-Encoder
-    sortiert sie praeziser nach (ADR-0028). AECT_CHROMA_HOST leer (Default)
-    -> MockRetriever -- kein Container, kein Modell-Laden, kein BM25-
-    Index-Bau, kein Cross-Encoder-Laden in normalen Testlaeufen/lokaler
-    Entwicklung.
+    CrossEncoderReranker(HybridRetriever(ChromaRetriever, BM25Retriever), model):
+    Hybrid-Retrieval (Vektor + BM25, RRF, ADR-0027) liefert eine breite
+    Kandidatenmenge, der Cross-Encoder sortiert sie praeziser nach (ADR-0028).
 
-    Derselbe Container-Erreichbarkeits-Hinweis wie zuvor gilt unveraendert:
-    ist AECT_CHROMA_HOST gesetzt, der Container aber nicht gestartet,
-    schlaegt der erste echte Chroma-Call mit einem Verbindungsfehler fehl --
-    kein stiller Fallback. BM25- und Reranking-Teil des Pfads bleiben davon
-    unberuehrt (rein lokal, kein Netzwerk).
+    Die schwergewichtigen Ressourcen (Chroma-Collection, Embedding-Modell,
+    BM25-Index, Cross-Encoder) entstehen ueber die lru_cache-Builder -- einmal
+    pro Prozess. Aufgerufen vom Lifespan-Startup (Warmup, AUDIT-013) und als
+    Fallback in resolve_retriever().
 
-    Lokale Imports (statt Modulkopf): konsistent mit dem bestehenden Muster
-    fuer den scharfen Pfad.
+    Container-Hinweis: ist AECT_CHROMA_HOST gesetzt, der Container aber nicht
+    gestartet, schlaegt der erste echte Chroma-Call mit einem Verbindungsfehler
+    fehl -- kein stiller Fallback.
+
+    Lokale Imports (statt Modulkopf): konsistent mit dem bestehenden Muster.
     """
-    if not settings.chroma_host:
-        return MockRetriever()
-
     from aect.adapters.rag.bm25_retriever import BM25Retriever
     from aect.adapters.rag.embedder import SentenceTransformerEmbedder
     from aect.adapters.rag.hybrid_retriever import HybridRetriever
@@ -212,6 +204,38 @@ def get_retriever_port(
 
     cross_encoder_model = _get_cross_encoder_model()
     return CrossEncoderReranker(hybrid, cross_encoder_model)
+
+
+def resolve_retriever(settings: Settings) -> RetrieverPort:
+    """Waehlt Mock- oder echten Retriever anhand settings.chroma_host.
+
+    AECT_CHROMA_HOST leer (Default) -> MockRetriever -- kein Container, kein
+    Modell-Laden, kein BM25-Bau, kein Cross-Encoder in normalen Testlaeufen.
+    Gesetzt -> _build_real_retriever(). Kein app.state -- reine Settings-Logik,
+    direkt testbar und vom Lifespan-Startup wiederverwendet (AUDIT-013).
+    """
+    if not settings.chroma_host:
+        return MockRetriever()
+    return _build_real_retriever(settings)
+
+
+def get_retriever_port(
+    request: Request,
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> RetrieverPort:
+    """Liefert den Retriever-Adapter fuer TriageService (ADR-0024/0025/0027/0028).
+
+    Bevorzugt die im Lifespan-Startup vorgeladene Ressource
+    (request.app.state.retriever, AUDIT-013) -- so zahlt der erste echte
+    Request nicht den Init-Preis (Chroma-Handshake, Modell-Laden, BM25-Bau,
+    Cross-Encoder-Laden). Ist nichts vorgeladen (Mock-Modus, oder Lifespan lief
+    nicht -- z. B. unter httpx-ASGITransport in Tests), faellt er auf
+    resolve_retriever(settings) zurueck.
+    """
+    preloaded: RetrieverPort | None = getattr(request.app.state, "retriever", None)
+    if preloaded is not None:
+        return preloaded
+    return resolve_retriever(settings)
 
 
 def get_llm_adapter(

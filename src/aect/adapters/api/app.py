@@ -18,6 +18,8 @@ Security (aect-security-checklist v2.1, Phase B):
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
@@ -28,11 +30,43 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from aect.adapters.api.dependencies import get_settings, resolve_retriever
 from aect.adapters.api.logging_config import configure_logging
 from aect.adapters.api.rate_limit import limiter
 from aect.adapters.api.routes import cases, health, triage
 
 logger = structlog.get_logger()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Laedt schwergewichtige Retrieval-Ressourcen beim Startup (AUDIT-013).
+
+    Im echten RAG-Pfad (AECT_CHROMA_HOST gesetzt) werden Chroma-Collection,
+    Embedding-Modell, BM25-Index und Cross-Encoder hier EINMAL gebaut und der
+    fertige Retriever auf app.state.retriever gelegt -- der erste Request zahlt
+    dann nicht den Init-Preis (Modell-Laden, Container-Handshake, BM25-Bau).
+
+    Mock-/Test-Modus (AECT_CHROMA_HOST leer): kein Heavy-Init -- app.state.
+    retriever bleibt ungesetzt, get_retriever_port() liefert MockRetriever.
+    Identisch zum bisherigen Verhalten, kein Container/Torch noetig.
+
+    Hinweis: get_settings() liest die echte Umgebung; dependency_overrides aus
+    Tests wirken nur zur Request-Zeit, nicht im Lifespan. Unter httpx-
+    ASGITransport laeuft dieser Lifespan nicht -- get_retriever_port faellt
+    dort sauber auf resolve_retriever() zurueck.
+    """
+    settings = get_settings()
+    if settings.chroma_host:
+        logger.info("startup_loading_resources", chroma_host=settings.chroma_host)
+        app.state.retriever = resolve_retriever(settings)
+        logger.info("startup_resources_ready")
+    else:
+        logger.info("startup_mock_mode_no_heavy_resources")
+    yield
+    # Shutdown: Chroma-HttpClient hat keinen expliziten Close-Handshake;
+    # Referenz wird mit dem Prozess freigegeben.
+    logger.info("shutdown_complete")
 
 
 class CorrelationIDMiddleware(BaseHTTPMiddleware):
@@ -71,6 +105,7 @@ def create_app() -> FastAPI:
         debug=False,
         docs_url="/docs",
         redoc_url=None,
+        lifespan=lifespan,
     )
 
     # Rate Limiting

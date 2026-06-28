@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
+
 import pytest
 
-from aect.adapters.api.dependencies import get_llm_adapter, get_retriever_port
+from aect.adapters.api.dependencies import (
+    get_llm_adapter,
+    get_retriever_port,
+    resolve_retriever,
+)
 from aect.adapters.api.settings import Settings
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.retriever import MockRetriever
@@ -71,7 +78,7 @@ async def test_get_retriever_port_returns_mock_without_chroma_host() -> None:
     Test-Isolation darf nicht vom Inhalt einer lokalen .env abhaengen.
     """
     settings = Settings(chroma_host="")
-    retriever = get_retriever_port(settings=settings)
+    retriever = resolve_retriever(settings)
     assert isinstance(retriever, MockRetriever)
 
 
@@ -102,7 +109,7 @@ async def test_get_retriever_port_wires_cross_encoder_reranker_with_host_set(
     )
 
     settings = Settings(chroma_host="127.0.0.1", chroma_port=8001)
-    retriever = get_retriever_port(settings=settings)
+    retriever = resolve_retriever(settings)
 
     assert isinstance(retriever, CrossEncoderReranker)
     assert retriever._model is fake_cross_encoder
@@ -113,3 +120,51 @@ async def test_get_retriever_port_wires_cross_encoder_reranker_with_host_set(
     assert hybrid._vector._collection is fake_collection
     assert hybrid._vector._embedder._model is fake_model
     assert hybrid._bm25._index is fake_bm25_index
+
+
+# ---------------------------------------------------------------------------
+# Lifespan-Preload (AUDIT-013): get_retriever_port bevorzugt app.state.retriever
+# ---------------------------------------------------------------------------
+
+
+def _fake_request(retriever: object | None = None) -> Any:
+    """Minimaler Request-Stub mit .app.state -- get_retriever_port liest nur das."""
+    state = SimpleNamespace()
+    if retriever is not None:
+        state.retriever = retriever
+    return SimpleNamespace(app=SimpleNamespace(state=state))
+
+
+async def test_get_retriever_port_prefers_preloaded_app_state() -> None:
+    """Vorgeladener Retriever (Lifespan-Startup) wird ohne Neubau verwendet --
+    selbst mit gesetztem chroma_host (sonst wuerde ein echter Build versucht)."""
+    sentinel = MockRetriever()
+    result = get_retriever_port(
+        request=_fake_request(retriever=sentinel),
+        settings=Settings(chroma_host="127.0.0.1"),
+    )
+    assert result is sentinel
+
+
+async def test_get_retriever_port_falls_back_without_preload() -> None:
+    """Kein app.state.retriever (Lifespan lief nicht / Mock-Modus) -> Fallback
+    auf resolve_retriever(): ohne chroma_host der MockRetriever."""
+    result = get_retriever_port(
+        request=_fake_request(retriever=None),
+        settings=Settings(chroma_host=""),
+    )
+    assert isinstance(result, MockRetriever)
+
+
+async def test_lifespan_mock_mode_skips_heavy_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lifespan im Mock-Modus (kein chroma_host) laedt keine Heavy-Resources --
+    app.state.retriever bleibt ungesetzt (kein Container/Torch im Testlauf)."""
+    import aect.adapters.api.app as app_module
+
+    monkeypatch.setattr(app_module, "get_settings", lambda: Settings(chroma_host=""))
+    fake_app = SimpleNamespace(state=SimpleNamespace())
+    async with app_module.lifespan(fake_app):  # type: ignore[arg-type]
+        pass
+    assert not hasattr(fake_app.state, "retriever")

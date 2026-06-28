@@ -16,7 +16,7 @@ import os
 
 import pytest
 
-from aect.adapters.api.dependencies import get_retriever_port
+from aect.adapters.api.dependencies import resolve_retriever
 from aect.adapters.api.settings import Settings
 
 _RUN_LIVE = os.getenv("AECT_RUN_CHROMA_LIVE") == "1"
@@ -34,7 +34,7 @@ _QUERIES = (
 )
 async def test_get_retriever_port_real_path_returns_citations() -> None:
     settings = Settings(chroma_host="127.0.0.1", chroma_port=8001)
-    retriever = get_retriever_port(settings=settings)
+    retriever = resolve_retriever(settings)
 
     for query in _QUERIES:
         results = await retriever.retrieve(query, top_k=3)
