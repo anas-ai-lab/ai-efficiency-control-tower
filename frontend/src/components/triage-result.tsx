@@ -5,7 +5,7 @@ import { formatEUR, ZONE_CONFIG, ZoneKey } from "@/lib/formatters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle2, XCircle } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 
 
 const ROUTING_BADGE: Record<string, string> = {
@@ -25,8 +25,37 @@ export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResu
   const zone = result.zone
   const zoneConfig = zone ? ZONE_CONFIG[zone.final_zone as ZoneKey] : null
 
+  const warning = result.similarity_warning
+
   return (
     <div className="space-y-4">
+      {/* 0. Dedup-Hinweis (L-3, ADR-0039) -- nur wenn ein ähnlicher Case existiert */}
+      {warning !== null && (
+        <div
+          className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${
+            warning.suggest_combine
+              ? "border-amber-300 bg-amber-50 text-amber-900"
+              : "border-blue-300 bg-blue-50 text-blue-900"
+          }`}
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold">
+              {warning.suggest_combine
+                ? "Möglicher Doppel-Eintrag"
+                : "Ähnlicher Use Case gefunden"}
+            </p>
+            <p>
+              Ähnelt dem bereits erfassten Fall „{warning.similar_case_title}“
+              ({Math.round(warning.similarity_score * 100)} % Übereinstimmung).
+              {warning.suggest_combine
+                ? " Bitte prüfen, ob die Fälle zusammengelegt werden sollten."
+                : " Bitte prüfen, ob es sich um denselben Vorgang handelt."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Zone-Verdikt */}
       {zone !== null && (
         <div className={`rounded-lg px-4 py-4 ${zoneConfig?.badgeClass}`}>

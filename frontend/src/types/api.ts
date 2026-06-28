@@ -104,6 +104,14 @@ export interface ZoneResult {
   reason: string;
 }
 
+// L-3 Dedup (ADR-0039): Hinweis auf einen aehnlichen, bereits erfassten Case.
+export interface SimilarityWarning {
+  similar_case_id: string;
+  similar_case_title: string;
+  similarity_score: number; // Cosinus [0, 1]
+  suggest_combine: boolean; // true ab >= 0.90 ("zusammenlegen?")
+}
+
 export interface TriageResponse {
   id: string;
   submitted_at: string;
@@ -116,6 +124,7 @@ export interface TriageResponse {
   roi: ROIResult | null;
   composite: CompositeResult | null;
   zone: ZoneResult | null;
+  similarity_warning: SimilarityWarning | null;
 }
 
 // ---- Cases Responses (/cases/... POST) -------------------------------------
