@@ -427,3 +427,30 @@ class TestComplianceHintsPersistence:
 
         assert len(cases) == 1
         assert cases[0].compliance_hints_json == sample_case.compliance_hints_json
+
+
+# ---------------------------------------------------------------------------
+# Async-Wrapper (AUDIT-001, ADR-0037): to_thread-Roundtrip
+# asyncio_mode=auto (pyproject) -> async-Tests laufen ohne Marker.
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncWrappers:
+    async def test_save_get_list_async_roundtrip(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        # save_async persistiert, get_async/list_all_async lesen identisch zu sync.
+        await repo.save_async(sample_case)
+
+        retrieved = await repo.get_async(sample_case.id)
+        assert retrieved is not None
+        assert retrieved.id == sample_case.id
+        assert retrieved.result == sample_case.result
+
+        cases = await repo.list_all_async()
+        assert [c.id for c in cases] == [sample_case.id]
+
+    async def test_get_async_returns_none_for_missing(
+        self, repo: SQLiteRepository
+    ) -> None:
+        assert await repo.get_async("does-not-exist") is None

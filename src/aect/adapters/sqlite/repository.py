@@ -36,6 +36,7 @@ Feld ueberschreibt den vorherigen Wert.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from dataclasses import asdict
@@ -302,3 +303,20 @@ class SQLiteRepository:
         with sqlite3.connect(str(self._db_path)) as conn:
             rows = conn.execute(_SELECT_ALL_SQL).fetchall()
         return [_row_to_case(row) for row in rows]
+
+    # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
+    # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
+    # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
+    # die Single Source of Truth -- to_thread ruft sie nur auf.
+
+    async def save_async(self, case: SubmittedCase) -> None:
+        """Async-Wrapper um save() via asyncio.to_thread."""
+        await asyncio.to_thread(self.save, case)
+
+    async def get_async(self, case_id: str) -> SubmittedCase | None:
+        """Async-Wrapper um get() via asyncio.to_thread."""
+        return await asyncio.to_thread(self.get, case_id)
+
+    async def list_all_async(self) -> list[SubmittedCase]:
+        """Async-Wrapper um list_all() via asyncio.to_thread."""
+        return await asyncio.to_thread(self.list_all)

@@ -307,7 +307,7 @@ class TriageService:
         geloggt (case_id + Feldname + Pattern-Namen, kein Body), der Call laeuft
         trotzdem weiter -- Flaggen, nicht Blocken (siehe sanitization.py).
         """
-        case = self._repository.get(case_id)
+        case = await self._repository.get_async(case_id)
         if case is None:
             return None
 
@@ -383,7 +383,7 @@ class TriageService:
                 "raw_text": raw_text,
             }
         )
-        self._repository.save(case)
+        await self._repository.save_async(case)
 
         return SharpenedUseCase(
             case_id=case.id,
@@ -430,7 +430,7 @@ class TriageService:
         als vorlaeufig/unbelegt (RAG-Grounding folgt Phase D). v1 bleibt
         unveraendert erhalten (Versionierung, application/prompts.py).
         """
-        case = self._repository.get(case_id)
+        case = await self._repository.get_async(case_id)
         if case is None:
             return None
 
@@ -507,7 +507,7 @@ class TriageService:
             )
 
         case.proposal_text = response.content
-        self._repository.save(case)
+        await self._repository.save_async(case)
 
         return SolutionProposal(
             case_id=case.id,
@@ -561,7 +561,7 @@ class TriageService:
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
         """
-        case = self._repository.get(case_id)
+        case = await self._repository.get_async(case_id)
         if case is None:
             return None
 
@@ -577,7 +577,7 @@ class TriageService:
             case.compliance_hints_json = json.dumps(
                 {"hint_text": None, "citations": []}
             )
-            self._repository.save(case)
+            await self._repository.save_async(case)
             return ComplianceHintsResult(
                 case_id=case.id,
                 hint_text=None,
@@ -621,7 +621,7 @@ class TriageService:
                 ],
             }
         )
-        self._repository.save(case)
+        await self._repository.save_async(case)
 
         return ComplianceHintsResult(
             case_id=case.id,

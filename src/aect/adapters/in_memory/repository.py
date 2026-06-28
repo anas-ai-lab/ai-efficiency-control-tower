@@ -26,3 +26,15 @@ class InMemoryRepository:
 
     def list_all(self) -> list[SubmittedCase]:
         return list(self._store.values())
+
+    # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
+    # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
+    # noetig, direkter Aufruf der sync-Methode genuegt.
+    async def save_async(self, case: SubmittedCase) -> None:
+        self.save(case)
+
+    async def get_async(self, case_id: str) -> SubmittedCase | None:
+        return self.get(case_id)
+
+    async def list_all_async(self) -> list[SubmittedCase]:
+        return self.list_all()
