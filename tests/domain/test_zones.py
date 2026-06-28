@@ -194,3 +194,72 @@ def test_load_zone_classifier_from_config() -> None:
         handlungsdruck_score=1,
     )
     assert r.final_zone == TriageZone.LIKELY_WIN
+
+
+# ---------------------------------------------------------------------------
+# Konfidenz-Score (ADR-0036, known_limitations #2)
+# Fixture-Grenzen: _LW_MAX_C=4 (LW|CR), _CR_MAX_C=7 (CR|MG).
+# ---------------------------------------------------------------------------
+
+# benefit in [_CR_MIN, _LW_MIN) -> base_zone immer CALCULATED_RISK, unabhaengig
+# vom composite. Isoliert die composite-Achse fuer die Konfidenz-Tests.
+_CR_BENEFIT = Decimal("20000")
+
+
+class TestConfidenceScore:
+    def test_score_is_half_at_cr_lw_boundary(self, clf: ZoneClassifier) -> None:
+        # composite == _LW_MAX_C (4): direkt auf der CR/LW-Grenze -> 0.50.
+        r = clf.classify(_CR_BENEFIT, composite_score=4, handlungsdruck_score=1)
+        assert r.base_zone == TriageZone.CALCULATED_RISK
+        assert r.confidence_score == pytest.approx(0.50)
+        assert r.confidence_label == "niedrig"
+
+    def test_score_is_half_at_mg_cr_boundary(self, clf: ZoneClassifier) -> None:
+        # composite == _CR_MAX_C (7): direkt auf der MG/CR-Grenze -> 0.50.
+        r = clf.classify(_CR_BENEFIT, composite_score=7, handlungsdruck_score=1)
+        assert r.base_zone == TriageZone.CALCULATED_RISK
+        assert r.confidence_score == pytest.approx(0.50)
+        assert r.confidence_label == "niedrig"
+
+    def test_cr_center_is_max_confidence_for_zone(self, clf: ZoneClassifier) -> None:
+        # CR-Band composite {5,6}: maximaler Abstand zur naechsten Grenze auf dem
+        # ganzzahligen Raster = 1, half_width = (7-4)/2 = 1.5 -> 0.83. Der
+        # kontinuierliche Mittelpunkt 5.5 (-> 1.0) ist ganzzahlig nicht erreichbar
+        # (siehe ADR-0036 Konsequenzen). 0.83 ist damit das Zonen-Maximum.
+        for composite in (5, 6):
+            r = clf.classify(_CR_BENEFIT, composite, handlungsdruck_score=1)
+            assert r.base_zone == TriageZone.CALCULATED_RISK
+            assert r.confidence_score == pytest.approx(0.83)
+            assert r.confidence_label == "mittel"
+
+    def test_open_zone_center_reaches_one(self, clf: ZoneClassifier) -> None:
+        # LIKELY_WIN tief im Band (composite 2): score 1.0.
+        lw = clf.classify(Decimal("75000"), composite_score=2, handlungsdruck_score=1)
+        assert lw.base_zone == TriageZone.LIKELY_WIN
+        assert lw.confidence_score == pytest.approx(1.0)
+        assert lw.confidence_label == "hoch"
+        # MARGINAL_GAIN tief im Band (composite 10): score 1.0.
+        mg = clf.classify(Decimal("100000"), composite_score=10, handlungsdruck_score=1)
+        assert mg.base_zone == TriageZone.MARGINAL_GAIN
+        assert mg.confidence_score == pytest.approx(1.0)
+        assert mg.confidence_label == "hoch"
+
+
+@given(benefit=_BENEFIT, composite=_COMPOSITE, hd=_HD)
+@settings(max_examples=300, suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_property_confidence_score_in_range(
+    clf: ZoneClassifier, benefit: Decimal, composite: int, hd: int
+) -> None:
+    """Invariant: confidence_score liegt fuer jeden gueltigen Input in [0.5, 1.0]."""
+    r = clf.classify(benefit, composite, hd)
+    assert 0.5 <= r.confidence_score <= 1.0
+
+
+@given(benefit=_BENEFIT, composite=_COMPOSITE, hd=_HD)
+@settings(max_examples=300, suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_property_confidence_label_valid(
+    clf: ZoneClassifier, benefit: Decimal, composite: int, hd: int
+) -> None:
+    """Invariant: confidence_label ist immer eines der drei erlaubten Worte."""
+    r = clf.classify(benefit, composite, hd)
+    assert r.confidence_label in {"hoch", "mittel", "niedrig"}

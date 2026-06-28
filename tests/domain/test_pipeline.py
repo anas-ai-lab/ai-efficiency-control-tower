@@ -349,6 +349,8 @@ def _minimal_triage(*, passed: bool, zone: TriageZone | None) -> TriageResult:
             final_zone=zone,
             handlungsdruck_elevated=False,
             reason="Test",
+            confidence_score=1.0,
+            confidence_label="hoch",
         )
 
     return TriageResult(

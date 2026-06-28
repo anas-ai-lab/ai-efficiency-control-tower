@@ -41,8 +41,19 @@ eine Eigenschaft harter Grenzen auf kontinuierlichen Werten.
 LIKELY_WIN-Schwelle von 100.000 EUR erhaelt eine andere Zone als der
 identische Case mit 100.001 EUR -- trotz wirtschaftlicher Aequivalenz.
 
-**v2-Kandidat:** Fuzzy-Zonen (Konfidenz-Intervall um die Schwelle) oder
-kontinuierlicher Bewertungs-Score statt diskreter Zonen.
+**Teilweise behoben (v2, ADR-0036):** `ZoneResult` liefert jetzt einen additiven
+`confidence_score` [0.5, 1.0] + `confidence_label` (hoch/mittel/niedrig). Der
+Score misst den Abstand des `composite_score` zur naechsten Zonengrenze --
+Grenzfaelle erhalten ~0.5, Kernfaelle ~1.0. Die Zonen-Entscheidung bleibt
+deterministisch und unveraendert; der Score macht die Brittleness nur sichtbar.
+
+**Offen:** Der Score ist eindimensional (nur composite-Achse). Die oben
+beschriebene Brittleness auf der `expected_benefit`-Achse (99.999 vs. 100.001)
+ist damit noch NICHT abgedeckt -- eine Zone, die durch knappen Benefit-Abstand
+entsteht, wird vom composite-basierten Score nicht erfasst.
+
+**v2-Kandidat (Rest):** 2D-Konfidenz, die zusaetzlich den Abstand zu den
+Benefit-Schwellen einbezieht.
 
 ---
 

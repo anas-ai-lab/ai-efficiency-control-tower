@@ -183,11 +183,15 @@ def _composite_score_from_dict(d: dict[str, Any]) -> CompositeScore:
 
 
 def _zone_result_from_dict(d: dict[str, Any]) -> ZoneResult:
+    # confidence_* sind additiv (ADR-0036). .get()-Fallback haelt aeltere
+    # persistierte Records ohne diese Felder lesbar: Score 0.5 = "unsicher".
     return ZoneResult(
         base_zone=TriageZone(str(d["base_zone"])),
         final_zone=TriageZone(str(d["final_zone"])),
         handlungsdruck_elevated=bool(d["handlungsdruck_elevated"]),
         reason=str(d["reason"]),
+        confidence_score=float(d.get("confidence_score", 0.5)),
+        confidence_label=str(d.get("confidence_label", "niedrig")),
     )
 
 
