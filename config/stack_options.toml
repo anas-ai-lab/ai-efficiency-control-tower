@@ -1,12 +1,8 @@
 # config/stack_options.toml
 #
-# IP-Trennung (interne Referenz (entfernt) §5): Firmenspezifische Plattform-Namen und
-# -Beschreibungen leben hier, nicht im generischen Code
-# (application/tools.py). Wird von lookup_stack_options() (Tag 37) gelesen.
+# Generische Plattformbeispiele fuer den Stack-Vorschlag.
+# Wird von lookup_stack_options() gelesen.
 #
-# Tag 37 (Phase C): Platzhalter-Beschreibungen, noch ohne RAG-Beleg.
-# Stack-Grounding mit echten Quellen folgt Phase D (Master-Plan v3.1).
-
 [open_webui]
 name = "Open WebUI"
 description = "Self-hosted Open-Source-Chat-Oberflaeche fuer LLMs. Geeignet fuer interne Pilotierung ohne Lizenzkosten, erfordert eigenes Hosting."
@@ -25,4 +21,4 @@ description = "SAP-eigene Plattform fuer Erweiterungen und Integrationen im SAP-
 
 [andere]
 name = "Andere / individuelle Loesung"
-description = "Keine der Standard-Plattformen passt -- individuelle Architektur erforderlich. Signal fuer vertiefte Pruefung im Internes Gremium."
+description = "Keine der Standard-Plattformen passt -- individuelle Architektur erforderlich. Signal fuer vertiefte Pruefung."
