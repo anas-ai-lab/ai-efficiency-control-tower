@@ -1,9 +1,7 @@
 "use client"
 
 import { SolutionProposalResponse } from "@/types/api"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Loader2 } from "lucide-react"
+import { LlmAction } from "@/components/llm-action"
 
 interface SolutionViewProps {
   result: SolutionProposalResponse
@@ -19,31 +17,34 @@ export function SolutionView({
   complianceError,
 }: SolutionViewProps) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg bg-muted/40 p-4">
-        <p className="text-sm leading-relaxed">{result.proposal_text}</p>
-        <p className="mt-3 text-right text-xs text-muted-foreground">
-          Prompt-Version: {result.prompt_version}
+    <div className="space-y-6">
+      <article className="rounded-2xl border border-border bg-card p-6 sm:p-7">
+        <p className="eyebrow mb-3">Vorschlag</p>
+        <p className="text-[0.95rem] leading-7 whitespace-pre-line text-foreground/90">
+          {result.proposal_text}
         </p>
-      </div>
-
-      <Separator />
-
-      {complianceError !== null && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {complianceError}
+        <div className="mt-5 flex items-center gap-2 border-t border-border pt-3">
+          <span className="font-mono text-[0.65rem] tracking-wide text-muted-foreground/70">
+            PROMPT
+          </span>
+          <span className="font-mono text-xs text-muted-foreground tnum">
+            {result.prompt_version}
+          </span>
         </div>
-      )}
+      </article>
 
-      <Button onClick={onCompliance} disabled={isComplianceLoading} className="w-full">
-        {isComplianceLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isComplianceLoading ? "Wird geprüft..." : "Compliance-Prüfung starten (KI)"}
-      </Button>
-
-      <p className="mt-2 text-center text-xs text-muted-foreground">
-        Prüft DSGVO- und Sicherheitsanforderungen, LLM-Call
-      </p>
+      <div className="border-t border-border pt-6">
+        <LlmAction
+          onAction={onCompliance}
+          isLoading={isComplianceLoading}
+          idleLabel="Compliance-Prüfung starten"
+          loadingLabel="Compliance wird geprüft …"
+          hint="Prüft DSGVO- und Sicherheitsanforderungen · 5–30 Sekunden"
+          error={complianceError}
+        />
+      </div>
     </div>
   )
 }
+
 export default SolutionView

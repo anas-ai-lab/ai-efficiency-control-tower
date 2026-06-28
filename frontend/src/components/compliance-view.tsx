@@ -7,9 +7,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Loader2 } from "lucide-react"
+import { LlmAction } from "@/components/llm-action"
+import { ShieldCheck, ExternalLink } from "lucide-react"
 
 interface ComplianceViewProps {
   result: ComplianceHintsResponse
@@ -28,67 +27,84 @@ export function ComplianceView({
   const hasCitations = result.citations.length > 0
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {!hasHint && !hasCitations && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          Keine Compliance-Hinweise fuer diesen Use Case identifiziert.
-          Kein Handlungsbedarf aus Datenschutzsicht erkannt.
+        <div className="flex items-start gap-3 rounded-xl border border-[var(--zone-win-border)] bg-[var(--zone-win-surface)] px-4 py-3.5">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--zone-win-fg)]" />
+          <p className="text-sm leading-relaxed text-foreground/85">
+            Keine Compliance-Hinweise für diesen Use Case identifiziert. Kein
+            Handlungsbedarf aus Datenschutzsicht erkannt.
+          </p>
         </div>
       )}
 
       {hasHint && (
-        <p className="text-sm leading-relaxed">{result.hint_text}</p>
+        <article className="rounded-2xl border border-border bg-card p-6 sm:p-7">
+          <p className="eyebrow mb-3">Hinweise</p>
+          <p className="text-[0.95rem] leading-7 whitespace-pre-line text-foreground/90">
+            {result.hint_text}
+          </p>
+        </article>
       )}
 
       {hasCitations && (
-        <>
-          <Separator />
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            QUELLENANGABEN
-          </p>
+        <section>
+          <p className="eyebrow mb-1">Quellenangaben</p>
           <Accordion type="multiple" className="w-full">
             {result.citations.map((citation: ComplianceCitation) => (
               <AccordionItem
                 key={citation.number}
                 value={`citation-${citation.number}`}
               >
-                <AccordionTrigger className="text-sm font-normal">
-                  [{citation.number}] {citation.citation}
+                <AccordionTrigger className="gap-3 text-sm font-normal no-underline hover:no-underline">
+                  <span className="flex items-start gap-2.5 text-left">
+                    <span className="mt-px font-mono text-xs text-muted-foreground tnum">
+                      [{citation.number}]
+                    </span>
+                    <span className="text-foreground/90">
+                      {citation.citation}
+                    </span>
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <p className="text-xs text-muted-foreground">
-                    Quelle-ID: {citation.source_id}
-                  </p>
-                  {citation.url !== null && (
-                    <a
-                      href={citation.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 block text-xs text-blue-600 underline"
-                    >
-                      Quelle oeffnen
-                    </a>
-                  )}
+                  <div className="pl-7">
+                    <p className="text-xs text-muted-foreground">
+                      Quelle-ID:{" "}
+                      <span className="font-mono text-foreground/70">
+                        {citation.source_id}
+                      </span>
+                    </p>
+                    {citation.url !== null && (
+                      <a
+                        href={citation.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--ink)] hover:underline"
+                      >
+                        Quelle öffnen
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
-        </>
+        </section>
       )}
 
-      <Separator />
-
-      {reportError !== null && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {reportError}
-        </div>
-      )}
-
-      <Button onClick={onReport} disabled={isReportLoading} className="w-full">
-        {isReportLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isReportLoading ? "Wird generiert..." : "Vollständigen Report generieren (KI)"}
-      </Button>
+      <div className="border-t border-border pt-6">
+        <LlmAction
+          onAction={onReport}
+          isLoading={isReportLoading}
+          idleLabel="Vollständigen Report generieren"
+          loadingLabel="Report wird zusammengestellt …"
+          hint="Bündelt alle Ergebnisse in einem Dokument · 5–30 Sekunden"
+          error={reportError}
+        />
+      </div>
     </div>
   )
 }
+
 export default ComplianceView

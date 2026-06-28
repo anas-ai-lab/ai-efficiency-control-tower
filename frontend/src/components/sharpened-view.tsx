@@ -1,15 +1,38 @@
 "use client"
 
 import { SharpenedCaseResponse } from "@/types/api"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Loader2 } from "lucide-react"
+import { LlmAction } from "@/components/llm-action"
 
 interface SharpenedViewProps {
   result: SharpenedCaseResponse
   onPropose: () => void
   isProposeLoading: boolean
   proposeError: string | null
+}
+
+function Field({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string
+  value: string
+  emphasis?: boolean
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <p
+        className={
+          emphasis
+            ? "text-sm leading-relaxed font-medium text-foreground"
+            : "text-sm leading-relaxed text-muted-foreground"
+        }
+      >
+        {value}
+      </p>
+    </div>
+  )
 }
 
 export function SharpenedView({
@@ -19,112 +42,84 @@ export function SharpenedView({
   proposeError,
 }: SharpenedViewProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {result.sharpened_title !== null ? (
         <>
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <p className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">
-                ORIGINAL
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Titel</p>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {result.original_title}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Ist-Zustand</p>
-                  <p className="text-sm text-muted-foreground">
-                    {result.original_current_state}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Soll-Zustand</p>
-                  <p className="text-sm text-muted-foreground">
-                    {result.original_desired_state}
-                  </p>
-                </div>
+          {/* Original vs. geschaerft als zwei klar getrennte Spuren. */}
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
+            <div className="bg-card p-5 sm:p-6">
+              <p className="eyebrow mb-4">Original</p>
+              <div className="space-y-4">
+                <Field label="Titel" value={result.original_title} />
+                <Field label="Ist-Zustand" value={result.original_current_state} />
+                <Field label="Soll-Zustand" value={result.original_desired_state} />
               </div>
             </div>
-
-            <div>
-              <p className="mb-3 border-l-2 border-primary pl-2 text-xs uppercase tracking-widest text-muted-foreground">
-                GESCHAERFT
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Titel</p>
-                  <p className="text-sm font-medium text-foreground">
-                    {result.sharpened_title}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Ist-Zustand</p>
-                  <p className="text-sm font-medium text-foreground">
-                    {result.sharpened_current_state ?? ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Soll-Zustand</p>
-                  <p className="text-sm font-medium text-foreground">
-                    {result.sharpened_desired_state ?? ""}
-                  </p>
-                </div>
+            <div className="relative bg-card p-5 sm:p-6">
+              <span
+                className="absolute inset-y-0 left-0 hidden w-0.5 bg-[var(--ink)] md:block"
+                aria-hidden
+              />
+              <p className="eyebrow mb-4 text-[var(--ink)]">Geschärft</p>
+              <div className="space-y-4">
+                <Field label="Titel" value={result.sharpened_title} emphasis />
+                <Field
+                  label="Ist-Zustand"
+                  value={result.sharpened_current_state ?? ""}
+                  emphasis
+                />
+                <Field
+                  label="Soll-Zustand"
+                  value={result.sharpened_desired_state ?? ""}
+                  emphasis
+                />
               </div>
             </div>
           </div>
 
           {result.improvement_suggestions.length > 0 && (
-            <>
-              <Separator />
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                VERBESSERUNGSVORSCHLÄGE
-              </p>
-              <div className="space-y-2">
+            <section>
+              <p className="eyebrow mb-3">Verbesserungsvorschläge</p>
+              <ol className="space-y-2.5">
                 {result.improvement_suggestions.map((suggestion, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+                  <li key={index} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--ink-subtle)] text-[0.7rem] font-semibold tnum text-[var(--ink)]">
                       {index + 1}
                     </span>
-                    <p className="text-sm">{suggestion}</p>
-                  </div>
+                    <p className="text-sm leading-relaxed text-foreground/90">
+                      {suggestion}
+                    </p>
+                  </li>
                 ))}
-              </div>
-            </>
+              </ol>
+            </section>
           )}
         </>
       ) : (
         <>
-          <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm font-medium text-yellow-900">
+          <div className="rounded-xl border border-[var(--zone-risk-border)] bg-[var(--zone-risk-surface)] px-4 py-3 text-sm font-medium text-[var(--zone-risk-fg)]">
             Strukturiertes Schärfen nicht verfügbar
           </div>
           {result.raw_text !== null && (
-            <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">
+            <pre className="overflow-x-auto rounded-xl border border-border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
               {result.raw_text}
             </pre>
           )}
         </>
       )}
 
-      <Separator />
-
-      {proposeError !== null && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {proposeError}
-        </div>
-      )}
-
-      <Button onClick={onPropose} disabled={isProposeLoading} className="w-full">
-        {isProposeLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isProposeLoading ? "Wird generiert..." : "Lösungsvorschlag generieren (KI)"}
-      </Button>
-
-      <p className="mt-2 text-center text-xs text-muted-foreground">
-        Dauert 5-30 Sekunden, LLM-Call
-      </p>
+      <div className="border-t border-border pt-6">
+        <LlmAction
+          onAction={onPropose}
+          isLoading={isProposeLoading}
+          idleLabel="Lösungsvorschlag generieren"
+          loadingLabel="Lösungsvorschlag wird erstellt …"
+          hint="KI entwirft einen Umsetzungsweg · 5–30 Sekunden"
+          error={proposeError}
+        />
+      </div>
     </div>
   )
 }
+
 export default SharpenedView

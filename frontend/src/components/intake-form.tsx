@@ -4,6 +4,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useTransition, useState } from "react"
+import { Loader2 } from "lucide-react"
 import { submitTriage } from "@/app/actions"
 import { TriageResponse } from "@/types/api"
 import {
@@ -25,12 +26,6 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 
 const formSchema = z.object({
   title: z.string().min(5).max(200),
@@ -70,6 +65,39 @@ interface IntakeFormProps {
   onSuccess: (result: TriageResponse) => void
 }
 
+// Editoriales Abschnitts-Layout: linke Spalte Meta (Nummer, Titel, Erklaerung),
+// rechte Spalte Felder. Ersetzt die gestapelten Standard-Cards.
+function Section({
+  index,
+  title,
+  description,
+  children,
+}: {
+  index: string
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="grid gap-x-10 gap-y-5 py-9 first:pt-0 md:grid-cols-[minmax(0,13rem)_1fr]">
+      <div className="md:pt-0.5">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs font-medium text-foreground/35 tnum">
+            {index}
+          </span>
+          <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+            {title}
+          </h2>
+        </div>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <div className="space-y-5">{children}</div>
+    </section>
+  )
+}
+
 export function IntakeForm({ onSuccess }: IntakeFormProps) {
   const [isPending, startTransition] = useTransition()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -78,23 +106,23 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
     mode: "onBlur",
     defaultValues: {
-  title: "",
-  submitter: "",
-  department: "",
-  current_state: "",
-  desired_state: "",
-  example_process: "",
-  time_savings_hours_per_case: 0,
-  frequency_per_year: 0,
-  affected_employees_count: 0,
-  estimated_license_cost_eur: 0,
-  implementation_complexity: 3,
-  contains_pii: false,
-  regulatory_pressure: false,
-  competitive_pressure: false,
-  strategic_priority: false,
-  evidence_level: "pure_estimate",
-},
+      title: "",
+      submitter: "",
+      department: "",
+      current_state: "",
+      desired_state: "",
+      example_process: "",
+      time_savings_hours_per_case: 0,
+      frequency_per_year: 0,
+      affected_employees_count: 0,
+      estimated_license_cost_eur: 0,
+      implementation_complexity: 3,
+      contains_pii: false,
+      regulatory_pressure: false,
+      competitive_pressure: false,
+      strategic_priority: false,
+      evidence_level: "pure_estimate",
+    },
   })
 
   function onSubmit(data: FormValues) {
@@ -111,13 +139,14 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Card 1: Stammdaten */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Stammdaten</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="divide-y divide-border">
+          {/* 01 Stammdaten */}
+          <Section
+            index="01"
+            title="Stammdaten"
+            description="Wer reicht den Use Case ein und wie heißt er?"
+          >
             <FormField
               control={form.control}
               name="title"
@@ -125,47 +154,51 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 <FormItem>
                   <FormLabel>Titel</FormLabel>
                   <FormControl>
-                    <Input placeholder="Kurzer, prägnanter Titel des Use Cases" {...field} />
+                    <Input
+                      placeholder="Kurzer, prägnanter Titel des Use Cases"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="submitter"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Einreicher</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Name der einreichenden Person" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="department"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Abteilung</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Organisationseinheit" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="submitter"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Einreicher</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Name der einreichenden Person" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Abteilung</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Organisationseinheit" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </Section>
 
-        {/* Card 2: Prozessbeschreibung */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Prozessbeschreibung</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* 02 Prozessbeschreibung */}
+          <Section
+            index="02"
+            title="Prozessbeschreibung"
+            description="Ist-Zustand, Soll-Zustand und ein konkretes Beispiel."
+          >
             <FormField
               control={form.control}
               name="current_state"
@@ -217,113 +250,115 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
+          </Section>
 
-        {/* Card 3: Mengen & Zeit */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Mengen &amp; Zeit</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="time_savings_hours_per_case"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Zeitersparnis pro Fall (Stunden)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.1" placeholder="z.B. 0.5" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="frequency_per_year"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Häufigkeit pro Jahr</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="z.B. 500" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="affected_employees_count"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Betroffene Mitarbeitende</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="z.B. 20" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="employee_category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mitarbeiterkategorie</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+          {/* 03 Mengen & Zeit */}
+          <Section
+            index="03"
+            title="Mengen & Zeit"
+            description="Quantitative Grundlage der ROI-Berechnung."
+          >
+            <div className="grid gap-5 sm:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="time_savings_hours_per_case"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Zeit / Fall (Std.)</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte wählen" />
-                      </SelectTrigger>
+                      <Input type="number" step="0.1" placeholder="0,5" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="junior">Junior</SelectItem>
-                      <SelectItem value="professional">Professional</SelectItem>
-                      <SelectItem value="senior">Senior</SelectItem>
-                      <SelectItem value="mixed">Gemischt</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="implementation_complexity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Implementierungskomplexität</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(Number(v))}
-                    defaultValue={String(field.value)}
-                  >
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="frequency_per_year"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fälle / Jahr</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte wählen" />
-                      </SelectTrigger>
+                      <Input type="number" placeholder="500" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="1">1 - Trivial</SelectItem>
-                      <SelectItem value="2">2</SelectItem>
-                      <SelectItem value="3">3 - Mittel</SelectItem>
-                      <SelectItem value="4">4</SelectItem>
-                      <SelectItem value="5">5 - Sehr hoch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="affected_employees_count"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mitarbeitende</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="20" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="employee_category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mitarbeiterkategorie</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="junior">Junior</SelectItem>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="senior">Senior</SelectItem>
+                        <SelectItem value="mixed">Gemischt</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="implementation_complexity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Implementierungskomplexität</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(Number(v))}
+                      defaultValue={String(field.value)}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="1">1 – Trivial</SelectItem>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3 – Mittel</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="5">5 – Sehr hoch</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </Section>
 
-        {/* Card 4: Evidenz & Verbindlichkeit */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Evidenz &amp; Verbindlichkeit</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* 04 Evidenz & Verbindlichkeit */}
+          <Section
+            index="04"
+            title="Evidenz & Verbindlichkeit"
+            description="Belastbarkeit der Annahmen und Art der Nutzung."
+          >
             <FormField
               control={form.control}
               name="evidence_level"
@@ -346,71 +381,67 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="adoption_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nutzungsverbindlichkeit</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte wählen" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="mandatory">Pflichtnutzung</SelectItem>
-                      <SelectItem value="voluntary">Freiwillig</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="implementation_approach"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Implementierungsansatz</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Bitte wählen" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="standard_product">Standard-Produkt</SelectItem>
-                      <SelectItem value="custom_build">Eigenentwicklung</SelectItem>
-                      <SelectItem value="vendor_solution">Drittanbieter</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="adoption_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nutzungsverbindlichkeit</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="mandatory">Pflichtnutzung</SelectItem>
+                        <SelectItem value="voluntary">Freiwillig</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="implementation_approach"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Implementierungsansatz</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="standard_product">Standard-Produkt</SelectItem>
+                        <SelectItem value="custom_build">Eigenentwicklung</SelectItem>
+                        <SelectItem value="vendor_solution">Drittanbieter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </Section>
 
-        {/* Card 5: Kosten */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Kosten</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* 05 Kosten */}
+          <Section
+            index="05"
+            title="Kosten"
+            description="Wiederkehrende Lizenzkosten fließen in den Nettonutzen ein."
+          >
             <FormField
               control={form.control}
               name="estimated_license_cost_eur"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Geschätzte Lizenzkosten (EUR/Jahr)</FormLabel>
+                  <FormLabel>Geschätzte Lizenzkosten (EUR / Jahr)</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      {...field}
-                    />
+                    <Input type="number" min={0} placeholder="0" {...field} />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
                     0 = Open Source oder intern
@@ -419,31 +450,30 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
+          </Section>
 
-        {/* Card 6: Datenschutz */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Datenschutz</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* 06 Datenschutz */}
+          <Section
+            index="06"
+            title="Datenschutz"
+            description="Grundlage der DSGVO- und Compliance-Bewertung."
+          >
             <FormField
               control={form.control}
               name="contains_pii"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-2.5">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="font-normal">
+                    <span className="text-sm font-medium text-foreground">
                       Enthält personenbezogene Daten (PII)
-                    </FormLabel>
-                  </div>
+                    </span>
+                  </label>
                   <FormMessage />
                 </FormItem>
               )}
@@ -475,36 +505,37 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
+          </Section>
 
-        {/* Card 7: Handlungsdruck */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Handlungsdruck</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* 07 Handlungsdruck */}
+          <Section
+            index="07"
+            title="Handlungsdruck"
+            description="Externe Faktoren, die eine Bewertung höher einstufen können."
+          >
             <FormField
               control={form.control}
               name="regulatory_pressure"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-start gap-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
                     <FormControl>
                       <Checkbox
+                        className="mt-0.5"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <div className="grid gap-0.5">
-                      <FormLabel className="font-normal">
+                    <span className="grid gap-0.5">
+                      <span className="text-sm font-medium text-foreground">
                         Regulatorischer Druck
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Gesetzliche oder aufsichtsrechtliche Anforderungen erzwingen Handlungsbedarf.
-                      </p>
-                    </div>
-                  </div>
+                      </span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">
+                        Gesetzliche oder aufsichtsrechtliche Anforderungen
+                        erzwingen Handlungsbedarf.
+                      </span>
+                    </span>
+                  </label>
                   <FormMessage />
                 </FormItem>
               )}
@@ -514,22 +545,23 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
               name="competitive_pressure"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-start gap-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
                     <FormControl>
                       <Checkbox
+                        className="mt-0.5"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <div className="grid gap-0.5">
-                      <FormLabel className="font-normal">
+                    <span className="grid gap-0.5">
+                      <span className="text-sm font-medium text-foreground">
                         Wettbewerbsdruck
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
+                      </span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">
                         Mitbewerber setzen vergleichbare Lösungen bereits ein.
-                      </p>
-                    </div>
-                  </div>
+                      </span>
+                    </span>
+                  </label>
                   <FormMessage />
                 </FormItem>
               )}
@@ -539,38 +571,50 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
               name="strategic_priority"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-start gap-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
                     <FormControl>
                       <Checkbox
+                        className="mt-0.5"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <div className="grid gap-0.5">
-                      <FormLabel className="font-normal">
+                    <span className="grid gap-0.5">
+                      <span className="text-sm font-medium text-foreground">
                         Strategische Priorität
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Der Use Case ist explizit Teil der Unternehmensstrategie oder eines Vorstandsziels.
-                      </p>
-                    </div>
-                  </div>
+                      </span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">
+                        Der Use Case ist explizit Teil der Unternehmensstrategie
+                        oder eines Vorstandsziels.
+                      </span>
+                    </span>
+                  </label>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
+          </Section>
+        </div>
 
-        {submitError && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {submitError}
-          </div>
-        )}
-
-        <Button type="submit" disabled={isPending} className="w-full">
-          {isPending ? "Wird bewertet..." : "Use Case einreichen"}
-        </Button>
+        <div className="mt-9 space-y-3">
+          {submitError && (
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            >
+              {submitError}
+            </p>
+          )}
+          <Button
+            type="submit"
+            size="xl"
+            disabled={isPending}
+            className="w-full"
+          >
+            {isPending && <Loader2 className="size-4 animate-spin" />}
+            {isPending ? "Use Case wird bewertet …" : "Use Case einreichen"}
+          </Button>
+        </div>
       </form>
     </Form>
   )

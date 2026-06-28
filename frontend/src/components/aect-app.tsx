@@ -20,6 +20,7 @@ import SharpenedView from "@/components/sharpened-view"
 import SolutionView from "@/components/solution-view"
 import ComplianceView from "@/components/compliance-view"
 import ReportView from "@/components/report-view"
+import StepIndicator from "@/components/step-indicator"
 
 type Step = "form" | "triage" | "sharpened" | "solution" | "compliance" | "report"
 
@@ -63,7 +64,7 @@ export default function AectApp() {
       setSharpenedResult(result)
       setCurrentStep("sharpened")
     } catch (e) {
-      setSharpenError(e instanceof Error ? e.message : "Schaerfen fehlgeschlagen")
+      setSharpenError(e instanceof Error ? e.message : "Schärfen fehlgeschlagen")
     } finally {
       setIsSharpenLoading(false)
     }
@@ -77,7 +78,7 @@ export default function AectApp() {
       setSolutionResult(result)
       setCurrentStep("solution")
     } catch (e) {
-      setSolutionError(e instanceof Error ? e.message : "Loesungsvorschlag fehlgeschlagen")
+      setSolutionError(e instanceof Error ? e.message : "Lösungsvorschlag fehlgeschlagen")
     } finally {
       setIsProposeLoading(false)
     }
@@ -91,7 +92,7 @@ export default function AectApp() {
       setComplianceResult(result)
       setCurrentStep("compliance")
     } catch (e) {
-      setComplianceError(e instanceof Error ? e.message : "Compliance-Pruefung fehlgeschlagen")
+      setComplianceError(e instanceof Error ? e.message : "Compliance-Prüfung fehlgeschlagen")
     } finally {
       setIsComplianceLoading(false)
     }
@@ -113,84 +114,110 @@ export default function AectApp() {
 
   const stepIndex = STEPS.findIndex((s) => s.key === currentStep)
 
+  const INTRO: Record<Step, { eyebrow: string; title: string; subtitle: string }> = {
+    form: {
+      eyebrow: "Erfassung",
+      title: "Use Case einreichen",
+      subtitle:
+        "Strukturierte Eingabe als Grundlage der KI-gestützten Vorbewertung.",
+    },
+    triage: {
+      eyebrow: "Vorbewertung",
+      title: triageResult?.title ?? "Triage-Ergebnis",
+      subtitle: "Zone, ROI und Routing auf Basis der Eingaben.",
+    },
+    sharpened: {
+      eyebrow: "Schärfung",
+      title: "Geschärfte Fallbeschreibung",
+      subtitle: "Original und KI-geschärfte Fassung im Vergleich.",
+    },
+    solution: {
+      eyebrow: "Lösung",
+      title: "Lösungsvorschlag",
+      subtitle: "Skizze eines tragfähigen Umsetzungswegs.",
+    },
+    compliance: {
+      eyebrow: "Compliance",
+      title: "Datenschutz- und Compliance-Hinweise",
+      subtitle: "Hinweise mit belegten Quellenangaben.",
+    },
+    report: {
+      eyebrow: "Report",
+      title: "Vollständiger Report",
+      subtitle: "Entscheider- und technische Sicht in einem Dokument.",
+    },
+  }
+
+  const intro = INTRO[currentStep]
+
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <header>
-        <h1 className="text-xl font-bold tracking-tight">
-          AECT | AI Efficiency Control Tower
+    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-12">
+      <StepIndicator steps={STEPS} current={stepIndex} />
+
+      <header className="mt-9 mb-8">
+        <p className="eyebrow">{intro.eyebrow}</p>
+        <h1 className="mt-2 text-pretty text-[1.65rem] font-semibold leading-tight tracking-tight text-foreground">
+          {intro.title}
         </h1>
-        <nav className="mt-2 flex items-center text-sm">
-          {STEPS.map((step, i) => (
-            <span key={step.key} className="flex items-center">
-              {i > 0 && (
-                <span className="mx-1 text-muted-foreground">›</span>
-              )}
-              <span
-                className={
-                  i === stepIndex
-                    ? "font-semibold text-primary"
-                    : i < stepIndex
-                      ? "text-muted-foreground"
-                      : "text-muted-foreground opacity-50"
-                }
-              >
-                {step.label}
-              </span>
-            </span>
-          ))}
-        </nav>
+        <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+          {intro.subtitle}
+        </p>
       </header>
 
-      {currentStep === "form" && (
-        <IntakeForm onSuccess={handleTriageSuccess} />
-      )}
+      <div key={currentStep} className="animate-view-enter">
+        {currentStep === "form" && (
+          <IntakeForm onSuccess={handleTriageSuccess} />
+        )}
 
-      {currentStep === "triage" && (
-        <div className="space-y-4">
-          {sharpenError !== null && (
-            <div className="rounded-md border border-red-200 bg-red-50
-                            p-3 text-sm text-red-800">
-              {sharpenError}
-            </div>
-          )}
-          <TriageResult
-            result={triageResult!}
-            onSharpen={handleSharpen}
-            isSharpenLoading={isSharpenLoading}
+        {currentStep === "triage" && (
+          <div className="space-y-5">
+            {sharpenError !== null && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              >
+                {sharpenError}
+              </p>
+            )}
+            <TriageResult
+              result={triageResult!}
+              onSharpen={handleSharpen}
+              isSharpenLoading={isSharpenLoading}
+            />
+          </div>
+        )}
+
+        {currentStep === "sharpened" && sharpenedResult !== null && (
+          <SharpenedView
+            result={sharpenedResult}
+            onPropose={handlePropose}
+            isProposeLoading={isProposeLoading}
+            proposeError={solutionError}
           />
-        </div>
-      )}
+        )}
 
-      {currentStep === "sharpened" && sharpenedResult !== null && (
-        <SharpenedView
-          result={sharpenedResult}
-          onPropose={handlePropose}
-          isProposeLoading={isProposeLoading}
-          proposeError={solutionError}
-        />
-      )}
+        {currentStep === "solution" && solutionResult !== null && (
+          <SolutionView
+            result={solutionResult}
+            onCompliance={handleCompliance}
+            isComplianceLoading={isComplianceLoading}
+            complianceError={complianceError}
+          />
+        )}
 
-      {currentStep === "solution" && solutionResult !== null && (
-        <SolutionView
-          result={solutionResult}
-          onCompliance={handleCompliance}
-          isComplianceLoading={isComplianceLoading}
-          complianceError={complianceError}
-        />
-      )}
+        {currentStep === "compliance" && complianceResult !== null && (
+          <ComplianceView
+            result={complianceResult}
+            onReport={handleReport}
+            isReportLoading={isReportLoading}
+            reportError={reportError}
+          />
+        )}
 
-      {currentStep === "compliance" && complianceResult !== null && (
-        <ComplianceView
-          result={complianceResult}
-          onReport={handleReport}
-          isReportLoading={isReportLoading}
-          reportError={reportError}
-        />
-      )}
-
-      {currentStep === "report" && reportResult !== null && (
-        <ReportView result={reportResult} />
-      )}
+        {currentStep === "report" && reportResult !== null && (
+          <ReportView result={reportResult} />
+        )}
+      </div>
     </main>
   )
 }

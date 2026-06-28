@@ -58,16 +58,36 @@ src/
     formatters.ts         # BEREITS ANGELEGT: formatEUR(), ZONE_CONFIG
 
 ## Zone-Farben (aus ZONE_CONFIG in formatters.ts)
-LIKELY_WIN      -> gruen  (bg-green-100 text-green-800)
-CALCULATED_RISK -> gelb   (bg-yellow-100 text-yellow-800)
-MARGINAL_GAIN   -> rot    (bg-red-100 text-red-800)
+Redaktionell entsaettigte Semantik ueber --zone-*-Tokens in globals.css,
+KEINE Tailwind-*-100/800-Alarmfarben mehr. ZONE_CONFIG liefert je Zone:
+labelDE, dot, text, surface, bar (literale Klassenstrings auf die Tokens).
+LIKELY_WIN      -> gedaempftes Gruen  (--zone-win-*)
+CALCULATED_RISK -> gedaempftes Bernstein (--zone-risk-*)
+MARGINAL_GAIN   -> gedaempftes Rot    (--zone-gain-*)
 
-## Design-Prinzipien
-- UI-Sprache: Deutsch (alle Labels, Buttons, Ueberschriften, Fehlermeldungen)
-- VISUAL_DENSITY: 4 (Enterprise-Intranet-Tool, kein Landing-Page-Weissraum)
-- MOTION_INTENSITY: 2 (Loading-Spinner bei async Operationen -- das war es)
-- Kein Hero-Section, kein Marketing-Text, kein "AI revolutioniert alles"
-- Fehler: inline in der Naeheaes ausloesenden Elements, kein globaler Toast
+## Design-System (Redesign v2, ab Premium-UI-Pass)
+- Theme: HELL als Default, dunkel via .dark-Klasse auf <html>. Toggle:
+  components/theme-toggle.tsx (client-only, localStorage 'aect-theme', KEIN
+  next-themes). No-FOUC-Init-Skript inline in layout.tsx (<head>).
+- EIN Akzent: gedecktes Tinten-Blau --ink (+ --ink-hover/-foreground/-subtle).
+  NUR fuer interaktive/aktive Elemente (Fokusring, aktiver Step, Links, Hover
+  des Primaerbuttons). Primaeraktion selbst bleibt monochrome Tinte (--primary).
+- VERBOTEN: Lila/Violett- und Blau-Pink-Verlaeufe, Gradient-Text, Glow/Neon,
+  farbige Box-Shadow-Bleeds, Glassmorphism/Frosted-Blur, Emoji im UI,
+  symmetrische 3-Spalten-Hero-Grids, generische Card+CardHeader+CardTitle auf
+  jedem Block, Badge-Outline-als-Verdikt.
+- Typografie traegt die Hierarchie: Geist Sans (Text) + Geist Mono (Zahlen).
+  Kennzahlen = .stat-value (mono, tabular-nums, gross). Sektionsmarken = .eyebrow.
+- Layout: grosszuegiger, intentionaler Weissraum auf 4px-Raster. Intake-Form
+  nutzt zweispaltiges Editorial-Layout (links Meta, rechts Felder), keine Cards.
+- VISUAL_DENSITY: 3 (war 4 -- Dichte-Constraints fuer das Redesign aufgehoben).
+- MOTION_INTENSITY: 3. Step-Transitions .animate-view-enter (8px/150-250ms,
+  ease-out, nie bouncy). .stagger fuer Kaskaden. LLM-Wartezeiten via
+  components/llm-action.tsx (Progress + Skeleton statt blanker Spinner).
+  ALLE Motion hinter prefers-reduced-motion (in globals.css gegated).
+- EU-AI-Act-Art.-50-Disclaimer bleibt im Footer (layout.tsx) auf jeder View.
+- Kein Marketing-Hero, kein "AI revolutioniert alles". Ton: ruhig, praezise.
+- Fehler: inline am ausloesenden Element (destructive-Tokens), kein globaler Toast.
 
 ## State-Modell in aect-app.tsx
 type Step = "form" | "triage" | "sharpened" | "solution" | "compliance" | "report"

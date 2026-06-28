@@ -1,18 +1,33 @@
 "use client"
 
 import type { TriageResponse } from "@/types/api"
-import { formatEUR, ZONE_CONFIG, ZoneKey } from "@/lib/formatters"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
+import { formatEUR, formatNumber, ZONE_CONFIG, ZoneKey } from "@/lib/formatters"
+import { LlmAction } from "@/components/llm-action"
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  ArrowRight,
+} from "lucide-react"
 
+// Routing-Empfehlung als deutsche Bezeichnung plus dezenter Statuspunkt.
+const ROUTING: Record<string, { labelDE: string; dot: string }> = {
+  AI_RECOMMENDED: { labelDE: "KI empfohlen", dot: "bg-[var(--ink)]" },
+  AUTOMATION_RECOMMENDED: {
+    labelDE: "Automatisierung empfohlen",
+    dot: "bg-[var(--zone-win)]",
+  },
+  HUMAN_REVIEW_REQUIRED: {
+    labelDE: "Menschliche Prüfung",
+    dot: "bg-[var(--zone-risk)]",
+  },
+  BORDERLINE: { labelDE: "Grenzfall", dot: "bg-[var(--zone-risk)]" },
+}
 
-const ROUTING_BADGE: Record<string, string> = {
-  AI_RECOMMENDED: "bg-blue-100 text-blue-800 border border-blue-300",
-  AUTOMATION_RECOMMENDED: "bg-green-100 text-green-800 border border-green-300",
-  HUMAN_REVIEW_REQUIRED: "bg-orange-100 text-orange-800 border border-orange-300",
-  BORDERLINE: "bg-yellow-100 text-yellow-800 border border-yellow-300",
+const CONFIDENCE_DE: Record<string, string> = {
+  high: "Hoch",
+  medium: "Mittel",
+  low: "Niedrig",
 }
 
 interface TriageResultProps {
@@ -21,33 +36,39 @@ interface TriageResultProps {
   isSharpenLoading: boolean
 }
 
-export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResultProps) {
+export function TriageResult({
+  result,
+  onSharpen,
+  isSharpenLoading,
+}: TriageResultProps) {
   const zone = result.zone
   const zoneConfig = zone ? ZONE_CONFIG[zone.final_zone as ZoneKey] : null
-
   const warning = result.similarity_warning
+  const routing =
+    ROUTING[result.routing.recommendation] ?? {
+      labelDE: result.routing.recommendation,
+      dot: "bg-muted-foreground",
+    }
+  const confidence =
+    CONFIDENCE_DE[result.routing.confidence.toLowerCase()] ??
+    result.routing.confidence
 
   return (
-    <div className="space-y-4">
-      {/* 0. Dedup-Hinweis (L-3, ADR-0039) -- nur wenn ein ähnlicher Case existiert */}
+    <div className="stagger space-y-5">
+      {/* Dedup-Hinweis (L-3, ADR-0039) -- nur bei aehnlichem Bestandsfall. */}
       {warning !== null && (
-        <div
-          className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${
-            warning.suggest_combine
-              ? "border-amber-300 bg-amber-50 text-amber-900"
-              : "border-blue-300 bg-blue-50 text-blue-900"
-          }`}
-        >
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+        <div className="flex items-start gap-3 rounded-xl border border-[var(--zone-risk-border)] bg-[var(--zone-risk-surface)] px-4 py-3.5">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--zone-risk-fg)]" />
           <div className="space-y-1 text-sm">
-            <p className="font-semibold">
+            <p className="font-medium text-[var(--zone-risk-fg)]">
               {warning.suggest_combine
                 ? "Möglicher Doppel-Eintrag"
                 : "Ähnlicher Use Case gefunden"}
             </p>
-            <p>
+            <p className="leading-relaxed text-foreground/80">
               Ähnelt dem bereits erfassten Fall „{warning.similar_case_title}“
-              ({Math.round(warning.similarity_score * 100)} % Übereinstimmung).
+              {" "}({Math.round(warning.similarity_score * 100)} %
+              Übereinstimmung).
               {warning.suggest_combine
                 ? " Bitte prüfen, ob die Fälle zusammengelegt werden sollten."
                 : " Bitte prüfen, ob es sich um denselben Vorgang handelt."}
@@ -56,152 +77,179 @@ export function TriageResult({ result, onSharpen, isSharpenLoading }: TriageResu
         </div>
       )}
 
-      {/* 1. Zone-Verdikt */}
-      {zone !== null && (
-        <div className={`rounded-lg px-4 py-4 ${zoneConfig?.badgeClass}`}>
-          <p className="text-lg font-bold">{zoneConfig?.labelDE}</p>
-          <p className="mt-1 text-sm opacity-75">{zone.reason}</p>
-          {zone.handlungsdruck_elevated && (
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wide opacity-70">
-              Hochgestuft wegen Handlungsdruck
-            </p>
-          )}
-        </div>
+      {/* Verdikt: die Bewertungszone als ruhiges, redaktionelles Panel. */}
+      {zone !== null && zoneConfig !== null && (
+        <section
+          className={`rounded-2xl border px-6 py-6 sm:px-7 ${zoneConfig.surface}`}
+        >
+          <div className="flex items-start gap-4">
+            <span
+              className={`mt-2 size-2.5 shrink-0 rounded-full ${zoneConfig.dot}`}
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className="eyebrow">Bewertungszone</p>
+              <h2
+                className={`mt-1.5 text-2xl font-semibold tracking-tight ${zoneConfig.text}`}
+              >
+                {zoneConfig.labelDE}
+              </h2>
+              <p className="mt-2 max-w-prose text-sm leading-relaxed text-foreground/85">
+                {zone.reason}
+              </p>
+              {zone.handlungsdruck_elevated && (
+                <span
+                  className={`mt-3 inline-flex items-center gap-1.5 rounded-full border border-current/25 px-2.5 py-1 text-[0.7rem] font-medium tracking-wide ${zoneConfig.text}`}
+                >
+                  <ArrowRight className="size-3" />
+                  Hochgestuft wegen Handlungsdruck
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* 3. Vorfilter-Status */}
+      {/* ROI-Kennzahlen im Dashboard-Stil: ein Panel, drei Spalten. */}
+      {result.roi !== null && (
+        <section className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-[1.4fr_1fr_1fr] sm:divide-x sm:divide-y-0">
+            <div className="px-6 py-5">
+              <p className="eyebrow">Erwarteter Nettonutzen</p>
+              <p className="stat-value mt-2.5 text-[2rem] text-foreground">
+                {formatEUR(result.roi.net_expected_benefit_eur)}
+              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground">pro Jahr</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="eyebrow">Theoret. Potenzial</p>
+              <p className="stat-value mt-2.5 text-2xl text-foreground/80">
+                {formatEUR(result.roi.theoretical_potential_eur)}
+              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground">Obergrenze</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="eyebrow">Stunden / Jahr</p>
+              <p className="stat-value mt-2.5 text-2xl text-foreground/80">
+                {formatNumber(result.roi.hours_per_year)}
+              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                eingespart
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Vorfilter-Status als dezente Statuszeile. */}
       {result.passed_vorfilter === true ? (
-        <div className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-900">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>Vorfilter bestanden</span>
+        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+          <CheckCircle2 className="size-4 shrink-0 text-[var(--zone-win)]" />
+          <span className="font-medium text-foreground">
+            Vorfilter bestanden
+          </span>
         </div>
       ) : (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm">
-          <div className="flex items-center gap-2 font-medium text-red-900">
-            <XCircle className="h-4 w-4 shrink-0" />
+        <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3.5 text-sm">
+          <div className="flex items-center gap-2.5 font-medium text-destructive">
+            <XCircle className="size-4 shrink-0" />
             <span>Vorfilter nicht bestanden</span>
           </div>
           {result.vorfilter.failed_criteria.length > 0 && (
-            <ul className="mt-2 list-disc pl-6 text-red-800">
+            <ul className="mt-2.5 space-y-1 pl-6 text-foreground/80">
               {result.vorfilter.failed_criteria.map((criterion, i) => (
-                <li key={i}>{criterion}</li>
+                <li key={i} className="list-disc">
+                  {criterion}
+                </li>
               ))}
             </ul>
           )}
         </div>
       )}
 
-      {/* 4. ROI-Karten */}
-      {result.roi !== null && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Erwarteter Nettonutzen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">
-                {formatEUR(result.roi.net_expected_benefit_eur)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Theoretisches Potenzial</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">
-                {formatEUR(result.roi.theoretical_potential_eur)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Stunden/Jahr</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">
-                {result.roi.hours_per_year.toLocaleString("de-DE", {
-                  maximumFractionDigits: 0,
-                })}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* 5. Routing-Empfehlung */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Routing-Empfehlung</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Empfehlung:</span>
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${ROUTING_BADGE[result.routing.recommendation] ?? "bg-muted text-muted-foreground"}`}>
-              {result.routing.recommendation}
-            </span>
+      {/* Routing & Machbarkeit -- nebeneinander, klare Definitionsstruktur. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <section className="rounded-xl border border-border bg-card p-5">
+          <p className="eyebrow">Routing-Empfehlung</p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground">
+            <span className={`size-2 rounded-full ${routing.dot}`} aria-hidden />
+            {routing.labelDE}
           </div>
-          <div>
-            <span className="text-sm font-medium text-muted-foreground">Konfidenz: </span>
-            <span className="text-sm">{result.routing.confidence}</span>
-          </div>
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex items-baseline justify-between gap-4">
+              <dt className="text-muted-foreground">Konfidenz</dt>
+              <dd className="font-medium text-foreground">{confidence}</dd>
+            </div>
+          </dl>
           {result.routing.risk_flags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {result.routing.risk_flags.map((flag, i) => (
-                <Badge key={i} className="border-red-200 bg-red-100 text-red-800">
-                  {flag}
-                </Badge>
-              ))}
+            <div className="mt-4">
+              <p className="text-xs text-muted-foreground">Risiko-Signale</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {result.routing.risk_flags.map((flag, i) => (
+                  <span
+                    key={i}
+                    className="rounded-md border border-[var(--zone-gain-border)] bg-[var(--zone-gain-surface)] px-2 py-0.5 text-xs font-medium text-[var(--zone-gain-fg)]"
+                  >
+                    {flag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
           {result.routing.requires_human_review === true && (
-            <p className="text-sm font-medium text-orange-700">
-              Menschliche Pruefung empfohlen
+            <p className="mt-4 flex items-center gap-2 text-sm font-medium text-[var(--zone-risk-fg)]">
+              <AlertTriangle className="size-3.5" />
+              Menschliche Prüfung empfohlen
             </p>
           )}
-        </CardContent>
-      </Card>
+        </section>
 
-      {/* 6. Machbarkeit */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Machbarkeit</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center gap-2">
+        <section className="rounded-xl border border-border bg-card p-5">
+          <p className="eyebrow">Machbarkeit</p>
+          <div className="mt-3 flex items-center gap-2 text-sm">
             {result.feasibility.is_feasible ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <>
+                <CheckCircle2 className="size-4 text-[var(--zone-win)]" />
+                <span className="font-medium text-foreground">Machbar</span>
+              </>
             ) : (
-              <XCircle className="h-4 w-4 text-red-600" />
+              <>
+                <XCircle className="size-4 text-destructive" />
+                <span className="font-medium text-foreground">
+                  Nicht machbar
+                </span>
+              </>
             )}
-            <span className="text-sm font-medium">
-              {result.feasibility.is_feasible ? "Machbar" : "Nicht machbar"}
-            </span>
           </div>
           {result.feasibility.recommendation !== null && (
-            <p className="text-sm">{result.feasibility.recommendation}</p>
+            <p className="mt-3 text-sm leading-relaxed text-foreground/80">
+              {result.feasibility.recommendation}
+            </p>
           )}
           {result.feasibility.flags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="mt-4 flex flex-wrap gap-1.5">
               {result.feasibility.flags.map((flag, i) => (
-                <Badge key={i} variant="outline">
+                <span
+                  key={i}
+                  className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground"
+                >
                   {flag}
-                </Badge>
+                </span>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
 
-      {/* 7. Schaerfen-Button */}
-      <div>
-        <Button onClick={onSharpen} disabled={isSharpenLoading} className="w-full">
-          {isSharpenLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isSharpenLoading ? "Wird geschärft..." : "Use Case schärfen (KI)"}
-        </Button>
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          Dauert 5-30 Sekunden, LLM-Call
-        </p>
+      {/* Naechster Schritt: KI-Schaerfung. */}
+      <div className="pt-1">
+        <LlmAction
+          onAction={onSharpen}
+          isLoading={isSharpenLoading}
+          idleLabel="Use Case schärfen"
+          loadingLabel="Use Case wird geschärft …"
+          hint="KI-gestützte Schärfung der Beschreibung · 5–30 Sekunden"
+        />
       </div>
     </div>
   )
