@@ -1,5 +1,5 @@
 # AI Decision Framework
-## AI Efficiency Control Tower — [Anonymisiert]
+## AI Efficiency Control Tower — Entscheidungsframework
 
 **Version:** 2.0
 **Stand:** Mai 2026
@@ -22,7 +22,7 @@
 
 **Kernprinzip:** AI ist nicht das Standardwerkzeug. Sie ist das richtige Werkzeug für spezifische Probleme — unstrukturierte Eingaben, kontextabhängige Urteile, umfangreiches internes Wissen. Für alles andere ist klassische Automatisierung schneller, günstiger und verlässlicher.
 
-**Relevante Rechtsrahmen für die [Anonymisiert]:**
+**Relevante Rechtsrahmen:**
 - DSGVO Art. 22: Verbietet rein automatisierte Entscheidungen mit erheblicher Wirkung auf Personen — ohne explizite Rechtsgrundlage und substanzielle menschliche Überprüfung.
 - EU AI Act (in Kraft seit August 2024): Klassifiziert HR-, Recruiting- und bestimmte IT-Use-Cases als Hochrisiko-Systeme. Kernpflichten für Hochrisiko-Systeme ab August 2026 durchsetzbar. Bußgelder bis 35 Mio. € oder 7% Jahresumsatz.
 
@@ -316,7 +316,7 @@ flowchart TD
 
 ### Use Case 2: Ausschreibungen (RFPs) auf Eignung prüfen
 
-**Kontext:** Sales-Team erhält ~30 RFPs/Monat. Vorab-Analyse ob [Anonymisiert] passt: 45–90 Min manuell.
+**Kontext:** Sales-Team erhält ~30 RFPs/Monat. Vorab-Analyse ob das Unternehmen passt: 45–90 Min manuell.
 
 | Kriterium | Score | Begründung |
 |---|---|---|
@@ -372,7 +372,7 @@ flowchart TD
 | Entscheidungskomplexität | 2 | Regeln definierbar, Ausnahmen bekannt |
 | Wissensabhängigkeit | 2 | Projektlaufzeiten, Budget-Codes — strukturiert verfügbar |
 | Datenqualität | 4 | 3 Jahre Zeiterfassungsdaten, sauber |
-| Volumen & Frequenz | 4 | Tägliche Buchungen aller 3.300 Mitarbeiter |
+| Volumen & Frequenz | 4 | Tägliche Buchungen aller Mitarbeiter |
 | **Gesamtscore** | **2,7** | |
 
 **Primärempfehlung:** Klassisches ML oder Hybrid
