@@ -12,7 +12,7 @@ from aect.adapters.api.dependencies import (
     get_retriever_port,
     resolve_retriever,
 )
-from aect.adapters.api.settings import Settings
+from aect.adapters.api.settings import Settings, check_azure_eu_region
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
@@ -60,7 +60,9 @@ async def test_get_llm_adapter_returns_resilient_wrapped_azure_with_credentials(
     Gefakte Settings-Instanz -- kein echter Azure-Call, nur DI-Wiring.
     """
     settings = Settings(
-        azure_openai_endpoint="https://fake.openai.azure.com",
+        # EU-Data-Zone-Endpoint (AUDIT-008) -- sonst wuerde get_llm_adapter
+        # mit ValueError abbrechen statt den Azure-Adapter zu bauen.
+        azure_openai_endpoint="https://fake.swedencentral.openai.azure.com",
         azure_openai_api_key="fake-key",
         azure_openai_deployment="gpt-4o-mini",
         azure_openai_api_version="2024-10-21",
@@ -168,3 +170,43 @@ async def test_lifespan_mock_mode_skips_heavy_resources(
     async with app_module.lifespan(fake_app):  # type: ignore[arg-type]
         pass
     assert not hasattr(fake_app.state, "retriever")
+
+
+# ---------------------------------------------------------------------------
+# EU-Datenresidenz-Check (AUDIT-008): check_azure_eu_region
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://aect.swedencentral.openai.azure.com",
+        "https://aect.westeurope.openai.azure.com",
+    ],
+)
+def test_check_azure_eu_region_accepts_eu_endpoints(endpoint: str) -> None:
+    assert check_azure_eu_region(endpoint) == "ok"
+
+
+def test_check_azure_eu_region_rejects_non_eu_endpoint() -> None:
+    with pytest.raises(ValueError, match="EU Data Zone"):
+        check_azure_eu_region("https://aect.eastus.openai.azure.com")
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["", "mock", "http://localhost:8000", "https://mock.openai.azure.com"],
+)
+def test_check_azure_eu_region_skips_mock_endpoints(endpoint: str) -> None:
+    assert check_azure_eu_region(endpoint) == "skipped_mock"
+
+
+def test_get_llm_adapter_rejects_non_eu_endpoint() -> None:
+    """Fail-Fast (AUDIT-008): nicht-EU-Endpoint -> ValueError beim Adapter-Init."""
+    settings = Settings(
+        azure_openai_endpoint="https://aect.eastus.openai.azure.com",
+        azure_openai_api_key="fake-key",
+        azure_openai_deployment="gpt-4o-mini",
+    )
+    with pytest.raises(ValueError, match="EU Data Zone"):
+        get_llm_adapter(settings=settings)

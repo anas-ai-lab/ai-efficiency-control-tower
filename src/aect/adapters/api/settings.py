@@ -12,6 +12,40 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# EU-Data-Zone-Allowlist (AUDIT-008). Azure-OpenAI-Endpoints liegen meist als
+# https://<resource>.openai.azure.com vor -- die Region steckt nur drin, wenn
+# der Ressourcenname sie enthaelt (Konvention, keine Garantie -- vgl. ADR-0010
+# "nicht aus URL ableitbar"). Der Check ist daher ein Best-Effort-Guard gegen
+# offensichtlich falsche Regionen, kein Ersatz fuer die Deployment-Zeit-Pflicht.
+_EU_DATA_ZONE_REGIONS = ("swedencentral", "westeurope")
+
+
+def check_azure_eu_region(endpoint: str) -> str:
+    """Prueft die EU-Datenresidenz des Azure-OpenAI-Endpoints (AUDIT-008).
+
+    Validiert nur echte Endpoints: leere, "mock"- oder localhost-Werte gelten
+    als Test-/Mock-Konfiguration und werden uebersprungen.
+
+    Returns:
+        "skipped_mock" wenn nicht validiert (Mock/Test), sonst "ok".
+
+    Raises:
+        ValueError: Endpoint gesetzt, kein Mock, aber nicht in der EU-Data-Zone.
+    """
+    if (
+        not endpoint
+        or "mock" in endpoint.lower()
+        or endpoint.startswith("http://localhost")
+    ):
+        return "skipped_mock"
+    lowered = endpoint.lower()
+    if not any(region in lowered for region in _EU_DATA_ZONE_REGIONS):
+        raise ValueError(
+            "Azure OpenAI endpoint must be in EU Data Zone (swedencentral or "
+            f"westeurope). Configured: {endpoint}. See AUDIT-008 in docs/reviews."
+        )
+    return "ok"
+
 
 class Settings(BaseSettings):
     """Konfigurationswerte aus Umgebungsvariablen.
@@ -24,9 +58,11 @@ class Settings(BaseSettings):
     db_path: str = ""  # Leer = InMemoryRepository. AECT_DB_PATH=/pfad/aect.db = SQLite.
 
     # Azure OpenAI (Phase C, ADR-0010) -- leer = MockLLMAdapter.
-    # EU-Data-Zone-Pflicht (ADR-0003): Deployment muss in swedencentral
-    # oder westeurope liegen -- nicht aus Endpoint-URL pruefbar,
-    # gilt als Deployment-Zeit-Pflicht, kein Code-Gate.
+    # EU-Data-Zone-Pflicht (ADR-0003): Deployment muss in swedencentral oder
+    # westeurope liegen -- primaer Deployment-Zeit-Pflicht. AUDIT-008 ergaenzt
+    # einen Best-Effort-URL-Guard (check_azure_eu_region oben): faengt
+    # offensichtlich falsche Regionen ab, ersetzt aber nicht die Deployment-
+    # Pflicht (Region steckt nicht garantiert im Ressourcennamen).
     azure_openai_endpoint: str = ""  # AECT_AZURE_OPENAI_ENDPOINT
     azure_openai_api_key: str = ""  # AECT_AZURE_OPENAI_API_KEY
     azure_openai_deployment: str = ""  # AECT_AZURE_OPENAI_DEPLOYMENT

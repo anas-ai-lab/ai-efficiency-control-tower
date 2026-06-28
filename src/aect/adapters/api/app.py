@@ -34,6 +34,7 @@ from aect.adapters.api.dependencies import get_settings, resolve_retriever
 from aect.adapters.api.logging_config import configure_logging
 from aect.adapters.api.rate_limit import limiter
 from aect.adapters.api.routes import cases, health, triage
+from aect.adapters.api.settings import check_azure_eu_region
 
 logger = structlog.get_logger()
 
@@ -57,6 +58,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     dort sauber auf resolve_retriever() zurueck.
     """
     settings = get_settings()
+
+    # EU-Datenresidenz-Check (AUDIT-008): nicht-EU-Endpoint -> ValueError,
+    # App startet nicht. Mock/leer -> uebersprungen. Ergebnis als info geloggt.
+    region_status = check_azure_eu_region(settings.azure_openai_endpoint)
+    logger.info(
+        "azure_eu_region_check",
+        result=region_status,
+        endpoint=settings.azure_openai_endpoint or None,
+    )
+
     if settings.chroma_host:
         logger.info("startup_loading_resources", chroma_host=settings.chroma_host)
         app.state.retriever = resolve_retriever(settings)

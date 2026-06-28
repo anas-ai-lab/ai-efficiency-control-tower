@@ -36,7 +36,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 from openai import AsyncAzureOpenAI
 
-from aect.adapters.api.settings import Settings
+from aect.adapters.api.settings import Settings, check_azure_eu_region
 from aect.adapters.in_memory.clock import SystemClock
 from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
@@ -254,7 +254,12 @@ def get_llm_adapter(
     Beide Pfade: inner wird mit ResilientLLMAdapter gewrappt (Retry +
     Backoff + Timeout, ADR-0007). TriageService kennt nur LLMPort --
     der Pfadwechsel ist fuer ihn vollstaendig unsichtbar (ADR-0002).
+
+    EU-Datenresidenz (AUDIT-008): ein gesetzter, nicht-Mock-Endpoint muss in
+    der EU-Data-Zone liegen -- sonst ValueError (Fail-Fast). Greift auch im
+    httpx-Testpfad, wo der Lifespan-Startup-Check nicht laeuft.
     """
+    check_azure_eu_region(settings.azure_openai_endpoint)
     inner: LLMPort
     if settings.azure_openai_endpoint and settings.azure_openai_api_key:
         client = AsyncAzureOpenAI(
