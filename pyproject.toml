@@ -114,3 +114,18 @@ exclude_lines = [
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
+
+# Mutation-Testing nur fuer den Domain-Kern (reine Geschaeftslogik, kein I/O).
+# mutmut 3.6: source_paths/pytest_add_cli_args_test_selection ersetzen die
+# in aelteren Versionen ueblichen paths_to_mutate/tests_dir/runner-Keys.
+# pytest_add_cli_args = ["-o", "addopts="] ueberschreibt das globale addopts
+# (mit --cov) -- sonst BadTestExecutionCommandsException, weil pytest-cov und
+# mutmut auf denselben Coverage-Daten kollidieren.
+[tool.mutmut]
+source_paths = ["src/aect/domain/"]
+pytest_add_cli_args_test_selection = ["tests/domain/"]
+pytest_add_cli_args = ["-o", "addopts="]
+# mutmut fuehrt die Tests in einer mutants/-Sandbox aus. test_roi_integration.py
+# laedt config/roi_config.toml relativ zum Repo-Root (= mutants/) -- daher muss
+# config/ mitkopiert werden, sonst FileNotFoundError beim Baseline-Lauf.
+also_copy = ["config/"]

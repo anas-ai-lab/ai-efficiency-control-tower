@@ -60,3 +60,6 @@ frontend/.env.local
 
 # Scratch / Wegwerf-Analysen (z. B. G-S3-Sensitivitaetsscript)
 tmp/
+
+# mutmut Mutation-Testing-Sandbox (wird bei jedem Lauf neu erzeugt)
+mutants/
