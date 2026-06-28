@@ -47,6 +47,7 @@ from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.application.ports.embedder import EmbedderPort
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.ports.llm import LLMPort
 from aect.application.ports.repository import RepositoryPort
@@ -327,6 +328,16 @@ def get_triage_service(
     repo: RepositoryPort = (
         SQLiteRepository(Path(settings.db_path)) if settings.db_path else _repository
     )
+
+    # Dedup-Embedder (L-3, ADR-0039): nur im echten ML-Pfad (AECT_CHROMA_HOST
+    # gesetzt -- dann ist das lokale Embedding-Modell ohnehin geladen, lru_cache).
+    # Im Mock-/Testbetrieb None -> TriageService.check_similarity ueberspringt.
+    embedder: EmbedderPort | None = None
+    if settings.chroma_host:
+        from aect.adapters.rag.embedder import SentenceTransformerEmbedder
+
+        embedder = SentenceTransformerEmbedder(_get_local_embedding_model())
+
     return TriageService(
         repository=repo,
         clock=SystemClock(),
@@ -334,6 +345,7 @@ def get_triage_service(
         roi_config=get_roi_config(),
         llm=llm,
         retriever=retriever,
+        embedder=embedder,
     )
 
 

@@ -129,6 +129,22 @@ async def test_response_contains_required_top_level_fields() -> None:
         assert field in data, f"Pflichtfeld '{field}' fehlt in Response"
 
 
+async def test_response_similarity_warning_present_and_null_in_mock_mode() -> None:
+    """Dedup-Feld (ADR-0039) ist im Schema vorhanden; ohne echten Embedder
+    (Mock-Modus) immer null -- die Pruefung wird uebersprungen."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_triage_app()), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/triage",
+            json=_VALID_PAYLOAD,
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    data = response.json()
+    assert "similarity_warning" in data
+    assert data["similarity_warning"] is None
+
+
 async def test_response_id_is_nonempty_string() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_triage_app()), base_url="http://test"

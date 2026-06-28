@@ -7,6 +7,8 @@ Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung.
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Sequence
 from typing import Any
 
 import structlog
@@ -18,11 +20,13 @@ from aect.application.models import (
     ComplianceHintsResult,
     ReportResult,
     SharpenedUseCase,
+    SimilarityWarning,
     SolutionProposal,
     SubmittedCase,
     TechnicalDetail,
 )
 from aect.application.ports.clock import ClockPort
+from aect.application.ports.embedder import EmbedderPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.repository import RepositoryPort
@@ -47,6 +51,29 @@ from aect.domain import ROIConfig, TriageResult, UseCaseInput, evaluate_use_case
 # propose_solution, wo Nutzereingabe in den Prompt fliesst).
 _DSFA_QUERY = "Datenschutz-Folgenabschaetzung personenbezogene Daten Risiko"
 _TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
+
+# Dedup-Schwellen (L-3, ADR-0039). Generische Cosinus-Aehnlichkeitsgrenzen,
+# KEINE firmenspezifischen Werte (anders als ROI-/Zonen-Schwellen in config/):
+# Standardwerte fuer semantische Embedding-Aehnlichkeit, methodisch zeigbar.
+_DEDUP_THRESHOLD_AWARENESS = 0.75  # ab hier: Hinweis "Aehnliches existiert"
+_DEDUP_THRESHOLD_COMBINE = 0.90  # ab hier zusaetzlich: "zusammenlegen?"
+
+
+def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
+    """Cosinus-Aehnlichkeit zweier Vektoren in [-1.0, 1.0] (manuell, kein numpy).
+
+    Skaleninvariant (normiert auf die Vektorlaengen) -- daher robuster als ein
+    reines Skalarprodukt. Defensive Rueckgabe 0.0 bei Laengen-Mismatch oder
+    Nullvektor (keine Aehnlichkeit definierbar).
+    """
+    if len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 class CaseNotFoundError(Exception):
@@ -250,6 +277,7 @@ class TriageService:
         llm: LLMPort,
         retriever: RetrieverPort,
         country: str = "DE",
+        embedder: EmbedderPort | None = None,
     ) -> None:
         self._repository = repository
         self._clock = clock
@@ -258,6 +286,11 @@ class TriageService:
         self._llm = llm
         self._retriever = retriever
         self._country = country
+        # Optional (L-3, ADR-0039): nur fuer die Dedup-Aehnlichkeitspruefung bei
+        # Intake. None -> Pruefung wird uebersprungen (Mock-/Testbetrieb ohne
+        # echtes Embedding-Modell). Kein Pflichtparameter, damit bestehende
+        # Konstruktionsstellen unveraendert bleiben.
+        self._embedder = embedder
 
     def submit_use_case(self, use_case: UseCaseInput) -> SubmittedCase:
         """Bewertet einen Use Case und persistiert das Ergebnis.
@@ -276,6 +309,67 @@ class TriageService:
         )
         self._repository.save(case)
         return case
+
+    async def check_similarity(self, case: SubmittedCase) -> SimilarityWarning | None:
+        """Dedup-Pruefung bei Intake: aehnelt der Case einem bestehenden? (ADR-0039).
+
+        Additiv -- veraendert die Triage-Entscheidung nicht, liefert nur einen
+        optionalen Hinweis. Wird nach submit_use_case() aufgerufen (der Case ist
+        bereits persistiert); das berechnete Embedding wird am Case gespeichert,
+        damit kuenftige Cases dagegen vergleichen koennen.
+
+        Effizienz-/Robustheitsregeln:
+        - Kein Embedder injiziert (Mock-/Testbetrieb): still ueberspringen, einmal
+          als Warnung loggen.
+        - Keine anderen Cases in der DB: ganz ueberspringen, KEIN Embedding
+          berechnen (nichts zu vergleichen).
+        - Embedding-Berechnung schlaegt fehl: Fehler loggen, ohne Hinweis
+          fortfahren -- die Triage darf nie an der Dedup-Pruefung scheitern.
+
+        Schwellen (_DEDUP_THRESHOLD_*): < 0.75 kein Hinweis; [0.75, 0.90)
+        Hinweis (suggest_combine=False); >= 0.90 Hinweis mit suggest_combine=True.
+        """
+        logger = structlog.get_logger()
+        if self._embedder is None:
+            logger.warning("dedup_skipped_no_embedder", case_id=case.id)
+            return None
+
+        all_cases = await self._repository.list_all_async()
+        others = [c for c in all_cases if c.id != case.id]
+        if not others:
+            return None  # keine Vergleichsbasis -> kein Embedding berechnen
+
+        try:
+            text = f"{case.use_case.title} {case.use_case.current_state}"
+            vectors = await self._embedder.embed([text])
+            new_vector = list(vectors[0])
+        except Exception as exc:
+            logger.error("dedup_embedding_failed", case_id=case.id, error=str(exc))
+            return None
+
+        # Embedding fuer kuenftige Vergleiche persistieren (Case ist bereits da).
+        case.embedding = new_vector
+        await self._repository.save_async(case)
+
+        best_case: SubmittedCase | None = None
+        best_score = 0.0
+        for other in others:
+            if other.embedding is None:
+                continue
+            score = _cosine_similarity(new_vector, other.embedding)
+            if score > best_score:
+                best_score = score
+                best_case = other
+
+        if best_case is None or best_score < _DEDUP_THRESHOLD_AWARENESS:
+            return None
+
+        return SimilarityWarning(
+            similar_case_id=best_case.id,
+            similar_case_title=best_case.use_case.title,
+            similarity_score=round(best_score, 4),
+            suggest_combine=best_score >= _DEDUP_THRESHOLD_COMBINE,
+        )
 
     def get_case(self, case_id: str) -> SubmittedCase | None:
         """Gibt einen gespeicherten Case zurueck oder None wenn nicht gefunden."""

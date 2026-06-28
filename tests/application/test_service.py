@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from collections.abc import Sequence
 
 import pytest
 from structlog.testing import capture_logs
@@ -771,3 +772,156 @@ class TestTriageServiceDelete:
             await service.delete_case(case.id)  # darf NICHT werfen
         assert repo.get(case.id) is None  # Repository-Loeschung steht
         assert any(e.get("event") == "chromadb_delete_failed" for e in logs)
+
+
+# ---------------------------------------------------------------------------
+# L-3 Dedup: Embedding-Similarity bei Intake (ADR-0039)
+# ---------------------------------------------------------------------------
+
+
+class _ConstantEmbedder:
+    """Gibt fuer jeden Text denselben, vorgegebenen Vektor zurueck -- macht die
+    Cosinus-Aehnlichkeit im Test exakt steuerbar."""
+
+    def __init__(self, vector: list[float]) -> None:
+        self._vector = tuple(vector)
+
+    async def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        return [self._vector for _ in texts]
+
+
+class _FailingEmbedder:
+    """embed() wirft -- prueft, dass die Triage trotz Embedding-Fehler durchlaeuft."""
+
+    async def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        raise RuntimeError("embedding backend down")
+
+
+def _make_service_with_embedder(
+    roi_config: ROIConfig,
+    embedder: object,
+    ids: list[str] | None = None,
+) -> tuple[TriageService, InMemoryRepository]:
+    repo = InMemoryRepository()
+    service = TriageService(
+        repository=repo,
+        clock=_FakeClock(),
+        id_generator=_FakeIdGenerator(ids=ids or ["id-001", "id-002", "id-003"]),
+        roi_config=roi_config,
+        retriever=MockRetriever(),
+        llm=MockLLMAdapter(),
+        embedder=embedder,  # type: ignore[arg-type]
+    )
+    return service, repo
+
+
+def _seed_embedding(
+    repo: InMemoryRepository, case: SubmittedCase, vector: list[float]
+) -> None:
+    """Setzt das Embedding eines bereits persistierten Cases (Vergleichsbasis)."""
+    case.embedding = vector
+    repo.save(case)
+
+
+class TestTriageServiceDedup:
+    async def test_no_existing_cases_returns_none_without_embedding(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([1.0, 0.0, 0.0])
+        )
+        case = service.submit_use_case(sample_use_case)
+        warning = await service.check_similarity(case)
+        assert warning is None
+        assert case.embedding is None  # keine Vergleichsbasis -> kein Embedding
+
+    async def test_high_similarity_warns_and_suggests_combine(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([1.0, 0.0, 0.0]), ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0, 0.0])  # cosine zum Neuen = 1.0
+
+        new_case = service.submit_use_case(sample_use_case)
+        warning = await service.check_similarity(new_case)
+
+        assert warning is not None
+        assert warning.similar_case_id == "existing"
+        assert warning.similarity_score == pytest.approx(1.0)
+        assert warning.suggest_combine is True
+
+    async def test_awareness_range_warns_without_combine(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Neuer Vektor [0.8, 0.6] vs. bestehender [1.0, 0.0] -> cosine = 0.8
+        # (im Awareness-Band [0.75, 0.90)).
+        service, repo = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([0.8, 0.6]), ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0])
+
+        new_case = service.submit_use_case(sample_use_case)
+        warning = await service.check_similarity(new_case)
+
+        assert warning is not None
+        assert warning.similarity_score == pytest.approx(0.8)
+        assert warning.suggest_combine is False
+
+    async def test_below_threshold_no_warning(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Orthogonal -> cosine 0.0 < 0.75.
+        service, repo = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([0.0, 1.0]), ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0])
+
+        new_case = service.submit_use_case(sample_use_case)
+        assert await service.check_similarity(new_case) is None
+
+    async def test_no_embedder_skips_silently(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config, ids=["a", "b"])  # embedder=None
+        service.submit_use_case(sample_use_case)
+        new_case = service.submit_use_case(sample_use_case)
+        with capture_logs() as logs:
+            warning = await service.check_similarity(new_case)
+        assert warning is None
+        assert any(e.get("event") == "dedup_skipped_no_embedder" for e in logs)
+
+    async def test_embedding_failure_does_not_break_triage(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service_with_embedder(
+            roi_config, _FailingEmbedder(), ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0])
+
+        new_case = service.submit_use_case(sample_use_case)
+        with capture_logs() as logs:
+            warning = await service.check_similarity(new_case)  # darf nicht werfen
+
+        assert warning is None
+        assert repo.get(new_case.id) is not None  # Case bleibt persistiert
+        assert any(e.get("event") == "dedup_embedding_failed" for e in logs)
+
+    async def test_stores_embedding_for_future_comparison(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([0.3, 0.4]), ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0])
+
+        new_case = service.submit_use_case(sample_use_case)
+        await service.check_similarity(new_case)
+        stored = repo.get(new_case.id)
+        assert stored is not None
+        assert stored.embedding == [0.3, 0.4]

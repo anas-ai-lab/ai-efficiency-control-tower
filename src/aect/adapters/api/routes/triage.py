@@ -39,7 +39,7 @@ from aect.adapters.api.dependencies import (
     require_api_key,
 )
 from aect.adapters.api.rate_limit import limiter
-from aect.application.models import SubmittedCase
+from aect.application.models import SimilarityWarning, SubmittedCase
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.service import TriageService
 from aect.domain.models import UseCaseInput
@@ -117,6 +117,9 @@ class TriageResponse(BaseModel):
     roi: ROIResponse | None
     composite: CompositeScoreResponse | None
     zone: ZoneResponse | None
+    # Dedup-Hinweis (L-3, ADR-0039) -- None, wenn kein aehnlicher Case existiert
+    # oder die Pruefung uebersprungen wurde (Mock-Modus, erster Case).
+    similarity_warning: SimilarityWarning | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -124,12 +127,16 @@ class TriageResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _to_triage_response(case: SubmittedCase) -> TriageResponse:
+def _to_triage_response(
+    case: SubmittedCase, similarity_warning: SimilarityWarning | None = None
+) -> TriageResponse:
     """Mappt SubmittedCase auf TriageResponse.
 
     Decimal -> float: JSON-Serialisierbarkeit.
     tuple[str, ...] -> list[str]: JSON-Serialisierbarkeit.
     StrEnum -> .value: explizite String-Darstellung.
+    similarity_warning: optionaler Dedup-Hinweis (ADR-0039), nur beim
+    Erst-Intake gesetzt, nicht beim Idempotency-Replay.
     """
     r = case.result
     return TriageResponse(
@@ -186,6 +193,7 @@ def _to_triage_response(case: SubmittedCase) -> TriageResponse:
         )
         if r.zone is not None
         else None,
+        similarity_warning=similarity_warning,
     )
 
 
@@ -228,7 +236,10 @@ async def submit_use_case(
 
     case = service.submit_use_case(body)
 
+    # Dedup-Aehnlichkeitspruefung (L-3, ADR-0039) -- additiv, scheitert nie hart.
+    similarity_warning = await service.check_similarity(case)
+
     if idempotency_key is not None:
         idempotency_store.set(idempotency_key, case.id)
 
-    return _to_triage_response(case)
+    return _to_triage_response(case, similarity_warning)

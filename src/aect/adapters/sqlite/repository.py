@@ -64,9 +64,14 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     result_json             TEXT NOT NULL,
     sharpened_content_json  TEXT,
     proposal_text           TEXT,
-    compliance_hints_json   TEXT
+    compliance_hints_json   TEXT,
+    embedding               TEXT
 )
 """
+
+# embedding (ADR-0039): JSON-Float-Liste des Intake-Embeddings fuer die
+# Dedup-Aehnlichkeitspruefung, nullable. SQLite kann ALTER TABLE ADD COLUMN
+# nicht IF NOT EXISTS -> Migration in _init_db() prueft erst PRAGMA table_info.
 
 # Spaltenliste vierfach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
 # geteilt: jede "+"-Verkettung mit einem Namens-Knoten matcht bandit B608
@@ -80,19 +85,19 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
 _INSERT_SQL = (
     "INSERT OR REPLACE INTO submitted_cases "
     "(id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json "
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding "
     "FROM submitted_cases WHERE id = ?"
 )
 
 _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json "
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -219,7 +224,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (7-Tupel) -> SubmittedCase."""
+    """SQLite-Row (8-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -228,7 +233,13 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         sharpened_content_json,
         proposal_text,
         compliance_hints_json,
+        embedding_json,
     ) = row
+    embedding = (
+        [float(x) for x in json.loads(str(embedding_json))]
+        if embedding_json is not None
+        else None
+    )
     return SubmittedCase(
         id=str(case_id),
         submitted_at=datetime.fromisoformat(str(submitted_at_str)),
@@ -241,6 +252,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         compliance_hints_json=(
             str(compliance_hints_json) if compliance_hints_json is not None else None
         ),
+        embedding=embedding,
     )
 
 
@@ -267,14 +279,28 @@ class SQLiteRepository:
         self._init_db()
 
     def _init_db(self) -> None:
-        """Legt die Tabelle an falls nicht vorhanden (idempotent)."""
+        """Legt die Tabelle an falls nicht vorhanden (idempotent).
+
+        Migration embedding-Spalte (ADR-0039): SQLite kennt kein
+        ALTER TABLE ... ADD COLUMN IF NOT EXISTS -- daher erst PRAGMA
+        table_info pruefen und nur ergaenzen, wenn die Spalte fehlt (Tabelle
+        stammt dann aus einer aelteren Version).
+        """
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(_CREATE_TABLE_SQL)
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
+            }
+            if "embedding" not in columns:
+                conn.execute("ALTER TABLE submitted_cases ADD COLUMN embedding TEXT")
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
         use_case_json = case.use_case.model_dump_json()
         result_json = _serialize_result(case.result)
+        embedding_json = (
+            json.dumps(case.embedding) if case.embedding is not None else None
+        )
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(
                 _INSERT_SQL,
@@ -286,6 +312,7 @@ class SQLiteRepository:
                     case.sharpened_content_json,
                     case.proposal_text,
                     case.compliance_hints_json,
+                    embedding_json,
                 ),
             )
 

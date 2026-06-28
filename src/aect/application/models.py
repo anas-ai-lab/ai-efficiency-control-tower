@@ -9,7 +9,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from pydantic import BaseModel
+
 from aect.domain import TriageResult, UseCaseInput
+
+
+class SimilarityWarning(BaseModel):
+    """Hinweis auf einen aehnlichen, bereits eingereichten Case (L-3, ADR-0039).
+
+    Wird bei Intake (POST /triage) erzeugt, wenn die Embedding-Cosinus-
+    Aehnlichkeit des neuen Cases zu einem bestehenden Case eine Schwelle
+    ueberschreitet. Rein additiv -- veraendert die Triage-Entscheidung nicht.
+
+    similarity_score: Cosinus-Aehnlichkeit [0.0, 1.0] zum aehnlichsten Case.
+    suggest_combine: True ab der hoeheren Schwelle (>= 0.90) -- "wahrscheinlich
+    derselbe Use Case, zusammenlegen?". False im Awareness-Bereich
+    ([0.75, 0.90)) -- "es gibt etwas Aehnliches, bitte pruefen".
+    """
+
+    similar_case_id: str
+    similar_case_title: str
+    similarity_score: float
+    suggest_combine: bool
 
 
 @dataclass
@@ -57,6 +78,10 @@ class SubmittedCase:
     sharpened_content_json: str | None = None
     proposal_text: str | None = None
     compliance_hints_json: str | None = None
+    # Intake-Embedding fuer Dedup-Aehnlichkeitspruefung (L-3, ADR-0039).
+    # None, solange kein Embedding berechnet wurde (Mock-Modus, erster Case,
+    # oder Case aus einer aelteren DB-Version). Persistiert als JSON-Float-Liste.
+    embedding: list[float] | None = None
 
 
 @dataclass(frozen=True)

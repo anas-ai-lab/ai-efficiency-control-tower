@@ -465,3 +465,50 @@ class TestAsyncWrappers:
     def test_delete_is_idempotent(self, repo: SQLiteRepository) -> None:
         # DELETE auf nicht existierende ID ist ein No-op, kein Fehler (ADR-0038).
         repo.delete("never-existed")
+
+
+# ---------------------------------------------------------------------------
+# embedding-Spalte (L-3 Dedup, ADR-0039)
+# ---------------------------------------------------------------------------
+
+
+class TestEmbeddingColumn:
+    def test_embedding_roundtrip(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.embedding = [0.1, 0.2, 0.3, 0.4]
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.embedding == [0.1, 0.2, 0.3, 0.4]
+
+    def test_embedding_defaults_to_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)  # ohne embedding gesetzt
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.embedding is None
+
+    def test_migration_adds_column_to_legacy_table(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Eine Tabelle ohne embedding-Spalte (alte Version) wird beim Init
+        migriert -- ALTER TABLE ADD COLUMN ergaenzt die Spalte."""
+        import sqlite3
+
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL, "
+                "sharpened_content_json TEXT, proposal_text TEXT, "
+                "compliance_hints_json TEXT)"
+            )
+
+        repo = SQLiteRepository(db_path)  # _init_db migriert die Spalte
+        sample_case.embedding = [1.0, 2.0]
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.embedding == [1.0, 2.0]
