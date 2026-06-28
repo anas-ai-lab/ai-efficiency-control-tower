@@ -93,3 +93,8 @@ class CrossEncoderReranker:
             )
             for chunk, score in scored[:top_k]
         ]
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """Delegiert an den inneren Retriever (ADR-0038) -- Reranking betrifft
+        nur die Lese-Reihenfolge, nicht den Loeschpfad."""
+        await self._inner.delete_by_source_id(source_id)

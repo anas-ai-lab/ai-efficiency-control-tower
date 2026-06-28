@@ -18,7 +18,7 @@ from starlette.responses import Response
 
 from aect.adapters.api.dependencies import get_triage_service, require_api_key
 from aect.adapters.api.rate_limit import limiter
-from aect.application.service import TriageService
+from aect.application.service import CaseNotFoundError, TriageService
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -54,6 +54,35 @@ async def list_cases(
         )
         for case in service.list_cases()
     ]
+
+
+@router.delete("/{case_id}", status_code=204)
+@limiter.limit("10/minute")
+async def delete_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> Response:
+    """Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den
+    LLM-Endpoints streng gehalten.
+
+    204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404
+    gemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    try:
+        await service.delete_case(case_id)
+    except CaseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Case not found") from exc
+    return Response(status_code=204)
 
 
 class SharpenedCaseResponse(BaseModel):

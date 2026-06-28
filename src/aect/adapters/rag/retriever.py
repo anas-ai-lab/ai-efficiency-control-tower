@@ -55,6 +55,14 @@ class ChromaCollection(Protocol):
         include: list[str],
     ) -> Mapping[str, Any]: ...
 
+    def delete(self, where: Mapping[str, Any]) -> None:
+        """Loescht alle Records, die dem where-Filter entsprechen.
+
+        Erfuellt von chromadb.Collection.delete(where=...). Fuer den
+        kaskadierten DSGVO-Loeschpfad (ADR-0038).
+        """
+        ...
+
 
 def _first_row(value: Any) -> list[Any]:
     """Chroma verschachtelt pro Query eine eigene Ergebnisliste ([[...]]).
@@ -93,6 +101,16 @@ class ChromaRetriever:
             n_results=top_k,
             include=["documents", "distances", "metadatas"],
         )
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """Loescht alle Chunks mit diesem source_id aus der Collection (ADR-0038).
+
+        Filtert auf das beim Upsert mitgeschriebene metadata['source_id']
+        (indexer.py) -- ein source_id deckt alle Chunks einer Quelle ab. Der
+        blockierende .delete()-Netz-Call laeuft in asyncio.to_thread, analog
+        retrieve() (ADR-0019). Idempotent: kein Treffer -> No-op.
+        """
+        await asyncio.to_thread(self._collection.delete, {"source_id": source_id})
 
     @staticmethod
     def _parse(raw: Mapping[str, Any]) -> list[RetrievedChunk]:

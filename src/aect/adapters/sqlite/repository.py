@@ -96,6 +96,8 @@ _SELECT_ALL_SQL = (
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
+_DELETE_BY_ID_SQL = "DELETE FROM submitted_cases WHERE id = ?"
+
 
 # ---------------------------------------------------------------------------
 # JSON-Encoder
@@ -304,6 +306,15 @@ class SQLiteRepository:
             rows = conn.execute(_SELECT_ALL_SQL).fetchall()
         return [_row_to_case(row) for row in rows]
 
+    def delete(self, case_id: str) -> None:
+        """Loescht einen Case per ID (DSGVO Art. 17, ADR-0038).
+
+        Idempotent: DELETE auf eine nicht existierende ID ist ein No-op (kein
+        Fehler). Die Existenzpruefung (-> 404) liegt im Service, nicht hier.
+        """
+        with sqlite3.connect(str(self._db_path)) as conn:
+            conn.execute(_DELETE_BY_ID_SQL, (case_id,))
+
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
     # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
     # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
@@ -320,3 +331,7 @@ class SQLiteRepository:
     async def list_all_async(self) -> list[SubmittedCase]:
         """Async-Wrapper um list_all() via asyncio.to_thread."""
         return await asyncio.to_thread(self.list_all)
+
+    async def delete_async(self, case_id: str) -> None:
+        """Async-Wrapper um delete() via asyncio.to_thread (ADR-0037/0038)."""
+        await asyncio.to_thread(self.delete, case_id)

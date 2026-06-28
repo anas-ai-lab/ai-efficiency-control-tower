@@ -89,3 +89,9 @@ class HybridRetriever:
             )
             for source_id in ordered_ids[:top_k]
         ]
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """Delegiert an beide Sub-Retriever (ADR-0038): der Vektor-Store
+        (ChromaRetriever) loescht persistent, BM25 ist ein No-op."""
+        await self._vector.delete_by_source_id(source_id)
+        await self._bm25.delete_by_source_id(source_id)

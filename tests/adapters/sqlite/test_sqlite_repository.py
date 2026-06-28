@@ -454,3 +454,14 @@ class TestAsyncWrappers:
         self, repo: SQLiteRepository
     ) -> None:
         assert await repo.get_async("does-not-exist") is None
+
+    async def test_delete_async_removes_case(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        await repo.save_async(sample_case)
+        await repo.delete_async(sample_case.id)
+        assert await repo.get_async(sample_case.id) is None
+
+    def test_delete_is_idempotent(self, repo: SQLiteRepository) -> None:
+        # DELETE auf nicht existierende ID ist ein No-op, kein Fehler (ADR-0038).
+        repo.delete("never-existed")

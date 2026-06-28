@@ -74,3 +74,14 @@ class RetrieverPort(Protocol):
     """
 
     async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]: ...
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """Entfernt alle Records mit diesem source_id aus der Wissensbasis.
+
+        DSGVO Art. 17 (ADR-0038): der kaskadierte Loeschpfad nutzt source_id als
+        Loesch-Tag (siehe RetrievedChunk.source_id). Idempotent: ein nicht
+        vorhandener source_id ist ein No-op, kein Fehler. Adapter ohne
+        persistenten Store (MockRetriever, BM25-In-Memory) implementieren dies
+        als No-op.
+        """
+        ...

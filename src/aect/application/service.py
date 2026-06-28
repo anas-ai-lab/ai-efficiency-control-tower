@@ -49,6 +49,19 @@ _DSFA_QUERY = "Datenschutz-Folgenabschaetzung personenbezogene Daten Risiko"
 _TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
 
 
+class CaseNotFoundError(Exception):
+    """Angeforderte Case-ID existiert nicht (DSGVO-Loeschpfad, ADR-0038).
+
+    Wird von delete_case() geworfen und in der DELETE-Route auf HTTP 404
+    gemappt -- HTTP-Exceptions gehoeren in die Adapter-Schicht, nicht in den
+    Application Service (Hexagonal, ADR-0004).
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"Case not found: {case_id}")
+        self.case_id = case_id
+
+
 def _render_sharpened_content(content_json: str | None) -> str | None:
     """Rendert den persistierten Schaerfungs-Inhalt zu lesbarem Text.
 
@@ -271,6 +284,51 @@ class TriageService:
     def list_cases(self) -> list[SubmittedCase]:
         """Alle bisher eingereichten Cases."""
         return self._repository.list_all()
+
+    async def delete_case(self, case_id: str) -> None:
+        """Loescht einen Case kaskadiert: Repository + Vektor-Store + Audit-Log.
+
+        DSGVO Art. 17 (ADR-0038): echte Loeschung, kein Soft-Delete. Ablauf:
+        1. Existenz pruefen -> CaseNotFoundError wenn fehlend (Route -> 404).
+        2. Aus dem Repository loeschen (primaere, persistente Quelle).
+        3. Best-effort aus dem Vektor-Store (ChromaDB) ueber den source_id-Tag.
+           Faellt der Store aus, wird das geloggt aber NICHT propagiert -- die
+           primaere Loeschung ist bereits erfolgt und darf nicht zurueckgedreht
+           werden (Cases liegen aktuell ohnehin nur im Repository, nicht im
+           Vektor-Store; der Schritt ist eine vorausschauende Absicherung).
+        4. Loesch-Ereignis als Audit-Trail loggen.
+
+        Audit-Trail (DSGVO Art. 5(2) Rechenschaftspflicht): das Loesch-Ereignis
+        selbst (case_id + deleted_at) wird geloggt -- der Loesch-Nachweis ist
+        keine personenbezogene Information und muss erhalten bleiben, gerade
+        weil die Daten geloescht wurden.
+
+        Raises:
+            CaseNotFoundError: case_id existiert nicht.
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+
+        await self._repository.delete_async(case_id)
+
+        logger = structlog.get_logger()
+        try:
+            await self._retriever.delete_by_source_id(case_id)
+        except Exception as exc:
+            # Best-effort: ein Vektor-Store-Ausfall darf die bereits erfolgte
+            # Repository-Loeschung nicht zurueckdrehen (DSGVO: Loeschung steht).
+            logger.warning(
+                "chromadb_delete_failed",
+                case_id=case_id,
+                error=str(exc),
+            )
+
+        logger.info(
+            "case_deleted",
+            case_id=case_id,
+            deleted_at=self._clock.now().isoformat(),
+        )
 
     async def sharpen_case(
         self, case_id: str, prompt_version: str = "v2"

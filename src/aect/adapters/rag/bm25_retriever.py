@@ -140,3 +140,11 @@ class BM25Retriever:
 
     async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
         return self._index.score(query, top_k)
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """No-op (ADR-0038): der BM25-Index ist ein prozessgebundener In-Memory-
+        Index aus der kuratierten, nicht-personenbezogenen Wissensbasis -- kein
+        persistenter PII-Store. Der DSGVO-Loeschpfad zielt auf den persistenten
+        Vektor-Store (ChromaRetriever); BM25 wird beim naechsten Re-Seed neu
+        gebaut."""
+        return None

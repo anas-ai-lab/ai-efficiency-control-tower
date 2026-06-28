@@ -57,3 +57,8 @@ class MockRetriever:
 
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [chunk for _, _, chunk in scored[:top_k]]
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        """No-op (ADR-0038): das synthetische Mock-Korpus ist statisch und
+        enthaelt keine personenbezogenen Daten -- nichts zu loeschen."""
+        return None

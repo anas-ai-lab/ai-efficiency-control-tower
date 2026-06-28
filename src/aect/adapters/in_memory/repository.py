@@ -27,6 +27,10 @@ class InMemoryRepository:
     def list_all(self) -> list[SubmittedCase]:
         return list(self._store.values())
 
+    def delete(self, case_id: str) -> None:
+        """Loescht einen Case per ID (DSGVO Art. 17, ADR-0038). Idempotent."""
+        self._store.pop(case_id, None)
+
     # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
     # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
     # noetig, direkter Aufruf der sync-Methode genuegt.
@@ -38,3 +42,6 @@ class InMemoryRepository:
 
     async def list_all_async(self) -> list[SubmittedCase]:
         return self.list_all()
+
+    async def delete_async(self, case_id: str) -> None:
+        self.delete(case_id)

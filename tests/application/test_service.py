@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 
+import pytest
 from structlog.testing import capture_logs
 
 from aect.adapters.in_memory.llm import MockLLMAdapter
@@ -12,7 +13,8 @@ from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.models import SubmittedCase
 from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDefinition
-from aect.application.service import TriageService
+from aect.application.ports.retriever import RetrievedChunk
+from aect.application.service import CaseNotFoundError, TriageService
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
 from aect.domain.types import DataClassification
@@ -677,3 +679,95 @@ class TestTriageServiceComplianceHintsPersistence:
         # Gleicher Mock-Output bei zweitem Call -- Test belegt "kein Crash,
         # kein Anhaengen", nicht inhaltliche Verschiedenheit.
         assert second.compliance_hints_json == first_json
+
+
+# ---------------------------------------------------------------------------
+# DSGVO Art. 17 -- kaskadierter Loeschpfad (ADR-0038)
+# ---------------------------------------------------------------------------
+
+
+class _SpyRetriever:
+    """Zeichnet delete_by_source_id-Aufrufe auf; retrieve liefert nichts."""
+
+    def __init__(self) -> None:
+        self.deleted: list[str] = []
+
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        return []
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        self.deleted.append(source_id)
+
+
+class _FailingRetriever:
+    """delete_by_source_id wirft -- prueft Best-Effort (kein Abbruch)."""
+
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        return []
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        raise RuntimeError("chroma down")
+
+
+class TestTriageServiceDelete:
+    async def test_delete_removes_case_from_repository(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.delete_case(case.id)
+        assert repo.get(case.id) is None
+
+    async def test_delete_missing_raises_case_not_found(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        with pytest.raises(CaseNotFoundError):
+            await service.delete_case("does-not-exist")
+
+    async def test_delete_calls_chromadb_with_correct_source_id(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        spy = _SpyRetriever()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=spy,
+            llm=MockLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+        await service.delete_case(case.id)
+        assert spy.deleted == [case.id]
+
+    async def test_delete_emits_audit_log_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        with capture_logs() as logs:
+            await service.delete_case(case.id)
+        events = [e for e in logs if e.get("event") == "case_deleted"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["deleted_at"] == _FIXED_TIME.isoformat()
+
+    async def test_delete_tolerates_chromadb_failure(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=_FailingRetriever(),
+            llm=MockLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+        with capture_logs() as logs:
+            await service.delete_case(case.id)  # darf NICHT werfen
+        assert repo.get(case.id) is None  # Repository-Loeschung steht
+        assert any(e.get("event") == "chromadb_delete_failed" for e in logs)
