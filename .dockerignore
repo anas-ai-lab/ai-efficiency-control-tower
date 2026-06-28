@@ -1,0 +1,29 @@
+# AECT .dockerignore (AUDIT-005)
+# Haelt Build-Context klein und verhindert, dass Secrets/Artefakte ins Image
+# gelangen. Nur das fuer den Runtime-Container Noetige wird kopiert.
+
+# Python-Build-/Cache-Artefakte
+.venv
+__pycache__
+*.pyc
+htmlcov
+
+# Git
+.git
+.github
+
+# Frontend (eigener Build-Pfad, gehoert nicht ins API-Image)
+frontend/node_modules
+frontend/.next
+
+# Secrets / lokale Umgebung
+.env
+
+# Tests, Doku, Notizen -- nicht laufzeitrelevant
+tests/
+docs/
+*.md
+notes/
+
+# Temporaeres
+tmp/
