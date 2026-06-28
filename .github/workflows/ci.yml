@@ -92,3 +92,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Kein GITLEAKS_LICENSE nötig: privates Repo auf persönlichem Account
+
+  # ─── Job 4: SBOM (CycloneDX) ────────────────────────────────────────────────
+  # AUDIT-006: Software Bill of Materials. Nur auf main-Push -- der SBOM bildet
+  # den freigegebenen Stand ab, nicht jeden PR. cyclonedx-py liest die installierte
+  # .venv (CLI ist `cyclonedx-py environment`, NICHT `cyclonedx-bom generate`).
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [quality]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies (frozen)
+        run: uv sync --frozen
+
+      - name: Generate SBOM (CycloneDX 1.4)
+        run: uv run cyclonedx-py environment --sv 1.4 -o docs/sbom.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # SHA-pinned (AUDIT-006)
+        with:
+          name: sbom
+          path: docs/sbom.json
+          retention-days: 90
