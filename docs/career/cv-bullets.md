@@ -21,7 +21,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 - Hexagonale Architektur: Domain-Layer vollstaendig isoliert von LLM-,
   Datenbank- und API-Adaptern; Adapter-Swap ohne Domain-Code-Aenderung
-  nachgewiesen (ADR-0002, ADR-007)
+  nachgewiesen (ADR-004, ADR-007)
 
 - RAG-Pipeline: Hybrid-Retrieval (BM25 + Vektor, Reciprocal Rank Fusion)
   auf ChromaDB, Cross-Encoder-Reranking, Citations-before-LLM-Pattern
