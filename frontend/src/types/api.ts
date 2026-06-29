@@ -102,6 +102,9 @@ export interface ZoneResult {
   final_zone: TriageZone;
   handlungsdruck_elevated: boolean;
   reason: string;
+  // Additiver Konfidenz-Score (ADR-0036): Abstand zur naechsten Zonengrenze.
+  confidence_score: number; // 0.5 - 1.0
+  confidence_label: string; // "hoch" | "mittel" | "niedrig"
 }
 
 // L-3 Dedup (ADR-0039): Hinweis auf einen aehnlichen, bereits erfassten Case.

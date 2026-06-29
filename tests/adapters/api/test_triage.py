@@ -179,6 +179,9 @@ async def test_high_value_case_passes_vorfilter_and_has_zone() -> None:
         "CALCULATED_RISK",
         "LIKELY_WIN",
     )
+    # Additiver Konfidenz-Score (ADR-0036) wird im Triage-Response exponiert.
+    assert 0.5 <= data["zone"]["confidence_score"] <= 1.0
+    assert data["zone"]["confidence_label"] in ("hoch", "mittel", "niedrig")
 
 
 async def test_low_value_case_fails_vorfilter_and_has_null_zone() -> None:

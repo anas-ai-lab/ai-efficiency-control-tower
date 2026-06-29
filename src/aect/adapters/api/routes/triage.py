@@ -98,6 +98,11 @@ class ZoneResponse(BaseModel):
     final_zone: str
     handlungsdruck_elevated: bool
     reason: str
+    # Additiver Konfidenz-Score (ADR-0036): Abstand des composite_score zur
+    # naechsten Zonengrenze. Aendert die Zonen-Entscheidung nicht, macht nur
+    # die Grenzfall-Naehe sichtbar (known_limitations #2).
+    confidence_score: float
+    confidence_label: str
 
 
 class TriageResponse(BaseModel):
@@ -190,6 +195,8 @@ def _to_triage_response(
             final_zone=r.zone.final_zone.value,
             handlungsdruck_elevated=r.zone.handlungsdruck_elevated,
             reason=r.zone.reason,
+            confidence_score=r.zone.confidence_score,
+            confidence_label=r.zone.confidence_label,
         )
         if r.zone is not None
         else None,

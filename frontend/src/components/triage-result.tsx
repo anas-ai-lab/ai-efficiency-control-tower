@@ -30,6 +30,14 @@ const CONFIDENCE_DE: Record<string, string> = {
   low: "Niedrig",
 }
 
+// Zonen-Konfidenz (ADR-0036): entsaettigte Semantik-Tokens, keine Alarmfarben.
+// hoch = ruhiges Gruen, mittel = Bernstein, niedrig = gedaempftes Rot.
+const ZONE_CONFIDENCE: Record<string, string> = {
+  hoch: "text-[var(--zone-win-fg)]",
+  mittel: "text-[var(--zone-risk-fg)]",
+  niedrig: "text-[var(--zone-gain-fg)]",
+}
+
 interface TriageResultProps {
   result: TriageResponse
   onSharpen: () => void
@@ -94,6 +102,19 @@ export function TriageResult({
               >
                 {zoneConfig.labelDE}
               </h2>
+              {/* Konfidenz-Score (ADR-0036): sekundaer, kleiner, unter dem
+                  Verdikt -- die Zone bleibt das primaere visuelle Element. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Konfidenz:{" "}
+                <span
+                  className={`font-medium ${
+                    ZONE_CONFIDENCE[zone.confidence_label] ?? "text-foreground"
+                  }`}
+                >
+                  {Math.round(zone.confidence_score * 100)} % (
+                  {zone.confidence_label})
+                </span>
+              </p>
               <p className="mt-2 max-w-prose text-sm leading-relaxed text-foreground/85">
                 {zone.reason}
               </p>
