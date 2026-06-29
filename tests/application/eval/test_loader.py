@@ -16,7 +16,9 @@ SYNTHETIC_CASES_PATH = Path("evals/synthetic/use_cases.jsonl")
 class TestLoadEvalCases:
     def test_loads_all_golden_cases(self) -> None:
         cases = load_eval_cases(GOLDEN_CASES_PATH)
-        assert len(cases) == 4
+        # Tag 64: 4 Cases. Spaeter auf 25 (golden-001..025) erweitert -- 24 mit
+        # Experten-Label, golden-004 bleibt bewusst unlabeled (Vorfilter-Grenzfall).
+        assert len(cases) == 25
         assert all(isinstance(case, EvalCase) for case in cases)
 
     def test_case_ids_are_unique(self) -> None:

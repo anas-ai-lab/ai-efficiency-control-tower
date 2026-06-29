@@ -78,7 +78,7 @@ class TestRunEval:
     def test_returns_one_result_per_case(self, roi_config: ROIConfig) -> None:
         cases = load_eval_cases(GOLDEN_CASES_PATH)
         results = run_eval(cases, roi_config)
-        assert len(results) == 4
+        assert len(results) == 25
         assert all(isinstance(r, EvalCaseResult) for r in results)
 
     def test_only_golden_004_has_none_match(self, roi_config: ROIConfig) -> None:
@@ -151,8 +151,9 @@ class TestWriteReport:
     def test_report_structure_for_golden_cases(
         self, roi_config: ROIConfig, tmp_path: Path
     ) -> None:
-        """Seit Tag 64: 3 von 4 Golden-Cases sind gelabelt (golden-004 bleibt
-        bewusst unlabeled, siehe test_only_golden_004_has_none_match)."""
+        """Seit Tag 64: golden-004 bleibt bewusst unlabeled (Vorfilter-Grenzfall,
+        siehe test_only_golden_004_has_none_match). Auf 25 Cases erweitert: 24
+        gelabelt, weiterhin nur golden-004 ohne Label."""
         cases = load_eval_cases(GOLDEN_CASES_PATH)
         results = run_eval(cases, roi_config)
         report_path = tmp_path / "report.json"
@@ -160,11 +161,11 @@ class TestWriteReport:
         write_report(results, report_path)
 
         report = json.loads(report_path.read_text(encoding="utf-8"))
-        assert report["total_cases"] == 4
-        assert report["labeled_cases"] == 3
-        assert report["agreement_count"] <= 3
+        assert report["total_cases"] == 25
+        assert report["labeled_cases"] == 24
+        assert report["agreement_count"] <= 24
         assert report["agreement_rate"] is not None
-        assert len(report["results"]) == 4
+        assert len(report["results"]) == 25
 
     def test_agreement_rate_computed_over_labeled_cases_only(
         self, roi_config: ROIConfig, tmp_path: Path
