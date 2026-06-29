@@ -1,8 +1,8 @@
 {
-  "total_cases": 4,
-  "labeled_cases": 3,
-  "agreement_count": 1,
-  "agreement_rate": 0.3333333333333333,
+  "total_cases": 25,
+  "labeled_cases": 24,
+  "agreement_count": 9,
+  "agreement_rate": 0.375,
   "results": [
     {
       "case_id": "golden-001",
@@ -31,6 +31,153 @@
       "predicted_zone": null,
       "expected_zone": null,
       "is_match": null
+    },
+    {
+      "case_id": "golden-005",
+      "passed_vorfilter": false,
+      "predicted_zone": null,
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-006",
+      "passed_vorfilter": false,
+      "predicted_zone": null,
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-007",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-008",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-009",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-010",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-011",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-012",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-013",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-014",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-015",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-016",
+      "passed_vorfilter": false,
+      "predicted_zone": null,
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-017",
+      "passed_vorfilter": true,
+      "predicted_zone": "MARGINAL_GAIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-018",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-019",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-020",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-021",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-022",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-023",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true
+    },
+    {
+      "case_id": "golden-024",
+      "passed_vorfilter": true,
+      "predicted_zone": "CALCULATED_RISK",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": false
+    },
+    {
+      "case_id": "golden-025",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true
     }
   ]
 }
