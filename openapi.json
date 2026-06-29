@@ -1,0 +1,1503 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AECT - AI Efficiency Control Tower",
+    "description": "AI Use Case Intake & Triage Assistant",
+    "version": "1.2.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Health Check",
+        "description": "Gibt HTTP 200 zurueck, solange der Prozess laeuft.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "List Cases",
+        "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60 Requests/Minute pro API-Key.",
+        "operationId": "list_cases_cases_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CaseSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Cases Cases Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/cases/{case_id}": {
+      "delete": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Delete Case",
+        "description": "Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den\nLLM-Endpoints streng gehalten.\n\n204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404\ngemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "delete_case_cases__case_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/sharpen": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Sharpen Case",
+        "description": "Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "sharpen_case_cases__case_id__sharpen_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharpenedCaseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/propose-solution": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Propose Solution",
+        "description": "Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\n\nSkeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten\nZielplattformen -- Stack-Grounding via RAG folgt Phase D.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "propose_solution_cases__case_id__propose_solution_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolutionProposalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/report": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Get Report",
+        "description": "Erstellt den zweischichtigen Report fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body\n-- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).\n\nbody: optional. Ohne Body (oder mit None-Feldern) werden die\npersistierten Werte aus /sharpen bzw. /propose-solution verwendet\n(Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten\nWert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/\ncompliance_citations kommen immer aus der Persistenz (ADR-0026), kein\nOverride.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "get_report_cases__case_id__report_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReportRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/compliance-hints": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Compliance Hints",
+        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "compliance_hints_cases__case_id__compliance_hints_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceHintsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/triage": {
+      "post": {
+        "tags": [
+          "triage"
+        ],
+        "summary": "Submit Use Case",
+        "description": "Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 30 Requests/Minute pro API-Key.\nValidation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.\n\nIdempotency: siehe Modul-Docstring. Bei Replay wird response.status_code\nauf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.",
+        "operationId": "submit_use_case_triage_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseCaseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdoptionType": {
+        "type": "string",
+        "enum": [
+          "mandatory",
+          "voluntary"
+        ],
+        "title": "AdoptionType",
+        "description": "Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell."
+      },
+      "BusinessSummaryResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone"
+          },
+          "is_actionable": {
+            "type": "boolean",
+            "title": "Is Actionable"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          },
+          "expected_benefit_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Benefit Eur"
+          },
+          "summary_text": {
+            "type": "string",
+            "title": "Summary Text"
+          },
+          "sharpened_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Text"
+          },
+          "compliance_hint_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compliance Hint Text"
+          },
+          "compliance_citations": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceCitationResponse"
+            },
+            "type": "array",
+            "title": "Compliance Citations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "zone",
+          "is_actionable",
+          "recommendation",
+          "expected_benefit_eur",
+          "summary_text",
+          "sharpened_text",
+          "compliance_hint_text",
+          "compliance_citations"
+        ],
+        "title": "BusinessSummaryResponse",
+        "description": "Entscheider-Schicht des Reports.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring)."
+      },
+      "CaseSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submitted_at",
+          "title"
+        ],
+        "title": "CaseSummary",
+        "description": "Komprimiertes Case-Ergebnis fuer die Listansicht."
+      },
+      "ComplianceCitationResponse": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "source_id",
+          "citation",
+          "url"
+        ],
+        "title": "ComplianceCitationResponse",
+        "description": "Eine einzelne Quellenangabe -- Compliance-Hinweis-Endpoint UND\n/report (ADR-0026). Vor BusinessSummaryResponse definiert, damit\nletztere sie referenzieren kann."
+      },
+      "ComplianceHintsResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "hint_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Text"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceCitationResponse"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "hint_text",
+          "citations",
+          "prompt_version"
+        ],
+        "title": "ComplianceHintsResponse",
+        "description": "RAG-gegruendete Compliance-Hinweise (Master-Plan v3.1 Phase D, ADR-0024).\n\nhint_text: None wenn das Retrieval keine Treffer lieferte (Graceful\nDegradation, kein ungegruendeter Hinweis -- kein LLM-Call in diesem Fall).\ncitations: leer wenn hint_text None ist, sonst 1-basiert nummeriert,\nidentisch zu den [N]-Referenzen in hint_text."
+      },
+      "CompositeScoreResponse": {
+        "properties": {
+          "complexity_score": {
+            "type": "integer",
+            "title": "Complexity Score"
+          },
+          "cost_score": {
+            "type": "integer",
+            "title": "Cost Score"
+          },
+          "data_protection_score": {
+            "type": "integer",
+            "title": "Data Protection Score"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "effort_label": {
+            "type": "string",
+            "title": "Effort Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "complexity_score",
+          "cost_score",
+          "data_protection_score",
+          "total",
+          "effort_label"
+        ],
+        "title": "CompositeScoreResponse"
+      },
+      "DataClassification": {
+        "type": "string",
+        "enum": [
+          "no_personal_data",
+          "pseudonymous",
+          "personal",
+          "sensitive_personal"
+        ],
+        "title": "DataClassification",
+        "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1, SENSITIVE_PERSONAL=2.\nMapping liegt in config, nicht hier."
+      },
+      "EmployeeCategory": {
+        "type": "string",
+        "enum": [
+          "junior",
+          "professional",
+          "senior",
+          "mixed"
+        ],
+        "title": "EmployeeCategory",
+        "description": "Grobe Seniorität der betroffenen Mitarbeiter.\n\nKonkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.yaml.\nDieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code."
+      },
+      "EvidenceLevel": {
+        "type": "string",
+        "enum": [
+          "pure_estimate",
+          "similar_project",
+          "tested_piloted"
+        ],
+        "title": "EvidenceLevel",
+        "description": "Qualität der Zeitersparnis-Schätzung.\n\nBeeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).\nKonkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.yaml."
+      },
+      "FeasibilityResponse": {
+        "properties": {
+          "is_feasible": {
+            "type": "boolean",
+            "title": "Is Feasible"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_feasible",
+          "flags",
+          "recommendation"
+        ],
+        "title": "FeasibilityResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "description": "Response-Schema fuer GET /health."
+      },
+      "ImplementationApproach": {
+        "type": "string",
+        "enum": [
+          "standard_product",
+          "custom_build",
+          "vendor_solution"
+        ],
+        "title": "ImplementationApproach",
+        "description": "Geplante Umsetzungsstrategie."
+      },
+      "ROIResponse": {
+        "properties": {
+          "theoretical_potential_eur": {
+            "type": "number",
+            "title": "Theoretical Potential Eur"
+          },
+          "expected_benefit_eur": {
+            "type": "number",
+            "title": "Expected Benefit Eur"
+          },
+          "net_expected_benefit_eur": {
+            "type": "number",
+            "title": "Net Expected Benefit Eur"
+          },
+          "hours_per_year": {
+            "type": "number",
+            "title": "Hours Per Year"
+          },
+          "usage_factor": {
+            "type": "number",
+            "title": "Usage Factor"
+          },
+          "evidence_factor": {
+            "type": "number",
+            "title": "Evidence Factor"
+          },
+          "license_cost_annual_eur": {
+            "type": "number",
+            "title": "License Cost Annual Eur"
+          },
+          "passes_prefilter": {
+            "type": "boolean",
+            "title": "Passes Prefilter"
+          },
+          "prefilter_fail_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefilter Fail Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "theoretical_potential_eur",
+          "expected_benefit_eur",
+          "net_expected_benefit_eur",
+          "hours_per_year",
+          "usage_factor",
+          "evidence_factor",
+          "license_cost_annual_eur",
+          "passes_prefilter",
+          "prefilter_fail_reason"
+        ],
+        "title": "ROIResponse"
+      },
+      "ReportRequest": {
+        "properties": {
+          "sharpened_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Text"
+          },
+          "proposal_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReportRequest",
+        "description": "Optionale LLM-Narrative fuer den Report -- Override der Persistenz.\n\nTag 42 (ADR-0012): generate_report() liest sharpened_text/proposal_text\nstandardmaessig aus dem persistierten SubmittedCase (gefuellt durch\n/sharpen bzw. /propose-solution). Felder hier ueberschreiben den\npersistierten Wert, z. B. fuer eine Vorschau ohne erneuten Persist.\nextra=\"forbid\" + max_length: aect-security-checklist v2.1 Phase A\n(Token-Flooding-Schutz, LLM10) -- gilt als generelle Eingabe-Disziplin\nauch fuer Felder ohne direkten LLM-Call.\n\nKein Override-Feld fuer Compliance-Hinweise (ADR-0026) -- siehe\napplication/service.py generate_report()-Docstring."
+      },
+      "ReportResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "business_summary": {
+            "$ref": "#/components/schemas/BusinessSummaryResponse"
+          },
+          "technical_detail": {
+            "$ref": "#/components/schemas/TechnicalDetailResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "business_summary",
+          "technical_detail"
+        ],
+        "title": "ReportResponse",
+        "description": "Zweischichtiger Report -- striktes JSON (interne Referenz (entfernt) SS3.1, Punkt 6)."
+      },
+      "RoutingResponse": {
+        "properties": {
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence"
+          },
+          "automation_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Automation Signals"
+          },
+          "ai_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ai Signals"
+          },
+          "risk_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risk Flags"
+          },
+          "requires_human_review": {
+            "type": "boolean",
+            "title": "Requires Human Review"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recommendation",
+          "confidence",
+          "automation_signals",
+          "ai_signals",
+          "risk_flags",
+          "requires_human_review"
+        ],
+        "title": "RoutingResponse"
+      },
+      "SharpenedCaseResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "original_title": {
+            "type": "string",
+            "title": "Original Title"
+          },
+          "original_current_state": {
+            "type": "string",
+            "title": "Original Current State"
+          },
+          "original_desired_state": {
+            "type": "string",
+            "title": "Original Desired State"
+          },
+          "sharpened_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Title"
+          },
+          "sharpened_current_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Current State"
+          },
+          "sharpened_desired_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Desired State"
+          },
+          "improvement_suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Improvement Suggestions"
+          },
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "original_title",
+          "original_current_state",
+          "original_desired_state",
+          "sharpened_title",
+          "sharpened_current_state",
+          "sharpened_desired_state",
+          "improvement_suggestions",
+          "raw_text",
+          "prompt_version"
+        ],
+        "title": "SharpenedCaseResponse",
+        "description": "Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).\n\nErfolg: sharpened_title/current_state/desired_state gesetzt,\nimprovement_suggestions hat 1-10 Eintraege, raw_text ist None.\nGraceful Degradation: die drei sharpened_*-Felder sind None,\nimprovement_suggestions ist leer, raw_text enthaelt die rohe\nLLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,\nkein Crash bei Format-Verstoss)."
+      },
+      "SimilarityWarning": {
+        "properties": {
+          "similar_case_id": {
+            "type": "string",
+            "title": "Similar Case Id"
+          },
+          "similar_case_title": {
+            "type": "string",
+            "title": "Similar Case Title"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "suggest_combine": {
+            "type": "boolean",
+            "title": "Suggest Combine"
+          }
+        },
+        "type": "object",
+        "required": [
+          "similar_case_id",
+          "similar_case_title",
+          "similarity_score",
+          "suggest_combine"
+        ],
+        "title": "SimilarityWarning",
+        "description": "Hinweis auf einen aehnlichen, bereits eingereichten Case (L-3, ADR-0039).\n\nWird bei Intake (POST /triage) erzeugt, wenn die Embedding-Cosinus-\nAehnlichkeit des neuen Cases zu einem bestehenden Case eine Schwelle\nueberschreitet. Rein additiv -- veraendert die Triage-Entscheidung nicht.\n\nsimilarity_score: Cosinus-Aehnlichkeit [0.0, 1.0] zum aehnlichsten Case.\nsuggest_combine: True ab der hoeheren Schwelle (>= 0.90) -- \"wahrscheinlich\nderselbe Use Case, zusammenlegen?\". False im Awareness-Bereich\n([0.75, 0.90)) -- \"es gibt etwas Aehnliches, bitte pruefen\"."
+      },
+      "SolutionProposalResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "proposal_text": {
+            "type": "string",
+            "title": "Proposal Text"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "proposal_text",
+          "prompt_version"
+        ],
+        "title": "SolutionProposalResponse",
+        "description": "Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton)."
+      },
+      "TechnicalDetailResponse": {
+        "properties": {
+          "passed_vorfilter": {
+            "type": "boolean",
+            "title": "Passed Vorfilter"
+          },
+          "vorfilter_failed_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Vorfilter Failed Criteria"
+          },
+          "composite_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composite Total"
+          },
+          "composite_effort_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composite Effort Label"
+          },
+          "feasibility_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Feasibility Flags"
+          },
+          "feasibility_recommendation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feasibility Recommendation"
+          },
+          "automation_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Automation Signals"
+          },
+          "ai_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ai Signals"
+          },
+          "risk_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risk Flags"
+          },
+          "requires_human_review": {
+            "type": "boolean",
+            "title": "Requires Human Review"
+          },
+          "roi_theoretical_potential_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Theoretical Potential Eur"
+          },
+          "roi_net_expected_benefit_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Net Expected Benefit Eur"
+          },
+          "proposal_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passed_vorfilter",
+          "vorfilter_failed_criteria",
+          "composite_total",
+          "composite_effort_label",
+          "feasibility_flags",
+          "feasibility_recommendation",
+          "automation_signals",
+          "ai_signals",
+          "risk_flags",
+          "requires_human_review",
+          "roi_theoretical_potential_eur",
+          "roi_net_expected_benefit_eur",
+          "proposal_text"
+        ],
+        "title": "TechnicalDetailResponse",
+        "description": "Reviewer-Schicht des Reports."
+      },
+      "TriageResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "passed_vorfilter": {
+            "type": "boolean",
+            "title": "Passed Vorfilter"
+          },
+          "is_actionable": {
+            "type": "boolean",
+            "title": "Is Actionable"
+          },
+          "vorfilter": {
+            "$ref": "#/components/schemas/VorfilterResponse"
+          },
+          "routing": {
+            "$ref": "#/components/schemas/RoutingResponse"
+          },
+          "feasibility": {
+            "$ref": "#/components/schemas/FeasibilityResponse"
+          },
+          "roi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ROIResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "composite": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompositeScoreResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ZoneResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "similarity_warning": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarityWarning"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submitted_at",
+          "title",
+          "passed_vorfilter",
+          "is_actionable",
+          "vorfilter",
+          "routing",
+          "feasibility",
+          "roi",
+          "composite",
+          "zone"
+        ],
+        "title": "TriageResponse",
+        "description": "Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.\n\nroi, composite und zone sind None wenn passed_vorfilter False ist."
+      },
+      "UseCaseInput": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 5,
+            "title": "Title",
+            "description": "Kurzer, sprechender Name des Use Case"
+          },
+          "submitter": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Submitter",
+            "description": "Name der einreichenden Person"
+          },
+          "department": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Department",
+            "description": "Abteilung / Organisationseinheit"
+          },
+          "current_state": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 30,
+            "title": "Current State",
+            "description": "Beschreibung des aktuellen Prozesses (Ist-Zustand)"
+          },
+          "desired_state": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 30,
+            "title": "Desired State",
+            "description": "Beschreibung des gewünschten Zustands nach AI-Einsatz"
+          },
+          "example_process": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 20,
+            "title": "Example Process",
+            "description": "Konkretes Beispiel eines einzelnen Vorgangs (nicht Gesamtvolumen)"
+          },
+          "time_savings_hours_per_case": {
+            "type": "number",
+            "maximum": 8.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Time Savings Hours Per Case",
+            "description": "Geschätzte Zeitersparnis pro Vorgang in Stunden (max = 8 h)"
+          },
+          "frequency_per_year": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Frequency Per Year",
+            "description": "Anzahl Vorgänge pro Jahr"
+          },
+          "affected_employees_count": {
+            "type": "integer",
+            "maximum": 50000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Affected Employees Count",
+            "description": "Anzahl Mitarbeiter, die diesen Prozess heute manuell durchführen"
+          },
+          "employee_category": {
+            "$ref": "#/components/schemas/EmployeeCategory",
+            "description": "Grobe Seniorität der betroffenen Mitarbeiter (→ Stundensatz aus Config)"
+          },
+          "evidence_level": {
+            "$ref": "#/components/schemas/EvidenceLevel",
+            "description": "Qualität der Grundlage für die Zeitersparnis-Schätzung",
+            "default": "pure_estimate"
+          },
+          "adoption_type": {
+            "$ref": "#/components/schemas/AdoptionType",
+            "description": "Pflicht- oder Freiwillignutzung (beeinflusst Nutzungsfaktor)"
+          },
+          "implementation_approach": {
+            "$ref": "#/components/schemas/ImplementationApproach",
+            "description": "Geplante Umsetzungsstrategie"
+          },
+          "estimated_license_cost_eur": {
+            "type": "number",
+            "maximum": 10000000.0,
+            "minimum": 0.0,
+            "title": "Estimated License Cost Eur",
+            "description": "Geschätzte Lizenzkosten p.a. in EUR (0 = open-source oder intern gebaut)",
+            "default": 0.0
+          },
+          "implementation_complexity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Implementation Complexity",
+            "description": "Technische Komplexität: 1 = trivial, 3 = mittel, 5 = sehr hoch"
+          },
+          "contains_pii": {
+            "type": "boolean",
+            "title": "Contains Pii",
+            "description": "Werden personenbezogene Daten verarbeitet? (Schnellcheck)",
+            "default": false
+          },
+          "data_classification": {
+            "$ref": "#/components/schemas/DataClassification",
+            "description": "Datenschutz-Einstufung der verarbeiteten Daten. SENSITIVE_PERSONAL → Datenschutz-Score 2 im Composite-Aufwand-Score."
+          },
+          "regulatory_pressure": {
+            "type": "boolean",
+            "title": "Regulatory Pressure",
+            "description": "Regulatorischer Druck (Compliance-Anforderung, Audit-Finding)?",
+            "default": false
+          },
+          "competitive_pressure": {
+            "type": "boolean",
+            "title": "Competitive Pressure",
+            "description": "Wettbewerbsdruck (Branche setzt AI bereits ein)?",
+            "default": false
+          },
+          "strategic_priority": {
+            "type": "boolean",
+            "title": "Strategic Priority",
+            "description": "Explizit strategische Priorität von Vorstand oder Management?",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "submitter",
+          "department",
+          "current_state",
+          "desired_state",
+          "example_process",
+          "time_savings_hours_per_case",
+          "frequency_per_year",
+          "affected_employees_count",
+          "employee_category",
+          "adoption_type",
+          "implementation_approach",
+          "implementation_complexity",
+          "data_classification"
+        ],
+        "title": "UseCaseInput",
+        "description": "Eingabe-Schema für einen AI-Use-Case-Antrag.\n\nEntspricht den Feldern des v5-Bewertungsmodells:\nStammdaten / Ist-Soll / Mengen / Zeit / Evidenz / Verbindlichkeit /\nKosten / Datenschutz / Handlungsdruck.\n\nAlle Freitextfelder: min_length + max_length (Substanz + Token-Budget).\nAlle Enum-Felder: StrEnum — parst direkt aus JSON-Strings.\nDie Rule Engine (Phase A) liest ausschließlich dieses Objekt."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VorfilterResponse": {
+        "properties": {
+          "passes": {
+            "type": "boolean",
+            "title": "Passes"
+          },
+          "failed_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Criteria"
+          },
+          "details": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passes",
+          "failed_criteria",
+          "details"
+        ],
+        "title": "VorfilterResponse"
+      },
+      "ZoneResponse": {
+        "properties": {
+          "base_zone": {
+            "type": "string",
+            "title": "Base Zone"
+          },
+          "final_zone": {
+            "type": "string",
+            "title": "Final Zone"
+          },
+          "handlungsdruck_elevated": {
+            "type": "boolean",
+            "title": "Handlungsdruck Elevated"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score"
+          },
+          "confidence_label": {
+            "type": "string",
+            "title": "Confidence Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_zone",
+          "final_zone",
+          "handlungsdruck_elevated",
+          "reason",
+          "confidence_score",
+          "confidence_label"
+        ],
+        "title": "ZoneResponse"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}

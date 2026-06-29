@@ -42,6 +42,16 @@ jobs:
       - name: Test + Coverage — pytest
         run: uv run pytest --cov=src/aect --cov-report=term-missing -q
 
+      # G-S4: openapi.json ist Single Source of Truth fuer die Frontend-Typen.
+      # Drift-Detection: das committete Schema muss dem aktuellen entsprechen.
+      - name: OpenAPI-Schema committet und aktuell
+        run: |
+          uv run python scripts/export_openapi.py > /tmp/openapi-current.json
+          diff openapi.json /tmp/openapi-current.json || {
+            echo "openapi.json ist veraltet. Lokal: uv run python scripts/export_openapi.py > openapi.json";
+            exit 1;
+          }
+
   # ─── Job 2: SAST · Dependency CVE ──────────────────────────────────────────
   security:
     name: SAST · Deps
@@ -149,6 +159,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefix frontend
+
+      # G-S4: api.generated.ts wird aus dem committeten openapi.json erzeugt.
+      # Drift-Detection: regenerieren und gegen den committeten Stand diffen.
+      - name: Frontend-Typen aus Schema generiert
+        run: |
+          npm run --prefix frontend generate-types:file
+          git diff --exit-code frontend/src/types/api.generated.ts || {
+            echo "api.generated.ts ist veraltet. Lokal: cd frontend && npm run generate-types:file";
+            exit 1;
+          }
 
       - name: TypeScript check
         run: npm run --prefix frontend typecheck
