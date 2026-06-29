@@ -48,8 +48,7 @@ flowchart TB
     aect -->|Retrieval kuratierter Rechtstexte| chroma
 ```
 
-AECT entscheidet nichts selbst: es liefert Entscheidungsunterstuetzung, das AI
-Board bleibt Entscheider (interne Referenz (entfernt) SS3.3).
+AECT entscheidet nichts selbst: es liefert Entscheidungsunterstuetzung, der Mensch bleibt der Entscheider (interne Referenz (entfernt) SS3.3).
 
 ---
 
