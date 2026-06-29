@@ -15,9 +15,10 @@
 
 ## 1. Hard-Threshold-Brittleness (Zonen-Grenzen)
 
-**Befund (Tag 64/65, ADR-0031):** Zwei der drei gelabelten Golden-Cases
-(golden-001, golden-003) weichen um exakt eine Zone von der Experten-
-Einschaetzung ab -- jeweils die benachbarte Zone, nicht eine entfernte.
+**Befund (Tag 64/65, ADR-0031; Sample spaeter auf 24 Labels erweitert):**
+Schon im ersten Sample wichen zwei der drei gelabelten Golden-Cases
+(golden-001, golden-003) um exakt eine Zone von der Experten-Einschaetzung ab
+-- jeweils die benachbarte Zone, nicht eine entfernte.
 
 **Ursache:** Das Zonen-Modell zieht harte numerische Grenzen ueber
 kontinuierliche Werte (ROI-Punkte, Composite-Score). Faelle nahe einer
@@ -25,14 +26,18 @@ Zonengrenze sind inhaerent ambig -- ob CALCULATED_RISK oder LIKELY_WIN
 haengt von kleinen Eingabevariationen ab. Das Modell trifft eine
 katagorische Entscheidung ueber ein Kontinuum.
 
-**Konsequenz fuer die Eval-Interpretation:** Agreement-Rate allein (1/3)
-unterschaetzt die Systemguete. Die Mismatch-Faelle sind Off-by-one-unit,
-keine groben Fehlurteile. Score-Breakdown-Diagnostik (ADR-0031) macht
-Grenzwert-Naehe sichtbar.
+**Konsequenz fuer die Eval-Interpretation:** Auf dem erweiterten Sample (24
+gelabelte Cases) liegt die Agreement-Rate bei 9/24 (37,5 %). Die Off-by-one-
+Mismatches an Zonengrenzen bleiben, sind aber jetzt Spezialfall eines
+breiteren Befunds: Die Engine definiert LIKELY_WIN eng (Composite <= 4),
+das Experten-Urteil "klarer High-Value-Fall" ist breiter -- Composite 5-7
+landet als CALCULATED_RISK. Score-Breakdown-Diagnostik (ADR-0031) macht die
+Grenzwert-Naehe je Case sichtbar.
 
-**Interview-Relevanz:** "Warum liegt agreement_rate bei 1/3?" -- Antwort:
-nachweisbares Grenzwert-Artefakt, kein Modell-Fehler. Der Befund ist das
-Ergebnis der Analyse, nicht deren Symptom.
+**Interview-Relevanz:** "Warum liegt agreement_rate bei 37,5 %?" -- Antwort:
+nachweisbares Schwellen-Artefakt (enge LIKELY_WIN-Grenze), kein Modell-Fehler.
+Labels wurden nicht an die Engine angeglichen; die Divergenz ist das Ergebnis
+der Analyse, nicht deren Symptom.
 
 ---
 
@@ -69,15 +74,18 @@ Abhaengigkeit). Phase-F/post-v1-Aufgabe, keine Luecke in Phase E.
 
 ## 4. Groesse des Golden-Case-Sets
 
-**Stand:** 4 Golden-Cases, davon 3 mit unabhaengigen Experten-Labels
-(golden-004 bewusst unlabeled -- Vorfilter-Grenzfall).
+**Stand:** 25 Golden-Cases, davon 24 mit unabhaengigen Experten-Labels
+(golden-004 bewusst unlabeled -- Vorfilter-Grenzfall). Erweitert von
+urspruenglich 4 Cases (3 gelabelt).
 
-**Konsequenz:** Agreement-Rate hat breites Konfidenz-Intervall. Eignung:
-Eval-Mechanismus demonstrieren, Brittleness-Befund aufdecken -- keine
-statistisch belastbare Stichprobe.
+**Konsequenz:** Agreement-Rate (9/24, 37,5 %) ist bei n=24 aussagekraeftiger
+als bei n=3, bleibt aber kein Signifikanztest. Eignung: Eval-Mechanismus
+demonstrieren und den Schwellen-Befund (enge LIKELY_WIN-Grenze) belastbarer
+aufzeigen -- keine statistisch belastbare Treffsicherheits-Aussage.
 
-**Weg nach vorne (nicht v1):** 10-20 weitere kuratierte Cases wuerden
-einen repraesentativeren Wert liefern.
+**Weg nach vorne (nicht v1):** Cross-Rater-Agreement (zweiter Labeler) und
+Pruefung, ob die LIKELY_WIN-Composite-Schwelle ans Experten-Urteil angepasst
+werden sollte.
 
 ---
 

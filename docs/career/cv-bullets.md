@@ -67,7 +67,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 | Evaluation | Zirkulaere Validierung vermieden: ADR-0029 |
 | Security | OWASP LLM01 -- 4 Lagen, Flagging vor Blocking |
 | Architektur | Adapter-Swap: AzureOpenAI -> Mock in einer Zeile |
-| Schwaeche benennen | Hard-Threshold-Brittleness -- off-by-one in 2/3 Golden-Cases |
+| Schwaeche benennen | Enge LIKELY_WIN-Schwelle + Hard-Threshold-Brittleness -- Agreement 9/24 Golden-Cases, Divergenzen dokumentiert statt kaschiert |
 
 ---
 

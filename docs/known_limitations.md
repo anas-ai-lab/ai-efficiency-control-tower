@@ -18,9 +18,11 @@ Loop ist nur im produktiven Einsatz mit abgeschlossenen Cases messbar.
 *Konsistenz* mit einer Bewertungsrubrik, nicht *Korrektheit* im Sinne
 tatsaechlicher Nutzeneintritt.
 
-**Stand:** Experten-Abgleich Tag 64 — Agreement 1 von 3 gelabelten
-Golden-Cases (golden-002 match; golden-001/003 off-by-one, siehe #2/#3).
-Detail in `evals/golden/report.json`.
+**Stand:** Experten-Abgleich auf 24 gelabelten Golden-Cases (golden-001..025,
+golden-004 bewusst unlabeled) — Agreement 9 von 24 (37,5 %). Die Divergenz ist
+das Eval-Ergebnis, nicht ein zu behebender Fehler: Labels sind unabhaengige
+Experten-Ground-Truth und werden nicht an die Engine angeglichen. Detail in
+`evals/golden/report.json`, Begruendung je Case in `evals/golden/score_breakdown.json`.
 
 ---
 
@@ -59,14 +61,23 @@ Benefit-Schwellen einbezieht.
 
 ## 3. Expert-Agreement auf kleinem Sample
 
-**Was:** 3 von 4 Golden-Cases sind gelabelt. Agreement-Rate: 1/3 (Stand
-Tag 64, golden-002 = match; golden-001, golden-003 = mismatch).
+**Was:** 24 von 25 Golden-Cases sind gelabelt (golden-004 bleibt bewusst
+unlabeled, Vorfilter-Grenzfall). Agreement-Rate: 9/24 (37,5 %). Das Sample
+wurde von urspruenglich 3 gelabelten Cases (Tag 64, Agreement 1/3) auf 24
+erweitert.
 
-**Konsequenz:** Statistisch nicht signifikant bei n=3. Eine Rate von 33%
-erlaubt keine Aussagen ueber die allgemeine Treffsicherheit des Systems.
+**Konsequenz:** Bei n=24 ist die Rate aussagekraeftiger als bei n=3, aber
+weiterhin kein Signifikanztest. Wichtiger als die Zahl ist das Muster: Die
+Mehrheit der Mismatches entsteht, weil die Engine LIKELY_WIN eng definiert
+(`composite_total <= 4`), waehrend das Experten-Urteil "klarer High-Value-Fall"
+breiter ist -- Composite 5-7 landet als CALCULATED_RISK. Ein groesseres Sample
+mit dokumentierten Divergenzen ist ein staerkeres Asset als ein kleines mit
+hoher Scheinuebereinstimmung.
 
-**Naechster Schritt (Post-v1):** Mehr Golden-Cases mit unabhaengigen
-Experten labeln, Cross-Rater-Agreement messen.
+**Naechster Schritt (Post-v1):** Cross-Rater-Agreement (zweiter unabhaengiger
+Labeler) messen; pruefen, ob die LIKELY_WIN-Composite-Schwelle an das
+Experten-Urteil angepasst werden sollte (Schwellen-Kalibrierung, nicht
+Label-Korrektur).
 
 ---
 

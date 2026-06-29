@@ -150,20 +150,26 @@ Alle 41 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
 ## Evaluation
 
-Evaluiert auf 4 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen Faellen:
+Evaluiert auf 25 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen Faellen:
 
 | Metrik | Wert |
 |---|---|
-| Agreement Rate (Golden Cases, n=3 gelabelt) | 1/3 (33 %) |
-| Identifiziertes Problem | Hard-Threshold-Brittleness: Off-by-one-Mismatches an Zonengrenzen |
+| Agreement Rate (Golden Cases, n=24 gelabelt) | 9/24 (37,5 %) |
+| Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4) |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
-| Test-Coverage | 97 % (449 Tests) |
+| Test-Coverage | 97 % (488 Tests) |
 
 **Was die Eval-Zahlen bedeuten:**
-1/3 Agreement ist schwach -- und das ist der Punkt. Beide Abweichungen (golden-001, golden-003)
-sind Off-by-one-Fehler an Zonengrenzen: Das System berechnet korrekt, aber harte Schwellen
-auf kontinuierlichen Werten erzeugen Cliff-Effekte. Ein Use Case mit 99.999 EUR Jahresnutzen
-landet in einer anderen Zone als derselbe Case mit 100.001 EUR.
+Das urspruengliche Sample (4 Cases, 3 gelabelt, Agreement 1/3) war zu klein fuer eine
+belastbare Aussage. Mit 24 gelabelten Cases liegt die Agreement-Rate bei 37,5 % -- und
+genau diese Divergenz ist der Wert der Evaluation, nicht ihr Defekt. Das dominante Muster:
+Die Engine vergibt LIKELY_WIN nur bei `composite_total <= 4`, das menschliche Urteil
+"klarer High-Value-Fall" ist breiter -- viele Faelle mit Composite 5-7 landen darum als
+CALCULATED_RISK statt LIKELY_WIN. Daneben fallen drei Cases (golden-005/006/016) am
+Vorfilter durch (predicted=None), wurden vom Experten aber dennoch gelabelt -- der
+Vorfilter und das menschliche Relevanzempfinden ziehen die Grenze unterschiedlich.
+Die urspruenglich beobachteten Off-by-one-Effekte an Zonengrenzen (golden-001, golden-003)
+bleiben sichtbar; sie sind jetzt ein Spezialfall des breiteren Schwellen-Befunds.
 
 Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
 Fuzzy-Zonen mit Konfidenz-Intervallen waeren robuster. Dokumentiert als v2-Kandidat

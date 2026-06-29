@@ -38,17 +38,25 @@ Was machst du, wenn dein System Quellen aus dem Nutzerkontext halluziniert?
 
 ## Version 2 -- Evaluation (AI-Fachpublikum)
 
-Eine Agreement-Rate von 1 aus 3 ist kein Misserfolg. Sie ist das Ergebnis.
+Eine Agreement-Rate von 9 aus 24 ist kein Misserfolg. Sie ist das Ergebnis.
 
-Ich habe AECT gegen ein Experten-Urteil auf 3 gelabelten Golden-Cases
-evaluiert. Eine Uebereinstimmung von drei.
+Ich habe AECT zuerst gegen 3 gelabelte Golden-Cases evaluiert -- Agreement 1
+aus 3. Zu klein, um etwas zu beweisen. Also habe ich das Sample auf 24
+gelabelte Cases erweitert. Neue Rate: 9 aus 24. Die Zahl wurde nicht besser,
+weil ich keine Labels angepasst habe -- die Labels sind das menschliche
+Urteil, nicht eine Stellschraube fuer die Quote.
 
 Das klingt schlecht. Es ist das Ergebnis, das ich erwartet und gebraucht habe.
 
-Beide Mismatches sind off-by-one: Das System liegt je eine Zone neben dem
-menschlichen Urteil. Der Score-Breakdown zeigt, warum: harte Zahlengrenzen
-auf kontinuierlichen Eingabewerten. Nicht "das Modell rechnet falsch",
-sondern "die Grenze liegt genau zwischen beiden Beurteilungen".
+Das dominante Muster wird im groesseren Sample erst sichtbar: Die Engine
+vergibt LIKELY_WIN nur bei niedrigem Aufwands-Score (Composite <= 4). Mein
+menschliches Urteil "das ist ein klarer High-Value-Fall" ist breiter -- viele
+Faelle mit Composite 5-7 stufe ich als Gewinn ein, die Engine als
+CALCULATED_RISK. Die urspruenglichen Off-by-one-Mismatches (golden-001,
+golden-003) sind weiterhin da; sie sind jetzt ein Spezialfall desselben
+Befunds: harte Zahlengrenzen auf kontinuierlichen Eingabewerten. Nicht "das
+Modell rechnet falsch", sondern "Mensch und Schwelle ziehen die Grenze an
+unterschiedlicher Stelle".
 
 Das ist eine konkrete Aussage ueber eine konkrete Schwaeche.
 Nicht "das System ist unzuverlaessig".
