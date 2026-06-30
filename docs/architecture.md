@@ -35,7 +35,7 @@ Compliance-Hinweise). Zahlen kommen nie aus dem LLM.
 ```mermaid
 flowchart TB
     user["Fachbereich / AI-Antragsteller<br/>(Mensch)"]
-    reviewer["Internes Gremium / Reviewer<br/>(Mensch, Entscheider)"]
+    reviewer["Reviewer<br/>(Mensch, Entscheider)"]
     aect["AECT<br/>AI Use Case Intake & Triage<br/>(dieses System)"]
     azure["Azure OpenAI<br/>gpt-4.1-mini, EU Data Zone<br/>(extern)"]
     chroma["ChromaDB<br/>Vektor-Store, lokal<br/>(extern, Docker)"]

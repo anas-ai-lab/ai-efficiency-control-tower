@@ -47,7 +47,7 @@ fuer Entscheider und technische Detailebene fuer Reviewer.
 
 ## Was AECT nicht ist
 
-- Kein Ersatz fuer das Internes Gremium / die menschliche Entscheidung -- es liefert Entscheidungsunterstuetzung
+- Kein Ersatz fuer die menschliche Entscheidung -- es liefert Entscheidungsunterstuetzung
 - Keine Rechts- oder Datenschutzberatung -- nur belegte Hinweise zur eigenen Pruefung
 - Kein produktives Firmensystem -- privates Portfolio-Build
 - Kein Fine-tuned Model -- Regelengine + RAG + LLM-Prompting

@@ -135,7 +135,7 @@ wir haben erst in Phase E damit begonnen, obwohl die Cases ab Phase D klar waren
 
 **Wo endet AECT und faengt menschliche Verantwortung an?**
 
-AECT liefert Entscheidungsunterstuetzung, keine Entscheidungen. Das Internes Gremium
+AECT liefert Entscheidungsunterstuetzung, keine Entscheidungen. Der Mensch
 bleibt Entscheider. Jede Compliance-Ausgabe ist als "zu pruefen, kein Urteil"
 markiert. Das ist bewusst: ein System ohne Human-in-the-Loop, das
 Use-Case-Prioritaeten falsch setzt, kostet reale Budgets. Verteidigt in
