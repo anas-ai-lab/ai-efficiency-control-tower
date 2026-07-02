@@ -23,13 +23,19 @@ Idempotency (aect-security-checklist v2.1, Phase B):
   Grenze (bewusst, ADR-005): der Key wird nicht gegen den Payload validiert.
   Ein wiederverwendeter Key mit geaendertem Body liefert das alte Ergebnis,
   nicht 409/422.
+
+  Claim-then-fill (F-010): der Key wird atomar reserviert (claim), bevor
+  verarbeitet wird -- get -> verarbeiten -> set war nicht atomar. Trifft ein
+  Request auf einen reservierten, noch ungefuellten Key (paralleler Request
+  in Arbeit), antwortet er 409 Conflict; der Client wiederholt spaeter und
+  bekommt dann den Replay.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import Response
 
@@ -233,18 +239,39 @@ async def submit_use_case(
     auf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.
     """
     if idempotency_key is not None:
-        existing_case_id = idempotency_store.get(idempotency_key)
-        if existing_case_id is not None:
+        # Claim-then-fill (F-010): claim() reserviert den Key atomar, BEVOR
+        # verarbeitet wird. Das fruehere get -> verarbeiten -> set war nicht
+        # atomar: zwei parallele Requests mit demselben Key lasen beide
+        # "kein Eintrag" (der erste await liegt vor dem set) und erzeugten
+        # zwei Cases.
+        claimed, existing_case_id = idempotency_store.claim(idempotency_key)
+        if not claimed:
+            if existing_case_id is None:
+                # Platzhalter: ein paralleler Request mit demselben Key
+                # verarbeitet gerade noch.
+                raise HTTPException(
+                    status_code=409,
+                    detail="Request with this Idempotency-Key is already in progress",
+                )
             existing_case = service.get_case(existing_case_id)
             if existing_case is not None:
                 response.status_code = 200
                 response.headers["Idempotent-Replay"] = "true"
                 return _to_triage_response(existing_case)
+            # Key gefuellt, aber Case geloescht (DSGVO Art. 17, ADR-0038):
+            # neu verarbeiten; set() unten ueberschreibt mit der neuen ID.
 
-    case = service.submit_use_case(body)
-
-    # Dedup-Aehnlichkeitspruefung (L-3, ADR-0039) -- additiv, scheitert nie hart.
-    similarity_warning = await service.check_similarity(case)
+    try:
+        case = service.submit_use_case(body)
+        # Dedup-Aehnlichkeitspruefung (L-3, ADR-0039) -- additiv, scheitert
+        # nie hart.
+        similarity_warning = await service.check_similarity(case)
+    except BaseException:
+        # Auch CancelledError (Client-Abbruch): der Platzhalter muss weg,
+        # sonst antwortet jeder kuenftige Request mit diesem Key 409.
+        if idempotency_key is not None:
+            idempotency_store.release(idempotency_key)
+        raise
 
     if idempotency_key is not None:
         idempotency_store.set(idempotency_key, case.id)
