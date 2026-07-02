@@ -13,7 +13,6 @@ from aect.domain.types import DataClassification
 
 # ---------------------------------------------------------------------------
 # Mapping DataClassification → Datenschutz-Punkte (0-2)
-# ⚠ Keys auf tatsächliche Enum-Werte aus types.py anpassen (Schritt 2)!
 # ---------------------------------------------------------------------------
 DATA_CLASSIFICATION_TO_SCORE: dict[DataClassification, int] = {
     DataClassification.NO_PERSONAL_DATA: 0,  # Rein operative / anonyme Daten

@@ -4,7 +4,7 @@ Alle Enum-Werte sind snake_case (StrEnum — direktes Parsen aus JSON/Form-Daten
 kein manuelles .value-Mapping nötig).
 
 IP-Trennung (interne Referenz (entfernt) §5): Faktor-Mappings (Stundensätze, Score-Gewichte,
-Vorfilter-Schwellen) liegen in config/roi_config.yaml — nicht hier.
+Vorfilter-Schwellen) liegen in config/roi_config.toml — nicht hier.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ class EvidenceLevel(StrEnum):
     """Qualität der Zeitersparnis-Schätzung.
 
     Beeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).
-    Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.yaml.
+    Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml.
     """
 
     PURE_ESTIMATE = "pure_estimate"  # Bauchgefühl / Expertenmeinung ohne Datenbasis
@@ -64,7 +64,7 @@ class FrequencyUnit(StrEnum):
 class EmployeeCategory(StrEnum):
     """Grobe Seniorität der betroffenen Mitarbeiter.
 
-    Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.yaml.
+    Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.toml.
     Dieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code.
     """
 

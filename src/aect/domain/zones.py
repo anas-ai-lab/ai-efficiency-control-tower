@@ -81,7 +81,7 @@ class ZoneClassifier:
         likely_win_max_composite: Maximum composite score for LIKELY_WIN.
         calculated_risk_min_benefit: Minimum expected benefit for CALCULATED_RISK.
         calculated_risk_max_composite: Maximum composite score for CALCULATED_RISK.
-        handlungsdruck_elevation_threshold: Score (1-5) at or above which
+        handlungsdruck_elevation_threshold: Score (1-4) at or above which
             the base zone is elevated by one step.
     """
 
@@ -141,7 +141,7 @@ class ZoneClassifier:
         Args:
             expected_benefit_eur: Expected annual net benefit (from ROI engine).
             composite_score: Composite effort/risk score (from composite scorer).
-            handlungsdruck_score: Urgency on a 1-5 integer scale.
+            handlungsdruck_score: Urgency on a 1-4 integer scale.
 
         Returns:
             ZoneResult with base zone, final zone, elevation flag, and reason.
