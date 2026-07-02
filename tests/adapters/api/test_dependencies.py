@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-import structlog
 from fastapi import HTTPException
 from structlog.testing import capture_logs
 
@@ -258,31 +257,10 @@ async def test_require_api_key_still_returns_503_when_unconfigured() -> None:
     assert exc_info.value.status_code == 503
 
 
-def _fresh_capturable_logger(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ersetzt dependencies.logger durch eine frisch erzeugte Instanz.
-
-    structlog cached_logger_on_first_use=True (logging_config.py) bindet
-    einen Logger beim ERSTEN echten .info()-Aufruf permanent an die zu dem
-    Zeitpunkt aktuelle Prozessoren-Liste. In der vollen Suite hat
-    dependencies.logger diesen ersten Aufruf laengst hinter sich (andere
-    Tests authentifizieren erfolgreich) -- capture_logs() patcht danach nur
-    noch die JEWEILS AKTUELLE Liste, die der bereits gecachte Logger nicht
-    mehr referenziert (verifiziert per Repro-Skript). Eine frische, in
-    diesem Prozess nie benutzte Logger-Instanz umgeht das: ihr erster
-    Gebrauch faellt in den capture_logs()-Block. Test-lokal, keine
-    Aenderung an der Produktions-Logging-Konfiguration.
-    """
-    import aect.adapters.api.dependencies as deps_module
-
-    monkeypatch.setattr(
-        deps_module, "logger", structlog.get_logger("test-fresh-dependencies-logger")
-    )
-
-
-async def test_require_api_key_logs_kid_of_primary_key_used(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _fresh_capturable_logger(monkeypatch)
+async def test_require_api_key_logs_kid_of_primary_key_used() -> None:
+    """require_api_key holt sich structlog.get_logger() frisch pro Aufruf
+    (kein Modul-globaler Logger) -- capture_logs() faengt sie zuverlaessig
+    ab, unabhaengig davon, wie viele andere Tests vorher geloggt haben."""
     settings = Settings(api_key="primary-key")
     with capture_logs() as logs:
         await require_api_key(api_key="primary-key", settings=settings)
@@ -291,10 +269,7 @@ async def test_require_api_key_logs_kid_of_primary_key_used(
     assert auth_logs[0]["kid"] == key_fingerprint("primary-key")
 
 
-async def test_require_api_key_logs_kid_of_next_key_used(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _fresh_capturable_logger(monkeypatch)
+async def test_require_api_key_logs_kid_of_next_key_used() -> None:
     settings = Settings(api_key="primary-key", api_key_next="next-key")
     with capture_logs() as logs:
         await require_api_key(api_key="next-key", settings=settings)

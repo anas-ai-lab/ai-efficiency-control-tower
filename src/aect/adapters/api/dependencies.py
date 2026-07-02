@@ -63,7 +63,12 @@ from aect.application.ports.retriever import RetrieverPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
 
-logger = structlog.get_logger(__name__)
+# Kein Modul-globaler Logger hier (bewusst, analog cost_logger.log_llm_cost
+# und service.py injection_pattern_detected): cache_logger_on_first_use=True
+# (logging_config.py) bindet einen Logger beim ERSTEN echten Aufruf permanent
+# an die zu dem Zeitpunkt aktuelle Processor-Kette -- structlog.get_logger()
+# wird an den Log-Aufrufstellen deshalb frisch geholt, sonst sieht
+# capture_logs() in Tests je nach Ausfuehrungsreihenfolge nichts mehr.
 
 # Singleton -- Repository-State lebt fuer die Prozess-Lebensdauer.
 _repository: InMemoryRepository = InMemoryRepository()
@@ -344,10 +349,12 @@ async def require_api_key(
         # Nicht-ASCII. Beide Keys werden ueber je einen eigenen
         # compare_digest-Aufruf geprueft -- konstante Laufzeit pro Vergleich.
         if _matches(candidate, settings.api_key):
-            logger.info("api_key_authenticated", kid=key_fingerprint(settings.api_key))
+            structlog.get_logger().info(
+                "api_key_authenticated", kid=key_fingerprint(settings.api_key)
+            )
             return api_key
         if _matches(candidate, settings.api_key_next):
-            logger.info(
+            structlog.get_logger().info(
                 "api_key_authenticated", kid=key_fingerprint(settings.api_key_next)
             )
             return api_key
