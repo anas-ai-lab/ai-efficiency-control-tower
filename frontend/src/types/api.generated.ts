@@ -346,7 +346,7 @@ export interface components {
          * EmployeeCategory
          * @description Grobe Seniorität der betroffenen Mitarbeiter.
          *
-         *     Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.yaml.
+         *     Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.toml.
          *     Dieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code.
          * @enum {string}
          */
@@ -356,7 +356,7 @@ export interface components {
          * @description Qualität der Zeitersparnis-Schätzung.
          *
          *     Beeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).
-         *     Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.yaml.
+         *     Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml.
          * @enum {string}
          */
         EvidenceLevel: "pure_estimate" | "similar_project" | "tested_piloted";

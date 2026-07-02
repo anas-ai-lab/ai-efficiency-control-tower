@@ -625,7 +625,7 @@
           "mixed"
         ],
         "title": "EmployeeCategory",
-        "description": "Grobe Seniorität der betroffenen Mitarbeiter.\n\nKonkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.yaml.\nDieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code."
+        "description": "Grobe Seniorität der betroffenen Mitarbeiter.\n\nKonkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.toml.\nDieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code."
       },
       "EvidenceLevel": {
         "type": "string",
@@ -635,7 +635,7 @@
           "tested_piloted"
         ],
         "title": "EvidenceLevel",
-        "description": "Qualität der Zeitersparnis-Schätzung.\n\nBeeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).\nKonkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.yaml."
+        "description": "Qualität der Zeitersparnis-Schätzung.\n\nBeeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).\nKonkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml."
       },
       "FeasibilityResponse": {
         "properties": {
