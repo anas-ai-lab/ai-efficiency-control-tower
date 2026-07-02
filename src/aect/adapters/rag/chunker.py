@@ -110,11 +110,15 @@ def chunk_document(
     if not paragraphs:
         return []
 
-    encoding = tiktoken.get_encoding(_ENCODING_NAME)
     pieces: list[str] = []
     for paragraph in paragraphs:
         if count_tokens(paragraph, _ENCODING_NAME) > max_tokens:
-            pieces.extend(_split_oversized_text(paragraph, max_tokens, encoding))
+            # Lazy: die reale tiktoken-Encoding wird nur geladen, wenn dieser
+            # seltene Pfad tatsaechlich erreicht wird (F-031, 02.07.2026) --
+            # der Normalfall (kein Absatz ueber max_tokens) braucht sie nie
+            # und darf nicht an einem Netzwerk-Fetch scheitern, der fuer die
+            # eigentliche Chunking-Arbeit irrelevant ist.
+            pieces.extend(_split_oversized_text(paragraph, max_tokens))
         else:
             pieces.append(paragraph)
 
@@ -127,19 +131,31 @@ def _split_into_paragraphs(text: str) -> list[str]:
     return [paragraph.strip() for paragraph in raw_paragraphs if paragraph.strip()]
 
 
-def _split_oversized_text(
-    text: str, max_tokens: int, encoding: tiktoken.Encoding
-) -> list[str]:
+def _split_oversized_text(text: str, max_tokens: int) -> list[str]:
     """Schneidet einen einzelnen, zu langen Absatz hart in Token-Stuecke.
 
     Seltener Fallback -- der Normalfall ist absatzweises Packen. Verliert
     keinen Inhalt, ignoriert in diesem Fall nur die Absatzgrenze.
+
+    F-031-Fallback: wenn tiktoken die BPE-Datei nicht laden kann (Netzwerk
+    restriktiv, siehe cost_logger.count_tokens), wird stattdessen grob in
+    4-Zeichen-Bloecke geschnitten (Naeherung fuer Tokens/Zeichen-Verhaeltnis).
+    Chunk-Grenzen verschieben sich dadurch geringfuegig, aber kein Crash und
+    kein Content-Verlust.
     """
-    token_ids = encoding.encode(text)
-    return [
-        encoding.decode(token_ids[start : start + max_tokens])
-        for start in range(0, len(token_ids), max_tokens)
-    ]
+    try:
+        encoding = tiktoken.get_encoding(_ENCODING_NAME)
+        token_ids = encoding.encode(text)
+        return [
+            encoding.decode(token_ids[start : start + max_tokens])
+            for start in range(0, len(token_ids), max_tokens)
+        ]
+    except Exception:
+        chars_per_chunk = max_tokens * 4
+        return [
+            text[start : start + chars_per_chunk]
+            for start in range(0, len(text), chars_per_chunk)
+        ]
 
 
 def _pack_pieces(

@@ -38,9 +38,27 @@ _USD_TO_EUR = 0.95
 
 
 def count_tokens(text: str, encoding_name: str = _ENCODING_NAME) -> int:
-    """Zaehlt Tokens in `text` mit der gegebenen tiktoken-Encoding."""
-    encoding = tiktoken.get_encoding(encoding_name)
-    return len(encoding.encode(text))
+    """Zaehlt Tokens in `text` mit der gegebenen tiktoken-Encoding.
+
+    Fallback (F-031, 02.07.2026): tiktoken laedt die BPE-Datei beim ersten
+    Aufruf pro Prozess per HTTP von openaipublic.blob.core.windows.net und
+    cached sie danach lokal. In Umgebungen mit restriktiver Egress-Policy
+    (z. B. Azure Container Apps hinter NSG/Firewall ohne diese Domain in der
+    Allowlist) schlaegt das fehl -- und zwar NACH einem bereits erfolgreich
+    bezahlten Azure-OpenAI-Call, den log_llm_cost() sonst mit hochreisst.
+    Deshalb: bei Fehlschlag grobe Naeherung (~4 Zeichen/Token, gaengiger
+    Schaetzwert fuer GPT-Tokenizer) statt Exception; einmalig geloggt.
+    """
+    try:
+        encoding = tiktoken.get_encoding(encoding_name)
+        return len(encoding.encode(text))
+    except Exception as exc:
+        structlog.get_logger().warning(
+            "tiktoken_encoding_unavailable_using_approximation",
+            encoding_name=encoding_name,
+            error=str(exc),
+        )
+        return len(text) // 4 if text else 0
 
 
 def estimate_cost_eur(input_tokens: int, output_tokens: int) -> float:
