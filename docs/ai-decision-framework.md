@@ -26,6 +26,17 @@
 - DSGVO Art. 22: Verbietet rein automatisierte Entscheidungen mit erheblicher Wirkung auf Personen — ohne explizite Rechtsgrundlage und substanzielle menschliche Überprüfung.
 - EU AI Act (in Kraft seit August 2024): Klassifiziert HR-, Recruiting- und bestimmte IT-Use-Cases als Hochrisiko-Systeme. Kernpflichten für Hochrisiko-Systeme ab August 2026 durchsetzbar. Bußgelder bis 35 Mio. € oder 7% Jahresumsatz.
 
+> **Addendum (02.07.2026, Legal-Currency-Check):** Die Kernpflichten fuer
+> Annex-III-Hochrisiko-Systeme sind durch den EU "Digital Omnibus on AI" auf
+> den **02.12.2027** verschoben (statt 02.08.2026) -- Europaparlament hat am
+> 16.06.2026 final zugestimmt, der Rat am 29.06.2026, Veroeffentlichung im
+> Amtsblatt steht laut aktueller Presselage noch aus, wird aber vor dem
+> 02.08.2026 erwartet und tritt 3 Tage nach Veroeffentlichung in Kraft.
+> **Nicht verschoben:** Art.-50-Transparenzpflichten bleiben bei 02.08.2026.
+> Bussgeldrahmen unveraendert. Vor Nutzung dieser Aussage in einer echten
+> Compliance-Entscheidung: Amtsblatt-Stand pruefen (Datum kann sich noch
+> verschieben, falls die Veroeffentlichung sich verzoegert).
+
 ---
 
 ## 2. Leitprinzip
@@ -192,7 +203,7 @@ Diese Gates gelten unabhängig vom Scoring-Ergebnis und können die Empfehlung e
 | Bedingung | Pflichtmaßnahme |
 |---|---|
 | Use Case trifft Personen mit erheblichen Konsequenzen (Einstellung, Kündigung, Kredit, Zugang) | Human Review Pflicht. DSGVO Art. 22. Kein rein automatisierter Betrieb. |
-| EU AI Act Hochrisiko (HR, Recruiting, kritische Infrastruktur, Kredit-Scoring) | Compliance Track. Dokumentation, Bias-Tests, Audit Log, Human Oversight Pflicht. Deadline: August 2026. |
+| EU AI Act Hochrisiko (HR, Recruiting, kritische Infrastruktur, Kredit-Scoring) | Compliance Track. Dokumentation, Bias-Tests, Audit Log, Human Oversight Pflicht. Deadline: 02.12.2027 (Digital Omnibus, siehe Addendum oben), Art.-50-Transparenz weiterhin 02.08.2026. |
 | Fehlerkonsequenzen irreversibel oder existenziell (Rechtsverletzung, Personenschaden, Vertragsbruch) | Human Review immer. Eval-Set vor Deployment zwingend. Kein Produktivbetrieb ohne Monitoring. |
 | Datenqualität ≤ 2 | Zurückstellen. Kein Deployment bis Datengrundlage gesichert. |
 | Use Case betrifft sensible Datenkategorien (Gesundheit, Biometrie, politische Meinungen) | DPIA (Datenschutz-Folgenabschätzung) nach DSGVO Art. 35 vor Pilot. |
@@ -354,7 +365,7 @@ flowchart TD
 **Governance-Gate:** ⚠️ **Compliance Track**
 **Pflicht:**
 - DSGVO Art. 22: Trifft zu, wenn Scoring/Vorfilterung allein über Einladung entscheidet. Human Review substanziell Pflicht (kein Rubber-Stamping).
-- EU AI Act Annex III: Recruitment AI ist explizit Hochrisiko. Core-Pflichten ab August 2026: Dokumentation, Bias-Tests, Audit Log, Human Oversight.
+- EU AI Act Annex III: Recruitment AI ist explizit Hochrisiko. Core-Pflichten ab 02.12.2027 (Digital Omnibus, siehe Addendum): Dokumentation, Bias-Tests, Audit Log, Human Oversight.
 - DPIA nach Art. 35: Erforderlich vor Pilot.
 - Betriebsrat: Informationspflicht vor Einführung.
 - **Empfehlung:** Nur als Unterstützungswerkzeug für Recruiter, nie als alleinige Entscheidungsgrundlage.
