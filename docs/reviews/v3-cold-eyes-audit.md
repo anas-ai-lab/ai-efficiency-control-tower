@@ -10,38 +10,38 @@
 
 | ID | Thema | Status | Commit |
 |---|---|---|---|
-| F-001 | Vorfilter ignoriert ROIConfig (hartcodierte Modul-Defaults, Config-Edit = stiller No-op) | fixed | `daea522` |
-| F-002 | Case-Mismatch in Config-Keys | fixed (Vorsession) | `501cb29` |
-| F-003 | Docstring-Korrektur | fixed (Vorsession) | `c3d8b44` |
-| F-005 | Docstring-Korrektur | fixed (Vorsession) | `c3d8b44` |
-| F-006 | Kosten-Tiers 5.000/25.000 EUR hartcodiert in domain/pipeline.py | fixed | `62d01ee` |
-| F-007 | Kommentar-Korrektur | fixed (Vorsession) | `c3d8b44` |
-| F-008 | int(frequency/12)-Truncation stuft 1-11 Vorgaenge/Jahr als NOT_RECURRING ein | fixed | `1aa34d2` |
-| F-010 | Idempotency-Race (get->set nicht atomar, Duplikat-Cases bei parallelen Requests) | fixed | `5916d2b` |
-| F-011 | Lost-Update-Race: paralleles /sharpen + /propose-solution ueberschreibt ein Narrativ | fixed | `941bae8` |
-| F-012 | SQLite-Connections nie geschlossen (Refcount-Abhaengigkeit) | fixed | `b975426` |
-| F-013 | Kein WAL-Modus, kein busy_timeout | fixed | `b975426` |
-| F-014 | Worst-Case-LLM-Latenz unbegrenzt (nur Per-Attempt-Timeout; Frontend-Fetch ohne AbortSignal) | fixed | `723e015` |
-| F-016 | [N]-Citation-Marker ohne Gegenstueck in der Citation-Liste nicht validiert | fixed | `cc4fb90` |
-| F-020 | LICENSE-Datei fehlte trotz MIT-Badge | fixed (Vorsession) | `ceb95ba` |
-| F-021 | README Doc-Truth | fixed (Vorsession) | `74d394e` |
-| F-022 | README Doc-Truth | fixed (Vorsession) | `74d394e` |
-| F-023 | README Doc-Truth | fixed (Vorsession) | `74d394e` |
-| F-025 | Englische Backend-detail-Strings roh in der deutschen UI | fixed | `a656015` |
-| F-026 | Fehlende Security-Response-Header (nosniff, X-Frame-Options, CSP, Server-Header) | fixed | `6787a90` |
-| F-027 | OWASP-LLM-Checklist Doc-Truth | fixed (Vorsession) | `7f91c65` |
-| F-028 | OWASP-LLM-Checklist Doc-Truth | fixed (Vorsession) | `7f91c65` |
-| F-029 | EU-AI-Act-Deadline veraltet (Digital Omnibus) | fixed (Vorsession) | `6f41287` |
-| F-030 | Tote Config-Section | fixed (Vorsession) | `501cb29` |
-| F-031 | Harte tiktoken-Netzwerkabhaengigkeit | fixed (Vorsession) | `b73e0ac` |
-| Infra | Dockerfile-Basis-Images ohne Digest-Pin; kein Container-CVE-Scan in CI | fixed | `49c6ac4` |
+| F-001 | Vorfilter ignoriert ROIConfig (hartcodierte Modul-Defaults, Config-Edit = stiller No-op) | fixed | `4e71e48` |
+| F-002 | Case-Mismatch in Config-Keys | fixed (Vorsession) | `01747d8` |
+| F-003 | Docstring-Korrektur | fixed (Vorsession) | `1ddb6aa` |
+| F-005 | Docstring-Korrektur | fixed (Vorsession) | `1ddb6aa` |
+| F-006 | Kosten-Tiers 5.000/25.000 EUR hartcodiert in domain/pipeline.py | fixed | `e67cb42` |
+| F-007 | Kommentar-Korrektur | fixed (Vorsession) | `1ddb6aa` |
+| F-008 | int(frequency/12)-Truncation stuft 1-11 Vorgaenge/Jahr als NOT_RECURRING ein | fixed | `156be2b` |
+| F-010 | Idempotency-Race (get->set nicht atomar, Duplikat-Cases bei parallelen Requests) | fixed | `1acd972` |
+| F-011 | Lost-Update-Race: paralleles /sharpen + /propose-solution ueberschreibt ein Narrativ | fixed | `530f62f` |
+| F-012 | SQLite-Connections nie geschlossen (Refcount-Abhaengigkeit) | fixed | `5ffe5f6` |
+| F-013 | Kein WAL-Modus, kein busy_timeout | fixed | `5ffe5f6` |
+| F-014 | Worst-Case-LLM-Latenz unbegrenzt (nur Per-Attempt-Timeout; Frontend-Fetch ohne AbortSignal) | fixed | `3103ef9` |
+| F-016 | [N]-Citation-Marker ohne Gegenstueck in der Citation-Liste nicht validiert | fixed | `121fc62` |
+| F-020 | LICENSE-Datei fehlte trotz MIT-Badge | fixed (Vorsession) | `56b5e9a` |
+| F-021 | README Doc-Truth | fixed (Vorsession) | `9c5a68a` |
+| F-022 | README Doc-Truth | fixed (Vorsession) | `9c5a68a` |
+| F-023 | README Doc-Truth | fixed (Vorsession) | `9c5a68a` |
+| F-025 | Englische Backend-detail-Strings roh in der deutschen UI | fixed | `7299870` |
+| F-026 | Fehlende Security-Response-Header (nosniff, X-Frame-Options, CSP, Server-Header) | fixed | `e605b3a` |
+| F-027 | OWASP-LLM-Checklist Doc-Truth | fixed (Vorsession) | `4814b3d` |
+| F-028 | OWASP-LLM-Checklist Doc-Truth | fixed (Vorsession) | `4814b3d` |
+| F-029 | EU-AI-Act-Deadline veraltet (Digital Omnibus) | fixed (Vorsession) | `da18ca9` |
+| F-030 | Tote Config-Section | fixed (Vorsession) | `01747d8` |
+| F-031 | Harte tiktoken-Netzwerkabhaengigkeit | fixed (Vorsession) | `c855e9e` |
+| Infra | Dockerfile-Basis-Images ohne Digest-Pin; kein Container-CVE-Scan in CI | fixed | `4bde671` |
 
 Begleitbefund aus der Fix-Arbeit (kein Audit-Finding): der modul-globale
 slowapi-Limiter teilte sein 30/min-Budget ueber alle Test-App-Instanzen der
 Suite -- mit wachsender Testzahl wurde die Suite flaky (429 statt 201).
-Autouse-Reset-Fixture in `tests/adapters/api/conftest.py` (Teil von `5916d2b`).
+Autouse-Reset-Fixture in `tests/adapters/api/conftest.py` (Teil von `1acd972`).
 
-## IP-Sweep (2026-07-02, Commit `81add54`)
+## IP-Sweep (2026-07-02, Commit `e901fe5`)
 
 Ziel: kein direkter oder kombinierter Rueckschluss auf ein reales
 Firmenumfeld im oeffentlichen Repo. Die entfernten Kennungen werden hier
@@ -58,7 +58,7 @@ bewusst NICHT wiederholt -- sie stehen im privaten Sitzungsprotokoll.
 - Eine Vertrags-Klauselnummer im Learning-Log durch "vertragliche
   Verpflichtung" ohne Klauselangabe.
 - Die Gremiumsbezeichnung "Internes Gremium" (4 Stellen) durch
-  "AI-Governance-Gremium" (ergaenzt den frueheren Sweep in `4da6900`).
+  "AI-Governance-Gremium" (ergaenzt den frueheren Sweep in `92554af`).
 - Formulierungen neutralisiert, die den Zusammenhang "Repo-Inhalt =
   reales Firmenumfeld" explizit bestaetigten (comprehensive-audit
   AUDIT-011-Wortlaut, roadmap-v2-Bewertungsachsen, phase-g-review
