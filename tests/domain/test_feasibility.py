@@ -185,3 +185,20 @@ class TestMultipleFlagsAndRecommendation:
         assert "Beispiel" in r.recommendation
         assert "Zeitersparnis" in r.recommendation
         assert "Monat" in r.recommendation
+
+
+class TestFractionalOccurrences:
+    """F-008: Bruchteile pro Monat (jaehrliche Zaehlung / 12) sind gueltig."""
+
+    def test_fractional_occurrences_count_as_recurring(
+        self, checker: FeasibilityChecker
+    ) -> None:
+        r = checker.check(
+            current_situation="A" * 60,
+            target_situation="B" * 60,
+            example_process="C" * 40,
+            time_saved_minutes_per_occurrence=Decimal("30"),
+            occurrences_per_month=0.5,  # 6 Vorgaenge/Jahr
+        )
+        assert not r.has_flag(FeasibilityFlag.NOT_RECURRING)
+        assert r.is_feasible

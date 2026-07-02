@@ -7,7 +7,9 @@ Rules (deterministic, no LLM):
 1. Ist- and Soll-Zustand must be described concretely (minimum length).
 2. A concrete process example must be provided.
 3. Time saving per occurrence must be positive.
-4. The process must be recurring (occurrences_per_month > 0).
+4. The process must be recurring (occurrences_per_month > 0; fractional
+   values are valid -- callers with annual counts pass count/12 untruncated,
+   so 1-11 occurrences/year still count as recurring, F-008).
 
 The minimum lengths here are descriptive quality thresholds, NOT business
 thresholds — they do not belong in zone_thresholds.yaml.
@@ -78,7 +80,7 @@ class FeasibilityChecker:
         target_situation: str,
         example_process: str,
         time_saved_minutes_per_occurrence: Decimal,
-        occurrences_per_month: int,
+        occurrences_per_month: float,
     ) -> FeasibilityResult:
         """Run all feasibility checks and return the combined result.
 
@@ -88,6 +90,8 @@ class FeasibilityChecker:
             example_process: One concrete process occurrence as an example.
             time_saved_minutes_per_occurrence: Minutes saved per single occurrence.
             occurrences_per_month: How often the process occurs per month.
+                Fractional values are valid (e.g. 0.5 = every two months);
+                anything > 0 counts as recurring (F-008).
 
         Returns:
             FeasibilityResult with flags and an optional recommendation.

@@ -456,3 +456,29 @@ def test_prefilter_uses_config_thresholds_not_module_defaults(
     # (ROI-Engine) urteilen jetzt gegen dieselben Config-Schwellen.
     strict_roi = evaluate_use_case(use_case, strict_config)
     assert strict_roi.vorfilter.passes is False
+
+
+# ---------------------------------------------------------------------------
+# F-008: seltene, aber wiederkehrende Prozesse (1-11 Vorgaenge/Jahr)
+# ---------------------------------------------------------------------------
+
+
+def test_low_frequency_case_is_still_recurring(roi_config: ROIConfig) -> None:
+    """6 Vorgaenge/Jahr sind wiederkehrend -- kein NOT_RECURRING-Flag.
+
+    Vor F-008 ergab int(6/12) == 0 und stufte jeden Prozess mit 1-11
+    Vorgaengen/Jahr faelschlich als NOT_RECURRING ein (z. B. ein
+    Quartalsabschluss-Prozess).
+    """
+    use_case = _make_use_case(frequency_per_year=6)
+    result = evaluate_use_case(use_case, roi_config)
+    flag_values = [f.value for f in result.feasibility.flags]
+    assert "NOT_RECURRING" not in flag_values
+
+
+def test_annual_case_is_still_recurring(roi_config: ROIConfig) -> None:
+    """Grenzfall: genau 1 Vorgang/Jahr ist wiederkehrend (Minimum des Modells)."""
+    use_case = _make_use_case(frequency_per_year=1)
+    result = evaluate_use_case(use_case, roi_config)
+    flag_values = [f.value for f in result.feasibility.flags]
+    assert "NOT_RECURRING" not in flag_values

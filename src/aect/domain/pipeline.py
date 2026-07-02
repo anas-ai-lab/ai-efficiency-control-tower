@@ -124,7 +124,10 @@ def evaluate_use_case(
         time_saved_minutes_per_occurrence=Decimal(
             str(use_case.time_savings_hours_per_case * 60)
         ),
-        occurrences_per_month=int(use_case.frequency_per_year / 12),
+        # Keine int-Truncation (F-008): int(11/12) == 0 stufte Prozesse mit
+        # 1-11 Vorgaengen/Jahr faelschlich als NOT_RECURRING ein. Semantik:
+        # wiederkehrend, sobald frequency_per_year >= 1 (Modell erzwingt > 0).
+        occurrences_per_month=use_case.frequency_per_year / 12,
     )
 
     # 5-6. Composite + Zone -- nur wenn Vorfilter bestanden
