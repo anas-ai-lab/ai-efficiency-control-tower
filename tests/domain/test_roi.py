@@ -54,17 +54,17 @@ def config() -> ROIConfig:
 
 def test_annual_hours_weekly() -> None:
     # 2h/Vorgang × 10 Vorgänge/Woche × 52 Wochen = 1040h
-    assert _to_annual_hours(2.0, 10.0, "WEEKLY") == pytest.approx(1040.0)
+    assert _to_annual_hours(2.0, 10.0, "weekly") == pytest.approx(1040.0)
 
 
 def test_annual_hours_monthly() -> None:
     # 1.5h × 4 × 12 = 72h
-    assert _to_annual_hours(1.5, 4.0, "MONTHLY") == pytest.approx(72.0)
+    assert _to_annual_hours(1.5, 4.0, "monthly") == pytest.approx(72.0)
 
 
 def test_annual_hours_daily() -> None:
     # 0.25h × 3 × 250 = 187.5h
-    assert _to_annual_hours(0.25, 3.0, "DAILY") == pytest.approx(187.5)
+    assert _to_annual_hours(0.25, 3.0, "daily") == pytest.approx(187.5)
 
 
 def test_annual_hours_annually() -> None:
@@ -158,7 +158,7 @@ def test_theoretical_potential_calculation(config: ROIConfig) -> None:
         employee_category_value="PROFESSIONAL",
         time_saved_per_occurrence_hours=2.0,
         occurrences_per_period=10.0,
-        frequency_unit_value="WEEKLY",
+        frequency_unit_value="weekly",
         employees_affected=5,
         license_cost_annual_eur=0.0,
         adoption_type_value="HIGH",
@@ -179,7 +179,7 @@ def test_both_factors_applied_to_potential(config: ROIConfig) -> None:
         employee_category_value="PROFESSIONAL",
         time_saved_per_occurrence_hours=2.0,
         occurrences_per_period=10.0,
-        frequency_unit_value="WEEKLY",
+        frequency_unit_value="weekly",
         employees_affected=5,
         license_cost_annual_eur=0.0,
         adoption_type_value="MEDIUM",
@@ -200,7 +200,7 @@ def test_license_cost_subtracted_from_expected(config: ROIConfig) -> None:
         employee_category_value="PROFESSIONAL",
         time_saved_per_occurrence_hours=2.0,
         occurrences_per_period=10.0,
-        frequency_unit_value="WEEKLY",
+        frequency_unit_value="weekly",
         employees_affected=5,
         license_cost_annual_eur=50_000.0,
         adoption_type_value="HIGH",
@@ -217,7 +217,7 @@ def test_unknown_country_yields_zero_potential(config: ROIConfig) -> None:
         employee_category_value="PROFESSIONAL",
         time_saved_per_occurrence_hours=5.0,
         occurrences_per_period=10.0,
-        frequency_unit_value="WEEKLY",
+        frequency_unit_value="weekly",
         employees_affected=10,
         license_cost_annual_eur=0.0,
         adoption_type_value="HIGH",
@@ -235,7 +235,7 @@ def test_high_license_cost_can_make_net_negative(config: ROIConfig) -> None:
         employee_category_value="ASSOCIATE",
         time_saved_per_occurrence_hours=0.5,
         occurrences_per_period=2.0,
-        frequency_unit_value="MONTHLY",
+        frequency_unit_value="monthly",
         employees_affected=3,
         license_cost_annual_eur=100_000.0,
         adoption_type_value="HIGH",
@@ -283,7 +283,7 @@ def test_invariant_expected_benefit_never_exceeds_potential(
         employee_category_value="SENIOR",
         time_saved_per_occurrence_hours=2.0,
         occurrences_per_period=5.0,
-        frequency_unit_value="WEEKLY",
+        frequency_unit_value="weekly",
         employees_affected=10,
         license_cost_annual_eur=0.0,
         adoption_type_value="T",

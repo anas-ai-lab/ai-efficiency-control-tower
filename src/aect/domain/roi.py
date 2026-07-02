@@ -24,16 +24,21 @@ if TYPE_CHECKING:
 
 # ---------------------------------------------------------------------------
 # Frequenz → Jahres-Multiplikator
-# Keys = FrequencyUnit.value aus src/aect/domain/types.py
-# Nach Schritt 0: prüfen ob die Enum-Werte stimmen, ggf. Keys anpassen.
+# Keys = FrequencyUnit.value aus src/aect/domain/types.py (lowercase, siehe
+# StrEnum dort: daily/weekly/monthly). "ANNUALLY" ist kein Enum-Member --
+# es ist das Sentinel, das calculate_roi() hardcoded uebergibt, wenn
+# frequency_per_year bereits ein Jahreswert ist (kein Umrechnungsfaktor
+# noetig, Multiplikator 1). Frueherer Stand hatte hier UPPERCASE-Keys fuer
+# DAILY/WEEKLY/MONTHLY (Case-Mismatch ggue. der Enum, F-002, 02.07.2026) plus
+# BIWEEKLY/QUARTERLY ohne jedes Enum-Gegenstueck -- beides tote Eintraege,
+# da der aktuelle Call-Pfad in calculate_roi() ausschliesslich "ANNUALLY"
+# uebergibt und FrequencyUnit hier nie live verwendet wird.
 # ---------------------------------------------------------------------------
 _FREQUENCY_TO_ANNUAL: Final[dict[str, int]] = {
-    "DAILY": 250,  # Arbeitstage pro Jahr
-    "WEEKLY": 52,
-    "BIWEEKLY": 26,
-    "MONTHLY": 12,
-    "QUARTERLY": 4,
-    "ANNUALLY": 1,
+    "daily": 250,  # Arbeitstage pro Jahr
+    "weekly": 52,
+    "monthly": 12,
+    "ANNUALLY": 1,  # Sentinel des aktuellen calculate_roi()-Pfads, kein Enum-Member
 }
 
 _TWO_PLACES: Final[Decimal] = Decimal("0.01")
