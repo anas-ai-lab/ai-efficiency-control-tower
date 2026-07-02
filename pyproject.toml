@@ -17,6 +17,7 @@ version = "1.2.0"
 description = "AI Efficiency Control Tower — AI Use Case Intake & Triage Assistant"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { file = "LICENSE" }
 dependencies = [
     "chromadb-client>=1.5.3,<1.6",
     "fastapi[standard]>=0.136.3",
