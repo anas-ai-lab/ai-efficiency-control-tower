@@ -86,3 +86,21 @@ diese Pakete nie.
 - ADR-0035 bleibt das Referenzmuster fuer "Design + Verifikation ohne
   Live-Infrastruktur" in diesem Projekt -- diese ADR ist die zweite
   Anwendung desselben Prinzips.
+
+## Anhang: HMAC-signierte Requests (bewusst zurueckgestellt)
+
+Im Rahmen derselben Haertungs-Session wurde HMAC-Signing fuer API-Requests
+geprueft und bewusst NICHT umgesetzt (Stop-Gate, keine Implementierung ohne
+explizite Bestaetigung). Begruendung: Der API-Key verlaesst in dieser
+Architektur nie den Server -- `frontend/src/app/actions.ts` ruft
+ausschliesslich serverseitig (Next.js Server Actions), kein
+Client-/Browser-Exposure des Keys. Der Hauptnutzen von HMAC-Signing (Schutz
+gegen abgefangene oder wiederverwendete Requests) ist bei TLS plus
+serverseitig gehaltenem Key bereits weitgehend abgedeckt, und die
+Key-Rotation (Phase 2 dieser Session, `key_fingerprint`/`AECT_API_KEY_NEXT`)
+deckt das verbleibende Hauptrisiko ab -- einen dauerhaft gueltigen,
+gestohlenen Key ohne Rotationsmoeglichkeit. Trigger fuer eine
+Neubewertung: sobald der API-Key in einer zukuenftigen
+Architekturaenderung client-/browserseitig exponiert wuerde (z. B. direkte
+Browser-Calls gegen die API unter Umgehung der Server-Action-Schicht), faellt
+diese Begruendung weg und HMAC-Signing waere neu zu pruefen.
