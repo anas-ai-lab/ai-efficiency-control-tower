@@ -1,6 +1,6 @@
 # Architecture Decision Log -- AECT
 
-41 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+42 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
@@ -30,6 +30,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [ADR-007](ADR-007-sqlite-persistence.md) | SQLite als Persistenz-Adapter |
 | [0011](0011-report-renderer.md) | Zweischichtiger Report-Renderer als Regel-Schicht |
 | [0012](0012-sharpened-proposal-persistence.md) | Persistenz von sharpened_text / proposal_text |
+| [0040](0040-sqlite-chroma-skalierungsgrenze.md) | SQLite + lokales ChromaDB: bewusste Beibehaltung und explizite Decke |
 
 ## LLM-Integration
 
