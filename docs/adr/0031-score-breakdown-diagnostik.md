@@ -12,8 +12,7 @@ auf den drei gelabelten Golden-Cases. EvalCaseResult (ADR-0030) liefert nur
 predicted_zone, expected_zone und is_match -- keine Information darueber,
 WELCHE Pipeline-Komponente (ROI-Nutzen, Composite-Score, Zonen-Schwelle,
 Handlungsdruck-Hochstufung) das Ergebnis trieb. Ohne diese Information ist
-jede weitere Eval-Iteration Raetselraten statt gezielter Diagnose (interne Referenz (entfernt)
-SS7: Experten-Abgleich soll Erkenntnis liefern, nicht nur eine Quote).
+jede weitere Eval-Iteration Raetselraten statt gezielter Diagnose (Eval-Methodik: Experten-Abgleich soll Erkenntnis liefern, nicht nur eine Quote).
 
 Zwei Implementierungsfragen waren zu klaeren, bevor Code entstehen konnte:
 1. Wird der Breakdown ein neues Feld auf TriageResult/EvalCaseResult, oder ein
@@ -54,7 +53,7 @@ exponieren nur, was intern bereits als self._lw_min etc. vorliegt.
 **4. Die Erklaerung (ScoreBreakdown.explanation) wird deterministisch aus den
 Zwischenwerten generiert, nicht vom LLM formuliert.** Diagnostik fuer Anas
 als Entwickler, kein Endkunden-Text -- Regeln vor LLM gilt auch hier
-(interne Referenz (entfernt) SS3.2). Die Logik spiegelt ZoneClassifier._base_zone() und
+(Projekt-Prinzip "Regeln vor LLM"). Die Logik spiegelt ZoneClassifier._base_zone() und
 _apply_handlungsdruck() (domain/zones.py) in derselben Vergleichsreihenfolge,
 liest aber zusaetzlich die konfigurierten Schwellenwerte mit -- ZoneResult.
 reason (domain/zones.py) nennt nur die finalen Zahlen, keine Schwellen.
@@ -80,7 +79,7 @@ reason (domain/zones.py) nennt nur die finalen Zahlen, keine Schwellen.
   (domain/zones.py) manuell synchron gehalten werden -- keine automatische
   Kopplung, da deterministisch dupliziert statt aus ZoneResult.reason
   geparst. Bekannte technische Schuld, dokumentiert statt versteckt
-  (interne Referenz (entfernt) SS7).
+  (Projekt-Prinzip "Grenzen offenlegen").
 - handlungsdruck_score ist ab heute oeffentliche domain-API
   (aect.domain.handlungsdruck_score) -- jeder zukuenftige Consumer (Frontend
   Phase F, weitere Eval-Tools) kann sie direkt importieren statt sie erneut

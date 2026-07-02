@@ -67,7 +67,7 @@ class SubmittedCase:
     sharpened_content_json/proposal_text/compliance_hints_json via
     TriageService (s. service.py).
 
-    IP-Trennung (interne Referenz (entfernt) SS5): enthaelt keine firmenspezifischen Werte.
+    IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
 
@@ -88,7 +88,7 @@ class SubmittedCase:
 class SharpenedUseCase:
     """Ergebnis der Use-Case-Schaerfung -- Original + geschaerfte Version.
 
-    Original-Felder werden nie ueberschrieben (interne Referenz (entfernt) SS3.1, Punkt 1):
+    Original-Felder werden nie ueberschrieben (Projekt-Anforderung):
     case_id verweist auf den persistierten SubmittedCase, original_*
     sind die unveraenderten Eingabefelder.
 
@@ -174,7 +174,7 @@ class ComplianceCitation:
 
 @dataclass(frozen=True)
 class BusinessSummary:
-    """Entscheider-Schicht des zweischichtigen Reports (interne Referenz (entfernt) SS3.1, Punkt 6).
+    """Entscheider-Schicht des zweischichtigen Reports (Projekt-Anforderung).
 
     Enthaelt nur, was fuer eine Go/No-Go-Einschaetzung noetig ist -- keine
     Rohwerte aus Vorfilter/Composite (siehe TechnicalDetail).
@@ -211,7 +211,7 @@ class BusinessSummary:
 
 @dataclass(frozen=True)
 class TechnicalDetail:
-    """Reviewer-Schicht des zweischichtigen Reports (interne Referenz (entfernt) SS3.1, Punkt 6).
+    """Reviewer-Schicht des zweischichtigen Reports (Projekt-Anforderung).
 
     Rohwerte aus Vorfilter, Composite-Score, Feasibility und Routing fuer
     Personen, die die Bewertung nachvollziehen wollen.

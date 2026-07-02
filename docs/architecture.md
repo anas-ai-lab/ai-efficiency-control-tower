@@ -48,7 +48,7 @@ flowchart TB
     aect -->|Retrieval kuratierter Rechtstexte| chroma
 ```
 
-AECT entscheidet nichts selbst: es liefert Entscheidungsunterstuetzung, der Mensch bleibt der Entscheider (interne Referenz (entfernt) SS3.3).
+AECT entscheidet nichts selbst: es liefert Entscheidungsunterstuetzung, der Mensch bleibt der Entscheider (Projekt-Prinzip Human-in-the-Loop).
 
 ---
 
@@ -230,7 +230,7 @@ ADR-0009). Das einzige Tool ist read-only (`lookup_stack_options`).
 - SQLite statt Postgres -- privates Single-User-Build, Repository-Port als Ausstieg.
 - ChromaDB lokal (`127.0.0.1:8001`) statt Azure AI Search -- kostenlos, isoliert.
 - Azure OpenAI nur bei echten LLM-Operationen, Mock-First in Tests.
-- Kein Produktivbetrieb, kein n8n, kein SaaS (Scope-Disziplin, interne Referenz (entfernt)).
+- Kein Produktivbetrieb, kein n8n, kein SaaS (Scope-Disziplin).
 
 Vollstaendige, ehrliche Grenzen: `docs/known_limitations.md` (14 Punkte).
 v2-Kandidaten: `docs/roadmap-v2.md`.

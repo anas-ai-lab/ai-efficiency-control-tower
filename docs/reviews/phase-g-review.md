@@ -117,9 +117,9 @@ Voraussetzung: kein firmenspezifischer Wert in committed Code/Docs/Prompts.
 Pro: voller Portfolio-Nutzen (LinkedIn, CV, Interview-Demo). Contra: erfordert
 eine bewusste Freigabe-Pruefung vor jeder Veroeffentlichung.
 
-**Option B -- "Intern privat gebaut, nicht oeffentlich"**
+**Option B -- "Privat halten, nicht oeffentlich"**
 Pro: kein IP-Risiko. Contra: kein Portfolio-Nutzen -- der Hauptzweck (DACH-
-Karriere-Asset, interne Referenz (entfernt) SS1) entfaellt.
+Karriere-Asset, Projekt-Zielsetzung) entfaellt.
 
 **Empfehlung (Audit-Sicht, nicht Entscheidung):** Option A ist mit dem Bau-Prinzip
 konsistent. Vor der ersten oeffentlichen Veroeffentlichung diese Freigabe-Checkliste

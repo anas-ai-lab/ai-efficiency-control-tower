@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-> Für Internes Gremium und Management — Lesedauer: 90 Sekunden.
+> Für AI-Governance-Gremium und Management — Lesedauer: 90 Sekunden.
 
 Unternehmen haben generative AI auf Probleme angewandt, die besser durch klassisches Machine Learning oder deterministische Automatisierung gelöst worden wären, und korrigieren das jetzt. 42% der Unternehmen haben AI-Initiativen 2025 abgebrochen — doppelt so viele wie 2024. 95% der Enterprise-AI-Piloten erreichten nie die Produktion.
 

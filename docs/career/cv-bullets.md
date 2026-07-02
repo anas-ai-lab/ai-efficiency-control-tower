@@ -2,7 +2,7 @@
 
 > Ziel-Rolle: AI Engineer / Solution Architect, DACH-Markt.
 > Verwendung: XING, LinkedIn, Bewerbungsunterlagen -- nach IP-Klaerung
-> (interne Referenz (entfernt) SS5). Alle Zahlen aus dem Repo verifizierbar.
+> (vertraglich bedingte IP-Trennung). Alle Zahlen aus dem Repo verifizierbar.
 
 ---
 
@@ -52,7 +52,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - 41 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
 
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
-  (begruendet in interne Referenz (entfernt) -- Strategiedokument mit Aenderungshistorie)
+  (begruendet im projekteigenen Strategiedokument mit Aenderungshistorie)
 
 - 14 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
   staerker als Marketing-Darstellung ohne Schwaechen
@@ -71,4 +71,4 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 ---
 
-*v1.0 -- Juni 2026. Nach IP-Klaerung (interne Referenz (entfernt) SS5) veroeffentlichen.*
+*v1.0 -- Juni 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*

@@ -138,8 +138,7 @@ wir haben erst in Phase E damit begonnen, obwohl die Cases ab Phase D klar waren
 AECT liefert Entscheidungsunterstuetzung, keine Entscheidungen. Der Mensch
 bleibt Entscheider. Jede Compliance-Ausgabe ist als "zu pruefen, kein Urteil"
 markiert. Das ist bewusst: ein System ohne Human-in-the-Loop, das
-Use-Case-Prioritaeten falsch setzt, kostet reale Budgets. Verteidigt in
-interne Referenz (entfernt) SS3.3 ("Menschen fuer Verantwortung").
+Use-Case-Prioritaeten falsch setzt, kostet reale Budgets. Verteidigt als Projekt-Prinzip Human-in-the-Loop ("Menschen fuer Verantwortung").
 
 ---
 

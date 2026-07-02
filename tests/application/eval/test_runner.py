@@ -98,7 +98,7 @@ class TestRunEval:
     def test_predicted_zone_is_consistent_with_pipeline(
         self, roi_config: ROIConfig
     ) -> None:
-        """Konsistenz-Eval: gleicher Use Case -> gleiches predicted_zone (interne Referenz (entfernt) SS7)."""
+        """Konsistenz-Eval: gleicher Use Case -> gleiches predicted_zone (Eval-Methodik)."""
         case = EvalCase(case_id="consistency-check", use_case=_make_use_case())
         result_a = run_eval([case], roi_config)[0]
         result_b = run_eval([case], roi_config)[0]

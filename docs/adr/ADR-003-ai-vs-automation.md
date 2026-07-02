@@ -81,7 +81,7 @@ LLM-Analyse in Phase C. Kein Code-Workaround fuer Grenzfaelle in Phase A.
 `_SIMPLE_TASK_MAX_COMPLEXITY`, `_HIGH_VOLUME_MIN_ANNUAL` etc. sind
 Methodik-Parameter (definieren was "einfach" und "hohes Volumen"
 bedeutet), keine firmenspezifischen Geschaeftswerte. Sie gehoeren zum
-generisch zeigbaren Code (interne Referenz (entfernt) §5). Aenderung erfordert bewussten
+generisch zeigbaren Code (vertraglich bedingte IP-Trennung). Aenderung erfordert bewussten
 Code-Commit, nicht Config-Edit - das ist gewollt.
 
 ---

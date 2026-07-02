@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Datum:** Juni 2026
-**Kontext:** Phase F — Dokumentation downgraded Topics (Master-Plan v3.1, interne Referenz (entfernt) §4)
+**Kontext:** Phase F — Dokumentation downgraded Topics (Master-Plan v3.1, Scope-Downsizing)
 
 ---
 
@@ -82,7 +82,7 @@ Gruende:
 3. structlog-JSON ist bereits Azure-Monitor-kompatibel -- der Logging-
    Layer muss bei einem kuenftigen Cloud-Deploy nicht geaendert werden.
 4. Infra-Overhead (Jaeger-Container oder Azure-Monitor-Workspace) ist
-   fuer ein privates Portfolio-Build nicht gerechtfertigt (interne Referenz (entfernt) §4).
+   fuer ein privates Portfolio-Build nicht gerechtfertigt (Scope-Disziplin).
 
 ---
 

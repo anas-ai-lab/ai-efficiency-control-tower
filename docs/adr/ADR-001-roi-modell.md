@@ -104,7 +104,7 @@ vertretbar.
 **120 Stunden/Jahr:** Entspricht ca. 0,06 FTE. Unterhalb dieser Marke ist der
 Automatisierungsgewinn marginal und der Change-Management-Aufwand uebersteigt den Ertrag.
 Der Schwellenwert stammt aus dem v5-Bewertungsmodell und wurde als generischer Platzhalter
-mit IP-Trennung implementiert (interne Referenz (entfernt) SS5).
+mit IP-Trennung implementiert (vertraglich bedingt).
 
 **5.000 EUR Netto-Nutzen:** Stellt sicher, dass der Use Case nach Abzug der Lizenzkosten
 einen positiven Beitrag leistet. Ohne diesen Filter koennte ein Use Case mit hohem Potenzial,
@@ -115,5 +115,5 @@ aber hohen Lizenzkosten faelschlicherweise als wirtschaftlich attraktiv eingestu
 **Pandas-basierte Berechnung:** Overhead unnoetig fuer diese Datenmenge.
 Decimal + Dataclass ist leichter, schneller, direkt testbar.
 
-**Schwellen hardkodiert:** IP-Risiko (interne Referenz (entfernt) §5) und fehlende
+**Schwellen hardkodiert:** IP-Risiko (vertraglich bedingt) und fehlende
 Kalibrierbarkeit sprechen dagegen.

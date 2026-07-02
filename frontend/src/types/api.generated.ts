@@ -434,7 +434,7 @@ export interface components {
         };
         /**
          * ReportResponse
-         * @description Zweischichtiger Report -- striktes JSON (interne Referenz (entfernt) SS3.1, Punkt 6).
+         * @description Zweischichtiger Report -- striktes JSON (Projekt-Anforderung).
          */
         ReportResponse: {
             /** Case Id */

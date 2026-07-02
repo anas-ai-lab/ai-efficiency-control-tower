@@ -30,7 +30,7 @@ Tool: `lookup_stack_options` -- parameterlos, liest Plattform-Optionen
 
 | Alternative | Warum verworfen |
 |---|---|
-| Plattform-Liste direkt im System-Prompt von `propose_solution` | Verstoesst gegen "Regeln vor LLM" -- die Liste ist eine deterministische Fakten-Quelle, kein Sprachproblem. Aenderung der Plattform-Liste wuerde Prompt-Edits statt Config-Edits erfordern (IP-Trennung, interne Referenz (entfernt) §5). |
+| Plattform-Liste direkt im System-Prompt von `propose_solution` | Verstoesst gegen "Regeln vor LLM" -- die Liste ist eine deterministische Fakten-Quelle, kein Sprachproblem. Aenderung der Plattform-Liste wuerde Prompt-Edits statt Config-Edits erfordern (vertraglich bedingte IP-Trennung). |
 | Tool-Layer + Loop-Verdrahtung an einem Tag | Zu gross fuer 8-15h/Woche; Risiko, die Loop-Architektur-Entscheidung (Service vs. eigener Adapter) unter Zeitdruck zu treffen. Aufgeteilt: Tag 37 Fundament, Tag 38 Verdrahtung + Tool-Fail-Test (Gate-Thema "Function-Calling-Loop", session-protocol v3 §3). |
 | `arguments: str` (roher JSON-String, providertypisch) | `dict[str, Any]` ist fuer Mock und `lookup_stack_options` (parameterlos) einfacher; Parsing/Serialisierung gehoert in einen spaeteren Azure-Adapter, nicht in den providerunabhaengigen Port. |
 
@@ -40,7 +40,7 @@ Tool: `lookup_stack_options` -- parameterlos, liest Plattform-Optionen
 - Rueckwaertskompatibel: alle 262 bestehenden Tests bleiben unveraendert
   gruen, `tools=None` ist der bisherige Pfad.
 - Plattform-Namen liegen ab heute in `config/stack_options.toml` --
-  IP-Trennung (interne Referenz (entfernt) §5), bevor `propose_solution` sie nutzt.
+  IP-Trennung (vertraglich bedingt), bevor `propose_solution` sie nutzt.
 - `dispatch_tool_call()` zentralisiert das Dispatch und whitelisted Tool-
   Namen (LLM06 Excessive Agency) -- Tag 38 muss nur noch die Schleife
   verdrahten, nicht das Dispatch entwerfen.

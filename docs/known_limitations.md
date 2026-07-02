@@ -1,7 +1,7 @@
 # Known Limitations — AI Efficiency Control Tower (AECT)
 
 > Limitationen offen benennen ist das staerkste Glaubwuerdigkeits-Asset
-> dieses Projekts (interne Referenz (entfernt) SS7). Gilt fuer v1 — Stand Juni 2026.
+> dieses Projekts (Projekt-Prinzip "Grenzen offenlegen"). Gilt fuer v1 — Stand Juni 2026.
 
 ---
 
@@ -157,7 +157,7 @@ ersetzt kein Urteil.
 ## 9. Compliance-Hinweise: Advisory, kein Rechtsurteil
 
 **Was:** Compliance-Hinweise sind belegte Hinweise mit Quellenangabe, immer
-als "zu pruefen" markiert (interne Referenz (entfernt) SS6). Kein juristisches Urteil,
+als "zu pruefen" markiert (Projekt-Prinzip "Hinweis, kein Urteil"). Kein juristisches Urteil,
 kein `dpia_required: true`.
 
 **Konsequenz:** Ein Hinweis "DSFA-Pruefung empfohlen" ersetzt keine
@@ -178,12 +178,12 @@ aber nicht vollstaendig.
 
 ## 11. Kein Produktivbetrieb
 
-**Was:** AECT ist ein privates Portfolio-Projekt (interne Referenz (entfernt) SS1).
+**Was:** AECT ist ein privates Portfolio-Projekt (Projekt-Zielsetzung).
 Kein Clustering, kein HA, kein automatisiertes Backup, kein Monitoring
 (Alerting-Konzept dokumentiert, nicht implementiert).
 
 **Konsequenz:** Kein SLA. Nicht fuer Kundendaten geeignet ohne
-Security-Hardening-Pass und IP-Klaerung (interne Referenz (entfernt) SS5).
+Security-Hardening-Pass und IP-Klaerung (vertraglich bedingt).
 
 ---
 
@@ -195,7 +195,7 @@ Compliance -> Report.
 
 **Konsequenz:** Demo erfordert zwei laufende Prozesse (uvicorn + npm run dev)
 und Docker fuer ChromaDB. Kein öffentlicher URL -- privates Portfolio-Build
-(interne Referenz (entfernt) §1, §5, IP-Klaerung ausstehend).
+(privates Projekt, vertragliche IP-Klaerung ausstehend).
 
 **Produktivbetrieb-Anforderungen:** Reverse-Proxy (NGINX/Caddy) vor beiden
 Services, HTTPS-Terminierung, Dockerfile fuer Frontend. Dokumentiert als

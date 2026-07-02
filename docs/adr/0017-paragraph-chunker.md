@@ -50,7 +50,7 @@ Chunking-Funktion.
 | ChunkerPort + MockChunker (analog Embedder/Retriever) | Kein zweiter Provider in Sicht -- die Chunking-Logik selbst hat kein austauschbares Backend, ein Port ohne zweite Implementierung waere Spekulation (vgl. ADR-0015s Verzicht auf ein Embedding-Werteobjekt aus demselben Grund). |
 | Zeichen-/Wort-Zaehlung statt Token-Zaehlung | Das Projekt kennt bereits eine Groessen-Metrik (Tokens, `cost_logger.py`). Zwei verschiedene Zaehlweisen fuer "Groesse" im selben Projekt waeren eine vermeidbare Inkonsistenz. |
 | Fixe Zeichen-Fenster ohne Absatz-Ruecksicht (Sliding Window) | Zerschneidet Saetze/Gedanken willkuerlich mitten im Inhalt -- bei kuratierten Compliance-/Stack-Texten (Folge-Tage) ist Absatzstruktur meist bereits eine sinnvolle inhaltliche Grenze. |
-| LangChain-TextSplitter o.ae. als neue Dependency | interne Referenz (entfernt) SS4 / Tag-48-Notiz: "additiv, keine neue schwere Dependency". `re` (Stdlib) + bereits vorhandenes `tiktoken` reichen. |
+| LangChain-TextSplitter o.ae. als neue Dependency | Scope-Disziplin / Tag-48-Notiz: "additiv, keine neue schwere Dependency". `re` (Stdlib) + bereits vorhandenes `tiktoken` reichen. |
 | Hartes Cutoff statt Fallback-Slicing fuer ueberlange Absaetze | Wuerde Inhalt stillschweigend verlieren. Token-Slicing (encode/decode) verliert nichts, nur die Absatzgrenze wird in diesem seltenen Fall ignoriert -- dokumentierter Trade-off, kein Datenverlust. |
 | `overlap_tokens >= max_tokens` stillschweigend zulassen | Fuehrt zu einem Chunk, der ausschliesslich aus uebernommenem Overlap-Inhalt ohne neuen Inhalt bestehen kann -- ValueError macht die Fehlkonfiguration sofort sichtbar statt sie als stillen Bug ins Retrieval durchsickern zu lassen. |
 

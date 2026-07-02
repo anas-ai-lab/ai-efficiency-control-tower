@@ -22,7 +22,7 @@ moeglich" (expected_zone fehlt) und ist explizit verschieden von `False`
 ("Vergleich durchgefuehrt, System lag falsch"). Eine Zwei-Werte-Variante haette
 unlabeled Cases als `False` werten muessen -- das waere eine stille Falschaussage
 ("System hat falsch gelegen"), obwohl schlicht kein menschliches Urteil vorliegt.
-Direkte Konsequenz aus interne Referenz (entfernt) SS7: Konsistenz-Eval und Experten-Abgleich sind
+Direkte Konsequenz aus der Projekt-Methodik: Konsistenz-Eval und Experten-Abgleich sind
 zwei verschiedene Dinge, die Datenstruktur darf sie nicht vermischen.
 
 **2. Report-Format: JSON, kein Markdown/CSV.**

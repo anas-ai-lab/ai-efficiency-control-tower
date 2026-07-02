@@ -235,7 +235,7 @@ Entscheidung: v2-Backlog. Nicht implementiert.
 Beschreibung: ADR-001 und ADR-002 enthielten keine explizite Begruendung der Schwellenwerte
 (20k/120h/5k Vorfilter; 50k/composite<=4/7 Zonen). Interview-Frage "Warum 50.000 EUR?"
 waere ohne direkte ADR-Antwort schwer zu beantworten.
-Begruendung: Interview-Verteidigbarkeit ist ein Portfolio-Asset-Ziel (interne Referenz (entfernt)).
+Begruendung: Interview-Verteidigbarkeit ist ein Portfolio-Asset-Ziel.
 Entscheidung: Fix Tag 79. Je ein "Interview-Verteidigbarkeit"-Abschnitt in ADR-001 + ADR-002.
 
 **G-017** [P1->v2] [Dual-Threshold]
@@ -247,7 +247,7 @@ Entscheidung: v2-Backlog. Dokumentiert in `docs/known_limitations.md` #14.
 **G-018** [PASS] [AI-vs-Automation-Routing]
 Beschreibung: 4 Routing-Cases analysiert. Signal-Sammlung korrekt, BORDERLINE-Hook
 dokumentiert in ADR-003. Routing-Konstanten korrekt als Methodikparameter im Code
-(interne Referenz (entfernt) SS5, ADR-003 Punkt 4 explizit begruendet).
+(vertragliche IP-Trennung, ADR-003 Punkt 4 explizit begruendet).
 
 **G-019** [PASS] [IP-Trennung domain/]
 Beschreibung: Keine hartcodierten Firmenwerte in domain/-Code gefunden.

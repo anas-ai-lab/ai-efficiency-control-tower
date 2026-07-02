@@ -7,7 +7,7 @@ normalen Laufs -- so importiert pytest weder chromadb noch torch. Beide Imports
 stehen bewusst in der Testfunktion.
 
 Seedet eine wegwerfbare Collection mit 3 synthetischen Chunks (kein PII, keine
-kuratierten Quellen -- IP-Trennung, interne Referenz (entfernt) SS5) INKLUSIVE Provenance-
+kuratierten Quellen -- vertraglich bedingte IP-Trennung) INKLUSIVE Provenance-
 Metadaten, fragt sie ab und raeumt sie im finally wieder weg. Prueft seit
 ADR-0023 zusaetzlich, dass die citation-Metadaten den Round-Trip ueberleben --
 nicht nur die source_id.

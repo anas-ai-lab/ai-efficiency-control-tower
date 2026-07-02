@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Datum:** Juni 2026
-**Kontext:** Phase F — Dokumentation downgraded Topics (Master-Plan v3.1, interne Referenz (entfernt) §4)
+**Kontext:** Phase F — Dokumentation downgraded Topics (Master-Plan v3.1, Scope-Downsizing)
 
 ---
 

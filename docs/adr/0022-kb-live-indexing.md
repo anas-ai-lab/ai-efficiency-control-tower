@@ -50,7 +50,7 @@ Embedding-/Chroma-Imports. Der echte Upsert darf diese Reinheit nicht brechen.
   User-Case-/Query-Pfad (eigenes Gate-Thema "PII-Redaction"), Folge-Tag.
 - **Nur kuratierte Quellen:** index_knowledge_base liest ausschliesslich
   knowledge_base/ (README uebersprungen, ADR-0021). Kein firmenspezifischer
-  Inhalt (IP-Trennung, interne Referenz (entfernt) SS5).
+  Inhalt (vertraglich bedingte IP-Trennung).
 - **Records taggen / Provenance:** source_id im id-Prefix UND in metadata;
   citation/title/url als Metadaten mitgeschrieben.
 - **127.0.0.1-only-Container (ADR-0018):** der Live-Test verbindet gegen

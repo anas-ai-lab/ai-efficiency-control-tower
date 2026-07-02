@@ -7,7 +7,7 @@ Implementiert das v5-Bewertungsmodell:
   Netto-Nutzen             = Erwarteter Nutzen − Lizenzkosten
   Vorfilter                = 3 Schwellenwerte (Potenzial, Stunden, Netto-Nutzen)
 
-Alle firmenspezifischen Parameter kommen per ROIConfig rein (interne Referenz (entfernt) §5).
+Alle firmenspezifischen Parameter kommen per ROIConfig rein (vertraglich bedingte IP-Trennung).
 Kein Hardcoding von Stundensätzen oder Schwellen im Code.
 """
 
@@ -54,7 +54,7 @@ class ROIConfig:
     """Alle numerischen Parameter des ROI-Modells.
 
     Wird per load_roi_config() befüllt — nie inline konstruieren (außer in Tests).
-    IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (interne Referenz (entfernt) §5).
+    IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (vertraglich bedingte IP-Trennung).
 
     hourly_rates:     {"DE": {"PROFESSIONAL": Decimal("65"), ...}, ...}
     evidence_factors: {"HIGH": 1.0, "MEDIUM": 0.75, ...}  — Keys = EvidenceLevel.value

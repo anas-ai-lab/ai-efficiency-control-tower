@@ -5,7 +5,7 @@ from __future__ import annotations
 from aect.application.ports.retriever import RetrievedChunk
 
 # Synthetische Platzhalter-Wissensbasis -- bewusst generisch, keine kuratierten
-# Quellen und keine firmenspezifischen Werte (IP-Trennung, interne Referenz (entfernt) SS5). Echte
+# Quellen und keine firmenspezifischen Werte (vertraglich bedingte IP-Trennung). Echte
 # kuratierte Inhalte (DSGVO-/EU-AI-Act-Auszuege, Stack-Doku) folgen als
 # Markdown-Dateien in knowledge_base/ (Folge-Tage). (text, source_id)-Paare:
 _MOCK_CORPUS: tuple[tuple[str, str], ...] = (

@@ -46,8 +46,7 @@ citations-Liste passen muessen (gleiches Prinzip wie "Provenance muss mit
 dem Chunk reisen, nicht separat gespeichert werden", RAG-Retrieval-Pfad).
 Eine Aufteilung auf Business-/Technical-Schicht wuerde Text und Quelle
 trennen und die Referenz-Integritaet dem Frontend ueberlassen.
-Platzierung in BusinessSummary statt TechnicalDetail: der Hinweis ist
-interne Referenz (entfernt) SS3.1 Punkt 4 zufolge fuer die Fachabteilung/Entscheider gedacht
+Platzierung in BusinessSummary statt TechnicalDetail: der Hinweis ist dem Projekt-Zielbild zufolge fuer die Fachabteilung/Entscheider gedacht
 ("DSFA-Indikator: pruefen lassen"), nicht nur Reviewer-Detail.
 
 **5. Kein Request-Body-Override fuer Compliance-Hinweise in /report**

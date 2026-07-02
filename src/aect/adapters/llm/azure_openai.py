@@ -10,7 +10,7 @@ aect-security-checklist v2.1, Phase C:
 - Exception-Translation: openai-Exceptions -> ConnectionError/TimeoutError
   fuer ResilientLLMAdapter-Retry-Policy (ADR-0007, ADR-0010).
 
-IP-Trennung (interne Referenz (entfernt) SS5): Endpoint, API-Key und Deployment-Name kommen
+IP-Trennung (vertraglich bedingt): Endpoint, API-Key und Deployment-Name kommen
 ausschliesslich aus Settings (Env-Variablen), nicht hartkodiert.
 """
 

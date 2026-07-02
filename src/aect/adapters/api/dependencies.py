@@ -107,7 +107,7 @@ def _get_chroma_collection(host: str, port: int) -> Any:
     get_llm_adapter(), der bewusst ungecached bleibt).
 
     name="aect-knowledge-base": feste, generische Collection -- kein
-    firmenspezifischer Name (IP-Trennung, interne Referenz (entfernt) SS5). Wird befuellt ueber
+    firmenspezifischer Name (vertraglich bedingte IP-Trennung). Wird befuellt ueber
     scripts/seed_knowledge_base.py (ADR-0025), nicht hier.
     """
     import chromadb

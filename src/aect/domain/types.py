@@ -3,7 +3,7 @@
 Alle Enum-Werte sind snake_case (StrEnum — direktes Parsen aus JSON/Form-Daten,
 kein manuelles .value-Mapping nötig).
 
-IP-Trennung (interne Referenz (entfernt) §5): Faktor-Mappings (Stundensätze, Score-Gewichte,
+IP-Trennung (vertraglich bedingt): Faktor-Mappings (Stundensätze, Score-Gewichte,
 Vorfilter-Schwellen) liegen in config/roi_config.toml — nicht hier.
 """
 

@@ -49,7 +49,7 @@ Daten in Antworten preis (PII, Auth-Konfiguration, Secrets).
 - Globaler Exception-Handler: gibt nur `{"detail": "Internal error",
   "request_id": "..."}` zurueck -- kein Kontext der Interna offenlegt.
 - Compliance-Outputs werden als "Hinweis, zu pruefen, kein verbindliches Urteil"
-  gerahmt (interne Referenz (entfernt) SS6).
+  gerahmt (Projekt-Prinzip "Hinweis, kein Urteil").
 
 **Status:** MITIGATED
 **Evidenz:** `src/aect/adapters/api/logging_config.py`, `src/aect/adapters/api/app.py`
@@ -148,7 +148,7 @@ zu, fuehrt Aktionen aus oder schreibt Daten ohne Human Review.
   offener ReAct-Loop.
 - AECT entscheidet nichts selbst: keine finale Freigabe, keine DB-Schreiboperation,
   kein externer Call aus dem LLM-Output heraus. Der Mensch entscheidet
-  (interne Referenz (entfernt) SS3.2).
+  (Projekt-Prinzip "Regeln vor LLM").
 
 **Status:** MITIGATED
 **Evidenz:** `src/aect/application/tools.py`, `src/aect/application/service.py`
@@ -223,14 +223,14 @@ Informationen -- besonders kritisch bei Compliance- und Security-Hinweisen.
   Datum) aufgebaut, bevor das LLM formuliert. Das LLM erfindet keine
   Artikel-Nummern strukturell, nicht nur durch Prompt-Discipline (ADR-0027).
 - Alle Compliance-Outputs als "Hinweis, zu pruefen" gerahmt -- kein
-  `dpia_required: true/false`, kein verbindliches Urteil (interne Referenz (entfernt) SS6).
+  `dpia_required: true/false`, kein verbindliches Urteil (Projekt-Prinzip "Hinweis, kein Urteil").
 - Eval-Phase: Mismatches golden-001/003 sind als "off-by-one-unit bei harten
   Schwellen ueber kontinuierlichen Werten" dokumentiert (ADR-0031,
   `docs/limitations.md`).
 
 **Bekannte Einschraenkung:** Praeadiktive Validitaet -- plant der Use-Case
 tatsaechlich den vorhergesagten Nutzen? -- ist im privaten Build ohne
-Monitoring-Loop nicht messbar. Offen dokumentiert als Grenze (interne Referenz (entfernt) SS7).
+Monitoring-Loop nicht messbar. Offen dokumentiert als Grenze (Projekt-Prinzip "Grenzen offenlegen").
 
 **Status:** PARTIAL
 **Evidenz:** `adapters/rag/`, `application/service.py`,

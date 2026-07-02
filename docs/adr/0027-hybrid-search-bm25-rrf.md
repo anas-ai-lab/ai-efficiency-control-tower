@@ -24,7 +24,7 @@ sieht beide kombiniert vor, nicht als Alternative zueinander.
    | Alternative | Warum verworfen |
    |---|---|
    | `rank_bm25`-Bibliothek | Keine Typstubs (mypy-Reibung), zusaetzliche Dependency fuer ~30 Zeilen Algorithmus, weniger Kontrolle ueber Tokenizer-Verhalten auf der ASCII-only-KB (ADR-0021) |
-   | Elasticsearch/OpenSearch fuer BM25 | Eigene Infrastruktur-Komponente -- Overkill fuer eine handvoll KB-Files, widerspricht Budget-/Scope-Disziplin (interne Referenz (entfernt) SS4) |
+   | Elasticsearch/OpenSearch fuer BM25 | Eigene Infrastruktur-Komponente -- Overkill fuer eine handvoll KB-Files, widerspricht Budget-/Scope-Disziplin |
 
 2. **Reciprocal Rank Fusion, k=60.** Cormack/Clarke/Buettcher (2009):
    score(d) = Summe ueber alle Listen, in denen d vorkommt, von

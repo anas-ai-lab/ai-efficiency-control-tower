@@ -270,7 +270,7 @@ class SQLiteRepository:
     Jede DB-Operation oeffnet eine eigene Verbindung (Context Manager) --
     kein geteilter Connection-State, kein Threading-Problem.
 
-    IP-Trennung (interne Referenz (entfernt) SS5): keine firmenspezifischen Werte im Code.
+    IP-Trennung (vertraglich bedingt): keine firmenspezifischen Werte im Code.
     Security: submitted_at = unveraenderlicher Audit-Trail pro Case.
     """
 

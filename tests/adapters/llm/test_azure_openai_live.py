@@ -14,7 +14,7 @@ vervielfachen.
 EU-Data-Zone-Pflicht (ADR-0003): Deployment muss in swedencentral oder
 westeurope liegen -- Deployment-Zeit-Pflicht, kein Code-Gate.
 
-IP-Trennung (interne Referenz (entfernt) SS5): Endpoint/Deployment/Key kommen ausschliesslich
+IP-Trennung (vertraglich bedingt): Endpoint/Deployment/Key kommen ausschliesslich
 aus .env (nicht committed) ueber Settings -- keine Werte in diesem File.
 """
 

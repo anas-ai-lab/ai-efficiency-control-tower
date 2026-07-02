@@ -36,7 +36,7 @@ idempotent pro Instanziierung.
 
 SQLite ist dateibasiert, erfordert keinen Server-Prozess, ist in Pythons
 Standardbibliothek enthalten und passt zum Budget- und
-Local-First-Prinzip (interne Referenz (entfernt)).
+Local-First-Prinzip des Projekts.
 
 ## Konsequenzen
 

@@ -134,10 +134,10 @@ Befunde, beide load-bearing für die ausstehende IP-Entscheidung.
 
 **AUDIT-011** [P1 / S / med] `config/stack_options.toml` ist committed
 (`git ls-files`), deklariert sich im eigenen Header aber als Halter
-"firmenspezifischer Plattform-Namen" (IP-Trennung interne Referenz (entfernt) §5) -- ohne den
+"firmenspezifischer Plattform-Namen" (vertraglich bedingte IP-Trennung) -- ohne den
 gitignore-Split, den `roi_config.local.toml` hat. Inhalt: Open WebUI, Copilot
-Studio, Microsoft Foundry, SAP BTP. Die Plattform-Kombination (Enterprise-Stack-
-Enterprise) ist ein Low-Med-Signal über die Firmenumfeld. Entweder
+Studio, Microsoft Foundry, SAP BTP. Vor einem Public-Release ist zu pruefen,
+ob die Plattform-Liste generisch genug ist. Entweder
 (a) generisch genug -> Header korrigieren, oder (b) firmenspezifisch -> wie
 roi_config splitten (`.example` committen, echtes gitignoren + Fallback). NICHT
 auto-gefixt: gitignoren ohne Fallback bräche `lookup_stack_options()` im
@@ -152,7 +152,7 @@ MIT/CC). Entscheidung: Teil der IP-Klärung.
 
 ## 7) Governance -- Reifegrad 4,5/5
 
-Human-in-the-Loop strukturell (Advisory-Framing überall, interne Referenz (entfernt) §3.3), 41 echte
+Human-in-the-Loop strukturell (Advisory-Framing überall, Prinzip Human-in-the-Loop), 41 echte
 ADRs (G-S6 stichprobengeprüft: 0024/0027/0034/ADR-001/ADR-004 alle mit ernsthaft
 erwogenen Alternativen), AI-BOM vorhanden, Cost-Governance (cost_logger +
 Budget-Cap ADR-0034), Eval-Governance ehrlich (Agreement 1/3 offen kommuniziert).
@@ -276,7 +276,7 @@ Nutzer-Aktion und in phase-g-review.md §6 geführt.)
    *Empfehlung: v2 spaCy-NER; bis dahin known_limitations #7 prominent halten.*
 5. **EU-Residenz ohne Code-Gate (AUDIT-008)** -- Fehlkonfiguration kann PII
    außerhalb der EU verarbeiten. *Empfehlung: Region-Allowlist im Settings-Load.*
-6. **stack_options.toml committed (AUDIT-011)** -- verrät Stack-Zusammensetzung.
+6. **stack_options.toml committed (AUDIT-011)** -- Plattform-Liste auf Generik pruefen.
    *Empfehlung: vor Public-Release splitten oder Header korrigieren.*
 7. **Kein secret-compromise-Runbook (AUDIT-015)** -- der G-045-Vorfall zeigte
    den Bedarf. *Empfehlung: ein knappes Rotations-Runbook schreiben.*

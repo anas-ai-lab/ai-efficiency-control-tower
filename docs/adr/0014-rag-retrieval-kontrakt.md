@@ -8,7 +8,7 @@
 
 Phase D fuehrt belegte Hinweise ein: Compliance-/Stack-Wissen wird nicht aus
 Modellwissen erzeugt, sondern aus kuratierten Quellen geholt und mit Quelle
-zitiert (interne Referenz (entfernt) SS3.2, Master-Plan v3.1 Phase D). Bevor echte Suche
+zitiert (Projekt-Prinzip "Regeln vor LLM", Master-Plan v3.1 Phase D). Bevor echte Suche
 (Embeddings, ChromaDB, BM25, Hybrid + Reranking) gebaut wird, braucht es einen
 stabilen Kontrakt, gegen den der spaetere Service arbeitet -- analog dem
 LLM-Port (ADR-0003/ADR-0005), der die LLM-Integration mock-first eroeffnet hat.

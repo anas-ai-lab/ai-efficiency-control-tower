@@ -9,7 +9,7 @@
 > gilt known_limitations.md.
 >
 > Limitationen zu verbergen untergraebt die Glaubwuerdigkeit staerker
-> als sie offenzulegen (interne Referenz (entfernt) SS7).
+> als sie offenzulegen (Projekt-Prinzip "Grenzen offenlegen").
 
 ---
 
@@ -49,7 +49,7 @@ realisiert? Das misst der Monitoring-Teil des realen Prozesses.
 
 **Warum strukturell nicht erreichbar:** Kein Produktiv-Einsatz, keine
 Feedback-Schleife mit realisierten Ergebnissen. AECT misst Ex-ante-
-Schaetzguete, nicht Ex-post-Treffsicherheit (interne Referenz (entfernt) SS7: offen als
+Schaetzguete, nicht Ex-post-Treffsicherheit (Eval-Methodik: offen als
 Limitation dokumentiert, nicht versteckt).
 
 ---

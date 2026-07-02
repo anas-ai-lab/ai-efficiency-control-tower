@@ -49,7 +49,7 @@ Die menschenlesbare Citation muss also als Metadatum mitwandern.
 - **Provenance-Tag pro Dokument:** erfuellt -- citation/title/url als Metadaten.
 - **Nur kuratierte, vertrauenswuerdige Quellen:** die beiden ersten KB-Files
   sind oeffentlicher Gesetzestext (DSGVO, KI-VO), kein firmenspezifischer
-  Inhalt (IP-Trennung, interne Referenz (entfernt) SS5).
+  Inhalt (vertraglich bedingte IP-Trennung).
 - **PII-Redaction vor Embedding (LLM08):** hier bewusst NICHT umgesetzt.
   Kuratierter oeffentlicher Rechtstext enthaelt keine personenbezogenen Daten.
   Die Redaction-Pflicht gilt dem User-Case-/Query-Pfad und etwaigen kuenftigen

@@ -6,7 +6,7 @@ Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung
 
 Erstes Tool: lookup_stack_options. Liest die Zielplattformen (Open WebUI,
 Copilot Studio, Foundry, SAP BTP, Andere) aus config/stack_options.toml --
-IP-Trennung (interne Referenz (entfernt) §5): Plattform-Namen sind firmenspezifisch und
+IP-Trennung (vertraglich bedingt): Plattform-Namen sind firmenspezifisch und
 gehoeren nicht in den generischen Code.
 
 Tag 37 liefert nur die Registry + Dispatch-Funktion. Die eigentliche

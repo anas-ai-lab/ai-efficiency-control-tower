@@ -1,6 +1,6 @@
 # AECT ROI-Konfiguration — GENERISCHE PLATZHALTER
 #
-# IP-Trennung (interne Referenz (entfernt) §5): KEINE echten Firmenwerte hier eintragen.
+# IP-Trennung (vertraglich bedingt): KEINE echten Firmenwerte hier eintragen.
 # Echte Stundensätze → config/roi_config.local.toml (gitignored)
 #
 # Keys MÜSSEN mit StrEnum-Values aus src/aect/domain/types.py übereinstimmen:

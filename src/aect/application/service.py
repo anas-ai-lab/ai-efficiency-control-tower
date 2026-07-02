@@ -672,7 +672,7 @@ class TriageService:
     ) -> ComplianceHintsResult | None:
         """RAG-gegruendete Compliance-Hinweise fuer einen persistierten Case.
 
-        Retrieval-Trigger ist regelbasiert (interne Referenz (entfernt) SS3.2: Regeln triggern,
+        Retrieval-Trigger ist regelbasiert (Projekt-Prinzip: Regeln triggern,
         RAG belegt), nicht aus Use-Case-Freitext:
         - Transparenz-Query (EU AI Act Art. 50): immer -- jeder Report wird
           fuer Menschen ausgegeben, der Transparenzhinweis ist nicht an

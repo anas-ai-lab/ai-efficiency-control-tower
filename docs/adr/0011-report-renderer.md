@@ -5,7 +5,7 @@ Accepted
 
 ## Kontext
 
-Master-Plan v3.1 (Phase C) und interne Referenz (entfernt) SS3.1 Punkt 6 fordern einen
+Master-Plan v3.1 (Phase C) und das Projekt-Zielbild fordern einen
 zweischichtigen Report (Business-Zusammenfassung fuer Entscheider +
 technische Detailebene fuer Reviewer), "maschinell als striktes JSON
 validiert".
@@ -22,7 +22,7 @@ waere mit dem Mock nicht testbar (Mock-First, Tag 35).
 LLM-Call. `TriageService.generate_report()` leitet `BusinessSummary` und
 `TechnicalDetail` deterministisch aus den bereits vollstaendig typisierten
 Domain-Ergebnissen ab (Vorfilter, ROI, Composite, Zone, Routing,
-Feasibility). Das "strikte JSON" aus interne Referenz (entfernt) SS3.1.6 ist der
+Feasibility). Das "strikte JSON" aus dem Projekt-Zielbild ist der
 Pydantic-`response_model` der Route -- erfuellt, ohne auf LLM-JSON-Parsing
 zu warten.
 

@@ -45,7 +45,7 @@ eine Aktion).
 
 Die Schwellen 0.75/0.90 sind **generische Cosinus-Werte** (Standard-Methodik),
 keine firmenspezifischen Werte wie ROI-/Zonen-Schwellen -- daher als
-Code-Konstanten gefuehrt, nicht in `config/` (vgl. IP-Trennung interne Referenz (entfernt) SS5).
+Code-Konstanten gefuehrt, nicht in `config/` (vgl. vertraglich bedingte IP-Trennung).
 
 ## Konsequenzen
 

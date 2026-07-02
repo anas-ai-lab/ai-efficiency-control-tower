@@ -4,13 +4,13 @@
 **Version:** 2.0
 **Stand:** Mai 2026
 **Autor:** AI Efficiency Control Tower
-**Zielgruppen:** Internes Gremium, Fachbereiche, Engineering, Compliance
+**Zielgruppen:** AI-Governance-Gremium, Fachbereiche, Engineering, Compliance
 
 ---
 
 ## 1. Executive Summary
 
-> Für das Internes Gremium und das Management — Lesedauer: 2 Minuten.
+> Für das AI-Governance-Gremium und das Management — Lesedauer: 2 Minuten.
 
 **Das Problem:** Unternehmen setzen AI ein, ohne zu prüfen ob AI die richtige Antwort ist. Das Ergebnis: teure Projekte, die klassische Automatisierung ersetzen hätten sollen — oder AI-Projekte ohne ausreichende Governance, die an Compliance-Anforderungen scheitern.
 

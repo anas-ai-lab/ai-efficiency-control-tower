@@ -290,7 +290,7 @@ docs/
 
 **Compliance-Philosophie:** AECT gibt ausschliesslich belegte Hinweise mit Quellenangabe aus --
 kein verbindliches Rechtsurteil. Jeder Compliance-Hinweis ist explizit als "zu pruefen" markiert
-(interne Referenz (entfernt) §6). Halluzinierte Artikel-Nummern sind durch das Citations-before-LLM-Pattern
+(Projekt-Prinzip "Hinweis, kein Urteil"). Halluzinierte Artikel-Nummern sind durch das Citations-before-LLM-Pattern
 strukturell ausgeschlossen.
 
 ## Autor

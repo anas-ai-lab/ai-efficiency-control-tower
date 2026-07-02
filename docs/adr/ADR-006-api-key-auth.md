@@ -26,7 +26,7 @@ gibt die Dependency 500 zurueck. `/health` ist explizit von
 
 | Alternative | Warum verworfen |
 |---|---|
-| JWT + RBAC | Mehraufwand (Token-Issuance, Refresh, Rollenmodell) ohne Mehrwert fuer Single-User-System. interne Referenz (entfernt)-Scope: JWT/RBAC ist nicht v1-Kern -- nur falls ein Multi-User-Frontend es verlangt, dann als Design/ADR. |
+| JWT + RBAC | Mehraufwand (Token-Issuance, Refresh, Rollenmodell) ohne Mehrwert fuer Single-User-System. v1-Projekt-Scope: JWT/RBAC ist nicht v1-Kern -- nur falls ein Multi-User-Frontend es verlangt, dann als Design/ADR. |
 | OAuth2 / Session-Cookies | Setzt Login-Flow und User-Verwaltung voraus -- existiert nicht und ist fuer ein privates Portfolio-Backend nicht gerechtfertigt. |
 | Kein Auth (nur Netzwerk-Isolation) | Verstoesst gegen aect-security-checklist v2.1 Phase B; bei spaeterer oeffentlicher Demo-Instanz sofort offen. |
 
@@ -54,7 +54,7 @@ Infrastruktur aufzubauen, die fuer ein Single-User-System ungenutzt bliebe.
 
 **Neutral / Folgeentscheidungen:**
 - Falls Phase F ein Multi-User-Frontend erfordert: JWT/RBAC wird dann als
-  eigenes ADR evaluiert (interne Referenz (entfernt)-Scope-Tabelle: Design/ADR, kein
+  eigenes ADR evaluiert (Projekt-Scope-Tabelle: Design/ADR, kein
   Vollausbau).
 - Rate Limiting (30/min POST /triage, 60/min GET /cases via `slowapi`) ist
   die zweite Verteidigungslinie gegen Missbrauch eines kompromittierten

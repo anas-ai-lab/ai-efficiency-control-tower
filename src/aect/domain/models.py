@@ -12,7 +12,7 @@ Security by Design:
 Anreicherung durch den Application-Layer passiert in separaten Ausgabeobjekten
 (TriageResult — wird in Phase B/C eingeführt), nicht durch Mutation dieses Objekts.
 
-IP-Trennung (interne Referenz (entfernt) §5): Stundensätze, Faktor-Mappings, Vorfilter-Schwellen
+IP-Trennung (vertraglich bedingt): Stundensätze, Faktor-Mappings, Vorfilter-Schwellen
 liegen in config/roi_config.toml — nie in diesem Modell.
 """
 

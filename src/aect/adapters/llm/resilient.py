@@ -21,7 +21,7 @@ Azure-OpenAI-Adapter wirft providerspezifische Exceptions (z. B.
 APIConnectionError, RateLimitError) -- die Retry-Bedingung muss dann erweitert
 werden, sobald dieser Adapter existiert (cat-Pflicht, session-protocol v3 SS1).
 
-IP-Trennung (interne Referenz (entfernt) SS5): keine firmenspezifischen Werte -- generischer Code.
+IP-Trennung (vertraglich bedingt): keine firmenspezifischen Werte -- generischer Code.
 """
 
 from __future__ import annotations

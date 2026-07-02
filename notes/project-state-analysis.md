@@ -537,7 +537,7 @@ __all__ = [
 Alle Enum-Werte sind snake_case (StrEnum — direktes Parsen aus JSON/Form-Daten,
 kein manuelles .value-Mapping nötig).
 
-IP-Trennung (interne Referenz (entfernt) §5): Faktor-Mappings (Stundensätze, Score-Gewichte,
+IP-Trennung (vertraglich bedingt): Faktor-Mappings (Stundensätze, Score-Gewichte,
 Vorfilter-Schwellen) liegen in config/roi_config.yaml — nicht hier.
 """
 
@@ -640,7 +640,7 @@ Security by Design:
 Anreicherung durch den Application-Layer passiert in separaten Ausgabeobjekten
 (TriageResult — wird in Phase B/C eingeführt), nicht durch Mutation dieses Objekts.
 
-IP-Trennung (interne Referenz (entfernt) §5): Stundensätze, Faktor-Mappings, Vorfilter-Schwellen
+IP-Trennung (vertraglich bedingt): Stundensätze, Faktor-Mappings, Vorfilter-Schwellen
 liegen in config/roi_config.yaml — nie in diesem Modell.
 """
 
@@ -795,7 +795,7 @@ Implementiert das v5-Bewertungsmodell:
   Netto-Nutzen             = Erwarteter Nutzen − Lizenzkosten
   Vorfilter                = 3 Schwellenwerte (Potenzial, Stunden, Netto-Nutzen)
 
-Alle firmenspezifischen Parameter kommen per ROIConfig rein (interne Referenz (entfernt) §5).
+Alle firmenspezifischen Parameter kommen per ROIConfig rein (vertraglich bedingte IP-Trennung).
 Kein Hardcoding von Stundensätzen oder Schwellen im Code.
 """
 
@@ -837,7 +837,7 @@ class ROIConfig:
     """Alle numerischen Parameter des ROI-Modells.
 
     Wird per load_roi_config() befüllt — nie inline konstruieren (außer in Tests).
-    IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (interne Referenz (entfernt) §5).
+    IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (vertraglich bedingte IP-Trennung).
 
     hourly_rates:     {"DE": {"PROFESSIONAL": Decimal("65"), ...}, ...}
     evidence_factors: {"HIGH": 1.0, "MEDIUM": 0.75, ...}  — Keys = EvidenceLevel.value
@@ -1349,7 +1349,7 @@ def _build_recommendation(flags: list[FeasibilityFlag]) -> str:
 ```toml
 # AECT ROI-Konfiguration — GENERISCHE PLATZHALTER
 #
-# IP-Trennung (interne Referenz (entfernt) §5): KEINE echten Firmenwerte hier eintragen.
+# IP-Trennung (vertraglich bedingt): KEINE echten Firmenwerte hier eintragen.
 # Echte Stundensätze → config/roi_config.local.toml (gitignored)
 
 [thresholds]

@@ -49,8 +49,7 @@ neuen Spalten nicht und wuerde bei get()/save() einen sqlite3.OperationalError
 werfen (Spalte fehlt). Im privaten Build kein Problem (Test-DBs sind
 tmp_path-basiert, keine produktive DB existiert). Falls doch eine lokale
 DB-Datei aus Tag <42 existiert: loeschen, wird beim naechsten _init_db()
-mit neuem Schema neu angelegt. Keine Migrations-Tooling (Alembic) im Stack
-(interne Referenz (entfernt)) -- bewusst, fuer ein Solo-Portfolio-Projekt unverhaeltnismaessig.
+mit neuem Schema neu angelegt. Keine Migrations-Tooling (Alembic) im Stack -- bewusst, fuer ein Solo-Portfolio-Projekt unverhaeltnismaessig.
 
 ## Offene Punkte
 

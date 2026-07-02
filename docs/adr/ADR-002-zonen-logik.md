@@ -56,7 +56,7 @@ Der Application Service (Phase B) verbindet ROIResult + CompositeScore
 mit dem Classifier. Tests brauchen kein vollstaendiges UseCaseInput-Objekt.
 
 **2. Konfigurierbare Schwellen via Konstruktor-Injektion.**
-Schwellenwerte sind firmenspezifisch kalibrierbar (interne Referenz (entfernt) §5).
+Schwellenwerte sind firmenspezifisch kalibrierbar (vertraglich bedingte IP-Trennung).
 YAML-Config + `load_zone_classifier()` ermoeglicht Wechsel ohne
 Code-Aenderung. `ZoneClassifier` selbst ist IP-sauber und zeigbar.
 

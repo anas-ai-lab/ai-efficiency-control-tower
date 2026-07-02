@@ -35,8 +35,8 @@ als zweite Stufe auf einer bereits vorgefilterten Kandidatenmenge
 
    | Alternative | Warum verworfen |
    |---|---|
-   | Groesseres Cross-Encoder-Modell (z. B. `ms-marco-MiniLM-L-12-v2`) | Mehr Latenz fuer marginalen Genauigkeitsgewinn auf einer kleinen, kuratierten Wissensbasis -- Budget-/Scope-Disziplin (interne Referenz (entfernt) SS4) |
-   | LLM-basiertes Reranking (Azure-Call mit Relevanz-Prompt) | Kosten + Latenz pro Query, fuer eine lokale Wissensbasis mit wenigen Dokumenten nicht gerechtfertigt; widerspricht Local-first (interne Referenz (entfernt) SS3.2) |
+   | Groesseres Cross-Encoder-Modell (z. B. `ms-marco-MiniLM-L-12-v2`) | Mehr Latenz fuer marginalen Genauigkeitsgewinn auf einer kleinen, kuratierten Wissensbasis -- Budget-/Scope-Disziplin |
+   | LLM-basiertes Reranking (Azure-Call mit Relevanz-Prompt) | Kosten + Latenz pro Query, fuer eine lokale Wissensbasis mit wenigen Dokumenten nicht gerechtfertigt; widerspricht dem Local-first-Prinzip |
 
 3. **candidate_pool=10 (Default), analog HybridRetriever.candidate_pool.**
    Der innere Retriever wird mit `top_k=candidate_pool` abgefragt, nicht

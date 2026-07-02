@@ -51,7 +51,7 @@ chroma_db/
 .coverage*
 htmlcov/
 
-# Firmenspezifische ROI-Config (IP-Trennung, interne Referenz (entfernt) §5)
+# Firmenspezifische ROI-Config (vertraglich bedingte IP-Trennung)
 config/roi_config.local.toml
 
 # setuptools build artifacts

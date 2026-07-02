@@ -46,7 +46,7 @@ class SharpenedContentV2(BaseModel):
     sharpened_title analog title (5-200), sharpened_current_state/
     sharpened_desired_state analog current_state/desired_state (30-2000).
 
-    improvement_suggestions deckt interne Referenz (entfernt) SS3.1 Punkt 1 ("konkrete
+    improvement_suggestions deckt die Projekt-Anforderung ("konkrete
     Verbesserungsvorschlaege") ab -- max_length=10 begrenzt die Liste selbst
     gegen Token-Flooding (LLM10), je 5-500 Zeichen pro Eintrag.
 

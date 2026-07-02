@@ -74,7 +74,7 @@ AECT bleibt Limited Risk. Herleitung, nicht Behauptung:
   gegen 2026-08-02 und benennt die verschobenen Fristen als "politisch
   beschlossen, Inkrafttreten mit Amtsblatt-Veroeffentlichung offen".
 - KB-Eintraege zu DSGVO/AI-Act tragen Quelle + Datum + "zu pruefen"-Markierung
-  (interne Referenz (entfernt) SS6: Hinweis mit Quelle, kein Urteil). Kein dpia_required-Boolean.
+  (Projekt-Prinzip: Hinweis mit Quelle, kein Urteil). Kein dpia_required-Boolean.
 - Re-Check-Pflicht bleibt: Vor jedem oeffentlichen Compliance-Statement
   (Phase F, LinkedIn) den Amtsblatt-Status erneut pruefen - dieser Stand ist
   zeitgestempelt und veraltet mit der Veroeffentlichung.

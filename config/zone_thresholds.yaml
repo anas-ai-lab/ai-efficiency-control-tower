@@ -1,6 +1,6 @@
 # Zone classification thresholds for AECT triage.
-# INTERNAL — use generic placeholder values only.
-# This file uses generic placeholders only (IP separation: interne Referenz (entfernt) §5).
+# GENERIC PLACEHOLDER values only.
+# Real, firm-specific parameters are never committed (contractual IP separation).
 
 zone:
   likely_win:

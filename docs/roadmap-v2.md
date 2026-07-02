@@ -7,7 +7,7 @@
 >
 > **Zweck:** Markt- und Produktdenken als Interview-Asset fuer
 > Solution-Architect-Rollen. NICHT die Vorbereitung eines Startups. AECT bleibt
-> ein privates Portfolio-Projekt (interne Referenz (entfernt) SS1).
+> ein privates Portfolio-Projekt (Projekt-Zielsetzung).
 >
 > Stand: G-S7, Tag 82 (2026-06-27).
 
@@ -79,7 +79,7 @@ kann. Das ist Solution-Architect-Denken, kein Produkt-Anspruch.
 Skala 1-5, hoeher = attraktiver fuer das Portfolio-Ziel. Achsen:
 **PT** Portfolio-Tiefe · **AG** Aufwand-Guenstigkeit (5 = billig zu bauen) ·
 **DI** Differenzierung · **MR** Markt-/Interview-Relevanz ·
-**IP** IP-Sicherheit (5 = sicher zeigbar, fern der realer Firmenkontext).
+**IP** IP-Sicherheit (5 = sicher zeigbar, fern jedes realen Firmenkontexts).
 
 | Option | PT | AG | DI | MR | IP | Summe |
 |---|---|---|---|---|---|---|
@@ -102,7 +102,7 @@ Begruendungs-Schlaglichter:
   adressiert, rein in der Domain-Schicht lebt (gut testbar, kein I/O), und
   vollstaendig generisch ist (IP 5).
 - **L-2** hat hoechste Tiefe/Relevanz, aber AG 2 (braucht Produktiv-Loop, real
-  schwer im privaten Build) und IP 3 (Plan-vs-Actual-Daten naehern sich der
+  schwer im privaten Build) und IP 3 (Plan-vs-Actual-Daten naehern sich
   realen Firmendaten).
 
 ---
@@ -149,7 +149,7 @@ Bau einen eigenen Record braucht -- Phase G baut nichts davon:
   Intake-Flow-Aenderung).
 - **L-2 Feedback-Loop** -> braucht SDR (Produktiv-Loop noetig -> verlaesst
   "privates Build", IP-Klaerung-relevant) + ADR.
-- **Jeder Pivot Richtung Produkt/SaaS** -> SDR-Update (widerspricht interne Referenz (entfernt) SS1
+- **Jeder Pivot Richtung Produkt/SaaS** -> SDR-Update (widerspricht der Projekt-Zielsetzung
   in der heutigen Fassung).
 
 ---

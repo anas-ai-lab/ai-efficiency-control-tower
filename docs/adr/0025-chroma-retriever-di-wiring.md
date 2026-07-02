@@ -32,7 +32,7 @@ analog zum bestehenden Azure-vs-Mock-Schalter in get_llm_adapter() (ADR-0010).
    in get_llm_adapter(), dessen Konstruktion guenstig ist und deshalb
    bewusst NICHT gecached wird).
 4. **Feste Collection "aect-knowledge-base"**: ein Name, kein Parameter --
-   generisch, keine Firmenspezifika (IP-Trennung, interne Referenz (entfernt) SS5).
+   generisch, keine Firmenspezifika (vertraglich bedingte IP-Trennung).
 5. **Seeding ueber ein eigenes Skript** (scripts/seed_knowledge_base.py),
    nicht beim App-Start: App-Start soll nicht von einer laufenden,
    befuellten ChromaDB abhaengen (sonst Kaltstart-Fehler ohne Container);

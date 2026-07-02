@@ -20,7 +20,7 @@ Bedingung ("sobald ein Provider strukturierte Antworten liefert") ist damit
 auch nach dem Azure-Adapter-Tag noch nicht erfuellt -- der offene Punkt bleibt
 offen.
 
-interne Referenz (entfernt) SS3.1 Punkt 1 fordert fuer die Use-Case-Schaerfung "die geschaerfte
+Die Projekt-Anforderung zur Use-Case-Schaerfung fordert "die geschaerfte
 Version plus konkrete Verbesserungsvorschlaege". Der aktuelle v1-Prompt
 (`prompts/sharpen_use_case/v1/`) liefert reinen Fliesstext ("Antworte
 ausschliesslich mit der geschaerften Version als Fliesstext, ohne Einleitung

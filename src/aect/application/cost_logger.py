@@ -11,7 +11,7 @@ gpt-4o-mini war bei Azure fuer Neukunden zum Setup-Zeitpunkt nicht mehr
 deploybar, siehe phase-c-review.md). Bei jedem weiteren Modellwechsel hier
 erneut pruefen.
 
-IP-Trennung (interne Referenz (entfernt) Paragraph 5): Pricing und Encoding-Name sind
+IP-Trennung (vertraglich bedingt): Pricing und Encoding-Name sind
 Provider-Daten, keine firmenspezifischen Werte -- bleiben im generischen Code,
 keine Config-Datei noetig.
 """

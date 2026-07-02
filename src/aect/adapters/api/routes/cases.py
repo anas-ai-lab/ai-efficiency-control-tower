@@ -256,7 +256,7 @@ class TechnicalDetailResponse(BaseModel):
 
 
 class ReportResponse(BaseModel):
-    """Zweischichtiger Report -- striktes JSON (interne Referenz (entfernt) SS3.1, Punkt 6)."""
+    """Zweischichtiger Report -- striktes JSON (Projekt-Anforderung)."""
 
     case_id: str
     business_summary: BusinessSummaryResponse

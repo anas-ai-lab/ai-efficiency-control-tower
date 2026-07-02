@@ -11,7 +11,7 @@ Design notes:
   to this classifier.
 - Thresholds are injected via constructor (config-driven, not hardcoded).
   IP separation: threshold *values* live in config/zone_thresholds.yaml;
-  the *logic* here is generic and shareable (interne Referenz (entfernt) §5).
+  the *logic* here is generic and shareable (contractual IP separation).
 - Read-only properties (Tag 65) expose the injected thresholds for
   diagnostic consumers (application/eval/breakdown.py) without changing
   behavior — classify() is untouched.

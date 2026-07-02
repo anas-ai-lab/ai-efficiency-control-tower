@@ -7,7 +7,7 @@
 
 Phase C (Master-Plan v3.1) braucht Use-Case-Schaerfung: Original-Eingabe
 bleibt unveraendert sichtbar, daneben steht eine geschaerfte Version
-(interne Referenz (entfernt) §3.1, Punkt 1). Prompts muessen versioniert und vom Code getrennt
+(Projekt-Anforderung). Prompts muessen versioniert und vom Code getrennt
 sein, damit sich Prompt-Iterationen nicht in Code-Deploys verstecken.
 
 ## Entscheidung

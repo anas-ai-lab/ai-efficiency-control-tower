@@ -3,7 +3,7 @@
 Kuratierte Quellen fuer die belegten Compliance- und Stack-Hinweise (Phase D,
 Master-Plan v3.1). Hier liegen die Markdown-Dateien, aus denen das Retrieval
 Belege zieht -- jeder Hinweis im Output wird mit Quelle zitiert, nicht aus
-Modellwissen erzeugt (interne Referenz (entfernt) SS3.2).
+Modellwissen erzeugt (Projekt-Prinzip "belegte Antworten").
 
 **Stand:** Struktur + Policy. Die eigentlichen kuratierten Inhalte
 (DSGVO-/EU-AI-Act-Auszuege, Security-Massnahmen, Stack-Doku) folgen als
@@ -25,7 +25,7 @@ eine synthetische Platzhalter-Wissensbasis im MockRetriever
 - **PII-Redaction vor dem Embedding.** Sobald Embeddings erzeugt werden, laeuft
   PII-Redaction davor (LLM08; Embeddings gelten als personenbezogen). Heute
   nicht aktiv -- kein Embedding.
-- **IP-Trennung (interne Referenz (entfernt) SS5).** Firmenspezifische Werte (echte Stundensaetze,
+- **IP-Trennung (vertraglich bedingt).** Firmenspezifische Werte (echte Stundensaetze,
   Laenderlisten, interne Plattform-Namen) gehoeren nicht hierher, sondern in
   config/. Kuratierte Doku zu oeffentlichen Standards/Tools ist davon nicht
   betroffen.

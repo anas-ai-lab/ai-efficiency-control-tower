@@ -247,7 +247,7 @@ def test_high_license_cost_can_make_net_negative(config: ROIConfig) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property-Based Test: Kern-Invariante (interne Referenz (entfernt) §3.2, Master-Plan v3 Phase A)
+# Property-Based Test: Kern-Invariante (Projekt-Prinzip "Regeln vor LLM", Master-Plan v3 Phase A)
 # ---------------------------------------------------------------------------
 
 

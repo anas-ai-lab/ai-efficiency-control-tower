@@ -7,8 +7,7 @@
 ## Kontext
 
 Phase D braucht Vektoren fuer zwei Zwecke: Indexierung der Wissensbasis in
-ChromaDB und Query-Embedding zur Laufzeit (Master-Plan v3.1 Phase D, interne Referenz (entfernt)
-SS3.2). RetrieverPort (ADR-0014) definiert bereits den Retrieval-Kontrakt,
+ChromaDB und Query-Embedding zur Laufzeit (Master-Plan v3.1 Phase D). RetrieverPort (ADR-0014) definiert bereits den Retrieval-Kontrakt,
 aber dessen MockRetriever arbeitet noch ohne Vektoren (reines Token-Matching).
 Bevor ein echter Embedding-Provider (lokal: sentence-transformers; Cloud:
 Azure text-embedding-3-small, EU Data Zone) angebunden wird, braucht es einen

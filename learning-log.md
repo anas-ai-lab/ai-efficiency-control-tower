@@ -161,7 +161,7 @@ An Tag 4 wird die vollständige Projektordnerstruktur angelegt: `src/`, `tests/`
 - DSGVO Art. 22 ist enger als gedacht: greift nur bei rein automatisierten Entscheidungen mit erheblicher Wirkung auf Personen. „Personenbezug" allein reicht nicht.
 - EU AI Act ist kein theoretisches Zukunftsprojekt: Recruiting-AI ist heute bereits Hochrisiko (Annex III), Bußgelder bis €35M, Pflichten ab August 2026.
 - Classical ML existiert als Kategorie zwischen Regel und LLM — strukturierte Zeitreihendaten (Anomalie, Fraud) gehören dort hin, nicht zu LLM.
-- Business Value ist nur dann vor einem Internes Gremium verteidigbar wenn er berechnet ist, nicht geschätzt. Formel: Zeitersparnis × Volumen × Stundensatz × Evidenzfaktor × Adoptionsfaktor.
+- Business Value ist nur dann vor einem AI-Governance-Gremium verteidigbar wenn er berechnet ist, nicht geschätzt. Formel: Zeitersparnis × Volumen × Stundensatz × Evidenzfaktor × Adoptionsfaktor.
 - Ein RAG-System auf veralteter oder inkonsistenter Wissensbasis produziert schlechtere Outputs als gar kein RAG. KB-Qualität ist Voraussetzung, nicht Nachgedanke.
 
 **Engineering-Relevanz:**
@@ -683,7 +683,7 @@ Die Schwellenwerte (ab welchem Nutzen ist ein Use Case LIKELY_WIN?) stehen
 nicht im Code, sondern in einer separaten Konfigurationsdatei. Das ist keine
 technische Spielerei — es ist eine rechtliche Absicherung. Der Code ist
 generisch und zeigbar; die firmenspezifischen Werte bleiben intern.
-(Hintergrund: interne Referenz (entfernt), vertragliche Verpflichtung.)
+(Hintergrund: vertragliche Verpflichtung, Firmen-IP und privaten Code zu trennen.)
 
 ### Bugs die heute aufgetaucht sind
 

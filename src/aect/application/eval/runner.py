@@ -2,7 +2,7 @@
 das Ergebnis mit einem optionalen Experten-Label (Master-Plan v3.1 Phase E,
 ADR-0030).
 
-Zwei Eval-Arten aus interne Referenz (entfernt) SS7, beide ueber denselben Lauf erreichbar:
+Zwei Eval-Arten aus der Projekt-Methodik, beide ueber denselben Lauf erreichbar:
   - Konsistenz-Eval: predicted_zone ist deterministisch (gleicher Use Case ->
     gleiches Ergebnis, siehe tests/domain/test_pipeline.py::test_pipeline_is_deterministic).
   - Experten-Abgleich: is_match vergleicht predicted_zone gegen expected_zone,
