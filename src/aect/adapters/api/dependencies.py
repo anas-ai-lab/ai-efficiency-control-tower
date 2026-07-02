@@ -69,6 +69,7 @@ from aect.application.cost_logger import count_tokens
 from aect.application.ports.embedder import EmbedderPort
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.ports.llm import LLMPort
+from aect.application.ports.pii_redactor import PIIRedactorPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrieverPort
 from aect.application.ports.token_budget import TokenBudgetPort
@@ -401,11 +402,21 @@ def get_triage_service(
     # Dedup-Embedder (L-3, ADR-0039): nur im echten ML-Pfad (AECT_CHROMA_HOST
     # gesetzt -- dann ist das lokale Embedding-Modell ohnehin geladen, lru_cache).
     # Im Mock-/Testbetrieb None -> TriageService.check_similarity ueberspringt.
+    #
+    # PII-Redactor (Phase G Privacy-Haertung, B1-Spike): denselben Gate wie
+    # embedder -- ohne Embedder findet ohnehin kein Dedup-Embedding statt,
+    # ein Redactor waere toter Code. PresidioRedactor selbst laedt sein
+    # Modell lazy (erster redact()-Aufruf, siehe presidio_redactor.py) --
+    # die Konstruktion hier ist billig, unabhaengig vom lru_cache-Muster der
+    # anderen schweren Ressourcen oben (_get_chroma_collection etc.).
     embedder: EmbedderPort | None = None
+    redactor: PIIRedactorPort | None = None
     if settings.chroma_host:
+        from aect.adapters.pii.presidio_redactor import PresidioRedactor
         from aect.adapters.rag.embedder import SentenceTransformerEmbedder
 
         embedder = SentenceTransformerEmbedder(_get_local_embedding_model())
+        redactor = PresidioRedactor()
 
     return TriageService(
         repository=repo,
@@ -415,6 +426,7 @@ def get_triage_service(
         llm=llm,
         retriever=retriever,
         embedder=embedder,
+        redactor=redactor,
     )
 
 

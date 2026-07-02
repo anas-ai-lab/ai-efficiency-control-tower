@@ -932,6 +932,161 @@ class TestTriageServiceDedup:
 
 
 # ---------------------------------------------------------------------------
+# Phase G Privacy-Haertung: PII-Redaktion vor Dedup-Embedding (B1-Spike)
+# ---------------------------------------------------------------------------
+
+
+class _CapturingEmbedder:
+    """Zeichnet die tatsaechlich uebergebenen Texte auf -- prueft WAS an
+    embed() geht (im Gegensatz zu _ConstantEmbedder, der nur den
+    Rueckgabewert steuert)."""
+
+    def __init__(self, vector: list[float]) -> None:
+        self._vector = tuple(vector)
+        self.received_texts: list[str] = []
+
+    async def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        self.received_texts.extend(texts)
+        return [self._vector for _ in texts]
+
+
+class _FakeRedactor:
+    """Ersetzt einen bekannten Klarnamen durch einen Platzhalter -- kein
+    echtes Presidio (das deckt tests/adapters/pii/test_presidio_redactor.py
+    ab); hier wird nur die Verdrahtung in check_similarity() geprueft."""
+
+    def __init__(self, target: str, placeholder: str = "<PERSON>") -> None:
+        self._target = target
+        self._placeholder = placeholder
+
+    def redact(self, text: str) -> str:
+        return text.replace(self._target, self._placeholder)
+
+
+class TestTriageServicePIIRedaction:
+    async def test_redacted_text_goes_to_embedder_not_raw_name(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        use_case_with_name = sample_use_case.model_copy(
+            update={
+                "current_state": (
+                    "Herr Thomas Weber prueft eingehende Rechnungen manuell "
+                    "auf Korrektheit gegen den SAP-Auftrag."
+                )
+            }
+        )
+        capturing_embedder = _CapturingEmbedder([1.0, 0.0, 0.0])
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["existing", "new"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=MockLLMAdapter(),
+            embedder=capturing_embedder,
+            redactor=_FakeRedactor(target="Thomas Weber"),
+        )
+        existing = service.submit_use_case(use_case_with_name)
+        _seed_embedding(repo, existing, [1.0, 0.0, 0.0])
+        new_case = service.submit_use_case(use_case_with_name)
+
+        await service.check_similarity(new_case)
+
+        assert capturing_embedder.received_texts
+        assert all(
+            "Thomas Weber" not in text for text in capturing_embedder.received_texts
+        )
+        assert all("<PERSON>" in text for text in capturing_embedder.received_texts)
+
+    async def test_redaction_does_not_mutate_stored_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Kritischer Test der Scope-Grenze (Phase G, B1): NUR der an den
+        Embedder gehende Text wird redaktiert. Die gespeicherten title/
+        current_state-Felder bleiben unveraendert im Klartext -- Fallbearbeitung
+        und LLM-Calls (sharpen_case/propose_solution) brauchen sie so."""
+        use_case_with_name = sample_use_case.model_copy(
+            update={
+                "current_state": (
+                    "Herr Thomas Weber prueft eingehende Rechnungen manuell "
+                    "auf Korrektheit gegen den SAP-Auftrag."
+                )
+            }
+        )
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["existing", "new"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=MockLLMAdapter(),
+            embedder=_CapturingEmbedder([1.0, 0.0, 0.0]),
+            redactor=_FakeRedactor(target="Thomas Weber"),
+        )
+        existing = service.submit_use_case(use_case_with_name)
+        _seed_embedding(repo, existing, [1.0, 0.0, 0.0])
+        new_case = service.submit_use_case(use_case_with_name)
+
+        await service.check_similarity(new_case)
+
+        # KRITISCH: aus dem Repository gelesen (nicht nur dieselbe
+        # Python-Objektreferenz) -- das persistierte Feld bleibt im Klartext.
+        persisted = repo.get(new_case.id)
+        assert persisted is not None
+        assert "Thomas Weber" in persisted.use_case.current_state
+        assert "Thomas Weber" in new_case.use_case.current_state
+
+    async def test_noop_redactor_leaves_check_similarity_unchanged(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """NoopRedactor explizit injiziert -- identisches Verhalten zu
+        redactor=None (Regressionsschutz: bestehende Konstruktionsstellen
+        ohne Redactor bleiben unveraendert)."""
+        from aect.adapters.in_memory.noop_redactor import NoopRedactor
+
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["existing", "new"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=MockLLMAdapter(),
+            embedder=_ConstantEmbedder([1.0, 0.0, 0.0]),
+            redactor=NoopRedactor(),
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0, 0.0])
+        new_case = service.submit_use_case(sample_use_case)
+
+        warning = await service.check_similarity(new_case)
+
+        assert warning is not None
+        assert warning.similarity_score == pytest.approx(1.0)
+        assert warning.suggest_combine is True
+
+    async def test_no_redactor_behaves_like_before_this_feature(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """redactor=None (Default) -- Text geht unredaktiert an embed(),
+        exakt das Verhalten vor diesem Commit."""
+        capturing_embedder = _CapturingEmbedder([1.0, 0.0, 0.0])
+        service, repo = _make_service_with_embedder(
+            roi_config, capturing_embedder, ids=["existing", "new"]
+        )
+        existing = service.submit_use_case(sample_use_case)
+        _seed_embedding(repo, existing, [1.0, 0.0, 0.0])
+        new_case = service.submit_use_case(sample_use_case)
+
+        await service.check_similarity(new_case)
+
+        expected_text = f"{sample_use_case.title} {sample_use_case.current_state}"
+        assert capturing_embedder.received_texts == [expected_text]
+
+
+# ---------------------------------------------------------------------------
 # F-016: Dangling-Citation-Marker-Validierung
 # ---------------------------------------------------------------------------
 

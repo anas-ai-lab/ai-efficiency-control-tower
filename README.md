@@ -120,6 +120,7 @@ Sequenzdiagrammen (Triage, RAG-Compliance, Function-Calling): [`docs/architectur
 | LLM Provider | Azure OpenAI (gpt-4.1-mini, EU-Data-Zone Sweden Central) |
 | Vector DB | ChromaDB 1.5.x (lokal, Docker) |
 | Embedding | sentence-transformers all-MiniLM-L6-v2 (lokal, in-process) |
+| PII-Redaktion | presidio-analyzer/-anonymizer + spaCy de_core_news_sm (lokal, vor Dedup-Embedding) |
 | Search | BM25 (hand-rolled) + Dense Vector + RRF-Hybrid + Cross-Encoder Reranking |
 | Resilience | tenacity (Retry / Backoff / Timeout) |
 | Auth | API-Key (X-API-Key Header, pydantic-settings) |

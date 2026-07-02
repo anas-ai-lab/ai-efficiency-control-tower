@@ -191,12 +191,25 @@ Retrieval-Ergebnisse. Embeddings koennen PII enthalten die unbemerkt persistiert
   Rechtstext (`knowledge_base/`, ADR-0021) indexiert; die Queries selbst sind
   feste kanonische Strings (`_TRANSPARENCY_QUERY`/`_DSFA_QUERY` in
   `service.py`), kein Nutzer-Freitext.
-- **Ausnahme (seit ADR-0039, Dedup-Feature):** `check_similarity()` embedded
-  `title` + `current_state` des eingereichten Use-Case-Freitexts, um aehnliche
-  Cases zu erkennen. Dieses Embedding wird am Case gespeichert (`case.embedding`)
-  und kann potenziell PII enthalten. Loeschung folgt der Art.-17-Kaskade
-  (siehe `application/service.py::check_similarity`, `known_limitations.md` #7).
-  Ein PII-Redactor auf diesem Pfad ist als Folge-Punkt dokumentiert.
+- **Ausnahme (seit ADR-0039, Dedup-Feature), jetzt redaktiert (Phase G):**
+  `check_similarity()` embedded `title` + `current_state` des eingereichten
+  Use-Case-Freitexts, um aehnliche Cases zu erkennen. Der Dedup-Embedding-Pfad
+  redaktiert PII VOR dem Embedding (Presidio + de_core_news_sm, Score-
+  Threshold 0.5 -- siehe `adapters/pii/presidio_redactor.py`). Bekannte
+  Grenze: das generische NER-Modell erzeugt False-Positives auf satzinitiale
+  Grossschreibung und generische Substantive (z. B. "Rueckfragen" ->
+  LOCATION) -- das ist Uebermaskierung, KEIN Untermaskierungs-Risiko (eine
+  tatsaechliche PII-Entitaet bleibt in den Spike-Messungen zuverlaessig
+  erkannt: 5/5 auf handgeschriebenen deutschen Testsaetzen mit Name/Email/
+  IBAN/Telefonnummer). Details, Footprint- und Genauigkeitsmessung im
+  Modul-Docstring von `adapters/pii/presidio_redactor.py` (B1-Spike-
+  Zusammenfassung derselben Session). Redaktion gilt NUR fuer den
+  Embedding-Input -- die gespeicherten `title`/`current_state`-Felder
+  bleiben im Klartext (Fallbearbeitung/LLM-Calls brauchen sie unveraendert,
+  bewusste Scope-Grenze). Das gespeicherte Embedding (`case.embedding`)
+  ist damit selbst bereits PII-redaktiert; Loeschung folgt weiterhin der
+  Art.-17-Kaskade (siehe `application/service.py::check_similarity`,
+  `known_limitations.md` #7).
 - Nur kuratierte Quellen werden in die eigentliche Wissensbasis indexed --
   keine User-Inputs in die KB selbst.
 - `source_id`-Tag pro Dokument: gezielte Loeschung ohne KB-Neuaufbau moeglich.
@@ -204,10 +217,13 @@ Retrieval-Ergebnisse. Embeddings koennen PII enthalten die unbemerkt persistiert
   (`docker-compose.yml`).
 - `chromadb/chroma:1.5.3` -- gepinnte Version, reproduzierbar.
 
-**Status:** PARTIAL (Wissensbasis-Pfad mitigiert, Dedup-Pfad ist eine
-dokumentierte Ausnahme, kein Redactor)
+**Status:** PARTIAL (Wissensbasis-Pfad mitigiert, Dedup-Pfad redaktiert PII
+jetzt vor Embedding -- Uebermaskierung durch generisches NER bleibt eine
+dokumentierte Modellgrenze, kein Presidio-Konfigurationsfehler, daher weiterhin
+PARTIAL statt MITIGATED)
 **Evidenz:** `adapters/rag/indexer.py`, `adapters/rag/embedder.py`,
-`application/service.py::check_similarity`, `docker-compose.yml`
+`adapters/pii/presidio_redactor.py`, `application/service.py::check_similarity`,
+`docker-compose.yml`
 
 ---
 

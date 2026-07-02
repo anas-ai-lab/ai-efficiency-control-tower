@@ -30,6 +30,7 @@ from aect.application.ports.clock import ClockPort
 from aect.application.ports.embedder import EmbedderPort
 from aect.application.ports.id_generator import IdGeneratorPort
 from aect.application.ports.llm import LLMMessage, LLMPort
+from aect.application.ports.pii_redactor import PIIRedactorPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.prompts import load_prompt
@@ -313,6 +314,7 @@ class TriageService:
         retriever: RetrieverPort,
         country: str = "DE",
         embedder: EmbedderPort | None = None,
+        redactor: PIIRedactorPort | None = None,
     ) -> None:
         self._repository = repository
         self._clock = clock
@@ -326,6 +328,14 @@ class TriageService:
         # echtes Embedding-Modell). Kein Pflichtparameter, damit bestehende
         # Konstruktionsstellen unveraendert bleiben.
         self._embedder = embedder
+        # Optional (Phase G Privacy-Haertung, B1-Spike): redaktiert PII NUR
+        # im Text, der an den Dedup-Embedder geht (check_similarity()) --
+        # NICHT die gespeicherten title/current_state-Felder selbst (siehe
+        # dort). None -> Text geht unredaktiert an embed(), identisch zum
+        # Verhalten vor diesem Feature. Kein Pflichtparameter, aus demselben
+        # Grund wie embedder oben (bestehende Konstruktionsstellen bleiben
+        # unveraendert).
+        self._redactor = redactor
 
     def submit_use_case(self, use_case: UseCaseInput) -> SubmittedCase:
         """Bewertet einen Use Case und persistiert das Ergebnis.
@@ -361,6 +371,17 @@ class TriageService:
         - Embedding-Berechnung schlaegt fehl: Fehler loggen, ohne Hinweis
           fortfahren -- die Triage darf nie an der Dedup-Pruefung scheitern.
 
+        PII-Redaktion vor dem Embedding (Phase G Privacy-Haertung, B1-Spike):
+        NUR der Text, der hier an den Embedder geht, wird redaktiert -- die
+        gespeicherten Felder case.use_case.title/current_state bleiben im
+        Klartext (Fallbearbeitung und sharpen_case()/propose_solution()
+        brauchen sie unveraendert). Kein Redactor injiziert (redactor=None,
+        z. B. Mock-/Testbetrieb) -> Text geht unredaktiert an embed(), exakt
+        wie vor diesem Feature. Eine fehlschlagende Redaktion faellt unter
+        dieselbe Best-Effort-Regel wie eine fehlschlagende Embedding-
+        Berechnung (try-Block unten) -- die Dedup-Pruefung ist additiv und
+        darf nie die Triage scheitern lassen.
+
         Schwellen (_DEDUP_THRESHOLD_*): < 0.75 kein Hinweis; [0.75, 0.90)
         Hinweis (suggest_combine=False); >= 0.90 Hinweis mit suggest_combine=True.
         """
@@ -376,6 +397,8 @@ class TriageService:
 
         try:
             text = f"{case.use_case.title} {case.use_case.current_state}"
+            if self._redactor is not None:
+                text = self._redactor.redact(text)
             vectors = await self._embedder.embed([text])
             new_vector = list(vectors[0])
         except Exception as exc:
