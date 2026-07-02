@@ -173,6 +173,9 @@ Vorfilter durch (predicted=None), wurden vom Experten aber dennoch gelabelt -- d
 Vorfilter und das menschliche Relevanzempfinden ziehen die Grenze unterschiedlich.
 Die urspruenglich beobachteten Off-by-one-Effekte an Zonengrenzen (golden-001, golden-003)
 bleiben sichtbar; sie sind jetzt ein Spezialfall des breiteren Schwellen-Befunds.
+Ein LLM-Zweitannotator im Blind-Protokoll (kein menschlicher Experte) erreicht 14/24
+(58,3 %, Kappa 0,33) gegen die Autor-Labels und liegt zwischen konservativer Engine und
+optimistischem Autor -- Details und Grenzen in `evals/golden/inter_annotator_report.md`.
 
 Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
 Fuzzy-Zonen mit Konfidenz-Intervallen waeren robuster. Dokumentiert als v2-Kandidat

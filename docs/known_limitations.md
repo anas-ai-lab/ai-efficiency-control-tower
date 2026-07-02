@@ -77,7 +77,11 @@ hoher Scheinuebereinstimmung.
 **Naechster Schritt (Post-v1):** Cross-Rater-Agreement (zweiter unabhaengiger
 Labeler) messen; pruefen, ob die LIKELY_WIN-Composite-Schwelle an das
 Experten-Urteil angepasst werden sollte (Schwellen-Kalibrierung, nicht
-Label-Korrektur).
+Label-Korrektur). Teilweise eingeloest (Juli 2026): ein LLM-Zweitannotator im
+Blind-Protokoll -- ausdruecklich kein menschlicher Experte -- erreicht Kappa 0,33
+gegen die Autor-Labels und nutzt anders als der Autor auch MARGINAL_GAIN
+(`evals/golden/inter_annotator_report.md`); menschliche Inter-Rater-Reliabilitaet
+bleibt offen.
 
 ---
 
