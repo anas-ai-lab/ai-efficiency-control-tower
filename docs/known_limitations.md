@@ -57,6 +57,11 @@ entsteht, wird vom composite-basierten Score nicht erfasst.
 **v2-Kandidat (Rest):** 2D-Konfidenz, die zusaetzlich den Abstand zu den
 Benefit-Schwellen einbezieht.
 
+**Vertiefung:** Fallbasierte Analyse der Divergenz-Muster (dominantes
+composite-5-7-Muster, Zweitannotator-Einordnung, MARGINAL_GAIN feuert
+praktisch nie) mit expliziter Empfehlung 2 Zonen + numerischer Score statt
+Schwellen-Nachjustierung in `docs/analysis/rule-engine-vs-human-judgment.md`.
+
 ---
 
 ## 3. Expert-Agreement auf kleinem Sample

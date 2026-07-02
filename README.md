@@ -176,6 +176,8 @@ bleiben sichtbar; sie sind jetzt ein Spezialfall des breiteren Schwellen-Befunds
 Ein LLM-Zweitannotator im Blind-Protokoll (kein menschlicher Experte) erreicht 14/24
 (58,3 %, Kappa 0,33) gegen die Autor-Labels und liegt zwischen konservativer Engine und
 optimistischem Autor -- Details und Grenzen in `evals/golden/inter_annotator_report.md`.
+Vertiefte Ursachenanalyse (Composite-Schwellen-Mechanik, Zweitannotator-Einordnung,
+MARGINAL_GAIN-Empfehlung) in `docs/analysis/rule-engine-vs-human-judgment.md`.
 
 Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
 Fuzzy-Zonen mit Konfidenz-Intervallen waeren robuster. Dokumentiert als v2-Kandidat
