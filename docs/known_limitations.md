@@ -194,6 +194,13 @@ Kein Clustering, kein HA, kein automatisiertes Backup, kein Monitoring
 **Konsequenz:** Kein SLA. Nicht fuer Kundendaten geeignet ohne
 Security-Hardening-Pass und IP-Klaerung (vertraglich bedingt).
 
+**Vertiefung (ADR-0040):** "Kein Clustering" konkretisiert -- die
+F-010/F-011-Concurrency-Fixes verifizieren nur parallele Requests EINES
+Nutzers auf denselben Case, nicht viele gleichzeitige Nutzer. SQLite ist
+Single-Writer (kein horizontaler Scaling-Pfad), ChromaDB laeuft als
+Einzelinstanz (kein Multi-Instance-Deploy ohne Umbau). Migrationstrigger
+dort konkret benannt (z. B. mehr als ein gleichzeitiger Reviewer).
+
 ---
 
 ## 12. Frontend: lokal laufend, kein Cloud-Deploy
