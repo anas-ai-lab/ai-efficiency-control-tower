@@ -348,8 +348,11 @@ class TriageService:
             return None
 
         # Embedding fuer kuenftige Vergleiche persistieren (Case ist bereits da).
-        case.embedding = new_vector
-        await self._repository.save_async(case)
+        # Per-Feld-UPDATE (F-011): ueberschreibt keine parallel gesetzten
+        # Narrative-Felder desselben Case.
+        await self._repository.update_field_async(
+            case.id, "embedding", json.dumps(new_vector)
+        )
 
         best_case: SubmittedCase | None = None
         best_score = 0.0
@@ -444,7 +447,8 @@ class TriageService:
 
         Persistenz (Tag 42 ADR-0012, erweitert ADR-0013 Teil 2): das
         Ergebnis wird als JSON auf case.sharpened_content_json gespeichert
-        (self._repository.save()). generate_report() rendert daraus den
+        (per-Feld-UPDATE, F-011 -- kein Lost Update bei parallelen
+        LLM-Operationen auf demselben Case). generate_report() rendert daraus den
         sichtbaren Text (_render_sharpened_content) -- /report-Schema bleibt
         unveraendert.
 
@@ -526,7 +530,7 @@ class TriageService:
             improvement_suggestions = tuple(parsed.improvement_suggestions)
             raw_text = None
 
-        case.sharpened_content_json = json.dumps(
+        sharpened_content_json = json.dumps(
             {
                 "sharpened_title": sharpened_title,
                 "sharpened_current_state": sharpened_current_state,
@@ -535,7 +539,9 @@ class TriageService:
                 "raw_text": raw_text,
             }
         )
-        await self._repository.save_async(case)
+        await self._repository.update_field_async(
+            case.id, "sharpened_content_json", sharpened_content_json
+        )
 
         return SharpenedUseCase(
             case_id=case.id,
@@ -570,7 +576,7 @@ class TriageService:
 
         Persistenz (Tag 42, ADR-0012): die finale response.content (nach
         einem etwaigen Tool-Call-Loop) wird zusaetzlich auf
-        case.proposal_text gespeichert (self._repository.save()), damit
+        case.proposal_text gespeichert (per-Feld-UPDATE, F-011), damit
         generate_report() es ohne erneuten Request-Body-Transport anzeigen
         kann.
 
@@ -658,8 +664,9 @@ class TriageService:
                 operation="propose_solution",
             )
 
-        case.proposal_text = response.content
-        await self._repository.save_async(case)
+        await self._repository.update_field_async(
+            case.id, "proposal_text", response.content
+        )
 
         return SolutionProposal(
             case_id=case.id,
@@ -689,8 +696,8 @@ class TriageService:
 
         Persistenz (ADR-0026, analog ADR-0012): das Ergebnis (hint_text +
         citations) wird in beiden Faellen -- mit und ohne Treffer -- als
-        JSON auf case.compliance_hints_json gespeichert (self._repository.
-        save()). generate_report() rendert daraus die Anzeige-Daten
+        JSON auf case.compliance_hints_json gespeichert (per-Feld-UPDATE,
+        F-011). generate_report() rendert daraus die Anzeige-Daten
         (_render_compliance_hints) in BusinessSummary.
 
         Graceful Degradation: liefert das Retrieval ueber alle Queries
@@ -726,10 +733,11 @@ class TriageService:
             retrieved.extend(await self._retriever.retrieve(query, top_k=2))
 
         if not retrieved:
-            case.compliance_hints_json = json.dumps(
-                {"hint_text": None, "citations": []}
+            await self._repository.update_field_async(
+                case.id,
+                "compliance_hints_json",
+                json.dumps({"hint_text": None, "citations": []}),
             )
-            await self._repository.save_async(case)
             return ComplianceHintsResult(
                 case_id=case.id,
                 hint_text=None,
@@ -759,7 +767,7 @@ class TriageService:
             operation="generate_compliance_hints",
         )
 
-        case.compliance_hints_json = json.dumps(
+        compliance_hints_json = json.dumps(
             {
                 "hint_text": response.content,
                 "citations": [
@@ -773,7 +781,9 @@ class TriageService:
                 ],
             }
         )
-        await self._repository.save_async(case)
+        await self._repository.update_field_async(
+            case.id, "compliance_hints_json", compliance_hints_json
+        )
 
         return ComplianceHintsResult(
             case_id=case.id,

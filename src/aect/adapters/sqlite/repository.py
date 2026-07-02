@@ -47,6 +47,7 @@ from typing import Any
 
 from aect.adapters.sqlite.connection import connect
 from aect.application.models import SubmittedCase
+from aect.application.ports.repository import CaseUpdateField
 from aect.domain.feasibility import FeasibilityFlag, FeasibilityResult
 from aect.domain.filters import FilterResult
 from aect.domain.models import UseCaseInput
@@ -103,6 +104,20 @@ _SELECT_ALL_SQL = (
 )
 
 _DELETE_BY_ID_SQL = "DELETE FROM submitted_cases WHERE id = ?"
+
+# Per-Feld-UPDATE (F-011): vollstaendige Literale je Feld (kein String-Concat,
+# siehe bandit-B608-Hinweis oben) -- der Feldname kommt aus CaseUpdateField
+# (Literal-Typ im Port), nie aus Laufzeit-Input.
+_UPDATE_FIELD_SQL: dict[str, str] = {
+    "sharpened_content_json": (
+        "UPDATE submitted_cases SET sharpened_content_json = ? WHERE id = ?"
+    ),
+    "proposal_text": "UPDATE submitted_cases SET proposal_text = ? WHERE id = ?",
+    "compliance_hints_json": (
+        "UPDATE submitted_cases SET compliance_hints_json = ? WHERE id = ?"
+    ),
+    "embedding": "UPDATE submitted_cases SET embedding = ? WHERE id = ?",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +359,18 @@ class SQLiteRepository:
         with connect(self._db_path) as conn:
             conn.execute(_DELETE_BY_ID_SQL, (case_id,))
 
+    def update_field(
+        self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None:
+        """Schreibt genau ein nachgelagert befuelltes Feld (F-011).
+
+        Per-Feld-UPDATE statt INSERT OR REPLACE des ganzen Case: parallele
+        LLM-Operationen (sharpen/propose/compliance) ueberschreiben sich
+        nicht mehr gegenseitig. No-op bei unbekannter case_id (analog delete).
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(_UPDATE_FIELD_SQL[field], (value, case_id))
+
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
     # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
     # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
@@ -364,3 +391,9 @@ class SQLiteRepository:
     async def delete_async(self, case_id: str) -> None:
         """Async-Wrapper um delete() via asyncio.to_thread (ADR-0037/0038)."""
         await asyncio.to_thread(self.delete, case_id)
+
+    async def update_field_async(
+        self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None:
+        """Async-Wrapper um update_field() via asyncio.to_thread (F-011)."""
+        await asyncio.to_thread(self.update_field, case_id, field, value)

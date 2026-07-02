@@ -47,10 +47,9 @@ def test_connect_commits_on_success_and_rolls_back_on_error(tmp_path: Path) -> N
         conn.execute("CREATE TABLE t (x INTEGER)")
         conn.execute("INSERT INTO t VALUES (1)")
 
-    with pytest.raises(RuntimeError):
-        with connect(db_path) as conn:
-            conn.execute("INSERT INTO t VALUES (2)")
-            raise RuntimeError("abbruch")
+    with pytest.raises(RuntimeError), connect(db_path) as conn:
+        conn.execute("INSERT INTO t VALUES (2)")
+        raise RuntimeError("abbruch")
 
     with connect(db_path) as conn:
         rows = conn.execute("SELECT x FROM t").fetchall()

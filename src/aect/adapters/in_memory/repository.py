@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 from aect.application.models import SubmittedCase
+from aect.application.ports.repository import CaseUpdateField
 
 
 class InMemoryRepository:
@@ -31,6 +34,22 @@ class InMemoryRepository:
         """Loescht einen Case per ID (DSGVO Art. 17, ADR-0038). Idempotent."""
         self._store.pop(case_id, None)
 
+    def update_field(
+        self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None:
+        """Schreibt genau ein nachgelagert befuelltes Feld (F-011). No-op
+        bei unbekannter case_id (analog delete). embedding kommt als
+        JSON-String (Port-Kontrakt) und wird hier zurueck-dekodiert."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        if field == "embedding":
+            case.embedding = (
+                [float(x) for x in json.loads(value)] if value is not None else None
+            )
+        else:
+            setattr(case, field, value)
+
     # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
     # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
     # noetig, direkter Aufruf der sync-Methode genuegt.
@@ -45,3 +64,8 @@ class InMemoryRepository:
 
     async def delete_async(self, case_id: str) -> None:
         self.delete(case_id)
+
+    async def update_field_async(
+        self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None:
+        self.update_field(case_id, field, value)
