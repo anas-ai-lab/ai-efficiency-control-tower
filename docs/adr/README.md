@@ -1,6 +1,6 @@
 # Architecture Decision Log -- AECT
 
-44 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+49 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
@@ -33,6 +33,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0040](0040-sqlite-chroma-skalierungsgrenze.md) | SQLite + lokales ChromaDB: bewusste Beibehaltung und explizite Decke |
 | [0041](0041-key-vault-settings-source.md) | Key-Vault-Referenzen statt Env-Strings (Design, ohne Live-Azure verifiziert) |
 | [0042](0042-retention-scheduled-job.md) | Retention-Enforcement als Scheduled Job (Design, kein Deploy) |
+| [0043](0043-decision-record-statt-reviewer-workflow.md) | Human-in-the-Loop-Decision-Record statt vollem Reviewer-Workflow |
 
 ## LLM-Integration
 
