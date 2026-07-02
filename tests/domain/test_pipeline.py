@@ -8,6 +8,7 @@ Tag 21 Ergaenzung: _cost_tier-Baender + is_actionable alle Zweige.
 
 from __future__ import annotations
 
+import dataclasses
 from decimal import Decimal
 from pathlib import Path
 
@@ -395,3 +396,41 @@ def test_handlungsdruck_score_counts_active_flags() -> None:
         strategic_priority=True,
     )
     assert handlungsdruck_score(all_flags) == 4
+
+
+# ---------------------------------------------------------------------------
+# F-001: Vorfilter-Schwellen kommen aus der ROIConfig, nicht aus Modul-Defaults
+# ---------------------------------------------------------------------------
+
+
+def test_prefilter_uses_config_thresholds_not_module_defaults(
+    roi_config: ROIConfig,
+) -> None:
+    """Eine geaenderte Config-Schwelle MUSS das Vorfilter-Ergebnis aendern.
+
+    Vor F-001 nutzte evaluate_use_case() hartcodierte Defaults in filters.py --
+    dieselbe Case-Eingabe bestand den Vorfilter unabhaengig von der TOML-Config
+    (Config-Edit = stiller No-op, dokumentiert als Limitation #14).
+    """
+    use_case = _make_use_case(
+        time_savings_hours_per_case=2.0,
+        frequency_per_year=500,
+        affected_employees_count=5,
+        adoption_type=AdoptionType.MANDATORY,
+        evidence_level=EvidenceLevel.TESTED_PILOTED,
+    )
+    baseline = evaluate_use_case(use_case, roi_config)
+    assert baseline.passed_vorfilter is True
+
+    strict_config = dataclasses.replace(
+        roi_config,
+        min_potential_eur=baseline.roi.theoretical_potential_eur * 2,  # type: ignore[union-attr]
+    )
+    strict = evaluate_use_case(use_case, strict_config)
+    assert strict.passed_vorfilter is False
+    assert "Theoretisches Potenzial" in strict.vorfilter.failed_criteria
+
+    # Konsistenz beider Pfade: FilterResult (Pipeline) und passes_prefilter
+    # (ROI-Engine) urteilen jetzt gegen dieselben Config-Schwellen.
+    strict_roi = evaluate_use_case(use_case, strict_config)
+    assert strict_roi.vorfilter.passes is False

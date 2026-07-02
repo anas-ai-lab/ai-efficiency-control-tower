@@ -221,22 +221,19 @@ ist der guenstigere Workaround. Re-Evaluierung nur falls eine dritte Serie droht
 
 ---
 
-## 14. Vorfilter-Schwellen: Zwei Quellen (Technical Debt)
+## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
 
-**Was:** Die Vorfilter-Schwellen (20.000 EUR / 120 h / 5.000 EUR Netto) sind doppelt
-vorhanden: als Python-Defaults in `src/aect/domain/filters.py` UND als Config-Werte in
-`config/roi_config.toml`. `evaluate_use_case()` in `pipeline.py` nutzt beim Aufruf von
-`apply_prefilter()` die Python-Defaults, nicht die ROIConfig-Werte.
+**Was (historisch):** Die Vorfilter-Schwellen existierten doppelt: als
+Python-Defaults in `src/aect/domain/filters.py` UND als Config-Werte in
+`config/roi_config.toml`. `evaluate_use_case()` nutzte die Python-Defaults --
+Aenderungen an den TOML-Schwellen waren fuer die Pipeline ein stiller No-op.
 
-**Konsequenz:** Aktuell synchron -- beide Quellen haben identische Werte, kein
-Verhaltensfehler. Aendern sich die TOML-Schwellen ohne gleichzeitige Anpassung der
-`filters.py`-Defaults, divergiert `vorfilter.passes` (domain-Pipeline) von
-`roi.passes_prefilter` (ROI-Engine). Die domain-Pipeline-Entscheidung hat Vorrang
-fuer die Zone-Klassifikation.
-
-**v2-Kandidat:** `evaluate_use_case()` uebergibt ROIConfig-Schwellen explizit an
-`apply_prefilter()`. Eliminiert die doppelte Quelle und macht die Pipeline
-vollstaendig config-getrieben.
+**Status:** Behoben (Phase-2-Fix F-001, Juli 2026). `apply_prefilter()` hat
+keine eigenen Defaults mehr; `evaluate_use_case()` reicht die
+ROIConfig-Schwellen verpflichtend durch. `vorfilter.passes` (Pipeline) und
+`roi.passes_prefilter` (ROI-Engine) urteilen gegen dieselbe Quelle.
+Regressionstest: `tests/domain/test_pipeline.py`
+(`test_prefilter_uses_config_thresholds_not_module_defaults`).
 
 ---
 

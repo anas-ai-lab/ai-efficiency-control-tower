@@ -99,11 +99,17 @@ def evaluate_use_case(
     # 1. ROI -- muss zuerst laufen; Vorfilter braucht die berechneten Werte
     roi = calculate_roi(use_case, roi_config, country=country)
 
-    # 2. Vorfilter -- verwendet ROI-Ergebnisse fuer Schwellwert-Pruefung
+    # 2. Vorfilter -- verwendet ROI-Ergebnisse fuer Schwellwert-Pruefung.
+    # Schwellen kommen aus der ROIConfig (F-001): frueher galten hier
+    # hartcodierte Modul-Defaults, Aenderungen an roi_config.toml waren
+    # fuer diese Pruefung ein stiller No-op.
     vorfilter = apply_prefilter(
         theoretical_potential_eur=float(roi.theoretical_potential_eur),
         hours_per_year=roi.hours_per_year,
         net_benefit_eur=float(roi.net_expected_benefit_eur),
+        min_potential=float(roi_config.min_potential_eur),
+        min_hours=roi_config.min_hours_per_year,
+        min_net_benefit=float(roi_config.min_expected_benefit_eur),
     )
 
     # 3. Routing -- laeuft immer, unabhaengig vom Vorfilter

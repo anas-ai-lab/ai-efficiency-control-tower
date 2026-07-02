@@ -1,21 +1,16 @@
 """
 Vorfilter — drei Mindestkriterien für AI-Use-Case-Einreichungen.
 
-Schwellenwerte sind konfigurierbar über Funktionsparameter. Die Defaults hier
-sind Platzhalter für Dev/Test; in Phase B kommen sie aus einer Settings-Klasse
-(IP-Trennung: firmenspezifische Werte gehören nicht in dieses Modul).
+Schwellenwerte kommen verpflichtend vom Aufrufer (F-001: `evaluate_use_case()`
+reicht die ROIConfig-Werte aus config/roi_config.toml durch). Keine Defaults
+in diesem Modul — die frühere Duplikation (Python-Defaults hier UND
+TOML-Config) machte Config-Änderungen zu einem stillen No-op und war als
+Limitation #14 dokumentiert.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-# ---------------------------------------------------------------------------
-# Default-Schwellenwerte (Phase B: aus Settings laden)
-# ---------------------------------------------------------------------------
-DEFAULT_MIN_THEORETICAL_POTENTIAL_EUR: float = 20_000.0
-DEFAULT_MIN_HOURS_PER_YEAR: float = 120.0
-DEFAULT_MIN_NET_BENEFIT_EUR: float = 5_000.0
 
 
 # ---------------------------------------------------------------------------
@@ -50,9 +45,9 @@ def apply_prefilter(
     hours_per_year: float,
     net_benefit_eur: float,
     *,
-    min_potential: float = DEFAULT_MIN_THEORETICAL_POTENTIAL_EUR,
-    min_hours: float = DEFAULT_MIN_HOURS_PER_YEAR,
-    min_net_benefit: float = DEFAULT_MIN_NET_BENEFIT_EUR,
+    min_potential: float,
+    min_hours: float,
+    min_net_benefit: float,
 ) -> FilterResult:
     """Prüft drei Mindestkriterien für eine Use-Case-Einreichung.
 
@@ -60,9 +55,9 @@ def apply_prefilter(
         theoretical_potential_eur: Theoretisches Jahrespotenzial in EUR.
         hours_per_year: Erwartete Stundeneinsparung pro Jahr.
         net_benefit_eur: Nettonutzen nach Kosten in EUR.
-        min_potential: Mindestschwelle theoretisches Potenzial.
-        min_hours: Mindestschwelle Stundeneinsparung.
-        min_net_benefit: Mindestschwelle Nettonutzen.
+        min_potential: Mindestschwelle theoretisches Potenzial (ROIConfig).
+        min_hours: Mindestschwelle Stundeneinsparung (ROIConfig).
+        min_net_benefit: Mindestschwelle Nettonutzen (ROIConfig).
 
     Returns:
         FilterResult mit passes=True wenn alle Kriterien erfüllt.

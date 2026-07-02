@@ -3,12 +3,23 @@
 import pytest
 
 from aect.domain.filters import (
-    DEFAULT_MIN_HOURS_PER_YEAR,
-    DEFAULT_MIN_NET_BENEFIT_EUR,
-    DEFAULT_MIN_THEORETICAL_POTENTIAL_EUR,
     FilterResult,
     apply_prefilter,
 )
+
+# Referenz-Schwellen fuer die Tests -- entsprechen den generischen
+# Platzhalter-Werten aus config/roi_config.toml. Seit F-001 gibt es im
+# Vorfilter keine eigenen Defaults mehr (Schwellen kommen verpflichtend
+# aus der ROIConfig).
+MIN_POTENTIAL: float = 20_000.0
+MIN_HOURS: float = 120.0
+MIN_NET_BENEFIT: float = 5_000.0
+
+_THRESHOLDS = {
+    "min_potential": MIN_POTENTIAL,
+    "min_hours": MIN_HOURS,
+    "min_net_benefit": MIN_NET_BENEFIT,
+}
 
 
 class TestFilterResultInvarianten:
@@ -31,6 +42,7 @@ class TestApplyPrefilter:
             theoretical_potential_eur=25_000.0,
             hours_per_year=150.0,
             net_benefit_eur=8_000.0,
+            **_THRESHOLDS,
         )
         assert result.passes is True
         assert result.failed_criteria == []
@@ -40,6 +52,7 @@ class TestApplyPrefilter:
             theoretical_potential_eur=19_999.0,
             hours_per_year=150.0,
             net_benefit_eur=8_000.0,
+            **_THRESHOLDS,
         )
         assert result.passes is False
         assert "Theoretisches Potenzial" in result.failed_criteria
@@ -49,6 +62,7 @@ class TestApplyPrefilter:
             theoretical_potential_eur=25_000.0,
             hours_per_year=119.9,
             net_benefit_eur=8_000.0,
+            **_THRESHOLDS,
         )
         assert result.passes is False
         assert "Stundeneinsparung" in result.failed_criteria
@@ -58,6 +72,7 @@ class TestApplyPrefilter:
             theoretical_potential_eur=25_000.0,
             hours_per_year=150.0,
             net_benefit_eur=4_999.0,
+            **_THRESHOLDS,
         )
         assert result.passes is False
         assert "Nettonutzen" in result.failed_criteria
@@ -67,23 +82,26 @@ class TestApplyPrefilter:
             theoretical_potential_eur=0.0,
             hours_per_year=0.0,
             net_benefit_eur=0.0,
+            **_THRESHOLDS,
         )
         assert result.passes is False
         assert len(result.failed_criteria) == 3
 
     def test_genau_an_schwelle_besteht(self) -> None:
         result = apply_prefilter(
-            theoretical_potential_eur=DEFAULT_MIN_THEORETICAL_POTENTIAL_EUR,
-            hours_per_year=DEFAULT_MIN_HOURS_PER_YEAR,
-            net_benefit_eur=DEFAULT_MIN_NET_BENEFIT_EUR,
+            theoretical_potential_eur=MIN_POTENTIAL,
+            hours_per_year=MIN_HOURS,
+            net_benefit_eur=MIN_NET_BENEFIT,
+            **_THRESHOLDS,
         )
         assert result.passes is True
 
     def test_knapp_unter_schwelle_scheitert(self) -> None:
         result = apply_prefilter(
-            theoretical_potential_eur=DEFAULT_MIN_THEORETICAL_POTENTIAL_EUR - 0.01,
-            hours_per_year=DEFAULT_MIN_HOURS_PER_YEAR,
-            net_benefit_eur=DEFAULT_MIN_NET_BENEFIT_EUR,
+            theoretical_potential_eur=MIN_POTENTIAL - 0.01,
+            hours_per_year=MIN_HOURS,
+            net_benefit_eur=MIN_NET_BENEFIT,
+            **_THRESHOLDS,
         )
         assert result.passes is False
 
@@ -103,6 +121,7 @@ class TestApplyPrefilter:
             theoretical_potential_eur=25_000.0,
             hours_per_year=150.0,
             net_benefit_eur=8_000.0,
+            **_THRESHOLDS,
         )
         assert len(result.details) == 3
         assert all(isinstance(v, bool) for v in result.details.values())
