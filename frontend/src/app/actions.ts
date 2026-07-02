@@ -2,6 +2,7 @@
 
 import type {
   ComplianceHintsResponse,
+  DecisionResponse,
   ReportResponse,
   SharpenedCaseResponse,
   SolutionProposalResponse,
@@ -150,5 +151,17 @@ export async function generateReport(caseId: string): Promise<ReportResponse> {
     `/cases/${caseId}/report`,
     RULE_TIMEOUT_MS,
     JSON.stringify({}),
+  );
+}
+
+export async function recordDecision(
+  caseId: string,
+  decision: "approved" | "rejected",
+  note: string | null,
+): Promise<DecisionResponse> {
+  return apiFetch<DecisionResponse>(
+    `/cases/${caseId}/decision`,
+    RULE_TIMEOUT_MS,
+    JSON.stringify({ decision, note }),
   );
 }

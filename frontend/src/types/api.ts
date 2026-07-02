@@ -21,6 +21,10 @@ export type TriageZone =
   | "LIKELY_WIN"
   | "CALCULATED_RISK"
   | "MARGINAL_GAIN";
+// Human-in-the-Loop Decision-Record (ADR-0043): PENDING ist der
+// Ausgangszustand vor jeder manuellen Entscheidung, kein gueltiger
+// Request-Wert fuer POST /cases/{id}/decision (nur approved/rejected).
+export type ReviewerDecision = "pending" | "approved" | "rejected";
 
 // ---- Request ---------------------------------------------------------------
 
@@ -175,6 +179,10 @@ export interface BusinessSummary {
   sharpened_text: string | null;
   compliance_hint_text: string | null;
   compliance_citations: ComplianceCitation[];
+  // Human-in-the-Loop Decision-Record (ADR-0043)
+  reviewer_decision: ReviewerDecision;
+  reviewer_note: string | null;
+  decided_at: string | null;
 }
 
 export interface TechnicalDetail {
@@ -203,4 +211,13 @@ export interface CaseSummary {
   id: string;
   submitted_at: string;
   title: string;
+}
+
+// ---- Decision Response (/cases/{id}/decision POST) -------------------------
+
+export interface DecisionResponse {
+  case_id: string;
+  reviewer_decision: ReviewerDecision;
+  reviewer_note: string | null;
+  decided_at: string | null;
 }

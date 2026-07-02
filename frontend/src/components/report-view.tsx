@@ -1,10 +1,19 @@
 "use client"
 
-import type { ReportResponse, ComplianceCitation } from "@/types/api"
+import { useState } from "react"
+import type {
+  ReportResponse,
+  ComplianceCitation,
+  BusinessSummary,
+  ReviewerDecision,
+} from "@/types/api"
 import { ZONE_CONFIG, formatEUR } from "@/lib/formatters"
 import type { ZoneKey } from "@/lib/formatters"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { recordDecision } from "@/app/actions"
+import { CheckCircle2, XCircle, AlertTriangle, Circle } from "lucide-react"
 
 interface ReportViewProps {
   result: ReportResponse
@@ -12,6 +21,130 @@ interface ReportViewProps {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="eyebrow mb-2">{children}</p>
+}
+
+function formatDecidedAt(iso: string): string {
+  return new Date(iso).toLocaleString("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
+}
+
+interface ReviewSectionProps {
+  caseId: string
+  businessSummary: BusinessSummary
+}
+
+// Human-in-the-Loop Decision-Record (ADR-0043): minimaler Freigeben/Ablehnen-
+// Baustein statt vollem Reviewer-Workflow -- kein Rollen-/Notification-System.
+function ReviewSection({ caseId, businessSummary }: ReviewSectionProps) {
+  const [decision, setDecision] = useState<ReviewerDecision>(
+    businessSummary.reviewer_decision,
+  )
+  const [note, setNote] = useState(businessSummary.reviewer_note ?? "")
+  const [decidedAt, setDecidedAt] = useState(businessSummary.decided_at)
+  const [pendingAction, setPendingAction] = useState<
+    "approved" | "rejected" | null
+  >(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDecide(next: "approved" | "rejected"): Promise<void> {
+    setError(null)
+    setPendingAction(next)
+    try {
+      const trimmed = note.trim()
+      const response = await recordDecision(
+        caseId,
+        next,
+        trimmed.length > 0 ? trimmed : null,
+      )
+      setDecision(response.reviewer_decision)
+      setNote(response.reviewer_note ?? "")
+      setDecidedAt(response.decided_at)
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Entscheidung konnte nicht gespeichert werden",
+      )
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <SectionLabel>Entscheidung</SectionLabel>
+
+      <div className="flex items-center gap-2">
+        {decision === "approved" && (
+          <>
+            <CheckCircle2 className="size-4 text-[var(--zone-win)]" />
+            <span className="text-sm font-medium text-foreground">
+              Freigegeben
+            </span>
+          </>
+        )}
+        {decision === "rejected" && (
+          <>
+            <XCircle className="size-4 text-destructive" />
+            <span className="text-sm font-medium text-foreground">
+              Abgelehnt
+            </span>
+          </>
+        )}
+        {decision === "pending" && (
+          <>
+            <Circle className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">
+              Ausstehend
+            </span>
+          </>
+        )}
+      </div>
+
+      {decidedAt !== null && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatDecidedAt(decidedAt)}
+        </p>
+      )}
+
+      <Textarea
+        className="mt-4"
+        placeholder="Optionale Begründung"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={2000}
+        disabled={pendingAction !== null}
+      />
+
+      {error !== null && (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          {error}
+        </p>
+      )}
+
+      <div className="mt-3 flex gap-2">
+        <Button
+          variant="default"
+          onClick={() => handleDecide("approved")}
+          disabled={pendingAction !== null}
+        >
+          {pendingAction === "approved" ? "Wird gespeichert …" : "Freigeben"}
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => handleDecide("rejected")}
+          disabled={pendingAction !== null}
+        >
+          {pendingAction === "rejected" ? "Wird gespeichert …" : "Ablehnen"}
+        </Button>
+      </div>
+    </section>
+  )
 }
 
 export function ReportView({ result }: ReportViewProps) {
@@ -124,6 +257,8 @@ export function ReportView({ result }: ReportViewProps) {
               )}
             </section>
           )}
+
+          <ReviewSection caseId={result.case_id} businessSummary={bs} />
         </div>
       </TabsContent>
 
