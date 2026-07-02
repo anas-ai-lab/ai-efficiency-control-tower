@@ -67,15 +67,16 @@ def handlungsdruck_score(use_case: UseCaseInput) -> int:
     )
 
 
-def _cost_tier(license_cost_eur: float) -> int:
+def _cost_tier(license_cost_eur: float, config: ROIConfig) -> int:
     """Mappt Lizenzkosten EUR auf Kostenstufe 1-3 fuer compute_composite_score.
 
     Proxy bis ein dediziertes implementation_cost_level-Feld in UseCaseInput
-    ergaenzt wird. Schwellen: DACH-typische SaaS-Kostenbänder.
+    ergaenzt wird. Schwellen kommen aus roi_config.toml [cost_tiers] (F-006)
+    -- vorher hartcodierte 5.000/25.000-EUR-Baender im Domain-Code.
     """
-    if license_cost_eur < 5_000:
+    if license_cost_eur < config.cost_tier_2_min_eur:
         return 1
-    if license_cost_eur < 25_000:
+    if license_cost_eur < config.cost_tier_3_min_eur:
         return 2
     return 3
 
@@ -133,7 +134,7 @@ def evaluate_use_case(
     if vorfilter.passes:
         composite = compute_composite_score(
             complexity=use_case.implementation_complexity,
-            cost=_cost_tier(use_case.estimated_license_cost_eur),
+            cost=_cost_tier(use_case.estimated_license_cost_eur, roi_config),
             data_classification=use_case.data_classification,
         )
         zone = load_zone_classifier().classify(

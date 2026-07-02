@@ -31,6 +31,14 @@ professional = 80.0
 senior       = 110.0
 mixed        = 82.0
 
+[cost_tiers]
+# Kostenstufen-Schwellen fuer den Composite-Score (F-006): Lizenzkosten
+# unter tier_2 -> Stufe 1, unter tier_3 -> Stufe 2, sonst Stufe 3.
+# Generische Platzhalter (DACH-typische SaaS-Kostenbaender) — echte Werte
+# gehoeren in roi_config.local.toml.
+tier_2_min_license_cost_eur = 5000.0
+tier_3_min_license_cost_eur = 25000.0
+
 [evidence_factors]
 pure_estimate   = 0.50
 similar_project = 0.75

@@ -44,6 +44,8 @@ def config() -> ROIConfig:
         min_potential_eur=Decimal("20000"),
         min_hours_per_year=120.0,
         min_expected_benefit_eur=Decimal("5000"),
+        cost_tier_2_min_eur=5_000.0,
+        cost_tier_3_min_eur=25_000.0,
     )
 
 
@@ -276,6 +278,8 @@ def test_invariant_expected_benefit_never_exceeds_potential(
         min_potential_eur=Decimal("0"),  # Schwellen deaktiviert für diesen Test
         min_hours_per_year=0.0,
         min_expected_benefit_eur=Decimal("-999999"),
+        cost_tier_2_min_eur=5_000.0,
+        cost_tier_3_min_eur=25_000.0,
     )
 
     result = _calculate_roi_values(

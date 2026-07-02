@@ -300,14 +300,36 @@ def test_title_propagated_to_result(roi_config: ROIConfig) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cost_tier_all_bands() -> None:
-    """_cost_tier mappt Lizenzkosten korrekt auf Kostenstufe 1-3."""
-    assert _cost_tier(0.0) == 1
-    assert _cost_tier(4_999.99) == 1
-    assert _cost_tier(5_000.0) == 2
-    assert _cost_tier(24_999.99) == 2
-    assert _cost_tier(25_000.0) == 3
-    assert _cost_tier(100_000.0) == 3
+def test_cost_tier_all_bands(roi_config: ROIConfig) -> None:
+    """_cost_tier mappt Lizenzkosten korrekt auf Kostenstufe 1-3.
+
+    Schwellen kommen seit F-006 aus roi_config.toml [cost_tiers]
+    (Platzhalter-Werte: 5.000 / 25.000 EUR).
+    """
+    assert _cost_tier(0.0, roi_config) == 1
+    assert _cost_tier(4_999.99, roi_config) == 1
+    assert _cost_tier(5_000.0, roi_config) == 2
+    assert _cost_tier(24_999.99, roi_config) == 2
+    assert _cost_tier(25_000.0, roi_config) == 3
+    assert _cost_tier(100_000.0, roi_config) == 3
+
+
+def test_cost_tier_uses_config_thresholds(roi_config: ROIConfig) -> None:
+    """Geaenderte Config-Schwellen aendern die Kostenstufe (F-006)."""
+    custom = dataclasses.replace(
+        roi_config, cost_tier_2_min_eur=1_000.0, cost_tier_3_min_eur=2_000.0
+    )
+    assert _cost_tier(1_500.0, custom) == 2
+    assert _cost_tier(2_500.0, custom) == 3
+    assert _cost_tier(1_500.0, roi_config) == 1  # Platzhalter-Schwellen
+
+
+def test_roi_config_rejects_unordered_cost_tiers(roi_config: ROIConfig) -> None:
+    """tier_2 >= tier_3 ist eine Fehlkonfiguration -> ValueError (laut, F-006)."""
+    with pytest.raises(ValueError, match="cost_tiers"):
+        dataclasses.replace(
+            roi_config, cost_tier_2_min_eur=30_000.0, cost_tier_3_min_eur=25_000.0
+        )
 
 
 def _minimal_triage(*, passed: bool, zone: TriageZone | None) -> TriageResult:

@@ -67,6 +67,19 @@ class ROIConfig:
     min_potential_eur: Decimal
     min_hours_per_year: float
     min_expected_benefit_eur: Decimal
+    # Kostenstufen-Schwellen fuer den Composite-Score (F-006): Lizenzkosten
+    # < tier_2 -> Stufe 1, < tier_3 -> Stufe 2, sonst Stufe 3.
+    cost_tier_2_min_eur: float
+    cost_tier_3_min_eur: float
+
+    def __post_init__(self) -> None:
+        if not self.cost_tier_2_min_eur < self.cost_tier_3_min_eur:
+            msg = (
+                "cost_tiers: tier_2_min_license_cost_eur "
+                f"({self.cost_tier_2_min_eur}) muss kleiner sein als "
+                f"tier_3_min_license_cost_eur ({self.cost_tier_3_min_eur})"
+            )
+            raise ValueError(msg)
 
 
 def load_roi_config(path: Path | None = None) -> ROIConfig:
@@ -95,6 +108,10 @@ def load_roi_config(path: Path | None = None) -> ROIConfig:
         min_expected_benefit_eur=Decimal(
             str(raw["thresholds"]["min_expected_benefit_eur"])
         ),
+        # KeyError bei fehlender [cost_tiers]-Section ist gewollt (lauter
+        # Fehler statt stillem Fallback -- Lehre aus F-001).
+        cost_tier_2_min_eur=float(raw["cost_tiers"]["tier_2_min_license_cost_eur"]),
+        cost_tier_3_min_eur=float(raw["cost_tiers"]["tier_3_min_license_cost_eur"]),
     )
 
 
