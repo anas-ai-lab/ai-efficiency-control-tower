@@ -137,6 +137,32 @@ jobs:
           path: docs/sbom.json
           retention-days: 90
 
+  # ─── Job: Container Scan (Trivy) ────────────────────────────────────────────
+  # Phase-2-Fix: baut das Image und scannt es auf CVEs (Base-Image + Deps).
+  # ignore-unfixed: Debian-CVEs ohne verfuegbaren Fix machen den Job sonst
+  # dauerhaft rot, ohne dass es eine Handlung gaebe. CRITICAL/HIGH mit Fix
+  # brechen den Build.
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Build image
+        run: docker build -t aect-api:ci .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: aect-api:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
   # ─── Job 5: Frontend Quality ────────────────────────────────────────────────
   # AUDIT-004: TypeScript-Check + Next.js-Build. Node 20 (NICHT 24 -- Next.js
   # haengt dort still). Build laeuft mit Dummy-Env: SSG/statische Teile bauen

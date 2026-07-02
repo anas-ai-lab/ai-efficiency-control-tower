@@ -8,15 +8,17 @@
 #   - ChromaDB laeuft als separater Container (docker-compose.yml)
 #   - EU-Data-Zone: Deployment-Region muss swedencentral/westeurope sein (ADR-0003)
 #
-# uv-Image-Version: derzeit "latest" -- fuer Produktion auf SHA pinnen
-# (analog GitHub-Actions, aect-security-checklist Phase F).
+# Basis-Images per SHA-Digest gepinnt (Phase-2-Fix, analog SHA-gepinnter
+# GitHub-Actions): Tag-Kommentar dokumentiert den aufgeloesten Stand
+# (2026-07-02). Bump = neuen Digest eintragen, bewusster Schritt statt
+# stillem Upstream-Drift.
 
 # ─── Stage 1: Builder ────────────────────────────────────────────────────────
 # Installiert alle Abhaengigkeiten + Projekt in /app/.venv. uv lebt nur hier.
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS builder
 
 # uv aus offiziellem Image -- kein curl-pipe-sh.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.26@sha256:3d868e555f8f1dbc324afa005066cd11e1053fc4743b9808ca8025283e65efa5 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
@@ -39,7 +41,7 @@ RUN uv sync --frozen --no-dev
 
 # ─── Stage 2: Final ──────────────────────────────────────────────────────────
 # Kein uv, kein Build-Tool. Nur Python-Runtime, .venv, Quellcode, Assets.
-FROM python:3.12-slim AS final
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS final
 
 # curl ausschliesslich fuer HEALTHCHECK (python:slim bringt es nicht mit).
 RUN apt-get update && \
