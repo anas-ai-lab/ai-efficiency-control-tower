@@ -114,9 +114,16 @@ oder andere Executables eingesetzt.
 - `parse_structured_llm_output()` (`application/structured_output.py`):
   LLM-Antwort wird gegen striktes Pydantic-V2-Schema validiert
   (`extra="forbid"`, `frozen=True`, Laengenbeschraenkungen auf allen Feldern).
-  Verstoss -> `InvalidLLMOutputError`, kein Fallback auf rohen Text.
-- LLM-Output wird nie direkt in SQL, Shell oder externe Expressions eingesetzt
-  -- AECT ist Advisory-Layer ohne Executor-Funktion.
+  Bei Validierungsfehler: Graceful Degradation auf `raw_text` (ADR-0013 Teil 2)
+  statt Crash -- die rohe LLM-Antwort wird als unstrukturierter String
+  weitergereicht, aber **nie geparst, ausgefuehrt oder in SQL/Shell/Executables
+  eingesetzt**. Praezisierung: "kein Fallback auf rohen Text" (vorherige
+  Formulierung) war falsch -- der raw_text-Pfad existiert und ist Teil des
+  Degradation-Designs; die relevante Aussage fuer LLM05 ist, dass dieser Text
+  nirgends interpretiert/ausgefuehrt wird.
+- LLM-Output (strukturiert wie raw_text) wird nie direkt in SQL, Shell oder
+  externe Expressions eingesetzt -- AECT ist Advisory-Layer ohne
+  Executor-Funktion.
 - API-Response-Modelle (`BusinessSummary`, `TechnicalDetail`) validieren den
   Report-Inhalt vor der Serialisierung.
 
@@ -179,23 +186,28 @@ Retrieval-Ergebnisse. Embeddings koennen PII enthalten die unbemerkt persistiert
 
 **AECT-Mitigation:**
 
-- **Kein User-PII im Embedding-Pfad (by design):** Use-Case-Freitext wird nie
-  embedded. Indexiert wird ausschliesslich kuratierter oeffentlicher Rechtstext
-  (`knowledge_base/`, ADR-0021); die Compliance-Retrieval-Queries sind feste
-  kanonische Strings (`_TRANSPARENCY_QUERY`/`_DSFA_QUERY` in `service.py`), kein
-  Nutzer-Freitext. Damit erreicht strukturell kein personenbezogener Inhalt den
-  Embedder -- staerker als nachtraegliche Redaction. Ein PII-Redactor auf einem
-  kuenftigen User-Query-Pfad ist als Folge-Punkt dokumentiert
-  (`indexer.py`-Docstring, `known_limitations.md` #7).
-- Nur kuratierte Quellen werden indexed -- keine User-Inputs in die KB.
+- **Kein User-PII im *Retrieval-Index*-Pfad (by design):** Fuer die
+  Compliance-Retrieval-Queries wird ausschliesslich kuratierter oeffentlicher
+  Rechtstext (`knowledge_base/`, ADR-0021) indexiert; die Queries selbst sind
+  feste kanonische Strings (`_TRANSPARENCY_QUERY`/`_DSFA_QUERY` in
+  `service.py`), kein Nutzer-Freitext.
+- **Ausnahme (seit ADR-0039, Dedup-Feature):** `check_similarity()` embedded
+  `title` + `current_state` des eingereichten Use-Case-Freitexts, um aehnliche
+  Cases zu erkennen. Dieses Embedding wird am Case gespeichert (`case.embedding`)
+  und kann potenziell PII enthalten. Loeschung folgt der Art.-17-Kaskade
+  (siehe `application/service.py::check_similarity`, `known_limitations.md` #7).
+  Ein PII-Redactor auf diesem Pfad ist als Folge-Punkt dokumentiert.
+- Nur kuratierte Quellen werden in die eigentliche Wissensbasis indexed --
+  keine User-Inputs in die KB selbst.
 - `source_id`-Tag pro Dokument: gezielte Loeschung ohne KB-Neuaufbau moeglich.
 - ChromaDB an `127.0.0.1:8001` gebunden: kein externer Netzwerkzugriff
   (`docker-compose.yml`).
 - `chromadb/chroma:1.5.3` -- gepinnte Version, reproduzierbar.
 
-**Status:** MITIGATED
+**Status:** PARTIAL (Wissensbasis-Pfad mitigiert, Dedup-Pfad ist eine
+dokumentierte Ausnahme, kein Redactor)
 **Evidenz:** `adapters/rag/indexer.py`, `adapters/rag/embedder.py`,
-`docker-compose.yml`
+`application/service.py::check_similarity`, `docker-compose.yml`
 
 ---
 
