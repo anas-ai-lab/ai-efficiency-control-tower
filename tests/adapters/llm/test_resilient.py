@@ -141,3 +141,42 @@ async def test_tools_parameter_is_passed_through_to_inner() -> None:
     await adapter.complete(_MESSAGES, tools=[tool])
 
     assert inner.received_tools == [tool]
+
+
+# ---------------------------------------------------------------------------
+# F-014: Gesamtdeadline ueber alle Retries
+# ---------------------------------------------------------------------------
+
+
+async def test_overall_deadline_caps_retry_storm() -> None:
+    """Die Gesamtdeadline begrenzt Retries+Backoff, nicht nur den Einzelversuch.
+
+    Ohne overall_timeout_seconds wuerde diese Konfiguration (100 Versuche
+    a 50 ms) mehrere Sekunden laufen -- die Deadline von 0.2 s bricht frueher
+    ab und wirft TimeoutError.
+    """
+    inner = _SlowLLMAdapter(delay_seconds=10.0)
+    adapter = ResilientLLMAdapter(
+        inner,
+        max_attempts=100,
+        timeout_seconds=0.05,
+        min_wait_seconds=0.0,
+        max_wait_seconds=0.0,
+        overall_timeout_seconds=0.2,
+    )
+    started = asyncio.get_running_loop().time()
+    with pytest.raises(TimeoutError):
+        await adapter.complete(_MESSAGES)
+    elapsed = asyncio.get_running_loop().time() - started
+    assert elapsed < 2.0  # deutlich unter den ~5 s der 100 Einzelversuche
+    assert inner.call_count < 100
+
+
+async def test_overall_deadline_does_not_interfere_with_fast_success() -> None:
+    inner = _FlakyLLMAdapter(fail_times=1)
+    adapter = ResilientLLMAdapter(
+        inner, max_attempts=3, overall_timeout_seconds=5.0, **_FAST
+    )
+    response = await adapter.complete(_MESSAGES)
+    assert response.content == "ok"
+    assert inner.call_count == 2

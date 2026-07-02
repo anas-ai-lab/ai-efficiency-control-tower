@@ -12,6 +12,16 @@ import type {
 const BASE_URL = process.env.AECT_API_BASE_URL ?? "http://localhost:8000";
 const API_KEY = process.env.AECT_API_KEY ?? "";
 
+// Request-Timeouts (F-014): ohne AbortSignal wartet ein Server-Action-Fetch
+// unbegrenzt. Regelbasierte Endpunkte (Triage, Report) antworten in
+// Millisekunden; LLM-Endpunkte sind durch die Backend-Gesamtdeadline von
+// 60 s pro LLM-Call gedeckelt (ResilientLLMAdapter) — das Frontend wartet
+// etwas länger, damit im Fehlerfall die präzisere Server-Antwort gewinnt.
+// propose-solution kann im Function-Calling-Loop zwei LLM-Calls machen.
+const RULE_TIMEOUT_MS = 15_000;
+const LLM_TIMEOUT_MS = 75_000;
+const LLM_TOOL_LOOP_TIMEOUT_MS = 135_000;
+
 function buildHeaders(): HeadersInit {
   return {
     "Content-Type": "application/json",
@@ -40,6 +50,7 @@ export async function submitTriage(
     method: "POST",
     headers: buildHeaders(),
     body: JSON.stringify(input),
+    signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
   });
   return handleResponse<TriageResponse>(res);
 }
@@ -50,6 +61,7 @@ export async function sharpenCase(
   const res = await fetch(`${BASE_URL}/cases/${caseId}/sharpen`, {
     method: "POST",
     headers: buildHeaders(),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   return handleResponse<SharpenedCaseResponse>(res);
 }
@@ -60,6 +72,7 @@ export async function proposeSolution(
   const res = await fetch(`${BASE_URL}/cases/${caseId}/propose-solution`, {
     method: "POST",
     headers: buildHeaders(),
+    signal: AbortSignal.timeout(LLM_TOOL_LOOP_TIMEOUT_MS),
   });
   return handleResponse<SolutionProposalResponse>(res);
 }
@@ -70,6 +83,7 @@ export async function generateComplianceHints(
   const res = await fetch(`${BASE_URL}/cases/${caseId}/compliance-hints`, {
     method: "POST",
     headers: buildHeaders(),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   return handleResponse<ComplianceHintsResponse>(res);
 }
@@ -81,6 +95,7 @@ export async function generateReport(
     method: "POST",
     headers: buildHeaders(),
     body: JSON.stringify({}),
+    signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
   });
   return handleResponse<ReportResponse>(res);
 }

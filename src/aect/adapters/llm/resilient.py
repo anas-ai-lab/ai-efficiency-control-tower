@@ -54,6 +54,12 @@ class ResilientLLMAdapter:
     sofort ohne Retry. Nach Erschoepfen der Versuche wird die zuletzt
     aufgetretene Exception erneut geworfen (reraise=True) -- kein
     RetryError-Wrapper, der den urspruenglichen Fehlertyp verschluckt.
+
+    Gesamtdeadline (F-014): `overall_timeout_seconds` deckelt den KOMPLETTEN
+    complete()-Aufruf inklusive aller Retries und Backoff-Wartezeiten.
+    Vorher war nur jeder Einzelversuch begrenzt -- Worst Case
+    max_attempts x timeout_seconds + Backoff (~101 s bei Defaults). Laeuft
+    die Deadline ab, wird TimeoutError geworfen (asyncio.timeout).
     """
 
     def __init__(
@@ -64,12 +70,14 @@ class ResilientLLMAdapter:
         timeout_seconds: float = 30.0,
         min_wait_seconds: float = 1.0,
         max_wait_seconds: float = 8.0,
+        overall_timeout_seconds: float = 60.0,
     ) -> None:
         self._inner = inner
         self._max_attempts = max_attempts
         self._timeout_seconds = timeout_seconds
         self._min_wait_seconds = min_wait_seconds
         self._max_wait_seconds = max_wait_seconds
+        self._overall_timeout_seconds = overall_timeout_seconds
 
     async def complete(
         self,
@@ -84,10 +92,14 @@ class ResilientLLMAdapter:
             retry=retry_if_exception_type((TimeoutError, ConnectionError)),
             reraise=True,
         )
-        async for attempt in retrying:
-            with attempt:
-                return await asyncio.wait_for(
-                    self._inner.complete(messages, tools=tools),
-                    timeout=self._timeout_seconds,
-                )
+        # Gesamtdeadline ueber Retries UND Backoff (F-014): asyncio.timeout
+        # bricht auch mitten in einer Backoff-Wartezeit ab und uebersetzt
+        # die Cancellation an dieser Grenze in TimeoutError.
+        async with asyncio.timeout(self._overall_timeout_seconds):
+            async for attempt in retrying:
+                with attempt:
+                    return await asyncio.wait_for(
+                        self._inner.complete(messages, tools=tools),
+                        timeout=self._timeout_seconds,
+                    )
         raise AssertionError("unreachable: AsyncRetrying always returns or raises")
