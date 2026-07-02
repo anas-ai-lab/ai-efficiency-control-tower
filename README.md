@@ -58,8 +58,8 @@ fuer Entscheider und technische Detailebene fuer Reviewer.
 ## Architektur
 
 ```
-Browser (Next.js 15, App Router)
-  +-- Intake Form     (shadcn/ui + Zod, 10 Felder)
+Browser (Next.js 16, App Router)
+  +-- Intake Form     (shadcn/ui + Zod, 20 Felder)
   +-- Server Actions  (actions.ts) -- API-Key server-seitig, nie im Client
   +-- Result Views    Triage | Sharpen | Solution | Compliance | Report
       |
@@ -128,7 +128,7 @@ Sequenzdiagrammen (Triage, RAG-Compliance, Function-Calling): [`docs/architectur
 | Testing | pytest, pytest-asyncio, hypothesis, httpx TestClient |
 | Qualitaet | ruff, mypy --strict, bandit, pip-audit |
 | Package Mgmt | uv |
-| CI | GitHub Actions (Node 24, gitleaks, pip-audit, bandit) |
+| CI | GitHub Actions (Node 20, gitleaks, pip-audit, bandit) |
 
 ---
 
@@ -150,11 +150,14 @@ Alle 41 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
 ## Evaluation
 
-Evaluiert auf 25 Golden Cases (manuell gelabelt, unabhaengig) + 36 synthetischen Faellen:
+Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
+`known_limitations.md` #3) + 36 synthetischen Faellen:
 
 | Metrik | Wert |
 |---|---|
-| Agreement Rate (Golden Cases, n=24 gelabelt) | 9/24 (37,5 %) |
+| Raw Agreement Rate (Golden Cases, n=24 gelabelt) | 9/24 (37,5 %) |
+| Cohen's Kappa (n=24, inkl. Vorfilter-Ablehnungen) | 0,06 (nahe Zufall) |
+| Cohen's Kappa (n=21, ohne Vorfilter-Ablehnungen) | 0,13 ("leicht") |
 | Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4) |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
 | Test-Coverage | 97 % (488 Tests) |
@@ -247,9 +250,9 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 449 Tests, 97 % Coverage (pytest, hypothesis, httpx TestClient)
+tests/           # 493 Tests (488 passed, 5 skipped), 97 % Coverage (pytest, hypothesis, httpx TestClient)
 evals/
-  golden/        # 4 manuell gelabelte Golden Cases (JSONL)
+  golden/        # 25 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)
 knowledge_base/  # Kuratierte Markdown-Quellen (DSGVO, EU AI Act, Stack-Doku)
 prompts/         # Versionierte Prompt-Dateien (v1)
@@ -279,7 +282,7 @@ docs/
 | Prompt-Injection-Tests | pytest Red-Team-Cases | `tests/adapters/api/test_triage.py` |
 | PII in Logs | Allowlist -- kein Body/Prompt/PII | `adapters/api/logging_config.py` |
 | PII-Redaction vor LLM (NER) | Bewusste v1-Grenze (Regex statt NER) | `docs/known_limitations.md` #7 |
-| Azure EU-Datenpflicht | Durchgesetzt | Sweden Central (EU Data Zone), nie Global |
+| Azure EU-Datenpflicht | Best-Effort (Startup-Guard) | Endpoint-URL-Substring-Pruefung auf `swedencentral`/`westeurope` beim Start (`settings.py`); kein Laufzeit-Nachweis der tatsaechlichen Datenregion |
 | Non-root Docker User | Dockerfile | `aect:aect` (uid/gid 1000) |
 | ChromaDB-Isolation | Docker-Netz | Nur `127.0.0.1:8001`, kein Netz-Zugriff |
 | SBOM | Vorhanden | `docs/sbom.json` (CycloneDX) |
