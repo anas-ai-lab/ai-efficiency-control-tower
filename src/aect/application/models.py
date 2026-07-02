@@ -11,7 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from aect.domain import TriageResult, UseCaseInput
+from aect.domain import ReviewerDecision, TriageResult, UseCaseInput
 
 
 class SimilarityWarning(BaseModel):
@@ -67,6 +67,12 @@ class SubmittedCase:
     sharpened_content_json/proposal_text/compliance_hints_json via
     TriageService (s. service.py).
 
+    reviewer_decision/reviewer_note/decided_at (Human-in-the-Loop, minimaler
+    Decision-Record statt vollem Reviewer-Workflow -- ADR-0043): gesetzt ueber
+    TriageService.record_decision() / POST /cases/{id}/decision. PENDING +
+    None ist der Zustand vor jeder manuellen Entscheidung. Ueberschreiben ist
+    erlaubt (Korrektur-Fall) -- decided_at wird bei jedem Aufruf aktualisiert.
+
     IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
@@ -82,6 +88,9 @@ class SubmittedCase:
     # None, solange kein Embedding berechnet wurde (Mock-Modus, erster Case,
     # oder Case aus einer aelteren DB-Version). Persistiert als JSON-Float-Liste.
     embedding: list[float] | None = None
+    reviewer_decision: ReviewerDecision = ReviewerDecision.PENDING
+    reviewer_note: str | None = None
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -196,6 +205,11 @@ class BusinessSummary:
     nie lief ODER lief, aber das Retrieval keine Treffer hatte (Graceful
     Degradation, ADR-0024) -- fuer den Report-Konsumenten aequivalent: kein
     Hinweis anzuzeigen.
+
+    reviewer_decision/reviewer_note/decided_at (ADR-0043, minimaler
+    Decision-Record): aktueller Entscheidungs-Zustand des Case, direkt aus
+    SubmittedCase uebernommen -- macht den Human-in-the-Loop-Status im
+    Report sichtbar, ohne einen zweiten Endpoint abzufragen.
     """
 
     title: str
@@ -207,6 +221,9 @@ class BusinessSummary:
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: tuple[ComplianceCitation, ...]
+    reviewer_decision: str
+    reviewer_note: str | None
+    decided_at: datetime | None
 
 
 @dataclass(frozen=True)

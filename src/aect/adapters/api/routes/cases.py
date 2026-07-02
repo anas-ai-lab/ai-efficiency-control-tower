@@ -11,6 +11,7 @@ Phase C: GET /cases/{id} fuer Detail-Ansicht ergaenzen.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,6 +24,7 @@ from aect.adapters.api.dependencies import (
 )
 from aect.adapters.api.rate_limit import limiter
 from aect.application.service import CaseNotFoundError, TriageService
+from aect.domain import ReviewerDecision
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -87,6 +89,70 @@ async def delete_case(
     except CaseNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Case not found") from exc
     return Response(status_code=204)
+
+
+class DecisionRequest(BaseModel):
+    """Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,
+    minimaler Decision-Record -- ADR-0043, bewusst kein Multi-User-Reviewer-
+    Workflow mit Rollen).
+
+    decision: nur "approved"/"rejected" ueber diesen Endpoint setzbar --
+    PENDING ist ausschliesslich der Ausgangszustand vor jeder Entscheidung,
+    kein gueltiger Request-Wert (kein Zurueck-auf-PENDING via API).
+    note: optionale Begruendung. extra="forbid" + max_length konsistent mit
+    den uebrigen Freitextfeldern (Token-Flooding-Schutz, aect-security-
+    checklist v2.1 Phase A).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class DecisionResponse(BaseModel):
+    """Aktueller Entscheidungs-Zustand eines Case nach POST /decision."""
+
+    case_id: str
+    reviewer_decision: str
+    reviewer_note: str | None
+    decided_at: datetime | None
+
+
+@router.post("/{case_id}/decision", response_model=DecisionResponse)
+@limiter.limit("10/minute")
+async def record_decision(
+    case_id: str,
+    body: DecisionRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> DecisionResponse:
+    """Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
+
+    Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
+    kein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = await service.record_decision(
+        case_id, ReviewerDecision(body.decision), body.note
+    )
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return DecisionResponse(
+        case_id=case.id,
+        reviewer_decision=case.reviewer_decision.value,
+        reviewer_note=case.reviewer_note,
+        decided_at=case.decided_at,
+    )
 
 
 class SharpenedCaseResponse(BaseModel):
@@ -237,6 +303,10 @@ class BusinessSummaryResponse(BaseModel):
     compliance_hint_text/compliance_citations (ADR-0026): aus dem
     persistierten compliance_hints_json gelesen, kein Override moeglich
     (siehe ReportRequest-Docstring).
+
+    reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
+    Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
+    sichtbar, ohne einen zweiten Endpoint abzufragen.
     """
 
     title: str
@@ -248,6 +318,9 @@ class BusinessSummaryResponse(BaseModel):
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: list[ComplianceCitationResponse]
+    reviewer_decision: str
+    reviewer_note: str | None
+    decided_at: datetime | None
 
 
 class TechnicalDetailResponse(BaseModel):
@@ -332,6 +405,9 @@ async def get_report(
                 )
                 for c in report.business_summary.compliance_citations
             ],
+            reviewer_decision=report.business_summary.reviewer_decision,
+            reviewer_note=report.business_summary.reviewer_note,
+            decided_at=report.business_summary.decided_at,
         ),
         technical_detail=TechnicalDetailResponse(
             passed_vorfilter=report.technical_detail.passed_vorfilter,

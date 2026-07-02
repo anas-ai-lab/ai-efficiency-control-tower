@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Protocol
 
 from aect.application.models import SubmittedCase
+from aect.domain.types import ReviewerDecision
 
 # Nachtraeglich befuellbare Einzelfelder eines SubmittedCase (F-011).
 # embedding wird als JSON-String uebergeben (dasselbe Format wie die Spalte
@@ -35,6 +37,12 @@ class RepositoryPort(Protocol):
     ueberschreiben sich damit nicht mehr gegenseitig (Lost Update: beide lesen
     den Case vor dem LLM-Call, der langsamere save() gewann und loeschte das
     Feld des schnelleren). No-op, wenn case_id nicht existiert (analog delete).
+
+    record_decision / record_decision_async (ADR-0043, minimaler
+    Decision-Record): eigene Methode statt Wiederverwendung von update_field --
+    setzt drei zusammengehoerige Felder (reviewer_decision, reviewer_note,
+    decided_at) atomar in einem dedizierten UPDATE. No-op, wenn case_id nicht
+    existiert (analog delete/update_field).
     """
 
     def save(self, case: SubmittedCase) -> None: ...
@@ -44,6 +52,13 @@ class RepositoryPort(Protocol):
     def update_field(
         self, case_id: str, field: CaseUpdateField, value: str | None
     ) -> None: ...
+    def record_decision(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
+    ) -> None: ...
 
     async def save_async(self, case: SubmittedCase) -> None: ...
     async def get_async(self, case_id: str) -> SubmittedCase | None: ...
@@ -51,4 +66,11 @@ class RepositoryPort(Protocol):
     async def delete_async(self, case_id: str) -> None: ...
     async def update_field_async(
         self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None: ...
+    async def record_decision_async(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
     ) -> None: ...

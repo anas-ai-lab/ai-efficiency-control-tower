@@ -31,6 +31,13 @@ beiden oberen. Enthaelt ein JSON-Objekt mit hint_text (str | None) und
 citations (Liste von Citation-Dicts), gefuellt durch generate_compliance_
 hints() (application/service.py).
 
+reviewer_decision/reviewer_note/decided_at (ADR-0043, minimaler
+Decision-Record): reviewer_decision NOT NULL DEFAULT 'pending' (jeder Case
+hat ab Einreichung einen Entscheidungs-Zustand), reviewer_note/decided_at
+nullable. Geschrieben ueber record_decision() -- ein dediziertes UPDATE,
+NICHT ueber save()/INSERT OR REPLACE (vermeidet das F-011-Lost-Update-Muster
+bei parallelen LLM-Feld-Schreibvorgaengen auf demselben Case).
+
 save() ist weiterhin INSERT OR REPLACE -- ein erneuter save() mit gesetztem
 Feld ueberschreibt den vorherigen Wert.
 """
@@ -55,7 +62,7 @@ from aect.domain.pipeline import TriageResult
 from aect.domain.roi import ROIResult
 from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore
-from aect.domain.types import TriageZone
+from aect.domain.types import ReviewerDecision, TriageZone
 from aect.domain.zones import ZoneResult
 
 _CREATE_TABLE_SQL = """
@@ -67,13 +74,18 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     sharpened_content_json  TEXT,
     proposal_text           TEXT,
     compliance_hints_json   TEXT,
-    embedding               TEXT
+    embedding               TEXT,
+    reviewer_decision       TEXT NOT NULL DEFAULT 'pending',
+    reviewer_note           TEXT,
+    decided_at              TEXT
 )
 """
 
 # embedding (ADR-0039): JSON-Float-Liste des Intake-Embeddings fuer die
 # Dedup-Aehnlichkeitspruefung, nullable. SQLite kann ALTER TABLE ADD COLUMN
 # nicht IF NOT EXISTS -> Migration in _init_db() prueft erst PRAGMA table_info.
+# reviewer_decision/reviewer_note/decided_at (ADR-0043): dieselbe Migrations-
+# strategie, drei weitere Spalten.
 
 # Spaltenliste vierfach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
 # geteilt: jede "+"-Verkettung mit einem Namens-Knoten matcht bandit B608
@@ -87,19 +99,22 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
 _INSERT_SQL = (
     "INSERT OR REPLACE INTO submitted_cases "
     "(id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json, embedding) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
+    "reviewer_decision, reviewer_note, decided_at) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json, embedding "
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
+    "reviewer_decision, reviewer_note, decided_at "
     "FROM submitted_cases WHERE id = ?"
 )
 
 _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
-    "sharpened_content_json, proposal_text, compliance_hints_json, embedding "
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
+    "reviewer_decision, reviewer_note, decided_at "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -118,6 +133,16 @@ _UPDATE_FIELD_SQL: dict[str, str] = {
     ),
     "embedding": "UPDATE submitted_cases SET embedding = ? WHERE id = ?",
 }
+
+# record_decision (ADR-0043): eigenes dediziertes UPDATE statt Eintrag in
+# _UPDATE_FIELD_SQL -- setzt drei zusammengehoerige Spalten atomar in einem
+# Statement, analog zum F-011-Muster oben (kein INSERT OR REPLACE der ganzen
+# Zeile, kein Lost-Update-Risiko gegenueber parallelen LLM-Feld-Schreibvorgaengen).
+_RECORD_DECISION_SQL = (
+    "UPDATE submitted_cases "
+    "SET reviewer_decision = ?, reviewer_note = ?, decided_at = ? "
+    "WHERE id = ?"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +265,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (8-Tupel) -> SubmittedCase."""
+    """SQLite-Row (11-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -250,6 +275,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         proposal_text,
         compliance_hints_json,
         embedding_json,
+        reviewer_decision_str,
+        reviewer_note,
+        decided_at_str,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -269,6 +297,13 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
             str(compliance_hints_json) if compliance_hints_json is not None else None
         ),
         embedding=embedding,
+        reviewer_decision=ReviewerDecision(str(reviewer_decision_str)),
+        reviewer_note=str(reviewer_note) if reviewer_note is not None else None,
+        decided_at=(
+            datetime.fromisoformat(str(decided_at_str))
+            if decided_at_str is not None
+            else None
+        ),
     )
 
 
@@ -298,7 +333,8 @@ class SQLiteRepository:
     def _init_db(self) -> None:
         """Legt die Tabelle an falls nicht vorhanden (idempotent).
 
-        Migration embedding-Spalte (ADR-0039): SQLite kennt kein
+        Migration embedding-Spalte (ADR-0039) und reviewer_decision/
+        reviewer_note/decided_at-Spalten (ADR-0043): SQLite kennt kein
         ALTER TABLE ... ADD COLUMN IF NOT EXISTS -- daher erst PRAGMA
         table_info pruefen und nur ergaenzen, wenn die Spalte fehlt (Tabelle
         stammt dann aus einer aelteren Version).
@@ -310,6 +346,17 @@ class SQLiteRepository:
             }
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE submitted_cases ADD COLUMN embedding TEXT")
+            if "reviewer_decision" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN reviewer_decision "
+                    "TEXT NOT NULL DEFAULT 'pending'"
+                )
+            if "reviewer_note" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN reviewer_note TEXT"
+                )
+            if "decided_at" not in columns:
+                conn.execute("ALTER TABLE submitted_cases ADD COLUMN decided_at TEXT")
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
@@ -317,6 +364,9 @@ class SQLiteRepository:
         result_json = _serialize_result(case.result)
         embedding_json = (
             json.dumps(case.embedding) if case.embedding is not None else None
+        )
+        decided_at_str = (
+            case.decided_at.isoformat() if case.decided_at is not None else None
         )
         with connect(self._db_path) as conn:
             conn.execute(
@@ -330,6 +380,9 @@ class SQLiteRepository:
                     case.proposal_text,
                     case.compliance_hints_json,
                     embedding_json,
+                    case.reviewer_decision.value,
+                    case.reviewer_note,
+                    decided_at_str,
                 ),
             )
 
@@ -371,6 +424,26 @@ class SQLiteRepository:
         with connect(self._db_path) as conn:
             conn.execute(_UPDATE_FIELD_SQL[field], (value, case_id))
 
+    def record_decision(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
+    ) -> None:
+        """Setzt Entscheidung + Notiz + Zeitstempel atomar (ADR-0043).
+
+        Dediziertes UPDATE ueber alle drei Spalten in einem Statement --
+        kein INSERT OR REPLACE der ganzen Zeile (F-011-Lost-Update-Muster,
+        siehe Modul-Docstring). No-op bei unbekannter case_id (analog
+        delete/update_field).
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(
+                _RECORD_DECISION_SQL,
+                (decision.value, note, decided_at.isoformat(), case_id),
+            )
+
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
     # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
     # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
@@ -397,3 +470,15 @@ class SQLiteRepository:
     ) -> None:
         """Async-Wrapper um update_field() via asyncio.to_thread (F-011)."""
         await asyncio.to_thread(self.update_field, case_id, field, value)
+
+    async def record_decision_async(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
+    ) -> None:
+        """Async-Wrapper um record_decision() via asyncio.to_thread (ADR-0043)."""
+        await asyncio.to_thread(
+            self.record_decision, case_id, decision, note, decided_at
+        )

@@ -27,6 +27,7 @@ from aect.domain.types import (
     EmployeeCategory,
     EvidenceLevel,
     ImplementationApproach,
+    ReviewerDecision,
 )
 
 # ---------------------------------------------------------------------------
@@ -512,3 +513,109 @@ class TestEmbeddingColumn:
         loaded = repo.get(sample_case.id)
         assert loaded is not None
         assert loaded.embedding == [1.0, 2.0]
+
+
+# ---------------------------------------------------------------------------
+# reviewer_decision/reviewer_note/decided_at (Human-in-the-Loop, ADR-0043)
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerDecisionColumns:
+    def test_defaults_to_pending_on_save(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.reviewer_decision == ReviewerDecision.PENDING
+        assert loaded.reviewer_note is None
+        assert loaded.decided_at is None
+
+    def test_record_decision_roundtrip(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        decided_at = datetime(2026, 6, 12, 8, 30, 0, tzinfo=UTC)
+
+        repo.record_decision(
+            sample_case.id, ReviewerDecision.APPROVED, "Passt", decided_at
+        )
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.reviewer_decision == ReviewerDecision.APPROVED
+        assert loaded.reviewer_note == "Passt"
+        assert loaded.decided_at == decided_at
+
+    def test_record_decision_overwrites_previous_decision(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        first_time = datetime(2026, 6, 12, 8, 30, 0, tzinfo=UTC)
+        second_time = datetime(2026, 6, 13, 9, 0, 0, tzinfo=UTC)
+
+        repo.record_decision(
+            sample_case.id, ReviewerDecision.APPROVED, "ok", first_time
+        )
+        repo.record_decision(
+            sample_case.id, ReviewerDecision.REJECTED, "doch nicht", second_time
+        )
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.reviewer_decision == ReviewerDecision.REJECTED
+        assert loaded.reviewer_note == "doch nicht"
+        assert loaded.decided_at == second_time
+
+    def test_record_decision_is_noop_for_unknown_case_id(
+        self, repo: SQLiteRepository
+    ) -> None:
+        # Analog delete/update_field: kein Fehler bei unbekannter case_id.
+        repo.record_decision(
+            "never-existed", ReviewerDecision.APPROVED, None, datetime.now(UTC)
+        )
+
+    def test_record_decision_does_not_touch_other_fields(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.proposal_text = "Bestehender Vorschlag"
+        repo.save(sample_case)
+
+        repo.record_decision(
+            sample_case.id, ReviewerDecision.APPROVED, None, datetime.now(UTC)
+        )
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.proposal_text == "Bestehender Vorschlag"
+
+    def test_migration_adds_columns_to_legacy_table(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Eine Tabelle ohne reviewer_decision/reviewer_note/decided_at
+        (Version vor ADR-0043) wird beim Init migriert -- ALTER TABLE ADD
+        COLUMN ergaenzt die drei Spalten (analog test_migration_adds_column_
+        to_legacy_table fuer embedding)."""
+        import sqlite3
+
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL, "
+                "sharpened_content_json TEXT, proposal_text TEXT, "
+                "compliance_hints_json TEXT, embedding TEXT)"
+            )
+
+        repo = SQLiteRepository(db_path)  # _init_db migriert die Spalten
+        decided_at = datetime(2026, 6, 12, 8, 30, 0, tzinfo=UTC)
+        repo.save(sample_case)
+        repo.record_decision(
+            sample_case.id, ReviewerDecision.APPROVED, "nachtraeglich", decided_at
+        )
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.reviewer_decision == ReviewerDecision.APPROVED
+        assert loaded.reviewer_note == "nachtraeglich"
+        assert loaded.decided_at == decided_at

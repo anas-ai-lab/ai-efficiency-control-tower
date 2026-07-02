@@ -85,3 +85,18 @@ class TriageZone(StrEnum):
     MARGINAL_GAIN = "MARGINAL_GAIN"
     CALCULATED_RISK = "CALCULATED_RISK"
     LIKELY_WIN = "LIKELY_WIN"
+
+
+class ReviewerDecision(StrEnum):
+    """Human-in-the-Loop-Entscheidung zu einem Case (minimaler Decision-Record,
+    ADR-0043 -- bewusst kein Multi-User-Reviewer-Workflow mit Rollen).
+
+    PENDING ist der Default direkt nach Einreichung. APPROVED/REJECTED werden
+    ausschliesslich ueber POST /cases/{id}/decision gesetzt (TriageService.
+    record_decision()) -- derselbe API-Key-Auth-Mechanismus wie alle anderen
+    Routen, kein eigenes Auth-/Rollen-Konzept.
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"

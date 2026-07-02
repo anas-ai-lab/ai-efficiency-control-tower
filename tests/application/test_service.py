@@ -22,7 +22,7 @@ from aect.application.service import (
 )
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
-from aect.domain.types import DataClassification
+from aect.domain.types import DataClassification, ReviewerDecision
 
 # ---------------------------------------------------------------------------
 # Fake-Implementierungen (kein Mocking-Framework -- strukturelles Subtyping)
@@ -47,6 +47,18 @@ class _FakeIdGenerator:
         self._iter = iter(ids)
 
     def generate(self) -> str:
+        return next(self._iter)
+
+
+class _SequentialClock:
+    """Liefert bei jedem Aufruf den naechsten Zeitstempel aus einer Liste --
+    macht "Ueberschreiben aktualisiert decided_at"-Tests deterministisch
+    pruefbar (_FakeClock liefert immer denselben Zeitstempel)."""
+
+    def __init__(self, timestamps: list[datetime.datetime]) -> None:
+        self._iter = iter(timestamps)
+
+    def now(self) -> datetime.datetime:
         return next(self._iter)
 
 
@@ -604,6 +616,24 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         assert report.technical_detail.proposal_text is None
         assert report.business_summary.compliance_hint_text is None
         assert report.business_summary.compliance_citations == ()
+        # ADR-0043: Default-Entscheidungs-Zustand vor jeder Review-Aktion.
+        assert report.business_summary.reviewer_decision == "pending"
+        assert report.business_summary.reviewer_note is None
+        assert report.business_summary.decided_at is None
+
+    async def test_report_reflects_recorded_decision(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.record_decision(case.id, ReviewerDecision.APPROVED, "Freigegeben")
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.business_summary.reviewer_decision == "approved"
+        assert report.business_summary.reviewer_note == "Freigegeben"
+        assert report.business_summary.decided_at == _FIXED_TIME
 
     async def test_report_uses_persisted_compliance_hint_without_argument(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -776,6 +806,126 @@ class TestTriageServiceDelete:
             await service.delete_case(case.id)  # darf NICHT werfen
         assert repo.get(case.id) is None  # Repository-Loeschung steht
         assert any(e.get("event") == "chromadb_delete_failed" for e in logs)
+
+
+# ---------------------------------------------------------------------------
+# Human-in-the-Loop Decision-Record (ADR-0043)
+# ---------------------------------------------------------------------------
+
+
+class TestTriageServiceRecordDecision:
+    async def test_default_decision_is_pending(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.reviewer_decision == ReviewerDecision.PENDING
+        assert case.reviewer_note is None
+        assert case.decided_at is None
+
+    async def test_approve_sets_fields_on_returned_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        updated = await service.record_decision(
+            case.id, ReviewerDecision.APPROVED, "Passt, bitte umsetzen"
+        )
+
+        assert updated is not None
+        assert updated.reviewer_decision == ReviewerDecision.APPROVED
+        assert updated.reviewer_note == "Passt, bitte umsetzen"
+        assert updated.decided_at == _FIXED_TIME
+
+    async def test_reject_without_note_sets_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        updated = await service.record_decision(
+            case.id, ReviewerDecision.REJECTED, None
+        )
+
+        assert updated is not None
+        assert updated.reviewer_decision == ReviewerDecision.REJECTED
+        assert updated.reviewer_note is None
+        assert updated.decided_at == _FIXED_TIME
+
+    async def test_decision_persists_to_repository(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.record_decision(case.id, ReviewerDecision.APPROVED, "ok")
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.reviewer_decision == ReviewerDecision.APPROVED
+        assert persisted.reviewer_note == "ok"
+        assert persisted.decided_at == _FIXED_TIME
+
+    async def test_missing_case_returns_none(self, roi_config: ROIConfig) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.record_decision(
+            "does-not-exist", ReviewerDecision.APPROVED, None
+        )
+        assert result is None
+
+    async def test_overwrite_updates_decided_at(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        submitted_time = datetime.datetime(2026, 6, 9, 8, 0, 0, tzinfo=datetime.UTC)
+        first_time = datetime.datetime(2026, 6, 10, 10, 0, 0, tzinfo=datetime.UTC)
+        second_time = datetime.datetime(2026, 6, 11, 9, 0, 0, tzinfo=datetime.UTC)
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            # erster now()-Aufruf ist submit_use_case() (submitted_at) --
+            # daher ein zusaetzlicher Zeitstempel VOR den beiden Decision-Zeiten.
+            clock=_SequentialClock([submitted_time, first_time, second_time]),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=MockLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        first = await service.record_decision(
+            case.id, ReviewerDecision.APPROVED, "erste"
+        )
+        assert first is not None
+        assert first.decided_at == first_time
+
+        second = await service.record_decision(
+            case.id, ReviewerDecision.REJECTED, "korrigiert"
+        )
+        assert second is not None
+        assert second.decided_at == second_time
+        assert second.reviewer_decision == ReviewerDecision.REJECTED
+        assert second.reviewer_note == "korrigiert"
+
+    async def test_emits_audit_log_event_without_note(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.record_decision(
+                case.id, ReviewerDecision.APPROVED, "vertrauliche Begruendung"
+            )
+
+        events = [e for e in logs if e.get("event") == "case_decision_recorded"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["decision"] == "approved"
+        assert events[0]["decided_at"] == _FIXED_TIME.isoformat()
+        # PII-Allowlist-konform: reviewer_note (Freitext) wird NICHT geloggt.
+        assert "reviewer_note" not in events[0]
+        assert "vertrauliche Begruendung" not in str(events[0])
 
 
 # ---------------------------------------------------------------------------

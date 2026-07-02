@@ -10,6 +10,7 @@ import json
 import math
 import re
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -45,7 +46,13 @@ from aect.application.tools import (
     UnknownToolError,
     dispatch_tool_call,
 )
-from aect.domain import ROIConfig, TriageResult, UseCaseInput, evaluate_use_case
+from aect.domain import (
+    ReviewerDecision,
+    ROIConfig,
+    TriageResult,
+    UseCaseInput,
+    evaluate_use_case,
+)
 
 # Canonical Retrieval-Queries fuer Compliance-Hinweise (ADR-0024). Bewusst
 # fest, nicht aus Use-Case-Freitext abgeleitet -- vermeidet jede
@@ -150,6 +157,9 @@ def _build_business_summary(
     sharpened_text: str | None,
     compliance_hint_text: str | None,
     compliance_citations: tuple[ComplianceCitation, ...],
+    reviewer_decision: str,
+    reviewer_note: str | None,
+    decided_at: datetime | None,
 ) -> BusinessSummary:
     """Leitet die Entscheider-Schicht deterministisch aus TriageResult ab.
 
@@ -185,6 +195,9 @@ def _build_business_summary(
         sharpened_text=sharpened_text,
         compliance_hint_text=compliance_hint_text,
         compliance_citations=compliance_citations,
+        reviewer_decision=reviewer_decision,
+        reviewer_note=reviewer_note,
+        decided_at=decided_at,
     )
 
 
@@ -484,6 +497,52 @@ class TriageService:
             case_id=case_id,
             deleted_at=self._clock.now().isoformat(),
         )
+
+    async def record_decision(
+        self, case_id: str, decision: ReviewerDecision, note: str | None
+    ) -> SubmittedCase | None:
+        """Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen Case
+        (Human-in-the-Loop, minimaler Decision-Record -- ADR-0043, bewusst
+        kein voller Multi-User-Reviewer-Workflow mit Rollen/Notifications).
+
+        Ueberschreiben einer bestehenden Entscheidung ist erlaubt
+        (Korrektur-Fall, kein Bug) -- decided_at wird bei jedem Aufruf
+        aktualisiert.
+
+        Persistenz: dediziertes UPDATE ueber RepositoryPort.record_decision_
+        async (F-011-Muster, siehe adapters/sqlite/repository.py) statt
+        save() der ganzen Zeile -- kein Lost-Update-Risiko gegenueber
+        parallelen LLM-Feld-Schreibvorgaengen (sharpen/propose/compliance)
+        auf demselben Case.
+
+        Audit-Trail: case_decision_recorded wird geloggt (case_id, decision,
+        decided_at) -- OHNE reviewer_note (PII-Allowlist-konform: Freitext
+        koennte personenbezogene Angaben enthalten, analog case_deleted,
+        das ebenfalls keine Inhaltsfelder loggt).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+
+        decided_at = self._clock.now()
+        await self._repository.record_decision_async(
+            case_id, decision, note, decided_at
+        )
+        case.reviewer_decision = decision
+        case.reviewer_note = note
+        case.decided_at = decided_at
+
+        logger = structlog.get_logger()
+        logger.info(
+            "case_decision_recorded",
+            case_id=case_id,
+            decision=decision.value,
+            decided_at=decided_at.isoformat(),
+        )
+        return case
 
     async def sharpen_case(
         self, case_id: str, prompt_version: str = "v2"
@@ -923,6 +982,9 @@ class TriageService:
                 effective_sharpened_text,
                 compliance_hint_text,
                 compliance_citations,
+                case.reviewer_decision.value,
+                case.reviewer_note,
+                case.decided_at,
             ),
             technical_detail=_build_technical_detail(
                 case.result, effective_proposal_text

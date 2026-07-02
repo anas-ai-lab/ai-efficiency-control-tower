@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from aect.application.models import SubmittedCase
 from aect.application.ports.repository import CaseUpdateField
+from aect.domain.types import ReviewerDecision
 
 
 class InMemoryRepository:
@@ -50,6 +52,22 @@ class InMemoryRepository:
         else:
             setattr(case, field, value)
 
+    def record_decision(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
+    ) -> None:
+        """Setzt Entscheidung + Notiz + Zeitstempel (ADR-0043). No-op bei
+        unbekannter case_id (analog delete/update_field)."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.reviewer_decision = decision
+        case.reviewer_note = note
+        case.decided_at = decided_at
+
     # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
     # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
     # noetig, direkter Aufruf der sync-Methode genuegt.
@@ -69,3 +87,12 @@ class InMemoryRepository:
         self, case_id: str, field: CaseUpdateField, value: str | None
     ) -> None:
         self.update_field(case_id, field, value)
+
+    async def record_decision_async(
+        self,
+        case_id: str,
+        decision: ReviewerDecision,
+        note: str | None,
+        decided_at: datetime,
+    ) -> None:
+        self.record_decision(case_id, decision, note, decided_at)

@@ -24,6 +24,7 @@ from aect.domain.types import (
     EvidenceLevel,
     FrequencyUnit,
     ImplementationApproach,
+    ReviewerDecision,
     TriageZone,
 )
 from aect.domain.zones import ZoneClassifier, ZoneResult, load_zone_classifier
@@ -48,6 +49,7 @@ __all__ = [
     "ROIConfig",
     "ROIResult",
     # routing
+    "ReviewerDecision",
     "RoutingRecommendation",
     "RoutingResult",
     "TriageResult",
