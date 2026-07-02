@@ -106,6 +106,15 @@ class Settings(BaseSettings):
     # mit Env/.env als Fallback fuer im Vault fehlende Einzel-Secrets.
     azure_key_vault_url: str = ""  # AECT_AZURE_KEY_VAULT_URL
 
+    # Retention-Enforcement (Phase G Privacy-Haertung, DSGVO Art. 5(1)(e)
+    # Speicherbegrenzung) -- scripts/enforce_retention.py loescht Cases
+    # aelter als retention_days ueber den bestehenden Art.-17-Loeschpfad
+    # (ADR-0038, TriageService.delete_case()). Default-Begruendung
+    # (Commit-Message fuehrt sie aus): 90 Tage -- genug Zeit, einen Case im
+    # Portfolio-/Interview-Kontext erneut aufzurufen oder zu zeigen, aber
+    # eine bewusste, endliche Grenze statt unbegrenzter Aufbewahrung.
+    retention_days: int = 90  # AECT_RETENTION_DAYS
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",
