@@ -35,6 +35,8 @@ const ERROR_MESSAGES_DE: Record<string, string> = {
     "Server-Konfiguration unvollständig: Auf dem Backend ist kein API-Key hinterlegt.",
   "Request with this Idempotency-Key is already in progress":
     "Diese Einreichung wird bereits verarbeitet. Einen Moment warten und erneut versuchen.",
+  "Token budget exceeded for this API key":
+    "Stundenbudget für Sprachmodell-Anfragen ist erreicht. Bitte kurz warten und erneut versuchen.",
   "Internal error": "Interner Serverfehler. Bitte später erneut versuchen.",
 };
 

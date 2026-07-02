@@ -83,6 +83,16 @@ class Settings(BaseSettings):
     # laeuft immer aus dem Projektordner, Fallen-Katalog SS6 Punkt 11).
     kb_dir: str = "knowledge_base"  # AECT_KB_DIR
 
+    # Token-Budget-Limiter (Phase G Security-Haertung) -- ergaenzt die
+    # Request-Rate-Limits (10/min LLM-Endpoints) um eine Token-MENGEN-Grenze
+    # pro API-Key und Stunde. Default-Begruendung (Commit-Message fuehrt sie
+    # aus): 50.000 Tokens/h deckt grosszuegige legitime Nutzung (ca. 15-25
+    # LLM-Calls/h bei realistischer Freitextlaenge) ab, begrenzt aber ein
+    # Missbrauchsmuster (viele max_length-lange Faelle kurz hintereinander
+    # geschaerft/vorgeschlagen/geprueft) deutlich staerker als die
+    # Request-Rate allein.
+    token_budget_per_hour: int = 50_000  # AECT_TOKEN_BUDGET_PER_HOUR
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",

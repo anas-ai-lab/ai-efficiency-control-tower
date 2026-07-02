@@ -16,7 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
-from aect.adapters.api.dependencies import get_triage_service, require_api_key
+from aect.adapters.api.dependencies import (
+    get_triage_service,
+    require_api_key,
+    require_token_budget,
+)
 from aect.adapters.api.rate_limit import limiter
 from aect.application.service import CaseNotFoundError, TriageService
 
@@ -116,6 +120,7 @@ async def sharpen_case(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_api_key),
+    __: None = Depends(require_token_budget),
 ) -> SharpenedCaseResponse:
     """Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.
 
@@ -123,9 +128,13 @@ async def sharpen_case(
     Auth: X-API-Key-Header (require_api_key).
     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+    Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+    stuendliche Token-Budget des API-Keys (Phase G, ergaenzt die
+    Request-Rate-Limits um eine Token-MENGEN-Grenze).
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
     sharpened = await service.sharpen_case(case_id)
     if sharpened is None:
@@ -161,6 +170,7 @@ async def propose_solution(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_api_key),
+    __: None = Depends(require_token_budget),
 ) -> SolutionProposalResponse:
     """Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.
 
@@ -168,12 +178,15 @@ async def propose_solution(
     Auth: X-API-Key-Header (require_api_key).
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen
     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+    Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+    stuendliche Token-Budget des API-Keys (Phase G).
 
     Skeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten
     Zielplattformen -- Stack-Grounding via RAG folgt Phase D.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
     proposal = await service.propose_solution(case_id)
     if proposal is None:
@@ -361,6 +374,7 @@ async def compliance_hints(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_api_key),
+    __: None = Depends(require_token_budget),
 ) -> ComplianceHintsResponse:
     """Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.
 
@@ -369,9 +383,12 @@ async def compliance_hints(
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und
     /propose-solution (aect-security-checklist v2.1, Phase B: "LLM-Endpoints
     strenger").
+    Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+    stuendliche Token-Budget des API-Keys (Phase G).
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
     result = await service.generate_compliance_hints(case_id)
     if result is None:

@@ -29,6 +29,14 @@ Idempotency (aect-security-checklist v2.1, Phase B):
   get_idempotency_store() folgt demselben Muster wie get_triage_service():
   AECT_DB_PATH gesetzt -> SQLiteIdempotencyStore (persistent), sonst
   InMemoryIdempotencyStore (Singleton, prozessgebunden).
+
+Token-Budget (Phase G Security-Haertung): get_token_budget_store() folgt
+  demselben Persistenz-Muster wie get_idempotency_store(). require_token_budget()
+  ist eine eigene FastAPI-Dependency (nicht Teil von require_api_key): schaetzt
+  Tokens VOR dem LLM-Call ueber count_tokens() (cost_logger.py, F-031-gehaertet)
+  auf den vier gebundenen Freitextfeldern des persistierten Case und prueft das
+  Stundenbudget des aufrufenden API-Keys (api_key_hash = key_fingerprint(),
+  voller Hash -- Wiederverwendung des Rotation-Mechanismus aus Phase G).
 """
 
 from __future__ import annotations
@@ -51,15 +59,19 @@ from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
+from aect.adapters.in_memory.token_budget_store import InMemoryTokenBudgetStore
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.adapters.sqlite.token_budget_store import SQLiteTokenBudgetStore
+from aect.application.cost_logger import count_tokens
 from aect.application.ports.embedder import EmbedderPort
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.ports.llm import LLMPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrieverPort
+from aect.application.ports.token_budget import TokenBudgetPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
 
@@ -419,3 +431,76 @@ def get_idempotency_store(
     if settings.db_path:
         return SQLiteIdempotencyStore(Path(settings.db_path))
     return _idempotency_store
+
+
+@lru_cache
+def _get_in_memory_token_budget_store(budget_per_hour: int) -> InMemoryTokenBudgetStore:
+    """Gecachter In-Memory-Token-Budget-Store, ein Store pro distinktem
+    budget_per_hour-Wert (analog get_roi_config/_get_chroma_collection).
+
+    Der Store MUSS ueber Requests hinweg denselben Zustand behalten (sonst
+    zaehlt jeder Request bei 0 an) -- lru_cache haelt hier keyed auf den
+    Budget-Wert genau eine Instanz pro Prozess, ohne (anders als ein
+    einfacher Modul-Singleton) einen veralteten Budget-Wert aus einem
+    frueheren Settings-Override in Tests einzufrieren.
+    """
+    return InMemoryTokenBudgetStore(SystemClock(), budget_per_hour)
+
+
+def get_token_budget_store(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> TokenBudgetPort:
+    """Liefert TokenBudgetPort passend zur Persistenz-Wahl (analog
+    get_idempotency_store).
+
+    AECT_DB_PATH gesetzt -> SQLiteTokenBudgetStore (persistent, eigene
+    Tabelle in derselben DB-Datei wie SQLiteRepository).
+    AECT_DB_PATH leer  -> gecachter InMemoryTokenBudgetStore (Dev/Test).
+    """
+    if settings.db_path:
+        return SQLiteTokenBudgetStore(
+            Path(settings.db_path), SystemClock(), settings.token_budget_per_hour
+        )
+    return _get_in_memory_token_budget_store(settings.token_budget_per_hour)
+
+
+async def require_token_budget(
+    case_id: str,
+    api_key: str = Depends(require_api_key),
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    token_budget: TokenBudgetPort = Depends(get_token_budget_store),  # noqa: B008
+) -> None:
+    """FastAPI-Dependency: schaetzt Tokens VOR dem LLM-Call und prueft das
+    stuendliche Budget des aufrufenden API-Keys.
+
+    Ergaenzt die Request-Rate-Limits (slowapi, 10/min LLM-Endpoints) um eine
+    Token-MENGEN-Grenze: 10 Requests mit je max_length-langem Freitext
+    verbrauchen deutlich mehr Tokens als 10 kurze -- Request-Count allein
+    deckt das nicht ab.
+
+    Eingabetext: die vier gebundenen Freitextfelder des persistierten Case
+    (title, current_state, desired_state, example_process) -- das ist der
+    Text, der in sharpen_case()/propose_solution()/generate_compliance_hints()
+    tatsaechlich in den Prompt einfliesst (approximiert, kein exaktes Prompt-
+    Rendering -- fuer eine Vorab-Budget-Schaetzung ausreichend).
+
+    Case nicht gefunden -> kein Budget-Check (die Route liefert ihr eigenes
+    404, keine Duplizierung der 404-Antwort hier).
+
+    Raises:
+        HTTPException 429: Stundenbudget des API-Keys ueberschritten.
+    """
+    case = service.get_case(case_id)
+    if case is None:
+        return
+    text = (
+        f"{case.use_case.title} {case.use_case.current_state} "
+        f"{case.use_case.desired_state} {case.use_case.example_process}"
+    )
+    tokens = count_tokens(text)
+    api_key_hash = key_fingerprint(api_key, length=0)
+    if not token_budget.try_consume(api_key_hash, tokens):
+        raise HTTPException(
+            status_code=429,
+            detail="Token budget exceeded for this API key",
+        )
