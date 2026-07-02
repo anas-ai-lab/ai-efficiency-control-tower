@@ -111,15 +111,20 @@ async def test_cases_response_content_type_is_json() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_unconfigured_server_returns_500() -> None:
-    """Wenn Server keinen API-Key konfiguriert hat, gibt er 500 zurueck."""
+async def test_unconfigured_server_returns_503() -> None:
+    """Server ohne konfigurierten API-Key antwortet 503 (nicht betriebsbereit).
+
+    Vorher 500: liess einen fehlenden AECT_API_KEY (kein .env, Fresh Clone)
+    wie einen Server-Crash aussehen. 503 benennt die Ursache ehrlich --
+    Service nicht konfiguriert, kein Fehler im Request und kein Bug.
+    """
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: Settings(api_key="")
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.get("/cases", headers={"X-API-Key": "irgendwas"})
-    assert response.status_code == 500
+    assert response.status_code == 503
 
 
 # ---------------------------------------------------------------------------

@@ -284,14 +284,16 @@ async def require_api_key(
     """FastAPI-Dependency: prueft X-API-Key-Header gegen konfigurierter Key.
 
     Raises:
-        HTTPException 500: Server hat keinen API-Key konfiguriert.
+        HTTPException 503: Server hat keinen API-Key konfiguriert (fehlende
+            .env/AECT_API_KEY) -- bewusst 503 statt 500: der Server ist
+            nicht betriebsbereit, es ist kein Crash und kein Client-Fehler.
         HTTPException 401: Key fehlt oder stimmt nicht.
 
     /health ist explizit exempt -- kein Depends(require_api_key) dort.
     """
     if not settings.api_key:
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail="API key not configured on server",
         )
     # Konstante Laufzeit: compare_digest verhindert, dass die Vergleichsdauer
