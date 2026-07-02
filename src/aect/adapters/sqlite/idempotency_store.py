@@ -12,8 +12,9 @@ Tabelle -- kein Konflikt (separate Connections, separate CREATE TABLE).
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
+
+from aect.adapters.sqlite.connection import connect
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS idempotency_keys (
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 class SQLiteIdempotencyStore:
     """SQLite-Backend fuer Idempotency-Key -> Case-ID.
 
-    Jede DB-Operation oeffnet eine eigene Verbindung (Context Manager) --
+    Jede DB-Operation oeffnet eine eigene, kurzlebige Verbindung ueber
+    connection.connect() (WAL, busy_timeout=5000, explizites close) --
     kein geteilter State, analog SQLiteRepository.
     """
 
@@ -36,11 +38,11 @@ class SQLiteIdempotencyStore:
         self._init_db()
 
     def _init_db(self) -> None:
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             conn.execute(_CREATE_TABLE_SQL)
 
     def get(self, key: str) -> str | None:
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             row = conn.execute(
                 "SELECT case_id FROM idempotency_keys WHERE key = ?",
                 (key,),
@@ -50,7 +52,7 @@ class SQLiteIdempotencyStore:
         return str(row[0])
 
     def set(self, key: str, case_id: str) -> None:
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO idempotency_keys (key, case_id) VALUES (?, ?)",
                 (key, case_id),

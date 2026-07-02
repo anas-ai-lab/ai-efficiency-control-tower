@@ -12,7 +12,8 @@ Warum nicht dataclasses.asdict(case) auf das gesamte SubmittedCase?
 Security (aect-security-checklist v2.1, Phase B):
   Kein PII in Logs -- Repository loggt nicht.
   Audit-Trail: submitted_at als ISO-8601-UTC-String persistiert.
-  Kurzlebige Verbindungen (Context Manager) -- kein geteilter State.
+  Kurzlebige Verbindungen (connection.connect: WAL, busy_timeout,
+  explizites close) -- kein geteilter State.
 
 Hinweis: SQLiteRepository wird in get_triage_service() pro Request erzeugt.
   _init_db() (CREATE TABLE IF NOT EXISTS) laeuft damit pro Request -- idempotent
@@ -38,13 +39,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sqlite3
 from dataclasses import asdict
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from aect.adapters.sqlite.connection import connect
 from aect.application.models import SubmittedCase
 from aect.domain.feasibility import FeasibilityFlag, FeasibilityResult
 from aect.domain.filters import FilterResult
@@ -267,7 +268,8 @@ class SQLiteRepository:
     Implementiert RepositoryPort via strukturelle Subtypisierung (kein
     explizites Erben noetig -- mypy prueft Methodensignaturen gegen Protocol).
 
-    Jede DB-Operation oeffnet eine eigene Verbindung (Context Manager) --
+    Jede DB-Operation oeffnet eine eigene, kurzlebige Verbindung ueber
+    connection.connect() (WAL, busy_timeout=5000, explizites close) --
     kein geteilter Connection-State, kein Threading-Problem.
 
     IP-Trennung (vertraglich bedingt): keine firmenspezifischen Werte im Code.
@@ -286,7 +288,7 @@ class SQLiteRepository:
         table_info pruefen und nur ergaenzen, wenn die Spalte fehlt (Tabelle
         stammt dann aus einer aelteren Version).
         """
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             conn.execute(_CREATE_TABLE_SQL)
             columns = {
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
@@ -301,7 +303,7 @@ class SQLiteRepository:
         embedding_json = (
             json.dumps(case.embedding) if case.embedding is not None else None
         )
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             conn.execute(
                 _INSERT_SQL,
                 (
@@ -318,7 +320,7 @@ class SQLiteRepository:
 
     def get(self, case_id: str) -> SubmittedCase | None:
         """Gibt einen Case per ID zurueck oder None."""
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             row = conn.execute(
                 _SELECT_BY_ID_SQL,
                 (case_id,),
@@ -329,7 +331,7 @@ class SQLiteRepository:
 
     def list_all(self) -> list[SubmittedCase]:
         """Alle gespeicherten Cases, chronologisch nach submitted_at."""
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             rows = conn.execute(_SELECT_ALL_SQL).fetchall()
         return [_row_to_case(row) for row in rows]
 
@@ -339,7 +341,7 @@ class SQLiteRepository:
         Idempotent: DELETE auf eine nicht existierende ID ist ein No-op (kein
         Fehler). Die Existenzpruefung (-> 404) liegt im Service, nicht hier.
         """
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with connect(self._db_path) as conn:
             conn.execute(_DELETE_BY_ID_SQL, (case_id,))
 
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
