@@ -10,7 +10,13 @@ Security (aect-security-checklist v2.1, Phase B):
 
 from __future__ import annotations
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+from aect.adapters.api.keyvault_settings import AzureKeyVaultSettingsSource
 
 # EU-Data-Zone-Allowlist (AUDIT-008). Azure-OpenAI-Endpoints liegen meist als
 # https://<resource>.openai.azure.com vor -- die Region steckt nur drin, wenn
@@ -93,9 +99,44 @@ class Settings(BaseSettings):
     # Request-Rate allein.
     token_budget_per_hour: int = 50_000  # AECT_TOKEN_BUDGET_PER_HOUR
 
+    # Azure Key Vault (Phase G Security-Haertung, ADR-0041) -- leer (Default)
+    # = Secrets kommen wie bisher aus Env-Vars/.env, kein Verhaltenswechsel.
+    # Gesetzt -> AzureKeyVaultSettingsSource zieht api_key/api_key_next/
+    # azure_openai_api_key aus dem Vault (settings_customise_sources unten),
+    # mit Env/.env als Fallback fuer im Vault fehlende Einzel-Secrets.
+    azure_key_vault_url: str = ""  # AECT_AZURE_KEY_VAULT_URL
+
     model_config = SettingsConfigDict(
         env_prefix="AECT_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Fuegt AzureKeyVaultSettingsSource zwischen init_settings und
+        env_settings ein.
+
+        Prioritaet (erste Quelle gewinnt): init_settings (Konstruktor-
+        Kwargs, z. B. Settings(api_key=...) in Tests) > Key Vault > Env >
+        .env > File-Secrets. Konstruktor-Kwargs bleiben damit fuer JEDEN
+        bestehenden Test unveraendert die staerkste Quelle -- die neue
+        Key-Vault-Quelle kann kein Testverhalten aus Phase 1-3 beeinflussen.
+        Key Vault gewinnt gegen Env, wenn AECT_AZURE_KEY_VAULT_URL gesetzt
+        ist -- sonst liefert die Quelle ein leeres dict (No-op).
+        """
+        return (
+            init_settings,
+            AzureKeyVaultSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
