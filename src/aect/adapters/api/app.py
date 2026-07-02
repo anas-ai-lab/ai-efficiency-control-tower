@@ -13,6 +13,12 @@ Security (aect-security-checklist v2.1, Phase B):
     RateLimitExceeded -> 429 mit Retry-After (kein PII im Header).
   Globaler Exception-Handler: kein Stack-Trace an Client (OWASP LLM02),
     request_id aus structlog-Kontext fuer Log-Korrelation.
+  SecurityHeadersMiddleware (F-026): X-Content-Type-Options, X-Frame-Options,
+    Content-Security-Policy (strikt fuer API-Routen, minimal gelockert fuer
+    /docs). Server-Header: unterdrueckt ueber uvicorn --no-server-header
+    (Dockerfile CMD + README-Startbefehl) -- ein Middleware-Override wuerde
+    unter uvicorn einen doppelten Server-Header erzeugen (default_headers
+    werden vorangestellt, nicht dedupliziert).
 """
 
 from __future__ import annotations
@@ -80,6 +86,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("shutdown_complete")
 
 
+# CSP fuer JSON-API-Routen: nichts darf geladen/eingebettet werden.
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+
+# CSP fuer die Swagger-UI (/docs): FastAPI laedt swagger-ui-dist von
+# cdn.jsdelivr.net und initialisiert per Inline-Script; das Favicon kommt
+# von fastapi.tiangolo.com. Minimal gehalten -- kein weiterer Origin.
+_DOCS_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https://fastapi.tiangolo.com; "
+    "frame-ancestors 'none'"
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Setzt defensive Response-Header auf jede Antwort (F-026).
+
+    X-Content-Type-Options: nosniff -- kein MIME-Sniffing.
+    X-Frame-Options: DENY -- kein Einbetten in Frames (Clickjacking).
+    Content-Security-Policy: strikt fuer API-Routen, /docs bekommt das
+    Minimum, das die Swagger-UI zum Laden braucht.
+    """
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = (
+            _DOCS_CSP if request.url.path == "/docs" else _API_CSP
+        )
+        return response
+
+
 class CorrelationIDMiddleware(BaseHTTPMiddleware):
     """Bindet eine eindeutige request_id an den structlog-Kontext pro Request.
 
@@ -124,7 +168,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     # Middleware -- letztes add_middleware = outermost = laeuft zuerst.
-    # Reihenfolge: CorrelationIDMiddleware -> CORSMiddleware -> Routing.
+    # Reihenfolge: CorrelationIDMiddleware -> SecurityHeaders -> CORS -> Routing.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[],
@@ -132,6 +176,7 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Content-Type", "X-API-Key", "Idempotency-Key"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
 
     @app.exception_handler(Exception)

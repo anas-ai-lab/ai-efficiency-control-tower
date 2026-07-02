@@ -2,7 +2,7 @@
 # scripts/demo.sh -- AECT End-to-End Demo (Rule Engine + LLM + RAG)
 #
 # Voraussetzung:
-#   Terminal 1: uv run uvicorn aect.adapters.api.app:app --reload
+#   Terminal 1: uv run uvicorn aect.adapters.api.app:app --reload --no-server-header
 #   Terminal 2: docker compose up -d  (fuer ChromaDB + RAG)
 #   Env:        export AECT_API_KEY=<dein-key>  (aus .env)
 #

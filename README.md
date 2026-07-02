@@ -197,7 +197,7 @@ cd ai-efficiency-control-tower
 uv sync
 docker compose up -d          # ChromaDB starten
 uv run python scripts/seed_knowledge_base.py
-uv run uvicorn aect.adapters.api.app:app --reload
+uv run uvicorn aect.adapters.api.app:app --reload --no-server-header
 uv run pytest -q
 ```
 

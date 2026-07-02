@@ -83,4 +83,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 # JSON-Array-Form: uvicorn erhaelt SIGTERM direkt (kein Shell-Wrapper).
 # --no-access-log: FastAPI-Accesslog ist kein structlog-JSON -- Formatinkonsistenz.
 # Requests sind per CorrelationIDMiddleware ohnehin in structlog erfasst (app.py).
-CMD ["uvicorn", "aect.adapters.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "aect.adapters.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--no-server-header"]
