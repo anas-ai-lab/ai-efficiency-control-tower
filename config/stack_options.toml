@@ -1,23 +1,29 @@
-# config/stack_options.toml
+# config/stack_options.toml -- GENERISCHE PLATZHALTER (AUDIT-011)
 #
-# Generische Plattformbeispiele fuer den Stack-Vorschlag.
-# Wird von lookup_stack_options() gelesen.
+# Plattform-KATEGORIEN fuer den Stack-Vorschlag, ohne konkrete Produkt-/
+# Vendor-Namen: die konkrete Kombination eingesetzter Produkte waere ein
+# Rueckschluss auf ein reales Firmenumfeld (vertraglich bedingte IP-Trennung,
+# gleiches Muster wie roi_config.toml).
 #
-[open_webui]
-name = "Open WebUI"
-description = "Self-hosted Open-Source-Chat-Oberflaeche fuer LLMs. Geeignet fuer interne Pilotierung ohne Lizenzkosten, erfordert eigenes Hosting."
+# Echte Plattform-Namen -> config/stack_options.local.toml (gitignored).
+# lookup_stack_options() bevorzugt die local-Datei, faellt sonst auf diese
+# Platzhalter zurueck -- ein Fresh Clone bleibt voll funktionsfaehig.
+#
+[self_hosted_chat_ui]
+name = "Self-hosted Open-Source-Chat-Oberflaeche"
+description = "Selbst betriebene Chat-Oberflaeche fuer LLMs. Geeignet fuer interne Pilotierung ohne Lizenzkosten, erfordert eigenes Hosting."
 
-[copilot_studio]
-name = "Microsoft Copilot Studio"
-description = "Low-Code-Plattform fuer Conversational-AI-Agenten innerhalb von Microsoft 365. Geeignet bei enger Anbindung an Microsoft-Datenquellen (SharePoint, Teams)."
+[low_code_agent_platform]
+name = "Low-Code-Plattform fuer Conversational-AI-Agenten"
+description = "Low-Code-Plattform innerhalb der bestehenden Office-/Collaboration-Suite. Geeignet bei enger Anbindung an deren Datenquellen (Dokumentenablage, Messaging)."
 
-[foundry]
-name = "Microsoft Foundry (Azure AI Foundry)"
-description = "Azure-Plattform fuer Modell-Hosting, Orchestrierung und Evaluation. Geeignet fuer individuelle Loesungen mit hohem Kontrollbedarf ueber Modelle, Prompts und Daten-Pipeline."
+[cloud_ai_platform]
+name = "Cloud-AI-Plattform (Hyperscaler)"
+description = "Cloud-Plattform fuer Modell-Hosting, Orchestrierung und Evaluation. Geeignet fuer individuelle Loesungen mit hohem Kontrollbedarf ueber Modelle, Prompts und Daten-Pipeline."
 
-[sap_btp]
-name = "SAP Business Technology Platform"
-description = "SAP-eigene Plattform fuer Erweiterungen und Integrationen im SAP-Kontext. Geeignet wenn die Loesung tief in bestehende SAP-Prozesse eingreift."
+[erp_extension_platform]
+name = "Erweiterungsplattform des ERP-Anbieters"
+description = "Plattform fuer Erweiterungen und Integrationen im Umfeld des bestehenden ERP-Systems. Geeignet wenn die Loesung tief in bestehende ERP-Prozesse eingreift."
 
 [andere]
 name = "Andere / individuelle Loesung"

@@ -22,8 +22,8 @@ Passthrough, keine Retry-/Timeout-Aenderung).
 
 Neues Modul `application/tools.py`: `TOOL_DEFINITIONS` (Registry),
 `lookup_stack_options()`, `dispatch_tool_call()`, `UnknownToolError`. Erstes
-Tool: `lookup_stack_options` -- parameterlos, liest Plattform-Optionen
-(Open WebUI, Copilot Studio, Foundry, SAP BTP, Andere) aus neuer Datei
+Tool: `lookup_stack_options` -- parameterlos, liest die Plattform-Optionen
+(fuenf Kategorien inkl. "Andere") aus neuer Datei
 `config/stack_options.toml`.
 
 ## Begruendung

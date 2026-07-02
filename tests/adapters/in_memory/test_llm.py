@@ -91,7 +91,7 @@ async def test_complete_with_tools_and_existing_tool_response_falls_back_to_echo
         ),
         LLMMessage(
             role="tool",
-            content='{"open_webui": {"name": "Open WebUI"}}',
+            content='{"self_hosted_chat_ui": {"name": "Self-hosted Chat-UI"}}',
             tool_call_id="mock-tool-call-1",
         ),
     ]

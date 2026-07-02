@@ -53,6 +53,8 @@ htmlcov/
 
 # Firmenspezifische ROI-Config (vertraglich bedingte IP-Trennung)
 config/roi_config.local.toml
+# Echte Plattform-Namen (AUDIT-011, gleiches Muster wie roi_config)
+config/stack_options.local.toml
 
 # setuptools build artifacts
 src/*.egg-info/

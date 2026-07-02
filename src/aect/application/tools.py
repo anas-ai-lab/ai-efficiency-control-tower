@@ -4,10 +4,12 @@ Importiert aus: aect.application.ports.llm (erlaubt).
 Importiert NICHT aus: aect.adapters -- das waere eine DI-Verletzung
 (Modul-Docstring service.py).
 
-Erstes Tool: lookup_stack_options. Liest die Zielplattformen (Open WebUI,
-Copilot Studio, Foundry, SAP BTP, Andere) aus config/stack_options.toml --
-IP-Trennung (vertraglich bedingt): Plattform-Namen sind firmenspezifisch und
-gehoeren nicht in den generischen Code.
+Erstes Tool: lookup_stack_options. Liest die Zielplattform-Kategorien aus
+config/stack_options.toml -- IP-Trennung (vertraglich bedingt, AUDIT-011):
+konkrete Plattform-/Vendor-Namen sind firmenspezifisch und gehoeren weder in
+den generischen Code noch in die committete Config. Echte Namen liegen in
+config/stack_options.local.toml (gitignored); existiert die Datei, hat sie
+Vorrang, sonst greifen die committeten Kategorien-Platzhalter.
 
 Tag 37 liefert nur die Registry + Dispatch-Funktion. Die eigentliche
 Function-Calling-Loop (LLM fordert Tool an -> dispatch_tool_call() ->
@@ -47,7 +49,12 @@ TOOL_DEFINITIONS: list[ToolDefinition] = [LOOKUP_STACK_OPTIONS_TOOL]
 
 
 def _load_stack_options() -> dict[str, Any]:
-    """Laedt config/stack_options.toml.
+    """Laedt Stack-Optionen: local-Override vor committeten Platzhaltern.
+
+    AUDIT-011 (gleiches Muster wie roi_config): config/stack_options.local.toml
+    (gitignored, echte Plattform-Namen) hat Vorrang; fehlt sie, greifen die
+    generischen Kategorien aus config/stack_options.toml. Ein Fresh Clone
+    funktioniert damit ohne lokale Datei.
 
     Pfadauflösung analog aect.application.prompts.load_prompt():
     src/aect/application/ liegt auf derselben Tiefe wie src/aect/domain/ --
@@ -56,7 +63,12 @@ def _load_stack_options() -> dict[str, Any]:
     # src/aect/application/tools.py -> parents[0]=application, [1]=aect,
     # [2]=src, [3]=repo_root
     repo_root = Path(__file__).resolve().parents[3]
-    path = repo_root / "config" / "stack_options.toml"
+    local_path = repo_root / "config" / "stack_options.local.toml"
+    path = (
+        local_path
+        if local_path.exists()
+        else (repo_root / "config" / "stack_options.toml")
+    )
     with path.open("rb") as f:
         return tomllib.load(f)
 
@@ -64,8 +76,8 @@ def _load_stack_options() -> dict[str, Any]:
 def lookup_stack_options() -> dict[str, Any]:
     """Liefert alle konfigurierten Zielplattformen (Name + Beschreibung).
 
-    Tag 37: Platzhalter-Daten aus config/stack_options.toml, noch ohne
-    RAG-Beleg. Stack-Grounding mit zitierten Quellen folgt Phase D
+    Tag 37: Platzhalter-Daten aus config/stack_options.toml (bzw. der
+    gitignorten local-Datei, AUDIT-011), noch ohne RAG-Beleg. Stack-Grounding mit zitierten Quellen folgt Phase D
     (Master-Plan v3.1) -- diese Funktionssignatur bleibt voraussichtlich
     stabil, nur die Datenquelle wechselt.
     """

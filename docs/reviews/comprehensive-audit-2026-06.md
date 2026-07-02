@@ -135,13 +135,16 @@ Befunde, beide load-bearing für die ausstehende IP-Entscheidung.
 **AUDIT-011** [P1 / S / med] `config/stack_options.toml` ist committed
 (`git ls-files`), deklariert sich im eigenen Header aber als Halter
 "firmenspezifischer Plattform-Namen" (vertraglich bedingte IP-Trennung) -- ohne den
-gitignore-Split, den `roi_config.local.toml` hat. Inhalt: Open WebUI, Copilot
-Studio, Microsoft Foundry, SAP BTP. Vor einem Public-Release ist zu pruefen,
+gitignore-Split, den `roi_config.local.toml` hat. Inhalt: vier konkrete
+Plattform-Namen. Vor einem Public-Release ist zu pruefen,
 ob die Plattform-Liste generisch genug ist. Entweder
 (a) generisch genug -> Header korrigieren, oder (b) firmenspezifisch -> wie
 roi_config splitten (`.example` committen, echtes gitignoren + Fallback). NICHT
 auto-gefixt: gitignoren ohne Fallback bräche `lookup_stack_options()` im
 Fresh-Clone. Entscheidung: Teil der IP-Klärung (phase-g-review.md §6).
+ERLEDIGT (Phase 2, 2026-07-02): Variante (b) umgesetzt -- committete Datei
+enthält nur noch generische Plattform-Kategorien, echte Namen in gitignorter
+`stack_options.local.toml`, Loader mit Fallback.
 
 **AUDIT-012** [P3 / S / low] Keine `LICENSE`-Datei, kein `license`-Feld in
 pyproject -> Default "all rights reserved". Für privates Repo passend; vor einem
@@ -277,7 +280,8 @@ Nutzer-Aktion und in phase-g-review.md §6 geführt.)
 5. **EU-Residenz ohne Code-Gate (AUDIT-008)** -- Fehlkonfiguration kann PII
    außerhalb der EU verarbeiten. *Empfehlung: Region-Allowlist im Settings-Load.*
 6. **stack_options.toml committed (AUDIT-011)** -- Plattform-Liste auf Generik pruefen.
-   *Empfehlung: vor Public-Release splitten oder Header korrigieren.*
+   *Empfehlung: vor Public-Release splitten oder Header korrigieren.
+   ERLEDIGT (Phase 2, 2026-07-02): gesplittet, Kategorien committet.*
 7. **Kein secret-compromise-Runbook (AUDIT-015)** -- der G-045-Vorfall zeigte
    den Bedarf. *Empfehlung: ein knappes Rotations-Runbook schreiben.*
 8. **async-Event-Loop-Blocking durch SQLite (AUDIT-001)** -- bei Mehrbenutzer

@@ -18,12 +18,14 @@ def test_tool_definitions_contains_lookup_stack_options() -> None:
     assert "lookup_stack_options" in names
 
 
-def test_lookup_stack_options_returns_known_platforms() -> None:
+def test_lookup_stack_options_returns_known_platform_categories() -> None:
+    # Kategorien-Platzhalter (AUDIT-011) -- keine konkreten Vendor-Namen
+    # in der committeten Config.
     options = lookup_stack_options()
-    assert "open_webui" in options
-    assert "copilot_studio" in options
-    assert "foundry" in options
-    assert "sap_btp" in options
+    assert "self_hosted_chat_ui" in options
+    assert "low_code_agent_platform" in options
+    assert "cloud_ai_platform" in options
+    assert "erp_extension_platform" in options
     assert "andere" in options
 
 
@@ -39,7 +41,7 @@ def test_dispatch_tool_call_lookup_stack_options_returns_platform_data() -> None
 
     result = dispatch_tool_call(call)
 
-    assert "open_webui" in result
+    assert "andere" in result
 
 
 def test_dispatch_tool_call_unknown_tool_raises() -> None:

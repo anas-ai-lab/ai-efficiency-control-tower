@@ -28,7 +28,7 @@
 - `aect-app.tsx`: 6-Schritt-Orchestrierung mit State-Machine-Pattern
 - `triage-result.tsx`: Zone-Banner, ROI-Anzeige, Feasibility-Score, Routing-Empfehlung
 - `sharpened-view.tsx`: Original vs. Geschaerft nebeneinander (kein Ueberschreiben)
-- `solution-view.tsx`: Stack-Empfehlung (Open WebUI/Copilot Studio/Foundry/SAP BTP)
+- `solution-view.tsx`: Stack-Empfehlung (Plattform-Kategorien aus stack_options.toml)
 - `compliance-view.tsx`: RAG-Citations mit Quellenangabe
 - `report-view.tsx`: BusinessSummary (Entscheider) + TechnicalDetail (Reviewer)
 - Frontend-Build: gruen (Next.js 15.3.3, 82.5 kB First Load JS)

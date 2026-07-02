@@ -73,15 +73,17 @@ Platzhalter deklariert, echte Werte gitignored), keine E-Mail-Adressen oder
 Firmennamen, keine Standorte/Mitarbeiterzahlen mit Realbezug ("Mitarbeiter"
 nur als Domaenenbegriff bzw. in synthetischen Testdaten).
 
-**Als ambivalent geflaggt (Menschen-Entscheid, nicht geaendert):**
+**Als ambivalent geflaggt (Menschen-Entscheid):**
 
-1. `config/stack_options.toml` -- die Plattform-Kombination (Open WebUI,
-   Copilot Studio, Microsoft Foundry, SAP BTP) ist als "generische
-   Plattformbeispiele" deklariert, entspricht aber AUDIT-011: ein
-   Enterprise-Stack-Profil ist ein schwaches, breites Signal
-   (tausende DACH-Unternehmen). Optionen bleiben wie in AUDIT-011:
-   (a) als generisch belassen oder (b) wie roi_config splitten
-   (`.example` committen, echte Datei gitignoren + Code-Fallback).
+1. `config/stack_options.toml` (AUDIT-011) -- die konkrete Kombination der
+   gelisteten Plattform-Produkte war ein Enterprise-Stack-Signal.
+   ENTSCHIEDEN + UMGESETZT (2026-07-02): nach dem roi_config-Muster
+   genericisiert -- committete Datei enthaelt nur noch Plattform-KATEGORIEN,
+   konkrete Namen gehoeren in die gitignorte `stack_options.local.toml`,
+   `lookup_stack_options()` bevorzugt die local-Datei mit Fallback auf die
+   Platzhalter (Fresh Clone bleibt funktionsfaehig). Vendor-Nennungen der
+   alten Kombination auch aus README/ADR-0008/known_limitations/Reviews/
+   Notes entfernt.
 2. Die Faktor-Struktur des ROI-Modells selbst (Evidenz-/Adoptionsfaktoren,
    Zonen-Logik) koennte einem Insider bekannt vorkommen -- sie ist aber
    die zeigbare, generische Methodik und der Kern des Portfolios;

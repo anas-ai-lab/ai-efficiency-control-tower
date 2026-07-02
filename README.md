@@ -37,7 +37,7 @@ Es bewertet Einreichungen entlang von:
 - **ROI-Schaetzung** -- Erwarteter Jahresnutzen minus Lizenzkosten, differenziert nach Mitarbeiterkategorie
 - **Privacy & Compliance** -- Beruehrt das personenbezogene Daten? DSFA-Pflicht?
 - **Technische Machbarkeit** -- Aufwandsscore, Stack-Fit, Komplexitaets-Einschaetzung
-- **Loesungsvorschlag** -- Konkrete Zielplattform mit Begruendung (Open WebUI, Copilot Studio, Foundry, SAP BTP)
+- **Loesungsvorschlag** -- Konkrete Zielplattform-Kategorie mit Begruendung (self-hosted Chat-UI, Low-Code-Agenten-Plattform, Cloud-AI-Plattform, ERP-Erweiterung)
 - **Compliance-Hinweise** -- RAG-gegruendete Hinweise mit Quellenangabe (DSGVO, EU AI Act)
 
 **Output:** Ein zweischichtiger, maschinell validierter Report -- Business-Zusammenfassung
