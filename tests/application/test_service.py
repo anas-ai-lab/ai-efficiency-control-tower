@@ -15,7 +15,11 @@ from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.models import SubmittedCase
 from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDefinition
 from aect.application.ports.retriever import RetrievedChunk
-from aect.application.service import CaseNotFoundError, TriageService
+from aect.application.service import (
+    CaseNotFoundError,
+    TriageService,
+    _strip_dangling_citation_markers,
+)
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
 from aect.domain.types import DataClassification
@@ -925,3 +929,95 @@ class TestTriageServiceDedup:
         stored = repo.get(new_case.id)
         assert stored is not None
         assert stored.embedding == [0.3, 0.4]
+
+
+# ---------------------------------------------------------------------------
+# F-016: Dangling-Citation-Marker-Validierung
+# ---------------------------------------------------------------------------
+
+
+class _OneChunkRetriever:
+    """Liefert genau einen Treffer -> Citation-Liste hat genau [1]."""
+
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        return [
+            RetrievedChunk(
+                source_id="kb-art50",
+                text="Transparenzpflicht nach Art. 50.",
+                score=0.9,
+                metadata={"citation": "EU AI Act Art. 50"},
+            )
+        ]
+
+
+class _DanglingMarkerLLMAdapter:
+    """Antwortet mit gueltigen UND halluzinierten [N]-Markern."""
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        return LLMResponse(
+            content="Hinweis [1] ist belegt, aber [3] und [99] sind halluziniert.",
+            tool_calls=None,
+        )
+
+
+class TestStripDanglingCitationMarkers:
+    def test_valid_markers_stay(self) -> None:
+        cleaned, dangling = _strip_dangling_citation_markers("Siehe [1] und [2].", 2)
+        assert cleaned == "Siehe [1] und [2]."
+        assert dangling == []
+
+    def test_out_of_range_and_zero_markers_are_stripped(self) -> None:
+        cleaned, dangling = _strip_dangling_citation_markers(
+            "Belegt [1], halluziniert [3], ungueltig [0].", 1
+        )
+        assert "[3]" not in cleaned
+        assert "[0]" not in cleaned
+        assert "[1]" in cleaned
+        assert dangling == [3, 0]
+
+    def test_no_citations_strips_all_markers(self) -> None:
+        cleaned, dangling = _strip_dangling_citation_markers("Nur [1] hier.", 0)
+        assert "[1]" not in cleaned
+        assert dangling == [1]
+
+
+class TestGenerateComplianceHintsMarkerValidation:
+    async def test_dangling_markers_are_stripped_and_logged(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            llm=_DanglingMarkerLLMAdapter(),
+            retriever=_OneChunkRetriever(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            result = await service.generate_compliance_hints(case.id)
+
+        assert result is not None
+        assert result.hint_text is not None
+        assert "[1]" in result.hint_text
+        assert "[3]" not in result.hint_text
+        assert "[99]" not in result.hint_text
+
+        # Persistierter Stand ist identisch bereinigt.
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.compliance_hints_json is not None
+        stored_hints = json.loads(stored.compliance_hints_json)
+        assert stored_hints["hint_text"] == result.hint_text
+
+        events = [
+            e for e in logs if e.get("event") == "dangling_citation_markers_stripped"
+        ]
+        assert len(events) == 1
+        assert events[0]["markers"] == [3, 99]

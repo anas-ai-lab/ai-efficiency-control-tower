@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -252,6 +253,40 @@ def _build_compliance_citations(
         )
         for index, chunk in enumerate(chunks)
     )
+
+
+_CITATION_MARKER_RE = re.compile(r"\[(\d+)\]")
+
+
+def _strip_dangling_citation_markers(
+    hint_text: str, citation_count: int
+) -> tuple[str, list[int]]:
+    """Entfernt [N]-Marker ohne Gegenstueck in der Citation-Liste (F-016).
+
+    Die Citation-Liste ist deterministisch 1..citation_count nummeriert
+    (_build_compliance_citations). Ein Marker ausserhalb dieses Bereichs
+    ist eine LLM-Halluzination -- er wuerde im Report auf keine Quelle
+    aufloesen und damit genau die ungegruendete Behauptung suggerieren,
+    die Citations-before-LLM strukturell ausschliessen soll. Strippen
+    statt Abbrechen: Graceful Degradation, analog sharpen_case.
+
+    Returns:
+        (bereinigter Text, Liste der entfernten Marker-Nummern).
+    """
+    dangling: list[int] = []
+
+    def _keep_or_strip(match: re.Match[str]) -> str:
+        number = int(match.group(1))
+        if 1 <= number <= citation_count:
+            return match.group(0)
+        dangling.append(number)
+        return ""
+
+    cleaned = _CITATION_MARKER_RE.sub(_keep_or_strip, hint_text)
+    if dangling:
+        # Luecken aus entfernten Markern glaetten ("siehe  ." -> "siehe .").
+        cleaned = re.sub(r" {2,}", " ", cleaned).strip()
+    return cleaned, dangling
 
 
 class TriageService:
@@ -767,9 +802,23 @@ class TriageService:
             operation="generate_compliance_hints",
         )
 
+        # F-016: [N]-Marker ohne Citation-Gegenstueck entfernen, BEVOR
+        # persistiert wird -- Report und API-Antwort sehen denselben Stand.
+        hint_text, dangling_markers = _strip_dangling_citation_markers(
+            response.content, len(citations)
+        )
+        if dangling_markers:
+            logger = structlog.get_logger()
+            logger.warning(
+                "dangling_citation_markers_stripped",
+                case_id=case.id,
+                markers=dangling_markers,
+                citation_count=len(citations),
+            )
+
         compliance_hints_json = json.dumps(
             {
-                "hint_text": response.content,
+                "hint_text": hint_text,
                 "citations": [
                     {
                         "number": c.number,
@@ -787,7 +836,7 @@ class TriageService:
 
         return ComplianceHintsResult(
             case_id=case.id,
-            hint_text=response.content,
+            hint_text=hint_text,
             citations=citations,
             prompt_version=prompt_version,
         )
