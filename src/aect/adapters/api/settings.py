@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     """
 
     api_key: str = ""
+    # Rotation ohne Downtime (Phase G Security-Haertung): waehrend einer
+    # Rotation sind BEIDE Keys gueltig -- der primaere (api_key) und der
+    # naechste (api_key_next). Leer = keine Rotation aktiv, nur api_key gilt.
+    # Ablauf siehe README.md ("API-Key-Rotation").
+    api_key_next: str = ""  # AECT_API_KEY_NEXT
     db_path: str = ""  # Leer = InMemoryRepository. AECT_DB_PATH=/pfad/aect.db = SQLite.
 
     # Azure OpenAI (Phase C, ADR-0010) -- leer = MockLLMAdapter.

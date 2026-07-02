@@ -6,10 +6,15 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import structlog
+from fastapi import HTTPException
+from structlog.testing import capture_logs
 
 from aect.adapters.api.dependencies import (
     get_llm_adapter,
     get_retriever_port,
+    key_fingerprint,
+    require_api_key,
     resolve_retriever,
 )
 from aect.adapters.api.settings import Settings, check_azure_eu_region
@@ -210,3 +215,114 @@ def test_get_llm_adapter_rejects_non_eu_endpoint() -> None:
     )
     with pytest.raises(ValueError, match="EU Data Zone"):
         get_llm_adapter(settings=settings)
+
+
+# ---------------------------------------------------------------------------
+# Key-Rotation (Phase G): require_api_key gegen zwei Keys, kid-Logging
+# ---------------------------------------------------------------------------
+
+
+async def test_require_api_key_accepts_primary_key() -> None:
+    settings = Settings(api_key="primary-key")
+    result = await require_api_key(api_key="primary-key", settings=settings)
+    assert result == "primary-key"
+
+
+async def test_require_api_key_accepts_next_key_during_rotation() -> None:
+    settings = Settings(api_key="primary-key", api_key_next="next-key")
+    result = await require_api_key(api_key="next-key", settings=settings)
+    assert result == "next-key"
+
+
+async def test_require_api_key_rejects_unknown_key_with_rotation_active() -> None:
+    settings = Settings(api_key="primary-key", api_key_next="next-key")
+    with pytest.raises(HTTPException) as exc_info:
+        await require_api_key(api_key="something-else", settings=settings)
+    assert exc_info.value.status_code == 401
+
+
+async def test_require_api_key_rejects_next_key_when_rotation_not_active() -> None:
+    """api_key_next leer (kein Rotation-Modus) -- _matches("") ist nie True,
+    sonst wuerde ein leerer AECT_API_KEY_NEXT versehentlich jeden Key akzeptieren."""
+    settings = Settings(api_key="primary-key", api_key_next="")
+    with pytest.raises(HTTPException) as exc_info:
+        await require_api_key(api_key="", settings=settings)
+    assert exc_info.value.status_code == 401
+
+
+async def test_require_api_key_still_returns_503_when_unconfigured() -> None:
+    """Bestehendes 503-Verhalten (b44b016) bleibt durch die Rotation unveraendert."""
+    settings = Settings(api_key="", api_key_next="next-key")
+    with pytest.raises(HTTPException) as exc_info:
+        await require_api_key(api_key="next-key", settings=settings)
+    assert exc_info.value.status_code == 503
+
+
+def _fresh_capturable_logger(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ersetzt dependencies.logger durch eine frisch erzeugte Instanz.
+
+    structlog cached_logger_on_first_use=True (logging_config.py) bindet
+    einen Logger beim ERSTEN echten .info()-Aufruf permanent an die zu dem
+    Zeitpunkt aktuelle Prozessoren-Liste. In der vollen Suite hat
+    dependencies.logger diesen ersten Aufruf laengst hinter sich (andere
+    Tests authentifizieren erfolgreich) -- capture_logs() patcht danach nur
+    noch die JEWEILS AKTUELLE Liste, die der bereits gecachte Logger nicht
+    mehr referenziert (verifiziert per Repro-Skript). Eine frische, in
+    diesem Prozess nie benutzte Logger-Instanz umgeht das: ihr erster
+    Gebrauch faellt in den capture_logs()-Block. Test-lokal, keine
+    Aenderung an der Produktions-Logging-Konfiguration.
+    """
+    import aect.adapters.api.dependencies as deps_module
+
+    monkeypatch.setattr(
+        deps_module, "logger", structlog.get_logger("test-fresh-dependencies-logger")
+    )
+
+
+async def test_require_api_key_logs_kid_of_primary_key_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fresh_capturable_logger(monkeypatch)
+    settings = Settings(api_key="primary-key")
+    with capture_logs() as logs:
+        await require_api_key(api_key="primary-key", settings=settings)
+    auth_logs = [log for log in logs if log["event"] == "api_key_authenticated"]
+    assert len(auth_logs) == 1
+    assert auth_logs[0]["kid"] == key_fingerprint("primary-key")
+
+
+async def test_require_api_key_logs_kid_of_next_key_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fresh_capturable_logger(monkeypatch)
+    settings = Settings(api_key="primary-key", api_key_next="next-key")
+    with capture_logs() as logs:
+        await require_api_key(api_key="next-key", settings=settings)
+    auth_logs = [log for log in logs if log["event"] == "api_key_authenticated"]
+    assert len(auth_logs) == 1
+    assert auth_logs[0]["kid"] == key_fingerprint("next-key")
+    assert auth_logs[0]["kid"] != key_fingerprint("primary-key")
+
+
+def test_key_fingerprint_is_deterministic() -> None:
+    assert key_fingerprint("abc") == key_fingerprint("abc")
+
+
+def test_key_fingerprint_differs_for_different_secrets() -> None:
+    assert key_fingerprint("key-a") != key_fingerprint("key-b")
+
+
+def test_key_fingerprint_default_length_is_8_hex_chars() -> None:
+    fingerprint = key_fingerprint("some-secret")
+    assert len(fingerprint) == 8
+    int(fingerprint, 16)  # wirft ValueError, wenn kein gueltiger Hex-String
+
+
+def test_key_fingerprint_never_contains_raw_secret() -> None:
+    secret = "super-secret-value-123"
+    assert secret not in key_fingerprint(secret)
+
+
+def test_key_fingerprint_full_length_when_length_zero() -> None:
+    fingerprint = key_fingerprint("some-secret", length=0)
+    assert len(fingerprint) == 64

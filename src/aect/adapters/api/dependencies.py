@@ -16,6 +16,12 @@ Security (aect-security-checklist v2.1, Phase B):
   wir liefern einheitlich 401 (kein Info-Leak ueber Mechanismus).
   Schluessel-Vergleich via secrets.compare_digest (konstante Laufzeit) --
   kein timing-basiertes Byte-fuer-Byte-Erraten des Keys (G-S5-Hardening).
+  Key-Rotation (Phase G): require_api_key prueft gegen BEIDE konfigurierten
+  Keys (api_key + optional api_key_next), jeweils per eigenem
+  compare_digest-Aufruf -- niemals `api_key in {...}`, das waere
+  timing-unsicher (Python-String-Gleichheit bricht beim ersten
+  abweichenden Byte ab). key_fingerprint() liefert einen kurzen sha256-
+  Fingerprint (kid) fuer Logs -- NIE den Klartext-Key selbst.
 InMemoryRepository: prozessgebunden, kein State nach Neustart.
 Phase B: SQLiteRepository ersetzt dies.
 
@@ -27,11 +33,13 @@ Idempotency (aect-security-checklist v2.1, Phase B):
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import structlog
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 from openai import AsyncAzureOpenAI
@@ -54,6 +62,8 @@ from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrieverPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
+
+logger = structlog.get_logger(__name__)
 
 # Singleton -- Repository-State lebt fuer die Prozess-Lebensdauer.
 _repository: InMemoryRepository = InMemoryRepository()
@@ -277,37 +287,75 @@ def get_llm_adapter(
     return ResilientLLMAdapter(inner)
 
 
+def key_fingerprint(secret: str, length: int = 8) -> str:
+    """Kurzer sha256-Fingerprint eines Secrets -- NIE der Klartext selbst.
+
+    Genutzt als kid (Key-ID) in Logs (Rotation, Phase G) und als
+    api_key_hash zur Token-Budget-Zuordnung (Phase G, Token-Budget-Limiter)
+    -- ein Mechanismus, zwei Verwendungen. length=8 (Default) reicht fuer
+    Log-Unterscheidbarkeit zwischen wenigen aktiven Keys; length=0 liefert
+    den vollen 64-Zeichen-Hexdigest (Kollisionsresistenz fuer Persistenz-
+    Schluessel, z. B. token_budget-Tabellen).
+    """
+    digest = hashlib.sha256(secret.encode("utf-8")).hexdigest()
+    return digest[:length] if length else digest
+
+
+def _matches(candidate: bytes, secret: str) -> bool:
+    """Konstante-Laufzeit-Vergleich gegen ein einzelnes konfiguriertes Secret.
+
+    Leeres secret ist nie ein gueltiger Match (verhindert, dass ein leerer
+    api_key_next versehentlich jeden Key akzeptiert).
+    """
+    return bool(secret) and secrets.compare_digest(candidate, secret.encode("utf-8"))
+
+
 async def require_api_key(
     api_key: str | None = Depends(_api_key_header),
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> str:
-    """FastAPI-Dependency: prueft X-API-Key-Header gegen konfigurierter Key.
+    """FastAPI-Dependency: prueft X-API-Key-Header gegen konfigurierte Keys.
+
+    Rotation ohne Downtime (Phase G): akzeptiert sowohl settings.api_key
+    (primaer) als auch settings.api_key_next (optional, waehrend einer
+    Rotation) -- jeweils per eigenem compare_digest-Aufruf, nie per
+    Listen-Mitgliedschaft (`in`), das waere timing-unsicher (README.md
+    "API-Key-Rotation" beschreibt den Ablauf).
 
     Raises:
-        HTTPException 503: Server hat keinen API-Key konfiguriert (fehlende
-            .env/AECT_API_KEY) -- bewusst 503 statt 500: der Server ist
-            nicht betriebsbereit, es ist kein Crash und kein Client-Fehler.
-        HTTPException 401: Key fehlt oder stimmt nicht.
+        HTTPException 503: Server hat keinen primaeren API-Key konfiguriert
+            (fehlende .env/AECT_API_KEY) -- bewusst 503 statt 500: der
+            Server ist nicht betriebsbereit, es ist kein Crash und kein
+            Client-Fehler.
+        HTTPException 401: Key fehlt oder stimmt gegen keinen der
+            konfigurierten Keys.
 
-    /health ist explizit exempt -- kein Depends(require_api_key) dort.
+    /health, /health/live, /health/ready sind explizit exempt -- kein
+    Depends(require_api_key) dort.
     """
     if not settings.api_key:
         raise HTTPException(
             status_code=503,
             detail="API key not configured on server",
         )
-    # Konstante Laufzeit: compare_digest verhindert, dass die Vergleichsdauer
-    # die Anzahl korrekter Praefix-Bytes verraet (Timing-Side-Channel). Bytes
-    # statt str -- compare_digest auf str wirft TypeError bei Nicht-ASCII.
-    if api_key is None or not secrets.compare_digest(
-        api_key.encode("utf-8"), settings.api_key.encode("utf-8")
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing API key",
-            headers={"WWW-Authenticate": "X-API-Key"},
-        )
-    return api_key
+    if api_key is not None:
+        candidate = api_key.encode("utf-8")
+        # Bytes statt str: compare_digest auf str wirft TypeError bei
+        # Nicht-ASCII. Beide Keys werden ueber je einen eigenen
+        # compare_digest-Aufruf geprueft -- konstante Laufzeit pro Vergleich.
+        if _matches(candidate, settings.api_key):
+            logger.info("api_key_authenticated", kid=key_fingerprint(settings.api_key))
+            return api_key
+        if _matches(candidate, settings.api_key_next):
+            logger.info(
+                "api_key_authenticated", kid=key_fingerprint(settings.api_key_next)
+            )
+            return api_key
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid or missing API key",
+        headers={"WWW-Authenticate": "X-API-Key"},
+    )
 
 
 def get_triage_service(

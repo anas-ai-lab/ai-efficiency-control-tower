@@ -225,6 +225,7 @@ LLM-Schärfung und Compliance-Hints geben Platzhalter zurück.
 
 ```
 AECT_API_KEY=<beliebiger-string>
+AECT_API_KEY_NEXT=<optional, nur waehrend Rotation gesetzt>
 AECT_DB_PATH=aect.db
 
 # Leer lassen -> Mock-LLM-Adapter (Rule Engine laeuft vollstaendig)
@@ -240,6 +241,15 @@ AECT_CHROMA_PORT=8001
 Ohne Azure- und Chroma-Konfiguration laeuft das System vollstaendig mit Mock-Adaptern --
 Rule Engine, ROI-Modell, Zonen-Einstufung und Triage-Report funktionieren, LLM-Schaerfung
 und RAG-Hinweise liefern Platzhalter-Antworten.
+
+**API-Key-Rotation** (ohne Downtime): `AECT_API_KEY` und optional `AECT_API_KEY_NEXT`
+sind waehrend einer Rotation gleichzeitig gueltig -- `require_api_key` prueft eingehende
+Requests gegen beide. Ablauf: (1) neuen Key als `AECT_API_KEY_NEXT` setzen und den Server
+neu starten (beide Keys jetzt gueltig), (2) Clients auf den neuen Key umstellen, (3) in
+den Logs pruefen, dass nur noch die kid (kurzer sha256-Fingerprint, nie der Klartext-Key)
+des neuen Keys unter dem Event `api_key_authenticated` erscheint -- das zeigt, dass kein
+Client mehr den alten Key nutzt, (4) `AECT_API_KEY_NEXT` -> `AECT_API_KEY` uebernehmen und
+den alten Wert entfernen.
 
 ---
 

@@ -170,3 +170,53 @@ async def test_global_exception_handler_hides_error_details() -> None:
     assert "interner Geheimwert" not in response.text
     assert "Traceback" not in response.text
     assert "ValueError" not in response.text
+
+
+# ---------------------------------------------------------------------------
+# Auth: Key-Rotation (Phase G) -- End-zu-End ueber die echte HTTP-Route
+# ---------------------------------------------------------------------------
+
+NEXT_API_KEY = "next-api-key-aect-2026"
+
+
+def _make_rotation_app() -> FastAPI:
+    """App mit zwei gleichzeitig gueltigen Keys (Rotation im Gange)."""
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        api_key=TEST_API_KEY, api_key_next=NEXT_API_KEY
+    )
+    return app
+
+
+async def test_rotation_accepts_primary_key() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_rotation_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases", headers={"X-API-Key": TEST_API_KEY})
+    assert response.status_code == 200
+
+
+async def test_rotation_accepts_next_key() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_rotation_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases", headers={"X-API-Key": NEXT_API_KEY})
+    assert response.status_code == 200
+
+
+async def test_rotation_rejects_key_matching_neither() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_rotation_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases", headers={"X-API-Key": "weder-noch"})
+    assert response.status_code == 401
+
+
+async def test_next_key_rejected_when_rotation_not_active() -> None:
+    """Ohne AECT_API_KEY_NEXT (Default-App, _make_auth_app) ist NEXT_API_KEY
+    kein gueltiger Key -- Rotation muss explizit aktiviert werden."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_auth_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases", headers={"X-API-Key": NEXT_API_KEY})
+    assert response.status_code == 401
