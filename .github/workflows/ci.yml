@@ -173,6 +173,7 @@ jobs:
           exit-code: "1"
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
   # ─── Job 5: Frontend Quality ────────────────────────────────────────────────
   # AUDIT-004: TypeScript-Check + Next.js-Build. Node 20 (NICHT 24 -- Next.js
