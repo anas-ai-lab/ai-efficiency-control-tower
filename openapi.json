@@ -6,13 +6,35 @@
     "version": "1.2.0"
   },
   "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Health Live",
+        "description": "Liveness: HTTP 200 solange der Prozess laeuft. Keine Dependency-Checks.",
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
           "ops"
         ],
         "summary": "Health Check",
-        "description": "Gibt HTTP 200 zurueck, solange der Prozess laeuft.",
+        "description": "Alias auf /health/live (Abwaertskompatibilitaet, bestehende Configs).",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -22,6 +44,26 @@
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Health Ready",
+        "description": "Readiness: prueft API-Key-Konfiguration, SQLite- und ChromaDB-\nErreichbarkeit. 200 wenn alle Checks bestehen, sonst 503 mit\n{\"not_ready\": [...]} -- listet explizit WAS fehlt, nicht nur \"not ready\"\n(macht den Zustand ohne Log-Zugriff diagnostizierbar).",
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -100,13 +142,71 @@
         }
       }
     },
+    "/cases/{case_id}/decision": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Record Decision",
+        "description": "Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).\nRate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.\n\nUeberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,\nkein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "record_decision_cases__case_id__decision_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/sharpen": {
       "post": {
         "tags": [
           "cases"
         ],
         "summary": "Sharpen Case",
-        "description": "Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G, ergaenzt die\nRequest-Rate-Limits um eine Token-MENGEN-Grenze).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "sharpen_case_cases__case_id__sharpen_post",
         "security": [
           {
@@ -154,7 +254,7 @@
           "cases"
         ],
         "summary": "Propose Solution",
-        "description": "Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\n\nSkeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten\nZielplattformen -- Stack-Grounding via RAG folgt Phase D.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nSkeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten\nZielplattformen -- Stack-Grounding via RAG folgt Phase D.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "propose_solution_cases__case_id__propose_solution_post",
         "security": [
           {
@@ -267,7 +367,7 @@
           "cases"
         ],
         "summary": "Compliance Hints",
-        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "compliance_hints_cases__case_id__compliance_hints_post",
         "security": [
           {
@@ -455,6 +555,33 @@
             },
             "type": "array",
             "title": "Compliance Citations"
+          },
+          "reviewer_decision": {
+            "type": "string",
+            "title": "Reviewer Decision"
+          },
+          "reviewer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Note"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
           }
         },
         "type": "object",
@@ -467,10 +594,13 @@
           "summary_text",
           "sharpened_text",
           "compliance_hint_text",
-          "compliance_citations"
+          "compliance_citations",
+          "reviewer_decision",
+          "reviewer_note",
+          "decided_at"
         ],
         "title": "BusinessSummaryResponse",
-        "description": "Entscheider-Schicht des Reports.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring)."
+        "description": "Entscheider-Schicht des Reports.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
       },
       "CaseSummary": {
         "properties": {
@@ -616,6 +746,81 @@
         "title": "DataClassification",
         "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1, SENSITIVE_PERSONAL=2.\nMapping liegt in config, nicht hier."
       },
+      "DecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "DecisionRequest",
+        "description": "Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,\nminimaler Decision-Record -- ADR-0043, bewusst kein Multi-User-Reviewer-\nWorkflow mit Rollen).\n\ndecision: nur \"approved\"/\"rejected\" ueber diesen Endpoint setzbar --\nPENDING ist ausschliesslich der Ausgangszustand vor jeder Entscheidung,\nkein gueltiger Request-Wert (kein Zurueck-auf-PENDING via API).\nnote: optionale Begruendung. extra=\"forbid\" + max_length konsistent mit\nden uebrigen Freitextfeldern (Token-Flooding-Schutz, aect-security-\nchecklist v2.1 Phase A)."
+      },
+      "DecisionResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "reviewer_decision": {
+            "type": "string",
+            "title": "Reviewer Decision"
+          },
+          "reviewer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Note"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "reviewer_decision",
+          "reviewer_note",
+          "decided_at"
+        ],
+        "title": "DecisionResponse",
+        "description": "Aktueller Entscheidungs-Zustand eines Case nach POST /decision."
+      },
       "EmployeeCategory": {
         "type": "string",
         "enum": [
@@ -700,7 +905,7 @@
           "version"
         ],
         "title": "HealthResponse",
-        "description": "Response-Schema fuer GET /health."
+        "description": "Response-Schema fuer GET /health und /health/live."
       },
       "ImplementationApproach": {
         "type": "string",
