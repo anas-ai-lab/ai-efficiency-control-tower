@@ -18,6 +18,14 @@ export function SolutionView({
 }: SolutionViewProps) {
   return (
     <div className="space-y-6">
+      <div>
+        <p className="eyebrow mb-1.5">Was passiert hier</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Die KI skizziert einen möglichen Umsetzungsweg für diesen Use Case —
+          als Vorschlag zur Prüfung, nicht als verbindliche Architektur.
+        </p>
+      </div>
+
       <article className="rounded-2xl border border-border bg-card p-6 sm:p-7">
         <p className="eyebrow mb-3">Vorschlag</p>
         <p className="text-[0.95rem] leading-7 whitespace-pre-line text-foreground/90">

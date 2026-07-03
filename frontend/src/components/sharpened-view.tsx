@@ -43,6 +43,15 @@ export function SharpenedView({
 }: SharpenedViewProps) {
   return (
     <div className="space-y-6">
+      <div>
+        <p className="eyebrow mb-1.5">Was passiert hier</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Die KI schärft deine Beschreibung. Das Original bleibt links
+          unverändert erhalten, rechts steht die geschärfte Fassung mit
+          konkreten Verbesserungsvorschlägen.
+        </p>
+      </div>
+
       {result.sharpened_title !== null ? (
         <>
           {/* Original vs. geschaerft als zwei klar getrennte Spuren. */}

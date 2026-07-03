@@ -28,6 +28,15 @@ export function ComplianceView({
 
   return (
     <div className="space-y-6">
+      <div>
+        <p className="eyebrow mb-1.5">Was passiert hier</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Regelbasiert ausgelöste, RAG-belegte Datenschutz-Hinweise mit
+          Quellenangabe. Immer als Prüfhinweis zu verstehen, kein
+          rechtsverbindliches Urteil.
+        </p>
+      </div>
+
       {!hasHint && !hasCitations && (
         <div className="flex items-start gap-3 rounded-xl border border-[var(--zone-win-border)] bg-[var(--zone-win-surface)] px-4 py-3.5">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--zone-win-fg)]" />
