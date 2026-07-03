@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Live
+         * @description Liveness: HTTP 200 solange der Prozess laeuft. Keine Dependency-Checks.
+         */
+        get: operations["health_live_health_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -13,9 +33,32 @@ export interface paths {
         };
         /**
          * Health Check
-         * @description Gibt HTTP 200 zurueck, solange der Prozess laeuft.
+         * @description Alias auf /health/live (Abwaertskompatibilitaet, bestehende Configs).
          */
         get: operations["health_check_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Ready
+         * @description Readiness: prueft API-Key-Konfiguration, SQLite- und ChromaDB-
+         *     Erreichbarkeit. 200 wenn alle Checks bestehen, sonst 503 mit
+         *     {"not_ready": [...]} -- listet explizit WAS fehlt, nicht nur "not ready"
+         *     (macht den Zustand ohne Log-Zugriff diagnostizierbar).
+         */
+        get: operations["health_ready_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -80,6 +123,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Decision
+         * @description Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
+         *
+         *     Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
+         *     kein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["record_decision_cases__case_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/sharpen": {
         parameters: {
             query?: never;
@@ -97,9 +170,13 @@ export interface paths {
          *     Auth: X-API-Key-Header (require_api_key).
          *     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
          *     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+         *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+         *     stuendliche Token-Budget des API-Keys (Phase G, ergaenzt die
+         *     Request-Rate-Limits um eine Token-MENGEN-Grenze).
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 429: Token-Budget des API-Keys erschoepft.
          */
         post: operations["sharpen_case_cases__case_id__sharpen_post"];
         delete?: never;
@@ -125,12 +202,15 @@ export interface paths {
          *     Auth: X-API-Key-Header (require_api_key).
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen
          *     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
+         *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+         *     stuendliche Token-Budget des API-Keys (Phase G).
          *
          *     Skeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten
          *     Zielplattformen -- Stack-Grounding via RAG folgt Phase D.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 429: Token-Budget des API-Keys erschoepft.
          */
         post: operations["propose_solution_cases__case_id__propose_solution_post"];
         delete?: never;
@@ -192,9 +272,12 @@ export interface paths {
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und
          *     /propose-solution (aect-security-checklist v2.1, Phase B: "LLM-Endpoints
          *     strenger").
+         *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
+         *     stuendliche Token-Budget des API-Keys (Phase G).
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 429: Token-Budget des API-Keys erschoepft.
          */
         post: operations["compliance_hints_cases__case_id__compliance_hints_post"];
         delete?: never;
@@ -248,6 +331,10 @@ export interface components {
          *     compliance_hint_text/compliance_citations (ADR-0026): aus dem
          *     persistierten compliance_hints_json gelesen, kein Override moeglich
          *     (siehe ReportRequest-Docstring).
+         *
+         *     reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
+         *     Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
+         *     sichtbar, ohne einen zweiten Endpoint abzufragen.
          */
         BusinessSummaryResponse: {
             /** Title */
@@ -268,6 +355,12 @@ export interface components {
             compliance_hint_text: string | null;
             /** Compliance Citations */
             compliance_citations: components["schemas"]["ComplianceCitationResponse"][];
+            /** Reviewer Decision */
+            reviewer_decision: string;
+            /** Reviewer Note */
+            reviewer_note: string | null;
+            /** Decided At */
+            decided_at: string | null;
         };
         /**
          * CaseSummary
@@ -343,6 +436,42 @@ export interface components {
          */
         DataClassification: "no_personal_data" | "pseudonymous" | "personal" | "sensitive_personal";
         /**
+         * DecisionRequest
+         * @description Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,
+         *     minimaler Decision-Record -- ADR-0043, bewusst kein Multi-User-Reviewer-
+         *     Workflow mit Rollen).
+         *
+         *     decision: nur "approved"/"rejected" ueber diesen Endpoint setzbar --
+         *     PENDING ist ausschliesslich der Ausgangszustand vor jeder Entscheidung,
+         *     kein gueltiger Request-Wert (kein Zurueck-auf-PENDING via API).
+         *     note: optionale Begruendung. extra="forbid" + max_length konsistent mit
+         *     den uebrigen Freitextfeldern (Token-Flooding-Schutz, aect-security-
+         *     checklist v2.1 Phase A).
+         */
+        DecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approved" | "rejected";
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * DecisionResponse
+         * @description Aktueller Entscheidungs-Zustand eines Case nach POST /decision.
+         */
+        DecisionResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Reviewer Decision */
+            reviewer_decision: string;
+            /** Reviewer Note */
+            reviewer_note: string | null;
+            /** Decided At */
+            decided_at: string | null;
+        };
+        /**
          * EmployeeCategory
          * @description Grobe Seniorität der betroffenen Mitarbeiter.
          *
@@ -376,7 +505,7 @@ export interface components {
         };
         /**
          * HealthResponse
-         * @description Response-Schema fuer GET /health.
+         * @description Response-Schema fuer GET /health und /health/live.
          */
         HealthResponse: {
             /** Status */
@@ -740,6 +869,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    health_live_health_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
     health_check_health_get: {
         parameters: {
             query?: never;
@@ -756,6 +905,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    health_ready_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -797,6 +966,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_decision_cases__case_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
