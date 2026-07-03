@@ -213,9 +213,7 @@ async def test_report_reflects_recorded_decision() -> None:
             json={"decision": "approved", "note": "Freigegeben"},
             headers=_AUTH,
         )
-        report = await client.post(
-            f"/cases/{case_id}/report", json={}, headers=_AUTH
-        )
+        report = await client.post(f"/cases/{case_id}/report", json={}, headers=_AUTH)
 
     assert report.status_code == 200
     business_summary = report.json()["business_summary"]
@@ -231,9 +229,7 @@ async def test_report_before_any_decision_shows_pending() -> None:
         created = await client.post("/triage", json=_VALID_PAYLOAD, headers=_AUTH)
         case_id = created.json()["id"]
 
-        report = await client.post(
-            f"/cases/{case_id}/report", json={}, headers=_AUTH
-        )
+        report = await client.post(f"/cases/{case_id}/report", json={}, headers=_AUTH)
 
     assert report.status_code == 200
     business_summary = report.json()["business_summary"]
