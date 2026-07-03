@@ -215,7 +215,7 @@ export default function AectApp() {
         )}
 
         {currentStep === "report" && reportResult !== null && (
-          <ReportView result={reportResult} />
+          <ReportView result={reportResult} triage={triageResult} />
         )}
       </div>
     </main>

@@ -13,6 +13,22 @@ export function formatNumber(value: number): string {
   }).format(value);
 }
 
+// Anteil (0-1) als ganzzahlige Prozentangabe, z. B. 0.8 -> "80 %".
+export function formatPercent(fraction: number): string {
+  return new Intl.NumberFormat("de-DE", {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(fraction);
+}
+
+// Faktor mit zwei Nachkommastellen fuer den Rechenweg, z. B. 0.8 -> "0,80".
+export function formatFactor(value: number): string {
+  return new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 // Zonen-Semantik. Farben kommen aus den --zone-*-Tokens in globals.css
 // (redaktionell entsaettigte Versionen, keine Alarmbanner). Die Klassenstrings
 // sind literal, damit Tailwind sie beim Scan erfasst.

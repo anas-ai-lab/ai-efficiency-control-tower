@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type {
   ReportResponse,
+  TriageResponse,
   ComplianceCitation,
   BusinessSummary,
   ReviewerDecision,
@@ -13,10 +14,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { recordDecision } from "@/app/actions"
+import {
+  NetBenefitRationale,
+  CompositeBreakdown,
+  RoutingRationale,
+} from "@/components/decision-rationale"
 import { CheckCircle2, XCircle, AlertTriangle, Circle } from "lucide-react"
 
 interface ReportViewProps {
   result: ReportResponse
+  // Volle TriageResponse zum Durchreichen der Begruendungsdaten (Aufgabe 2) --
+  // ohne Backend-Aenderung. Kann null sein, wenn kein Triage-State vorliegt.
+  triage: TriageResponse | null
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -147,10 +156,11 @@ function ReviewSection({ caseId, businessSummary }: ReviewSectionProps) {
   )
 }
 
-export function ReportView({ result }: ReportViewProps) {
+export function ReportView({ result, triage }: ReportViewProps) {
   const bs = result.business_summary
   const td = result.technical_detail
   const zoneConf = bs.zone !== null ? ZONE_CONFIG[bs.zone as ZoneKey] : null
+  const zoneReason = triage?.zone?.reason ?? null
 
   return (
     <Tabs defaultValue="entscheider" className="w-full">
@@ -163,28 +173,35 @@ export function ReportView({ result }: ReportViewProps) {
         </TabsTrigger>
       </TabsList>
 
-      {/* --- Entscheider-Sicht --- */}
+      {/* --- Entscheider-Sicht: 5-Sekunden-Lesbarkeit, Verdikt zuerst. --- */}
       <TabsContent value="entscheider">
         <div className="space-y-6 pt-6">
+          {/* 1. VERDIKT: Zone als Headline, Begruendung als eine Zeile. */}
           {zoneConf !== null && (
             <section
-              className={`flex items-center gap-3 rounded-2xl border px-6 py-5 ${zoneConf.surface}`}
+              className={`flex items-start gap-3 rounded-2xl border px-6 py-5 ${zoneConf.surface}`}
             >
               <span
-                className={`size-2.5 shrink-0 rounded-full ${zoneConf.dot}`}
+                className={`mt-2 size-2.5 shrink-0 rounded-full ${zoneConf.dot}`}
                 aria-hidden
               />
-              <div>
+              <div className="min-w-0">
                 <p className="eyebrow">Bewertungszone</p>
                 <p
-                  className={`mt-1 text-xl font-semibold tracking-tight ${zoneConf.text}`}
+                  className={`mt-1 text-2xl font-bold tracking-tight ${zoneConf.text}`}
                 >
                   {zoneConf.labelDE}
                 </p>
+                {zoneReason !== null && (
+                  <p className="mt-2 max-w-prose text-[0.9375rem] leading-relaxed text-foreground/90">
+                    {zoneReason}
+                  </p>
+                )}
               </div>
             </section>
           )}
 
+          {/* 2. FREIGABE-EMPFEHLUNG. */}
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center gap-2">
               {bs.is_actionable ? (
@@ -203,11 +220,12 @@ export function ReportView({ result }: ReportViewProps) {
                 </>
               )}
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-[0.9375rem] leading-relaxed text-foreground/90">
               {bs.recommendation}
             </p>
           </section>
 
+          {/* 3. NETTONUTZEN: grosse Zahl plus Erklaerung und Rechenweg. */}
           {bs.expected_benefit_eur !== null && (
             <section className="rounded-xl border border-border bg-card px-6 py-5">
               <SectionLabel>Erwarteter Nettonutzen</SectionLabel>
@@ -215,9 +233,23 @@ export function ReportView({ result }: ReportViewProps) {
                 {formatEUR(bs.expected_benefit_eur)}
               </p>
               <p className="mt-1.5 text-xs text-muted-foreground">pro Jahr</p>
+              {triage?.roi != null && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <NetBenefitRationale roi={triage.roi} />
+                </div>
+              )}
             </section>
           )}
 
+          {/* 4. AUFWAND: Composite-Breakdown mit gelabelten Subscores. */}
+          {triage?.composite != null && (
+            <section className="rounded-xl border border-border bg-card px-6 py-5">
+              <SectionLabel>Aufwand</SectionLabel>
+              <CompositeBreakdown composite={triage.composite} />
+            </section>
+          )}
+
+          {/* 5. ZUSAMMENFASSUNG. */}
           <section>
             <SectionLabel>Zusammenfassung</SectionLabel>
             <p className="text-sm leading-relaxed text-foreground/90">
@@ -225,6 +257,7 @@ export function ReportView({ result }: ReportViewProps) {
             </p>
           </section>
 
+          {/* 6. GESCHAERFTE BESCHREIBUNG als Zitat-Block. */}
           {bs.sharpened_text !== null && (
             <section className="border-l-2 border-[var(--ink)] pl-4">
               <SectionLabel>Geschärfte Beschreibung</SectionLabel>
@@ -234,6 +267,7 @@ export function ReportView({ result }: ReportViewProps) {
             </section>
           )}
 
+          {/* 7. COMPLIANCE. */}
           {bs.compliance_hint_text !== null && (
             <section>
               <SectionLabel>Compliance-Hinweise</SectionLabel>
@@ -291,21 +325,30 @@ export function ReportView({ result }: ReportViewProps) {
             )}
           </section>
 
-          {td.composite_total !== null && (
+          {/* Aufwand nie als blosses X/10: gelabelte Subscores aus der Triage,
+              Fallback auf das Composite-Total aus dem technischen Detail. */}
+          {triage?.composite != null ? (
             <section className="rounded-xl border border-border bg-card px-5 py-4">
               <SectionLabel>Aufwand-Score</SectionLabel>
-              <div className="flex items-baseline gap-2">
-                <span className="stat-value text-2xl text-foreground">
-                  {td.composite_total}
-                  <span className="text-base text-muted-foreground">/10</span>
-                </span>
-                {td.composite_effort_label !== null && (
-                  <span className="text-sm text-muted-foreground">
-                    {td.composite_effort_label}
-                  </span>
-                )}
-              </div>
+              <CompositeBreakdown composite={triage.composite} />
             </section>
+          ) : (
+            td.composite_total !== null && (
+              <section className="rounded-xl border border-border bg-card px-5 py-4">
+                <SectionLabel>Aufwand-Score</SectionLabel>
+                <div className="flex items-baseline gap-2">
+                  <span className="stat-value text-2xl text-foreground">
+                    {td.composite_total}
+                    <span className="text-base text-muted-foreground">/10</span>
+                  </span>
+                  {td.composite_effort_label !== null && (
+                    <span className="text-sm text-muted-foreground">
+                      {td.composite_effort_label}
+                    </span>
+                  )}
+                </div>
+              </section>
+            )
           )}
 
           {td.feasibility_flags.length > 0 && (
@@ -327,28 +370,13 @@ export function ReportView({ result }: ReportViewProps) {
           {(td.automation_signals.length > 0 || td.ai_signals.length > 0) && (
             <section>
               <SectionLabel>Routing-Signale</SectionLabel>
-              <div className="space-y-2 text-xs">
-                {td.automation_signals.length > 0 && (
-                  <div className="flex gap-2">
-                    <span className="w-24 shrink-0 text-muted-foreground">
-                      Automation
-                    </span>
-                    <span className="text-foreground/85">
-                      {td.automation_signals.join(", ")}
-                    </span>
-                  </div>
-                )}
-                {td.ai_signals.length > 0 && (
-                  <div className="flex gap-2">
-                    <span className="w-24 shrink-0 text-muted-foreground">
-                      KI
-                    </span>
-                    <span className="text-foreground/85">
-                      {td.ai_signals.join(", ")}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Begruendungslisten statt Komma-Strings. Ohne Triage-State keine
+                  Empfehlung zum Gruppieren -- dann beide Seiten zeigen. */}
+              <RoutingRationale
+                recommendation={triage?.routing.recommendation ?? "BORDERLINE"}
+                automationSignals={td.automation_signals}
+                aiSignals={td.ai_signals}
+              />
             </section>
           )}
 
