@@ -2,7 +2,27 @@
 // adapters/api/routes/triage.py, adapters/api/routes/cases.py
 // Aenderungen hier muessen mit den Python-Schemas synchron bleiben.
 
-export type EmployeeCategory = "junior" | "professional" | "senior" | "mixed";
+export type EmployeeCategory =
+  | "junior"
+  | "professional"
+  | "consultant"
+  | "senior"
+  | "management";
+// Land der betroffenen Mitarbeiter (steuert Stundensatz-Lookup im Backend).
+// Werte exakt aus api.generated.ts (Country) gespiegelt.
+export type Country =
+  | "de"
+  | "at"
+  | "ch"
+  | "no"
+  | "gb"
+  | "es"
+  | "it"
+  | "tr"
+  | "ro"
+  | "pl"
+  | "eg"
+  | "in";
 export type EvidenceLevel =
   | "pure_estimate"
   | "similar_project"
@@ -33,10 +53,12 @@ export interface UseCaseInput {
   title: string; // 5-200
   submitter: string; // 1-100
   department: string; // 1-100
+  country: Country; // required, kein Default (steuert Stundensatz-Lookup)
   // Ist / Soll / Beispiel
   current_state: string; // 30-2000
   desired_state: string; // 30-2000
-  example_process: string; // 20-2000
+  example_process: string; // 20-2000 (Ist-Beispiel)
+  desired_example_process?: string | null; // optional, max 2000 (Soll-Beispiel)
   // Quantitativ
   time_savings_hours_per_case: number; // 0 < x <= 8
   frequency_per_year: number; // integer, 0 < x <= 1000000
@@ -47,8 +69,9 @@ export interface UseCaseInput {
   adoption_type: AdoptionType;
   implementation_approach: ImplementationApproach;
   // Kosten
-  estimated_license_cost_eur: number; // 0 - 10000000
+  estimated_license_cost_eur: number; // 0 - 10000000 (wiederkehrend, EUR/Jahr)
   implementation_complexity: number; // integer 1-5
+  implementation_cost_eur: number; // 0 - 10000000 (einmalig), default 0
   // Datenschutz
   contains_pii: boolean;
   data_classification: DataClassification;
@@ -56,6 +79,8 @@ export interface UseCaseInput {
   regulatory_pressure: boolean;
   competitive_pressure: boolean;
   strategic_priority: boolean;
+  // Anmerkungen
+  notes?: string | null; // optional, max 2000
 }
 
 // ---- Triage Response (/triage POST) ----------------------------------------

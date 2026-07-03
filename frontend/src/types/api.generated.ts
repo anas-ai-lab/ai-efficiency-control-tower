@@ -426,6 +426,20 @@ export interface components {
             effort_label: string;
         };
         /**
+         * Country
+         * @description Land der betroffenen Mitarbeiter — steuert den Stundensatz-Lookup.
+         *
+         *     Werte sind generische ISO-3166-alpha-2-Kuerzel (lowercase). Konkrete
+         *     Stundensaetze je Land x Level liegen in config, nie im Code (IP-Trennung):
+         *     generische DACH-Platzhalter in config/roi_config.toml, echte Saetze und
+         *     weitere Laender in config/roi_config.local.toml (gitignored).
+         *
+         *     Erweiterbar: ein neuer Wert hier braucht eine passende [hourly_rates.<wert>]-
+         *     Section mit allen 5 Leveln, sonst stiller ROI=0 (TOML/StrEnum-Invariante).
+         * @enum {string}
+         */
+        Country: "de" | "at" | "ch" | "no" | "gb" | "es" | "it" | "tr" | "ro" | "pl" | "eg" | "in";
+        /**
          * DataClassification
          * @description Datenschutz-Einstufung der verarbeiteten Daten.
          *
@@ -473,13 +487,13 @@ export interface components {
         };
         /**
          * EmployeeCategory
-         * @description Grobe Seniorität der betroffenen Mitarbeiter.
+         * @description Grobe Seniorität der betroffenen Mitarbeiter (aufsteigend nach Seniorität).
          *
          *     Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.toml.
          *     Dieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code.
          * @enum {string}
          */
-        EmployeeCategory: "junior" | "professional" | "senior" | "mixed";
+        EmployeeCategory: "junior" | "professional" | "consultant" | "senior" | "management";
         /**
          * EvidenceLevel
          * @description Qualität der Zeitersparnis-Schätzung.
@@ -742,6 +756,8 @@ export interface components {
              * @description Abteilung / Organisationseinheit
              */
             department: string;
+            /** @description Land der betroffenen Mitarbeiter — steuert den Stundensatz-Lookup (je Land x Level aus Config, nie im Code). Kein Default: das Land bestimmt das ROI-Ergebnis direkt und muss bewusst gesetzt werden. */
+            country: components["schemas"]["Country"];
             /**
              * Current State
              * @description Beschreibung des aktuellen Prozesses (Ist-Zustand)
@@ -754,9 +770,14 @@ export interface components {
             desired_state: string;
             /**
              * Example Process
-             * @description Konkretes Beispiel eines einzelnen Vorgangs (nicht Gesamtvolumen)
+             * @description Konkretes Beispiel eines einzelnen Vorgangs (Ist-Zustand, nicht Gesamtvolumen)
              */
             example_process: string;
+            /**
+             * Desired Example Process
+             * @description Konkretes Beispiel, wie der Vorgang im Soll-Zustand ablaufen soll
+             */
+            desired_example_process?: string | null;
             /**
              * Time Savings Hours Per Case
              * @description Geschätzte Zeitersparnis pro Vorgang in Stunden (max = 8 h)
@@ -795,6 +816,12 @@ export interface components {
              */
             implementation_complexity: number;
             /**
+             * Implementation Cost Eur
+             * @description Einmalige Implementierungskosten in EUR (Setup/Integration). Fliesst in die Kostenstufe des Composite-Aufwand-Scores ein, NICHT in den jaehrlichen Netto-Nutzen des ROI (einmalige vs. wiederkehrende Kosten).
+             * @default 0
+             */
+            implementation_cost_eur: number;
+            /**
              * Contains Pii
              * @description Werden personenbezogene Daten verarbeitet? (Schnellcheck)
              * @default false
@@ -820,6 +847,11 @@ export interface components {
              * @default false
              */
             strategic_priority: boolean;
+            /**
+             * Notes
+             * @description Freitext-Anmerkungen des Einreichers (optional)
+             */
+            notes?: string | null;
         };
         /** ValidationError */
         ValidationError: {

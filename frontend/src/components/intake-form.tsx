@@ -27,17 +27,40 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 
+// Werte exakt aus src/types/api.generated.ts gespiegelt (Country,
+// EmployeeCategory) -- nicht aus dem Gedaechtnis ergaenzen.
 const formSchema = z.object({
   title: z.string().min(5).max(200),
   submitter: z.string().min(1).max(100),
   department: z.string().min(1).max(100),
+  country: z.enum([
+    "de",
+    "at",
+    "ch",
+    "no",
+    "gb",
+    "es",
+    "it",
+    "tr",
+    "ro",
+    "pl",
+    "eg",
+    "in",
+  ]),
   current_state: z.string().min(30).max(2000),
   desired_state: z.string().min(30).max(2000),
   example_process: z.string().min(20).max(2000),
+  desired_example_process: z.string().max(2000).optional(),
   time_savings_hours_per_case: z.coerce.number().positive().max(8),
   frequency_per_year: z.coerce.number().int().positive().max(1000000),
   affected_employees_count: z.coerce.number().int().positive().max(50000),
-  employee_category: z.enum(["junior", "professional", "senior", "mixed"]),
+  employee_category: z.enum([
+    "junior",
+    "professional",
+    "consultant",
+    "senior",
+    "management",
+  ]),
   evidence_level: z.enum(["pure_estimate", "similar_project", "tested_piloted"]),
   adoption_type: z.enum(["mandatory", "voluntary"]),
   implementation_approach: z.enum([
@@ -47,6 +70,7 @@ const formSchema = z.object({
   ]),
   estimated_license_cost_eur: z.coerce.number().min(0).max(10000000),
   implementation_complexity: z.coerce.number().int().min(1).max(5),
+  implementation_cost_eur: z.coerce.number().min(0).max(10000000),
   contains_pii: z.boolean(),
   data_classification: z.enum([
     "no_personal_data",
@@ -57,6 +81,7 @@ const formSchema = z.object({
   regulatory_pressure: z.boolean(),
   competitive_pressure: z.boolean(),
   strategic_priority: z.boolean(),
+  notes: z.string().max(2000).optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -112,16 +137,19 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
       current_state: "",
       desired_state: "",
       example_process: "",
+      desired_example_process: "",
       time_savings_hours_per_case: 0,
       frequency_per_year: 0,
       affected_employees_count: 0,
       estimated_license_cost_eur: 0,
       implementation_complexity: 3,
+      implementation_cost_eur: 0,
       contains_pii: false,
       regulatory_pressure: false,
       competitive_pressure: false,
       strategic_priority: false,
       evidence_level: "pure_estimate",
+      notes: "",
     },
   })
 
@@ -238,7 +266,7 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
               name="example_process"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Beispielprozess</FormLabel>
+                  <FormLabel>Beispielprozess (Ist-Zustand)</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Konkretes Beispiel eines typischen Durchlaufs"
@@ -246,6 +274,26 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="desired_example_process"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Beispielprozess (Soll-Zustand)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Wie derselbe Vorgang nach AI-Einsatz ablaufen soll"
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Optional — wie der Vorgang nach AI-Einsatz aussehen soll.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -258,6 +306,66 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
             title="Mengen & Zeit"
             description="Quantitative Grundlage der ROI-Berechnung."
           >
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Land</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="de">Deutschland</SelectItem>
+                        <SelectItem value="at">Österreich</SelectItem>
+                        <SelectItem value="ch">Schweiz</SelectItem>
+                        <SelectItem value="no">Norwegen</SelectItem>
+                        <SelectItem value="gb">Vereinigtes Königreich</SelectItem>
+                        <SelectItem value="es">Spanien</SelectItem>
+                        <SelectItem value="it">Italien</SelectItem>
+                        <SelectItem value="tr">Türkei</SelectItem>
+                        <SelectItem value="ro">Rumänien</SelectItem>
+                        <SelectItem value="pl">Polen</SelectItem>
+                        <SelectItem value="eg">Ägypten</SelectItem>
+                        <SelectItem value="in">Indien</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="employee_category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mitarbeiterlevel</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="junior">Junior</SelectItem>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="consultant">Consultant</SelectItem>
+                        <SelectItem value="senior">Senior</SelectItem>
+                        <SelectItem value="management">Management</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Überwiegendes Level der betroffenen Mitarbeitenden.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <div className="grid gap-5 sm:grid-cols-3">
               <FormField
                 control={form.control}
@@ -300,29 +408,6 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
               />
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="employee_category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mitarbeiterkategorie</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Bitte wählen" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="junior">Junior</SelectItem>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="senior">Senior</SelectItem>
-                        <SelectItem value="mixed">Gemischt</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="implementation_complexity"
@@ -432,14 +517,31 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
           <Section
             index="05"
             title="Kosten"
-            description="Wiederkehrende Lizenzkosten fließen in den Nettonutzen ein."
+            description="Einmalige und wiederkehrende Kosten der Umsetzung."
           >
+            <FormField
+              control={form.control}
+              name="implementation_cost_eur"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Implementierungskosten (einmalig, EUR)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} placeholder="0" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Einmalige Setup-/Integrationskosten. Fließen in den
+                    Aufwand-Score, nicht in den jährlichen Nettonutzen.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="estimated_license_cost_eur"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Geschätzte Lizenzkosten (EUR / Jahr)</FormLabel>
+                  <FormLabel>Lizenzkosten (wiederkehrend, EUR / Jahr)</FormLabel>
                   <FormControl>
                     <Input type="number" min={0} placeholder="0" {...field} />
                   </FormControl>
@@ -589,6 +691,34 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                       </span>
                     </span>
                   </label>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          {/* 08 Anmerkungen */}
+          <Section
+            index="08"
+            title="Anmerkungen"
+            description="Optionale Zusatzinformationen für die Bewertung."
+          >
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Anmerkungen (optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Zusätzliche Infos für die Bewertung"
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Zusätzliche Infos für die Bewertung.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
