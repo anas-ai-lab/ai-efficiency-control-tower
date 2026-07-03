@@ -19,6 +19,7 @@ from aect.domain.routing import RoutingRecommendation, RoutingResult, route_use_
 from aect.domain.scoring import CompositeScore, compute_composite_score
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -34,6 +35,7 @@ __all__ = [
     "AdoptionType",
     # scoring
     "CompositeScore",
+    "Country",
     "DataClassification",
     "EmployeeCategory",
     "EvidenceLevel",

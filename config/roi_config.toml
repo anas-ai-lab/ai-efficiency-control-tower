@@ -1,35 +1,45 @@
 # AECT ROI-Konfiguration — GENERISCHE PLATZHALTER
 #
 # IP-Trennung (vertraglich bedingt): KEINE echten Firmenwerte hier eintragen.
-# Echte Stundensätze → config/roi_config.local.toml (gitignored)
+# Echte Stundensätze UND weitere Länder (no/gb/es/it/tr/ro/pl/eg/in ...) gehören
+# ausschließlich in config/roi_config.local.toml (gitignored). Diese getrackte
+# Datei enthält nur generische DACH-Platzhalter für de/at/ch.
 #
-# Keys MÜSSEN mit StrEnum-Values aus src/aect/domain/types.py übereinstimmen:
-#   EmployeeCategory:  junior / professional / senior / mixed
+# Keys MÜSSEN mit StrEnum-Values aus src/aect/domain/types.py übereinstimmen
+# (lowercase — Mismatch = stiller ROI=0, TOML/StrEnum-Invariante):
+#   Country:           de / at / ch (+ Platzhalter-Länder nur in local.toml)
+#   EmployeeCategory:  junior / professional / consultant / senior / management
 #   EvidenceLevel:     pure_estimate / similar_project / tested_piloted
 #   AdoptionType:      mandatory / voluntary
+#
+# Jede [hourly_rates.<land>]-Section MUSS alle 5 Level tragen — fehlt ein Level,
+# liefert der Lookup 0 → theoretisches Potenzial 0 → stiller Vorfilter-Fail.
 
 [thresholds]
 min_potential_eur        = 20000.0
 min_hours_per_year       = 120.0
 min_expected_benefit_eur = 5000.0
 
-[hourly_rates.DE]
+[hourly_rates.de]
 junior       = 45.0
 professional = 65.0
+consultant   = 78.0
 senior       = 90.0
-mixed        = 67.0
+management   = 120.0
 
-[hourly_rates.AT]
+[hourly_rates.at]
 junior       = 42.0
 professional = 60.0
+consultant   = 72.0
 senior       = 85.0
-mixed        = 62.0
+management   = 110.0
 
-[hourly_rates.CH]
+[hourly_rates.ch]
 junior       = 55.0
 professional = 80.0
+consultant   = 95.0
 senior       = 110.0
-mixed        = 82.0
+management   = 145.0
 
 [cost_tiers]
 # Kostenstufen-Schwellen fuer den Composite-Score (F-006): Lizenzkosten

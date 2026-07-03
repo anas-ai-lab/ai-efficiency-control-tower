@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -63,6 +64,13 @@ class UseCaseInput(BaseModel):
         max_length=100,
         description="Abteilung / Organisationseinheit",
     )
+    country: Country = Field(
+        description=(
+            "Land der betroffenen Mitarbeiter — steuert den Stundensatz-Lookup "
+            "(je Land x Level aus Config, nie im Code). Kein Default: das Land "
+            "bestimmt das ROI-Ergebnis direkt und muss bewusst gesetzt werden."
+        ),
+    )
 
     # ── Ist / Soll / Beispiel ─────────────────────────────────────────────────
     current_state: str = Field(
@@ -78,7 +86,12 @@ class UseCaseInput(BaseModel):
     example_process: str = Field(
         min_length=20,
         max_length=2000,
-        description="Konkretes Beispiel eines einzelnen Vorgangs (nicht Gesamtvolumen)",
+        description="Konkretes Beispiel eines einzelnen Vorgangs (Ist-Zustand, nicht Gesamtvolumen)",
+    )
+    desired_example_process: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Konkretes Beispiel, wie der Vorgang im Soll-Zustand ablaufen soll",
     )
 
     # ── Quantitative Felder (required — ohne diese keine ROI-Berechnung) ─────
@@ -125,6 +138,16 @@ class UseCaseInput(BaseModel):
         le=5,
         description="Technische Komplexität: 1 = trivial, 3 = mittel, 5 = sehr hoch",
     )
+    implementation_cost_eur: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=10_000_000.0,
+        description=(
+            "Einmalige Implementierungskosten in EUR (Setup/Integration). Fliesst "
+            "in die Kostenstufe des Composite-Aufwand-Scores ein, NICHT in den "
+            "jaehrlichen Netto-Nutzen des ROI (einmalige vs. wiederkehrende Kosten)."
+        ),
+    )
 
     # ── Datenschutz ───────────────────────────────────────────────────────────
     contains_pii: bool = Field(
@@ -150,4 +173,11 @@ class UseCaseInput(BaseModel):
     strategic_priority: bool = Field(
         default=False,
         description="Explizit strategische Priorität von Vorstand oder Management?",
+    )
+
+    # ── Freitext-Anmerkungen ─────────────────────────────────────────────────
+    notes: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Freitext-Anmerkungen des Einreichers (optional)",
     )

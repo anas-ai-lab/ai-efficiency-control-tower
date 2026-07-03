@@ -67,16 +67,23 @@ def handlungsdruck_score(use_case: UseCaseInput) -> int:
     )
 
 
-def _cost_tier(license_cost_eur: float, config: ROIConfig) -> int:
-    """Mappt Lizenzkosten EUR auf Kostenstufe 1-3 fuer compute_composite_score.
+def _cost_tier(
+    license_cost_eur: float,
+    implementation_cost_eur: float,
+    config: ROIConfig,
+) -> int:
+    """Mappt Kosten EUR auf Kostenstufe 1-3 fuer compute_composite_score.
 
-    Proxy bis ein dediziertes implementation_cost_level-Feld in UseCaseInput
-    ergaenzt wird. Schwellen kommen aus roi_config.toml [cost_tiers] (F-006)
-    -- vorher hartcodierte 5.000/25.000-EUR-Baender im Domain-Code.
+    Bemessungsgrundlage ist das MAXIMUM aus jaehrlichen Lizenzkosten und
+    einmaligen Implementierungskosten gegen die [cost_tiers]-Schwellen aus
+    roi_config.toml (F-006 -- vorher hartcodierte 5.000/25.000-EUR-Baender).
+    Einmalige Impl.-Kosten waren bisher unsichtbar im Aufwand-Score; das
+    schliesst die Luecke, ohne sie (faelschlich) in den Jahres-ROI zu ziehen.
     """
-    if license_cost_eur < config.cost_tier_2_min_eur:
+    cost_eur = max(license_cost_eur, implementation_cost_eur)
+    if cost_eur < config.cost_tier_2_min_eur:
         return 1
-    if license_cost_eur < config.cost_tier_3_min_eur:
+    if cost_eur < config.cost_tier_3_min_eur:
         return 2
     return 3
 
@@ -84,21 +91,21 @@ def _cost_tier(license_cost_eur: float, config: ROIConfig) -> int:
 def evaluate_use_case(
     use_case: UseCaseInput,
     roi_config: ROIConfig,
-    country: str = "DE",
 ) -> TriageResult:
     """Fuehrt die vollstaendige Phase-A-Regel-Pipeline aus.
 
     Args:
-        use_case:   Validiertes UseCaseInput (extra='forbid' garantiert).
+        use_case:   Validiertes UseCaseInput (extra='forbid' garantiert). Das
+                    Land fuer den Stundensatz-Lookup kommt aus use_case.country.
         roi_config: ROI-Konfiguration aus load_roi_config().
-        country:    ISO-Laendercode fuer Stundensatz-Lookup (Default: DE).
 
     Returns:
         TriageResult -- vollstaendig immutabel. roi/composite/zone sind None
         wenn passed_vorfilter False ist.
     """
-    # 1. ROI -- muss zuerst laufen; Vorfilter braucht die berechneten Werte
-    roi = calculate_roi(use_case, roi_config, country=country)
+    # 1. ROI -- muss zuerst laufen; Vorfilter braucht die berechneten Werte.
+    # Das Land kommt aus use_case.country (kein separater Parameter mehr).
+    roi = calculate_roi(use_case, roi_config)
 
     # 2. Vorfilter -- verwendet ROI-Ergebnisse fuer Schwellwert-Pruefung.
     # Schwellen kommen aus der ROIConfig (F-001): frueher galten hier
@@ -137,7 +144,11 @@ def evaluate_use_case(
     if vorfilter.passes:
         composite = compute_composite_score(
             complexity=use_case.implementation_complexity,
-            cost=_cost_tier(use_case.estimated_license_cost_eur, roi_config),
+            cost=_cost_tier(
+                use_case.estimated_license_cost_eur,
+                use_case.implementation_cost_eur,
+                roi_config,
+            ),
             data_classification=use_case.data_classification,
         )
         zone = load_zone_classifier().classify(

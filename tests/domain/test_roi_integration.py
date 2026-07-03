@@ -14,6 +14,7 @@ from aect.domain.models import UseCaseInput
 from aect.domain.roi import calculate_roi, load_roi_config
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -28,6 +29,7 @@ def _use_case(**overrides: object) -> UseCaseInput:
         "title": "ROI Adapter Integrationstest",
         "submitter": "Tester",
         "department": "IT",
+        "country": Country.DE,
         "current_state": (
             "Aktuell wird der Prozess manuell durchgefuehrt und erfordert viel Zeit."
             " Es gibt keine technische Unterstuetzung."
@@ -72,24 +74,39 @@ def test_calculate_roi_invariante_expected_le_potential() -> None:
 @pytest.mark.unit
 def test_calculate_roi_potential_positiv_fuer_valide_eingabe() -> None:
     """Reale Eingabe mit bekanntem Land und Kategorie liefert Potenzial > 0."""
-    result = calculate_roi(_use_case(), _CONFIG, country="DE")
+    result = calculate_roi(_use_case(country=Country.DE), _CONFIG)
     assert result.theoretical_potential_eur > Decimal("0")
 
 
 @pytest.mark.unit
-def test_calculate_roi_unbekanntes_land_liefert_null_potential() -> None:
-    """Unbekanntes Land-Kuerzel -> hourly rate = 0 -> Potenzial = 0."""
-    result = calculate_roi(_use_case(), _CONFIG, country="XX")
+def test_calculate_roi_ch_nutzt_hoehere_ch_saetze() -> None:
+    """country=ch nutzt die CH-Section -> hoeheres Potenzial als DE (CH-Saetze
+    liegen ueber den DE-Saetzen fuer dasselbe Level)."""
+    de = calculate_roi(_use_case(country=Country.DE), _CONFIG)
+    ch = calculate_roi(_use_case(country=Country.CH), _CONFIG)
+    assert ch.theoretical_potential_eur > de.theoretical_potential_eur
+
+
+@pytest.mark.unit
+def test_calculate_roi_land_ohne_config_section_liefert_null_und_vorfilter_fail() -> (
+    None
+):
+    """Gueltiges Country-Enum ohne [hourly_rates.<land>]-Section (z. B. Country.NO,
+    nur in roi_config.local.toml gepflegt) -> Stundensatz 0 -> Potenzial 0 ->
+    Vorfilter schlaegt fehl. Dokumentiert das Fallback-Verhalten explizit."""
+    result = calculate_roi(_use_case(country=Country.NO), _CONFIG)
     assert result.theoretical_potential_eur == Decimal("0.00")
+    assert result.passes_prefilter is False
+    assert result.prefilter_fail_reason is not None
 
 
 @pytest.mark.unit
 def test_calculate_roi_alle_employee_categories_laufen_ohne_keyerror() -> None:
     """Alle EmployeeCategory-Werte muessen in roi_config.toml vorhanden sein."""
     for category in EmployeeCategory:
-        use_case = _use_case(employee_category=category)
-        result = calculate_roi(use_case, _CONFIG, country="DE")
-        assert result.theoretical_potential_eur >= Decimal("0")
+        use_case = _use_case(employee_category=category, country=Country.DE)
+        result = calculate_roi(use_case, _CONFIG)
+        assert result.theoretical_potential_eur > Decimal("0")
 
 
 @pytest.mark.unit

@@ -47,22 +47,21 @@ class EvalCaseResult:
 def run_eval(
     cases: list[EvalCase],
     roi_config: ROIConfig,
-    country: str = "DE",
 ) -> list[EvalCaseResult]:
     """Fuehrt jeden EvalCase durch die Phase-A-Pipeline und vergleicht das
     Ergebnis mit einem evtl. vorhandenen Experten-Label.
 
     Args:
         cases:      Liste validierter EvalCase (z. B. aus load_eval_cases()).
+                    Das Land kommt je Case aus case.use_case.country.
         roi_config: ROI-Konfiguration aus load_roi_config().
-        country:    ISO-Laendercode fuer Stundensatz-Lookup (Default: DE).
 
     Returns:
         Eine EvalCaseResult pro Case, in derselben Reihenfolge wie cases.
     """
     results: list[EvalCaseResult] = []
     for case in cases:
-        triage = evaluate_use_case(case.use_case, roi_config, country=country)
+        triage = evaluate_use_case(case.use_case, roi_config)
         predicted_zone = triage.zone.final_zone if triage.zone is not None else None
         expected_zone = case.expected_zone
 

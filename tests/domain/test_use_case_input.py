@@ -15,6 +15,7 @@ VALID_PAYLOAD: dict = {
     "title": "Automatische Rechnungsprüfung im AP-Prozess",
     "submitter": "Maria Muster",
     "department": "Finanzen",
+    "country": "de",
     "current_state": "Rechnungen werden manuell geprüft, 3 FTEs, durchschnittlich 2 Stunden pro Rechnung",
     "desired_state": "KI prüft Rechnungen vor, Mensch entscheidet nur noch bei Ausreißern und Grenzfällen",
     "example_process": "Eingehende Rechnung → PDF-Extraktion → Regelprüfung → Freigabe",

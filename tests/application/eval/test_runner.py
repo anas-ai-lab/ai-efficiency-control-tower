@@ -22,6 +22,7 @@ from aect.application.eval import (
 )
 from aect.domain import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -54,6 +55,7 @@ def _make_use_case(
         title=title,
         submitter="Test User",
         department="IT",
+        country=Country.DE,
         current_state="Manuelle Verarbeitung kostet taeglich mehrere Stunden.",
         desired_state="Automatisierte Extraktion relevanter Informationen.",
         example_process="Eingangsbeleg pruefen, Daten extrahieren, in System uebertragen.",

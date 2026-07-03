@@ -51,6 +51,7 @@ def _make_use_case(**overrides: object) -> UseCaseInput:
         "title": "Test Use Case fuer Breakdown",
         "submitter": "Test User",
         "department": "IT",
+        "country": "de",
         "current_state": "Manuelle Verarbeitung kostet taeglich mehrere Stunden.",
         "desired_state": "Automatisierte Extraktion relevanter Informationen.",
         "example_process": (

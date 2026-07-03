@@ -28,6 +28,7 @@ from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -48,6 +49,7 @@ def _make_use_case(
     title: str = "Test Use Case",
     submitter: str = "Test User",
     department: str = "IT",
+    country: Country = Country.DE,
     current_state: str = "Manuelle Verarbeitung kostet taeglich mehrere Stunden.",
     desired_state: str = "Automatisierte Extraktion relevanter Informationen.",
     example_process: str = "Eingangsbeleg pruefen, Daten extrahieren, in System uebertragen.",
@@ -56,6 +58,7 @@ def _make_use_case(
     frequency_per_year: int = 200,
     affected_employees_count: int = 1,
     estimated_license_cost_eur: float = 0.0,
+    implementation_cost_eur: float = 0.0,
     evidence_level: EvidenceLevel = EvidenceLevel.PURE_ESTIMATE,
     adoption_type: AdoptionType = AdoptionType.VOLUNTARY,
     implementation_approach: ImplementationApproach = ImplementationApproach.STANDARD_PRODUCT,
@@ -70,6 +73,7 @@ def _make_use_case(
         title=title,
         submitter=submitter,
         department=department,
+        country=country,
         current_state=current_state,
         desired_state=desired_state,
         example_process=example_process,
@@ -78,6 +82,7 @@ def _make_use_case(
         frequency_per_year=frequency_per_year,
         affected_employees_count=affected_employees_count,
         estimated_license_cost_eur=estimated_license_cost_eur,
+        implementation_cost_eur=implementation_cost_eur,
         evidence_level=evidence_level,
         adoption_type=adoption_type,
         implementation_approach=implementation_approach,
@@ -301,17 +306,29 @@ def test_title_propagated_to_result(roi_config: ROIConfig) -> None:
 
 
 def test_cost_tier_all_bands(roi_config: ROIConfig) -> None:
-    """_cost_tier mappt Lizenzkosten korrekt auf Kostenstufe 1-3.
+    """_cost_tier mappt Kosten korrekt auf Kostenstufe 1-3.
 
     Schwellen kommen seit F-006 aus roi_config.toml [cost_tiers]
-    (Platzhalter-Werte: 5.000 / 25.000 EUR).
+    (Platzhalter-Werte: 5.000 / 25.000 EUR). Bemessung ueber das Maximum aus
+    Lizenz- und Impl.-Kosten; hier ohne Impl.-Kosten (0.0).
     """
-    assert _cost_tier(0.0, roi_config) == 1
-    assert _cost_tier(4_999.99, roi_config) == 1
-    assert _cost_tier(5_000.0, roi_config) == 2
-    assert _cost_tier(24_999.99, roi_config) == 2
-    assert _cost_tier(25_000.0, roi_config) == 3
-    assert _cost_tier(100_000.0, roi_config) == 3
+    assert _cost_tier(0.0, 0.0, roi_config) == 1
+    assert _cost_tier(4_999.99, 0.0, roi_config) == 1
+    assert _cost_tier(5_000.0, 0.0, roi_config) == 2
+    assert _cost_tier(24_999.99, 0.0, roi_config) == 2
+    assert _cost_tier(25_000.0, 0.0, roi_config) == 3
+    assert _cost_tier(100_000.0, 0.0, roi_config) == 3
+
+
+def test_cost_tier_uses_max_of_license_and_implementation_cost(
+    roi_config: ROIConfig,
+) -> None:
+    """Einmalige Impl.-Kosten treiben die Kostenstufe, auch bei Lizenz 0 --
+    Bemessung ueber das Maximum beider Kostenarten."""
+    assert _cost_tier(0.0, 25_000.0, roi_config) == 3
+    assert _cost_tier(0.0, 5_000.0, roi_config) == 2
+    # Lizenzkosten dominieren, wenn sie hoeher sind als die Impl.-Kosten.
+    assert _cost_tier(25_000.0, 0.0, roi_config) == 3
 
 
 def test_cost_tier_uses_config_thresholds(roi_config: ROIConfig) -> None:
@@ -319,9 +336,9 @@ def test_cost_tier_uses_config_thresholds(roi_config: ROIConfig) -> None:
     custom = dataclasses.replace(
         roi_config, cost_tier_2_min_eur=1_000.0, cost_tier_3_min_eur=2_000.0
     )
-    assert _cost_tier(1_500.0, custom) == 2
-    assert _cost_tier(2_500.0, custom) == 3
-    assert _cost_tier(1_500.0, roi_config) == 1  # Platzhalter-Schwellen
+    assert _cost_tier(1_500.0, 0.0, custom) == 2
+    assert _cost_tier(2_500.0, 0.0, custom) == 3
+    assert _cost_tier(1_500.0, 0.0, roi_config) == 1  # Platzhalter-Schwellen
 
 
 def test_roi_config_rejects_unordered_cost_tiers(roi_config: ROIConfig) -> None:
@@ -482,3 +499,32 @@ def test_annual_case_is_still_recurring(roi_config: ROIConfig) -> None:
     result = evaluate_use_case(use_case, roi_config)
     flag_values = [f.value for f in result.feasibility.flags]
     assert "NOT_RECURRING" not in flag_values
+
+
+# ---------------------------------------------------------------------------
+# Einmalige Implementierungskosten fliessen in die Kostenstufe des Composite
+# (nicht in den Jahres-ROI). Deckt die vorher unsichtbare Setup-Kosten-Luecke.
+# ---------------------------------------------------------------------------
+
+
+def test_implementation_cost_above_tier3_forces_cost_score_3(
+    roi_config: ROIConfig,
+) -> None:
+    """Einmalige Impl.-Kosten oberhalb der tier_3-Schwelle heben cost_score auf 3,
+    auch wenn die jaehrlichen Lizenzkosten 0 sind (Bemessung ueber das Maximum
+    aus Lizenz- und Impl.-Kosten)."""
+    use_case = _make_use_case(
+        employee_category=EmployeeCategory.PROFESSIONAL,
+        time_savings_hours_per_case=2.0,
+        frequency_per_year=200,
+        affected_employees_count=2,
+        adoption_type=AdoptionType.MANDATORY,
+        evidence_level=EvidenceLevel.TESTED_PILOTED,
+        estimated_license_cost_eur=0.0,
+        implementation_cost_eur=roi_config.cost_tier_3_min_eur + 5_000.0,
+    )
+    result = evaluate_use_case(use_case, roi_config)
+
+    assert result.passed_vorfilter is True
+    assert result.composite is not None
+    assert result.composite.cost_score == 3

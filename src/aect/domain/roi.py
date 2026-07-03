@@ -284,7 +284,6 @@ def _calculate_roi_values(
 def calculate_roi(
     input: UseCaseInput,
     config: ROIConfig,
-    country: str = "DE",
 ) -> ROIResult:
     """Öffentlicher Einstiegspunkt: UseCaseInput → ROIResult.
 
@@ -293,11 +292,16 @@ def calculate_roi(
     frequency_per_year ist bereits ein Jahreswert → frequency_unit_value="ANNUALLY"
     (Multiplikator 1) übergibt es unverändert an _to_annual_hours().
 
-    country: ISO-Kürzel für Stundensatz-Lookup (muss in roi_config.toml vorhanden sein).
-    Unbekanntes country → _calculate_roi_values liefert theoretical_potential=0.
+    Das Land kommt aus input.country (Country-StrEnum, lowercase) — der Wert muss
+    als [hourly_rates.<land>]-Section in roi_config.toml existieren. Unbekanntes
+    Land → _calculate_roi_values liefert theoretical_potential=0 → Vorfilter-Fail.
+
+    implementation_cost_eur fliesst hier bewusst NICHT ein: einmalige Setup-Kosten
+    sind kein jaehrlicher Abzug und wuerden die Jahres-ROI-Logik verfaelschen. Sie
+    werden im Composite-Aufwand-Score beruecksichtigt (pipeline._cost_tier).
     """
     return _calculate_roi_values(
-        employee_country=country,
+        employee_country=input.country.value,
         employee_category_value=input.employee_category.value,
         time_saved_per_occurrence_hours=input.time_savings_hours_per_case,
         occurrences_per_period=float(input.frequency_per_year),

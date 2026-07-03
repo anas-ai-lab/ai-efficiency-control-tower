@@ -23,6 +23,7 @@ from aect.domain.pipeline import evaluate_use_case
 from aect.domain.roi import load_roi_config
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -51,6 +52,7 @@ def sample_use_case() -> UseCaseInput:
         title="Automatische Rechnungsverarbeitung fuer Finanzen",
         submitter="Max Muster",
         department="Finanzen",
+        country=Country.DE,
         current_state=(
             "Rechnungen werden manuell von Buchhaltern geprueft, "
             "klassifiziert und in SAP erfasst. Pro Rechnung dauert das 30 Minuten. "
@@ -99,6 +101,7 @@ def vorfilter_fail_case() -> SubmittedCase:
         title="Minimaler Use Case der den Vorfilter nicht besteht",
         submitter="Test User",
         department="Test Abteilung",
+        country=Country.DE,
         current_state=(
             "Aktuell machen wir einen einzigen Vorgang manuell. "
             "Ein Mitarbeiter verbringt wenige Minuten damit."

@@ -22,6 +22,7 @@ _PASSING_PAYLOAD: dict = {
     "title": "Automatische Rechnungsverarbeitung mit AI",
     "submitter": "Maria Muster",
     "department": "Finance",
+    "country": "de",
     "current_state": (
         "Aktuell werden eingehende Rechnungen manuell gescannt und die "
         "relevanten Felder von Mitarbeitern in SAP eingetragen. "

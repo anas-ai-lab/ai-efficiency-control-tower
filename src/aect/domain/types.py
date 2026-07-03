@@ -62,16 +62,43 @@ class FrequencyUnit(StrEnum):
 
 
 class EmployeeCategory(StrEnum):
-    """Grobe Seniorität der betroffenen Mitarbeiter.
+    """Grobe Seniorität der betroffenen Mitarbeiter (aufsteigend nach Seniorität).
 
     Konkretes Stundensatz-Mapping (je Land x Stufe) liegt in config/roi_config.toml.
     Dieses Enum ist der IP-saubere Anker — keine Firmenzahlen im Code.
     """
 
     JUNIOR = "junior"  # Einsteiger / Analyst / Junior Developer
-    PROFESSIONAL = "professional"  # Erfahrener Berater / Fachexperte
-    SENIOR = "senior"  # Senior / Manager / Principal Expert
-    MIXED = "mixed"  # Heterogenes Team — Config nutzt konfigurierten Mittelwert
+    PROFESSIONAL = "professional"  # Erfahrener Sachbearbeiter / Fachkraft
+    CONSULTANT = "consultant"  # Berater / Spezialist mit Projektverantwortung
+    SENIOR = "senior"  # Senior / Principal Expert
+    MANAGEMENT = "management"  # Fuehrungsebene / Bereichsleitung
+
+
+class Country(StrEnum):
+    """Land der betroffenen Mitarbeiter — steuert den Stundensatz-Lookup.
+
+    Werte sind generische ISO-3166-alpha-2-Kuerzel (lowercase). Konkrete
+    Stundensaetze je Land x Level liegen in config, nie im Code (IP-Trennung):
+    generische DACH-Platzhalter in config/roi_config.toml, echte Saetze und
+    weitere Laender in config/roi_config.local.toml (gitignored).
+
+    Erweiterbar: ein neuer Wert hier braucht eine passende [hourly_rates.<wert>]-
+    Section mit allen 5 Leveln, sonst stiller ROI=0 (TOML/StrEnum-Invariante).
+    """
+
+    DE = "de"
+    AT = "at"
+    CH = "ch"
+    NO = "no"
+    GB = "gb"
+    ES = "es"
+    IT = "it"
+    TR = "tr"
+    RO = "ro"
+    PL = "pl"
+    EG = "eg"
+    IN = "in"
 
 
 class TriageZone(StrEnum):

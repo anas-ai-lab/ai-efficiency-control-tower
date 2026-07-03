@@ -154,16 +154,16 @@ def build_score_breakdown(
     case: EvalCase,
     roi_config: ROIConfig,
     classifier: ZoneClassifier,
-    country: str = "DE",
 ) -> ScoreBreakdown:
     """Fuehrt einen EvalCase durch die Pipeline und baut den diagnostischen Breakdown.
 
     Ruft evaluate_use_case() erneut auf (wie run_eval()) statt TriageResult zu
     teilen -- reine Berechnung ohne I/O, kein Performance-Problem bei der
     heutigen Case-Anzahl. Bewusst kein assert fuer die Optional-Narrowing nach
-    dem Vorfilter-Check (Bandit B101) -- stattdessen ein expliziter Guard.
+    dem Vorfilter-Check (Bandit B101) -- stattdessen ein expliziter Guard. Das
+    Land kommt je Case aus case.use_case.country.
     """
-    triage = evaluate_use_case(case.use_case, roi_config, country=country)
+    triage = evaluate_use_case(case.use_case, roi_config)
     hd_score = handlungsdruck_score(case.use_case)
     predicted = triage.zone.final_zone if triage.zone is not None else None
     is_match = None if case.expected_zone is None else predicted == case.expected_zone

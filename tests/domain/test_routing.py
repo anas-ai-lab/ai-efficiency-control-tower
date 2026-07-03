@@ -27,6 +27,7 @@ def _use_case(**overrides: object) -> UseCaseInput:
         "title": "Test AI Router",
         "submitter": "Tester",
         "department": "IT",
+        "country": "de",
         "current_state": (
             "Aktuell wird der Prozess vollstaendig manuell durchgefuehrt."
             " Das kostet viel Zeit und ist fehleranfaellig."

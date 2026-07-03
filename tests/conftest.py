@@ -9,6 +9,7 @@ from aect.domain import UseCaseInput, load_roi_config
 from aect.domain.roi import ROIConfig
 from aect.domain.types import (
     AdoptionType,
+    Country,
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
@@ -47,6 +48,7 @@ def sample_use_case() -> UseCaseInput:
         title="Automatische Rechnungspruefung",
         submitter="Max Muster",
         department="Finanzen",
+        country=Country.DE,
         current_state=(
             "Sachbearbeiter pruefen eingehende Rechnungen manuell auf Korrektheit. "
             "Jede Rechnung wird mit dem Auftrag in SAP abgeglichen."

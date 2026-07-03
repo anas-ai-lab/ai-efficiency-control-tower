@@ -325,7 +325,6 @@ class TriageService:
         roi_config: ROIConfig,
         llm: LLMPort,
         retriever: RetrieverPort,
-        country: str = "DE",
         embedder: EmbedderPort | None = None,
         redactor: PIIRedactorPort | None = None,
     ) -> None:
@@ -335,7 +334,8 @@ class TriageService:
         self._roi_config = roi_config
         self._llm = llm
         self._retriever = retriever
-        self._country = country
+        # Das Land fuer den Stundensatz-Lookup kommt jetzt aus use_case.country
+        # (UseCaseInput-Feld) -- kein service-weiter country-Parameter mehr.
         # Optional (L-3, ADR-0039): nur fuer die Dedup-Aehnlichkeitspruefung bei
         # Intake. None -> Pruefung wird uebersprungen (Mock-/Testbetrieb ohne
         # echtes Embedding-Modell). Kein Pflichtparameter, damit bestehende
@@ -358,7 +358,7 @@ class TriageService:
         """
         case_id = self._id_generator.generate()
         submitted_at = self._clock.now()
-        result = evaluate_use_case(use_case, self._roi_config, self._country)
+        result = evaluate_use_case(use_case, self._roi_config)
         case = SubmittedCase(
             id=case_id,
             submitted_at=submitted_at,
