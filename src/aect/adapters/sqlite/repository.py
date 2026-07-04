@@ -40,6 +40,12 @@ bei parallelen LLM-Feld-Schreibvorgaengen auf demselben Case).
 
 save() ist weiterhin INSERT OR REPLACE -- ein erneuter save() mit gesetztem
 Feld ueberschreibt den vorherigen Wert.
+
+status/status_updated_at (Case-Lifecycle, siehe Lifecycle-ADR): status NOT NULL
+DEFAULT 'submitted' (jeder Case hat ab Einreichung einen Lifecycle-Zustand),
+status_updated_at nullable (Zeitstempel des letzten Wechsels, analog decided_at
+zur reviewer_decision). Geschrieben ueber update_status() -- ein dediziertes
+UPDATE beider Spalten in einem Statement, analog record_decision() (F-011).
 """
 
 from __future__ import annotations
@@ -62,7 +68,7 @@ from aect.domain.pipeline import TriageResult
 from aect.domain.roi import ROIResult
 from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore
-from aect.domain.types import ReviewerDecision, TriageZone
+from aect.domain.types import CaseStatus, ReviewerDecision, TriageZone
 from aect.domain.zones import ZoneResult
 
 _CREATE_TABLE_SQL = """
@@ -77,7 +83,9 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     embedding               TEXT,
     reviewer_decision       TEXT NOT NULL DEFAULT 'pending',
     reviewer_note           TEXT,
-    decided_at              TEXT
+    decided_at              TEXT,
+    status                  TEXT NOT NULL DEFAULT 'submitted',
+    status_updated_at       TEXT
 )
 """
 
@@ -86,6 +94,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
 # nicht IF NOT EXISTS -> Migration in _init_db() prueft erst PRAGMA table_info.
 # reviewer_decision/reviewer_note/decided_at (ADR-0043): dieselbe Migrations-
 # strategie, drei weitere Spalten.
+# status/status_updated_at (Lifecycle-ADR): dieselbe Migrations-strategie, zwei
+# weitere Spalten.
 
 # Spaltenliste vierfach dupliziert statt ueber eine _SELECT_COLUMNS-Variable
 # geteilt: jede "+"-Verkettung mit einem Namens-Knoten matcht bandit B608
@@ -100,21 +110,21 @@ _INSERT_SQL = (
     "INSERT OR REPLACE INTO submitted_cases "
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at "
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at "
     "FROM submitted_cases WHERE id = ?"
 )
 
 _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at "
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -142,6 +152,13 @@ _RECORD_DECISION_SQL = (
     "UPDATE submitted_cases "
     "SET reviewer_decision = ?, reviewer_note = ?, decided_at = ? "
     "WHERE id = ?"
+)
+
+# update_status (Lifecycle-ADR): dediziertes UPDATE beider zusammengehoeriger
+# Spalten (status + status_updated_at) in einem Statement, analog
+# _RECORD_DECISION_SQL (F-011).
+_UPDATE_STATUS_SQL = (
+    "UPDATE submitted_cases SET status = ?, status_updated_at = ? WHERE id = ?"
 )
 
 
@@ -265,7 +282,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (11-Tupel) -> SubmittedCase."""
+    """SQLite-Row (13-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -278,6 +295,8 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         reviewer_decision_str,
         reviewer_note,
         decided_at_str,
+        status_str,
+        status_updated_at_str,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -302,6 +321,12 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         decided_at=(
             datetime.fromisoformat(str(decided_at_str))
             if decided_at_str is not None
+            else None
+        ),
+        status=CaseStatus(str(status_str)),
+        status_updated_at=(
+            datetime.fromisoformat(str(status_updated_at_str))
+            if status_updated_at_str is not None
             else None
         ),
     )
@@ -333,11 +358,11 @@ class SQLiteRepository:
     def _init_db(self) -> None:
         """Legt die Tabelle an falls nicht vorhanden (idempotent).
 
-        Migration embedding-Spalte (ADR-0039) und reviewer_decision/
-        reviewer_note/decided_at-Spalten (ADR-0043): SQLite kennt kein
-        ALTER TABLE ... ADD COLUMN IF NOT EXISTS -- daher erst PRAGMA
-        table_info pruefen und nur ergaenzen, wenn die Spalte fehlt (Tabelle
-        stammt dann aus einer aelteren Version).
+        Migration embedding-Spalte (ADR-0039), reviewer_decision/
+        reviewer_note/decided_at-Spalten (ADR-0043) und status-Spalte
+        (Lifecycle-ADR): SQLite kennt kein ALTER TABLE ... ADD COLUMN IF NOT
+        EXISTS -- daher erst PRAGMA table_info pruefen und nur ergaenzen, wenn
+        die Spalte fehlt (Tabelle stammt dann aus einer aelteren Version).
         """
         with connect(self._db_path) as conn:
             conn.execute(_CREATE_TABLE_SQL)
@@ -357,6 +382,15 @@ class SQLiteRepository:
                 )
             if "decided_at" not in columns:
                 conn.execute("ALTER TABLE submitted_cases ADD COLUMN decided_at TEXT")
+            if "status" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN status "
+                    "TEXT NOT NULL DEFAULT 'submitted'"
+                )
+            if "status_updated_at" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN status_updated_at TEXT"
+                )
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
@@ -367,6 +401,11 @@ class SQLiteRepository:
         )
         decided_at_str = (
             case.decided_at.isoformat() if case.decided_at is not None else None
+        )
+        status_updated_at_str = (
+            case.status_updated_at.isoformat()
+            if case.status_updated_at is not None
+            else None
         )
         with connect(self._db_path) as conn:
             conn.execute(
@@ -383,6 +422,8 @@ class SQLiteRepository:
                     case.reviewer_decision.value,
                     case.reviewer_note,
                     decided_at_str,
+                    case.status.value,
+                    status_updated_at_str,
                 ),
             )
 
@@ -444,6 +485,21 @@ class SQLiteRepository:
                 (decision.value, note, decided_at.isoformat(), case_id),
             )
 
+    def update_status(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None:
+        """Setzt Lifecycle-Status + Zeitstempel atomar (Lifecycle-ADR).
+
+        Dediziertes UPDATE beider Spalten (status + status_updated_at) in einem
+        Statement -- kein INSERT OR REPLACE der ganzen Zeile
+        (F-011-Lost-Update-Muster, analog record_decision). No-op bei
+        unbekannter case_id (analog delete/update_field).
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(
+                _UPDATE_STATUS_SQL, (status.value, updated_at.isoformat(), case_id)
+            )
+
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
     # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
     # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
@@ -482,3 +538,9 @@ class SQLiteRepository:
         await asyncio.to_thread(
             self.record_decision, case_id, decision, note, decided_at
         )
+
+    async def update_status_async(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None:
+        """Async-Wrapper um update_status() via asyncio.to_thread (Lifecycle-ADR)."""
+        await asyncio.to_thread(self.update_status, case_id, status, updated_at)

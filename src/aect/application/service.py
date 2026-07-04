@@ -47,6 +47,7 @@ from aect.application.tools import (
     dispatch_tool_call,
 )
 from aect.domain import (
+    CaseStatus,
     ReviewerDecision,
     ROIConfig,
     TriageResult,
@@ -535,12 +536,73 @@ class TriageService:
         case.reviewer_note = note
         case.decided_at = decided_at
 
+        # Lifecycle-Kopplung (Lifecycle-ADR): der Freigabe-/Ablehnungs-Akt
+        # bewegt den Case auch im Lifecycle -- ein zusaetzlicher dedizierter
+        # UPDATE-Call (kein save()). Darf einen zuvor manuell gesetzten Status
+        # ueberschreiben: die Freigabe gewinnt. PENDING hat keinen Lifecycle-
+        # Gegenwert und wird uebersprungen (kommt ueber die Route ohnehin nicht).
+        status_map = {
+            ReviewerDecision.APPROVED: CaseStatus.APPROVED,
+            ReviewerDecision.REJECTED: CaseStatus.REJECTED,
+        }
+        coupled_status = status_map.get(decision)
+        if coupled_status is not None:
+            await self._repository.update_status_async(
+                case_id, coupled_status, decided_at
+            )
+            case.status = coupled_status
+            case.status_updated_at = decided_at
+
         logger = structlog.get_logger()
         logger.info(
             "case_decision_recorded",
             case_id=case_id,
             decision=decision.value,
             decided_at=decided_at.isoformat(),
+        )
+        return case
+
+    async def update_status(
+        self, case_id: str, status: CaseStatus
+    ) -> SubmittedCase | None:
+        """Setzt den Lifecycle-Status eines Case (Lifecycle-ADR).
+
+        Bewusst keine Transitions-Matrix: jeder Zustand ist aus jedem setzbar
+        (menschliche Autoritaet in einem Single-User-Build). Kopplung an
+        ReviewerDecision liegt in record_decision(), nicht hier -- dieser Pfad
+        setzt den Status frei.
+
+        Persistenz: dediziertes UPDATE ueber RepositoryPort.update_status_async
+        (F-011-Muster, analog record_decision) statt save() der ganzen Zeile --
+        kein Lost-Update gegenueber parallelen LLM-Feld-Schreibvorgaengen
+        (sharpen/propose/compliance) auf demselben Case.
+
+        Audit-Trail: case_status_changed wird geloggt (case_id, old_status,
+        new_status, updated_at) -- reine Allowlist-Felder, kein Freitext
+        (PII-Allowlist-konform, analog case_decision_recorded/case_deleted).
+        Der updated_at-Zeitstempel (clock.now()) wird persistiert
+        (status_updated_at, analog decided_at), geloggt und am Case zurueckgegeben.
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+
+        old_status = case.status
+        updated_at = self._clock.now()
+        await self._repository.update_status_async(case_id, status, updated_at)
+        case.status = status
+        case.status_updated_at = updated_at
+
+        logger = structlog.get_logger()
+        logger.info(
+            "case_status_changed",
+            case_id=case_id,
+            old_status=old_status.value,
+            new_status=status.value,
+            updated_at=updated_at.isoformat(),
         )
         return case
 

@@ -23,6 +23,7 @@ from aect.domain.pipeline import evaluate_use_case
 from aect.domain.roi import load_roi_config
 from aect.domain.types import (
     AdoptionType,
+    CaseStatus,
     Country,
     DataClassification,
     EmployeeCategory,
@@ -622,3 +623,80 @@ class TestReviewerDecisionColumns:
         assert loaded.reviewer_decision == ReviewerDecision.APPROVED
         assert loaded.reviewer_note == "nachtraeglich"
         assert loaded.decided_at == decided_at
+
+
+# ---------------------------------------------------------------------------
+# Case-Lifecycle-Status (Lifecycle-ADR)
+# ---------------------------------------------------------------------------
+
+
+class TestCaseStatusColumn:
+    def test_defaults_to_submitted_on_save(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.status == CaseStatus.SUBMITTED
+        assert loaded.status_updated_at is None
+
+    def test_update_status_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        # Persistiert + ueberlebt Reload: eine zweite Repository-Instanz auf
+        # derselben DB-Datei liest den geaenderten Status.
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        updated_at = datetime(2026, 6, 14, 7, 15, 0, tzinfo=UTC)
+
+        repo.update_status(sample_case.id, CaseStatus.INTEGRATED, updated_at)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.status == CaseStatus.INTEGRATED
+        assert reloaded.status_updated_at == updated_at
+
+    def test_update_status_is_noop_for_unknown_case_id(
+        self, repo: SQLiteRepository
+    ) -> None:
+        # Analog delete/update_field/record_decision: kein Fehler.
+        repo.update_status("never-existed", CaseStatus.IN_REVIEW, datetime.now(UTC))
+
+    def test_update_status_does_not_touch_other_fields(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.proposal_text = "Bestehender Vorschlag"
+        repo.save(sample_case)
+
+        repo.update_status(sample_case.id, CaseStatus.IMPLEMENTED, datetime.now(UTC))
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.proposal_text == "Bestehender Vorschlag"
+        assert loaded.reviewer_decision == ReviewerDecision.PENDING
+
+    def test_migration_adds_columns_to_legacy_table(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Eine Tabelle ohne status/status_updated_at (Version vor dem
+        Lifecycle-ADR) wird beim Init migriert -- ALTER TABLE ADD COLUMN
+        ergaenzt beide Spalten (analog embedding/reviewer_decision)."""
+        import sqlite3
+
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL, "
+                "sharpened_content_json TEXT, proposal_text TEXT, "
+                "compliance_hints_json TEXT, embedding TEXT, "
+                "reviewer_decision TEXT NOT NULL DEFAULT 'pending', "
+                "reviewer_note TEXT, decided_at TEXT)"
+            )
+
+        repo = SQLiteRepository(db_path)  # _init_db migriert die Spalten
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.status == CaseStatus.SUBMITTED
+        assert loaded.status_updated_at is None

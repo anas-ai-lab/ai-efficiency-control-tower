@@ -19,6 +19,7 @@ from aect.domain.routing import RoutingRecommendation, RoutingResult, route_use_
 from aect.domain.scoring import CompositeScore, compute_composite_score
 from aect.domain.types import (
     AdoptionType,
+    CaseStatus,
     Country,
     DataClassification,
     EmployeeCategory,
@@ -33,6 +34,8 @@ from aect.domain.zones import ZoneClassifier, ZoneResult, load_zone_classifier
 __all__ = [
     # types
     "AdoptionType",
+    # lifecycle
+    "CaseStatus",
     # scoring
     "CompositeScore",
     "Country",

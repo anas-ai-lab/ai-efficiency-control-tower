@@ -22,7 +22,7 @@ from aect.application.service import (
 )
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
-from aect.domain.types import DataClassification, ReviewerDecision
+from aect.domain.types import CaseStatus, DataClassification, ReviewerDecision
 
 # ---------------------------------------------------------------------------
 # Fake-Implementierungen (kein Mocking-Framework -- strukturelles Subtyping)
@@ -926,6 +926,110 @@ class TestTriageServiceRecordDecision:
         # PII-Allowlist-konform: reviewer_note (Freitext) wird NICHT geloggt.
         assert "reviewer_note" not in events[0]
         assert "vertrauliche Begruendung" not in str(events[0])
+
+
+# ---------------------------------------------------------------------------
+# Case-Lifecycle-Status (Lifecycle-ADR)
+# ---------------------------------------------------------------------------
+
+
+class TestTriageServiceUpdateStatus:
+    async def test_default_status_is_submitted(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.status == CaseStatus.SUBMITTED
+        assert case.status_updated_at is None
+
+    async def test_update_status_sets_fields_on_returned_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        updated = await service.update_status(case.id, CaseStatus.IN_REVIEW)
+
+        assert updated is not None
+        assert updated.status == CaseStatus.IN_REVIEW
+        assert updated.status_updated_at == _FIXED_TIME
+
+    async def test_update_status_persists_to_repository(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.update_status(case.id, CaseStatus.INTEGRATED)
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.status == CaseStatus.INTEGRATED
+        assert persisted.status_updated_at == _FIXED_TIME
+
+    async def test_update_status_missing_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.update_status("does-not-exist", CaseStatus.IN_REVIEW)
+        assert result is None
+
+    async def test_update_status_emits_audit_log_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.update_status(case.id, CaseStatus.IMPLEMENTED)
+
+        events = [e for e in logs if e.get("event") == "case_status_changed"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["old_status"] == "submitted"
+        assert events[0]["new_status"] == "implemented"
+        assert events[0]["updated_at"] == _FIXED_TIME.isoformat()
+
+    async def test_record_decision_approved_couples_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.record_decision(case.id, ReviewerDecision.APPROVED, "ok")
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.status == CaseStatus.APPROVED
+        assert persisted.status_updated_at == _FIXED_TIME
+
+    async def test_record_decision_rejected_couples_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.record_decision(case.id, ReviewerDecision.REJECTED, None)
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.status == CaseStatus.REJECTED
+
+    async def test_decision_overwrites_manually_set_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Freigabe gewinnt: ein manuell gesetzter Status wird von der
+        # ReviewerDecision-Kopplung ueberschrieben (Lifecycle-ADR).
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.update_status(case.id, CaseStatus.IN_REVIEW)
+        updated = await service.record_decision(
+            case.id, ReviewerDecision.APPROVED, None
+        )
+
+        assert updated is not None
+        assert updated.status == CaseStatus.APPROVED
 
 
 # ---------------------------------------------------------------------------

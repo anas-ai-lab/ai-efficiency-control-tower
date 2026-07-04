@@ -200,6 +200,64 @@
         }
       }
     },
+    "/cases/{case_id}/status": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Update Status",
+        "description": "Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und\nDELETE /cases/{id}.\n\nKein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "update_status_cases__case_id__status_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/sharpen": {
       "post": {
         "tags": [
@@ -1240,6 +1298,62 @@
         ],
         "title": "SolutionProposalResponse",
         "description": "Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton)."
+      },
+      "StatusUpdateRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "in_review",
+              "approved",
+              "already_exists",
+              "integrated",
+              "rejected",
+              "implemented"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StatusUpdateRequest",
+        "description": "Neuer Lifecycle-Status fuer einen Case (Lifecycle-ADR).\n\nstatus: einer der sieben CaseStatus-Werte. Bewusst keine Transitions-Matrix\n-- jeder Zustand ist aus jedem setzbar (menschliche Autoritaet in einem\nSingle-User-Build). APPROVED/REJECTED sind hier ebenfalls setzbar, werden\naber zusaetzlich durch POST /decision gesetzt (Kopplung an ReviewerDecision,\nADR-0043).\nextra=\"forbid\": konsistent mit DecisionRequest (Eingabe-Disziplin, aect-\nsecurity-checklist v2.1 Phase A)."
+      },
+      "StatusUpdateResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "status",
+          "updated_at"
+        ],
+        "title": "StatusUpdateResponse",
+        "description": "Aktueller Lifecycle-Status eines Case nach POST /status."
       },
       "TechnicalDetailResponse": {
         "properties": {

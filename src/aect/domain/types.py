@@ -127,3 +127,25 @@ class ReviewerDecision(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class CaseStatus(StrEnum):
+    """Lifecycle-Status eines Case -- wo im Bearbeitungsfluss er steht.
+
+    APPROVED/REJECTED werden zusaetzlich durch record_decision() gesetzt
+    (Kopplung an ReviewerDecision, ADR-0043 -- der Freigabe-Akt bewegt den
+    Case auch im Lifecycle). Die uebrigen Zustaende werden ausschliesslich
+    ueber POST /cases/{id}/status gesetzt.
+
+    SUBMITTED ist der Default direkt nach Einreichung. Es gibt bewusst keine
+    Transitions-Matrix -- jeder Zustand ist aus jedem setzbar (menschliche
+    Autoritaet in einem Single-User-Build, siehe Lifecycle-ADR).
+    """
+
+    SUBMITTED = "submitted"
+    IN_REVIEW = "in_review"
+    APPROVED = "approved"
+    ALREADY_EXISTS = "already_exists"
+    INTEGRATED = "integrated"
+    REJECTED = "rejected"
+    IMPLEMENTED = "implemented"

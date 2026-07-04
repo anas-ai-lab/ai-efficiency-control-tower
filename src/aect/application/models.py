@@ -11,7 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from aect.domain import ReviewerDecision, TriageResult, UseCaseInput
+from aect.domain import CaseStatus, ReviewerDecision, TriageResult, UseCaseInput
 
 
 class SimilarityWarning(BaseModel):
@@ -73,6 +73,17 @@ class SubmittedCase:
     None ist der Zustand vor jeder manuellen Entscheidung. Ueberschreiben ist
     erlaubt (Korrektur-Fall) -- decided_at wird bei jedem Aufruf aktualisiert.
 
+    status/status_updated_at (Case-Lifecycle, siehe Lifecycle-ADR): wo der Case
+    im Bearbeitungsfluss steht und wann der Zustand zuletzt wechselte. SUBMITTED
+    + None direkt nach Einreichung (noch kein expliziter Wechsel), danach ueber
+    POST /cases/{id}/status setzbar (TriageService.update_status()). status_
+    updated_at ist der Zeitstempel des letzten Wechsels -- analog decided_at zur
+    reviewer_decision, wird bei jedem Wechsel aktualisiert. Zusaetzlich koppelt
+    record_decision() den Lifecycle an ReviewerDecision: APPROVED bzw. REJECTED
+    wird ueber denselben Persistenz-Pfad mitgesetzt (status + status_updated_at)
+    -- der Freigabe-Akt darf einen manuell gesetzten Status ueberschreiben
+    (Lifecycle-ADR).
+
     IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
@@ -91,6 +102,8 @@ class SubmittedCase:
     reviewer_decision: ReviewerDecision = ReviewerDecision.PENDING
     reviewer_note: str | None = None
     decided_at: datetime | None = None
+    status: CaseStatus = CaseStatus.SUBMITTED
+    status_updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)

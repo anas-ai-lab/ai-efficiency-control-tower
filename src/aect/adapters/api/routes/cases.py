@@ -24,7 +24,7 @@ from aect.adapters.api.dependencies import (
 )
 from aect.adapters.api.rate_limit import limiter
 from aect.application.service import CaseNotFoundError, TriageService
-from aect.domain import ReviewerDecision
+from aect.domain import CaseStatus, ReviewerDecision
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -152,6 +152,72 @@ async def record_decision(
         reviewer_decision=case.reviewer_decision.value,
         reviewer_note=case.reviewer_note,
         decided_at=case.decided_at,
+    )
+
+
+class StatusUpdateRequest(BaseModel):
+    """Neuer Lifecycle-Status fuer einen Case (Lifecycle-ADR).
+
+    status: einer der sieben CaseStatus-Werte. Bewusst keine Transitions-Matrix
+    -- jeder Zustand ist aus jedem setzbar (menschliche Autoritaet in einem
+    Single-User-Build). APPROVED/REJECTED sind hier ebenfalls setzbar, werden
+    aber zusaetzlich durch POST /decision gesetzt (Kopplung an ReviewerDecision,
+    ADR-0043).
+    extra="forbid": konsistent mit DecisionRequest (Eingabe-Disziplin, aect-
+    security-checklist v2.1 Phase A).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal[
+        "submitted",
+        "in_review",
+        "approved",
+        "already_exists",
+        "integrated",
+        "rejected",
+        "implemented",
+    ]
+
+
+class StatusUpdateResponse(BaseModel):
+    """Aktueller Lifecycle-Status eines Case nach POST /status."""
+
+    case_id: str
+    status: str
+    updated_at: datetime | None
+
+
+@router.post("/{case_id}/status", response_model=StatusUpdateResponse)
+@limiter.limit("10/minute")
+async def update_status(
+    case_id: str,
+    body: StatusUpdateRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> StatusUpdateResponse:
+    """Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
+    DELETE /cases/{id}.
+
+    Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = await service.update_status(case_id, CaseStatus(body.status))
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return StatusUpdateResponse(
+        case_id=case.id,
+        status=case.status.value,
+        updated_at=case.status_updated_at,
     )
 
 

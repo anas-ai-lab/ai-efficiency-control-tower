@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from aect.application.models import SubmittedCase
-from aect.domain.types import ReviewerDecision
+from aect.domain.types import CaseStatus, ReviewerDecision
 
 # Nachtraeglich befuellbare Einzelfelder eines SubmittedCase (F-011).
 # embedding wird als JSON-String uebergeben (dasselbe Format wie die Spalte
@@ -43,6 +43,12 @@ class RepositoryPort(Protocol):
     setzt drei zusammengehoerige Felder (reviewer_decision, reviewer_note,
     decided_at) atomar in einem dedizierten UPDATE. No-op, wenn case_id nicht
     existiert (analog delete/update_field).
+
+    update_status / update_status_async (Case-Lifecycle, siehe Lifecycle-ADR):
+    dediziertes UPDATE der zwei zusammengehoerigen Spalten status + status_
+    updated_at (F-011-Muster, analog record_decision mit decided_at) -- kein
+    save() der ganzen Zeile, kein Lost-Update gegenueber parallelen LLM-Feld-
+    Schreibvorgaengen. No-op, wenn case_id nicht existiert.
     """
 
     def save(self, case: SubmittedCase) -> None: ...
@@ -59,6 +65,9 @@ class RepositoryPort(Protocol):
         note: str | None,
         decided_at: datetime,
     ) -> None: ...
+    def update_status(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None: ...
 
     async def save_async(self, case: SubmittedCase) -> None: ...
     async def get_async(self, case_id: str) -> SubmittedCase | None: ...
@@ -73,4 +82,7 @@ class RepositoryPort(Protocol):
         decision: ReviewerDecision,
         note: str | None,
         decided_at: datetime,
+    ) -> None: ...
+    async def update_status_async(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None: ...

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from aect.application.models import SubmittedCase
 from aect.application.ports.repository import CaseUpdateField
-from aect.domain.types import ReviewerDecision
+from aect.domain.types import CaseStatus, ReviewerDecision
 
 
 class InMemoryRepository:
@@ -68,6 +68,17 @@ class InMemoryRepository:
         case.reviewer_note = note
         case.decided_at = decided_at
 
+    def update_status(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None:
+        """Setzt Lifecycle-Status + Zeitstempel (Lifecycle-ADR). No-op bei
+        unbekannter case_id (analog delete/update_field/record_decision)."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.status = status
+        case.status_updated_at = updated_at
+
     # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
     # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
     # noetig, direkter Aufruf der sync-Methode genuegt.
@@ -96,3 +107,8 @@ class InMemoryRepository:
         decided_at: datetime,
     ) -> None:
         self.record_decision(case_id, decision, note, decided_at)
+
+    async def update_status_async(
+        self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None:
+        self.update_status(case_id, status, updated_at)
