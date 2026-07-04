@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Protocol
 
-from aect.application.models import SubmittedCase
+from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.domain.types import CaseStatus, ReviewerDecision
 
 # Nachtraeglich befuellbare Einzelfelder eines SubmittedCase (F-011).
@@ -49,6 +49,14 @@ class RepositoryPort(Protocol):
     updated_at (F-011-Muster, analog record_decision mit decided_at) -- kein
     save() der ganzen Zeile, kein Lost-Update gegenueber parallelen LLM-Feld-
     Schreibvorgaengen. No-op, wenn case_id nicht existiert.
+
+    add_monitoring_entry / list_monitoring_entries (Monitoring-ADR): eigene
+    append-only Tabelle statt einer JSON-Spalte am Case -- kein Lost-Update
+    (jeder Eintrag ist ein eigener INSERT, F-011-Lehre). add ist INSERT-only,
+    list liefert chronologisch aufsteigend (ORDER BY created_at, id). Es gibt
+    bewusst KEINE UPDATE-/DELETE-Methode fuer einzelne Eintraege; die einzige
+    Loeschung ist die DSGVO-Kaskade in delete()/delete_async (Art. 17,
+    ADR-0038), die die Eintraege eines Case mit-loescht.
     """
 
     def save(self, case: SubmittedCase) -> None: ...
@@ -68,6 +76,8 @@ class RepositoryPort(Protocol):
     def update_status(
         self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None: ...
+    def add_monitoring_entry(self, entry: MonitoringEntry) -> None: ...
+    def list_monitoring_entries(self, case_id: str) -> list[MonitoringEntry]: ...
 
     async def save_async(self, case: SubmittedCase) -> None: ...
     async def get_async(self, case_id: str) -> SubmittedCase | None: ...
@@ -86,3 +96,7 @@ class RepositoryPort(Protocol):
     async def update_status_async(
         self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None: ...
+    async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None: ...
+    async def list_monitoring_entries_async(
+        self, case_id: str
+    ) -> list[MonitoringEntry]: ...

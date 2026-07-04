@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from aect.application.models import SubmittedCase
+from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.application.ports.repository import CaseUpdateField
 from aect.domain.types import CaseStatus, ReviewerDecision
 
@@ -22,6 +22,10 @@ class InMemoryRepository:
 
     def __init__(self) -> None:
         self._store: dict[str, SubmittedCase] = {}
+        # Append-only Monitoring-Eintraege (Monitoring-ADR), flach als Liste --
+        # Einfuege-Reihenfolge bleibt erhalten, list_monitoring_entries sortiert
+        # explizit nach (created_at, id).
+        self._monitoring: list[MonitoringEntry] = []
 
     def save(self, case: SubmittedCase) -> None:
         self._store[case.id] = case
@@ -33,8 +37,10 @@ class InMemoryRepository:
         return list(self._store.values())
 
     def delete(self, case_id: str) -> None:
-        """Loescht einen Case per ID (DSGVO Art. 17, ADR-0038). Idempotent."""
+        """Loescht einen Case + seine Monitoring-Eintraege (DSGVO Art. 17,
+        ADR-0038; Monitoring-Kaskade Monitoring-ADR). Idempotent."""
         self._store.pop(case_id, None)
+        self._monitoring = [e for e in self._monitoring if e.case_id != case_id]
 
     def update_field(
         self, case_id: str, field: CaseUpdateField, value: str | None
@@ -79,6 +85,18 @@ class InMemoryRepository:
         case.status = status
         case.status_updated_at = updated_at
 
+    def add_monitoring_entry(self, entry: MonitoringEntry) -> None:
+        """Haengt einen Monitoring-Eintrag an (append-only, Monitoring-ADR)."""
+        self._monitoring.append(entry)
+
+    def list_monitoring_entries(self, case_id: str) -> list[MonitoringEntry]:
+        """Eintraege eines Case, chronologisch aufsteigend (created_at, id).
+
+        Sekundaerschluessel id: ISO-Timestamps sind sekundengenau -- zwei
+        Eintraege in derselben Sekunde bleiben sonst reihenfolge-instabil."""
+        entries = [e for e in self._monitoring if e.case_id == case_id]
+        return sorted(entries, key=lambda e: (e.created_at, e.id))
+
     # async-Varianten (AUDIT-001, ADR-0037): erfuellen den RepositoryPort-
     # Vertrag. In-Memory-dict-Zugriffe blockieren nicht -> kein to_thread
     # noetig, direkter Aufruf der sync-Methode genuegt.
@@ -112,3 +130,11 @@ class InMemoryRepository:
         self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None:
         self.update_status(case_id, status, updated_at)
+
+    async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
+        self.add_monitoring_entry(entry)
+
+    async def list_monitoring_entries_async(
+        self, case_id: str
+    ) -> list[MonitoringEntry]:
+        return self.list_monitoring_entries(case_id)

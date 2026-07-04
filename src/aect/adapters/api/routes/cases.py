@@ -256,6 +256,112 @@ async def update_status(
     )
 
 
+class MonitoringNoteRequest(BaseModel):
+    """Neue Monitoring-Notiz fuer die Zeitleiste eines Case (Monitoring-ADR).
+
+    note: Pflicht-Freitext (min 1, max 2000 -- Substanz + Token-Flooding-Schutz,
+    aect-security-checklist v2.1 Phase A). extra="forbid" konsistent mit den
+    uebrigen Request-Schemas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    note: str = Field(min_length=1, max_length=2000)
+
+
+class MonitoringEntryResponse(BaseModel):
+    """Ein append-only Monitoring-Eintrag (Monitoring-ADR).
+
+    status_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,
+    kein Live-Verweis).
+    """
+
+    id: str
+    case_id: str
+    created_at: datetime
+    note: str
+    status_snapshot: str
+
+
+@router.post(
+    "/{case_id}/monitoring",
+    response_model=MonitoringEntryResponse,
+    status_code=201,
+)
+@limiter.limit("10/minute")
+async def add_monitoring_note(
+    case_id: str,
+    body: MonitoringNoteRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> MonitoringEntryResponse:
+    """Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
+    /status.
+
+    201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    entry = await service.add_monitoring_note(case_id, body.note)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return MonitoringEntryResponse(
+        id=entry.id,
+        case_id=entry.case_id,
+        created_at=entry.created_at,
+        note=entry.note,
+        status_snapshot=entry.status_snapshot,
+    )
+
+
+@router.get(
+    "/{case_id}/monitoring",
+    response_model=list[MonitoringEntryResponse],
+)
+@limiter.limit("60/minute")
+async def list_monitoring(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> list[MonitoringEntryResponse]:
+    """Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+
+    Leere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der
+    Case selbst nicht existiert (Service unterscheidet beide Faelle).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    entries = await service.list_monitoring(case_id)
+    if entries is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return [
+        MonitoringEntryResponse(
+            id=entry.id,
+            case_id=entry.case_id,
+            created_at=entry.created_at,
+            note=entry.note,
+            status_snapshot=entry.status_snapshot,
+        )
+        for entry in entries
+    ]
+
+
 class SharpenedCaseResponse(BaseModel):
     """Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).
 

@@ -107,6 +107,34 @@ class SubmittedCase:
 
 
 @dataclass(frozen=True)
+class MonitoringEntry:
+    """Ein append-only Monitoring-Eintrag in der Zeitleiste eines Case
+    (Monitoring-ADR).
+
+    Manuelle Beobachtungsnotiz zu einem Case (z. B. "Pilot gestartet",
+    "Nutzer-Feedback eingeholt"). Append-only: einmal geschrieben, nie
+    veraendert oder einzeln geloescht -- der Audit-Charakter der Zeitleiste
+    verlangt Unveraenderlichkeit (analog zum submitted_at-Audit-Trail). Die
+    einzige Loeschung ist die DSGVO-Kaskade (Art. 17, ADR-0038): stirbt der
+    Case, sterben seine Eintraege mit.
+
+    status_snapshot: der case.status zum Zeitpunkt des Eintrags, als String
+    festgehalten. Bewusst eine Momentaufnahme, kein Live-Verweis -- ein
+    spaeterer Statuswechsel des Case aendert alte Eintraege nicht (sonst
+    verloere die Zeitleiste ihren historischen Wert).
+
+    frozen=True: analog UseCaseInput/SharpenedUseCase -- nach Erstellung
+    unveraenderlich.
+    """
+
+    id: str
+    case_id: str
+    created_at: datetime
+    note: str
+    status_snapshot: str
+
+
+@dataclass(frozen=True)
 class SharpenedUseCase:
     """Ergebnis der Use-Case-Schaerfung -- Original + geschaerfte Version.
 

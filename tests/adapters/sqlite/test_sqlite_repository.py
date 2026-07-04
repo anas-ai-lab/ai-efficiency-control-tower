@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from aect.adapters.sqlite.repository import SQLiteRepository
-from aect.application.models import SubmittedCase
+from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import evaluate_use_case
 from aect.domain.roi import load_roi_config
@@ -700,3 +700,86 @@ class TestCaseStatusColumn:
         assert loaded is not None
         assert loaded.status == CaseStatus.SUBMITTED
         assert loaded.status_updated_at is None
+
+
+# ---------------------------------------------------------------------------
+# Monitoring-Zeitleiste (append-only, Monitoring-ADR)
+# ---------------------------------------------------------------------------
+
+
+def _entry(entry_id: str, case_id: str, created_at: datetime) -> MonitoringEntry:
+    return MonitoringEntry(
+        id=entry_id,
+        case_id=case_id,
+        created_at=created_at,
+        note=f"note-{entry_id}",
+        status_snapshot="submitted",
+    )
+
+
+class TestMonitoringEntries:
+    def test_add_and_list_roundtrip(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        created_at = datetime(2026, 6, 12, 8, 30, 0, tzinfo=UTC)
+        repo.add_monitoring_entry(_entry("m-1", sample_case.id, created_at))
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert len(entries) == 1
+        assert entries[0].id == "m-1"
+        assert entries[0].case_id == sample_case.id
+        assert entries[0].created_at == created_at
+        assert entries[0].note == "note-m-1"
+        assert entries[0].status_snapshot == "submitted"
+
+    def test_entries_survive_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        repo.add_monitoring_entry(
+            _entry("m-1", sample_case.id, datetime(2026, 6, 12, 8, 0, 0, tzinfo=UTC))
+        )
+
+        reloaded = SQLiteRepository(db_path).list_monitoring_entries(sample_case.id)
+        assert [e.id for e in reloaded] == ["m-1"]
+
+    def test_list_orders_by_created_at_then_id(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        early = datetime(2026, 6, 12, 8, 0, 0, tzinfo=UTC)
+        late = datetime(2026, 6, 12, 9, 0, 0, tzinfo=UTC)
+        # Bewusst in nicht-chronologischer Reihenfolge eingefuegt.
+        repo.add_monitoring_entry(_entry("m-late", sample_case.id, late))
+        repo.add_monitoring_entry(_entry("m-early", sample_case.id, early))
+        # Zwei Eintraege in derselben Sekunde -> Sekundaerschluessel id entscheidet.
+        repo.add_monitoring_entry(_entry("m-a", sample_case.id, early))
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert [e.id for e in entries] == ["m-a", "m-early", "m-late"]
+
+    def test_list_only_returns_entries_of_that_case(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        created_at = datetime(2026, 6, 12, 8, 0, 0, tzinfo=UTC)
+        repo.add_monitoring_entry(_entry("m-1", sample_case.id, created_at))
+        repo.add_monitoring_entry(_entry("m-2", "other-case", created_at))
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert [e.id for e in entries] == ["m-1"]
+
+    def test_delete_case_cascades_to_monitoring_entries(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        created_at = datetime(2026, 6, 12, 8, 0, 0, tzinfo=UTC)
+        repo.add_monitoring_entry(_entry("m-1", sample_case.id, created_at))
+        repo.add_monitoring_entry(_entry("m-2", sample_case.id, created_at))
+
+        repo.delete(sample_case.id)
+
+        # DSGVO-Kaskade (Art. 17, ADR-0038): kein verwaister Eintrag.
+        assert repo.list_monitoring_entries(sample_case.id) == []

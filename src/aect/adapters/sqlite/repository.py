@@ -46,6 +46,14 @@ DEFAULT 'submitted' (jeder Case hat ab Einreichung einen Lifecycle-Zustand),
 status_updated_at nullable (Zeitstempel des letzten Wechsels, analog decided_at
 zur reviewer_decision). Geschrieben ueber update_status() -- ein dediziertes
 UPDATE beider Spalten in einem Statement, analog record_decision() (F-011).
+
+monitoring_entries (Monitoring-ADR): EIGENE append-only Tabelle (nicht eine
+JSON-Spalte am Case -- das haette dasselbe Lost-Update-Risiko wie die per-Feld-
+UPDATEs, F-011). Nur INSERT + SELECT; die einzige Loeschung ist die DSGVO-
+Kaskade in delete() (Art. 17, ADR-0038), die die Eintraege eines Case
+mit-loescht. list_monitoring_entries sortiert ORDER BY created_at, id (der
+Sekundaerschluessel id haelt die Reihenfolge stabil, wenn zwei Eintraege in
+dieselbe sekundengenaue ISO-Zeit fallen).
 """
 
 from __future__ import annotations
@@ -59,7 +67,7 @@ from pathlib import Path
 from typing import Any
 
 from aect.adapters.sqlite.connection import connect
-from aect.application.models import SubmittedCase
+from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.application.ports.repository import CaseUpdateField
 from aect.domain.feasibility import FeasibilityFlag, FeasibilityResult
 from aect.domain.filters import FilterResult
@@ -160,6 +168,37 @@ _RECORD_DECISION_SQL = (
 _UPDATE_STATUS_SQL = (
     "UPDATE submitted_cases SET status = ?, status_updated_at = ? WHERE id = ?"
 )
+
+# monitoring_entries (Monitoring-ADR): eigene append-only Tabelle. Kein
+# Fremdschluessel-Constraint -- SQLite erzwingt FKs nur mit PRAGMA foreign_keys
+# (pro Verbindung), und die Loesch-Kaskade wird ohnehin explizit in delete()
+# gefahren. INSERT-only; Loeschung nur ueber die case-weite DSGVO-Kaskade.
+_CREATE_MONITORING_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS monitoring_entries (
+    id               TEXT PRIMARY KEY,
+    case_id          TEXT NOT NULL,
+    created_at       TEXT NOT NULL,
+    note             TEXT NOT NULL,
+    status_snapshot  TEXT NOT NULL
+)
+"""
+
+_INSERT_MONITORING_SQL = (
+    "INSERT INTO monitoring_entries "
+    "(id, case_id, created_at, note, status_snapshot) "
+    "VALUES (?, ?, ?, ?, ?)"
+)
+
+# ORDER BY created_at, id: id als Sekundaerschluessel gegen Reihenfolge-
+# Kollisionen in derselben (sekundengenauen) ISO-Zeit.
+_SELECT_MONITORING_BY_CASE_SQL = (
+    "SELECT id, case_id, created_at, note, status_snapshot "
+    "FROM monitoring_entries WHERE case_id = ? ORDER BY created_at, id"
+)
+
+# DSGVO-Kaskade (Art. 17, ADR-0038): loescht die Eintraege eines Case. Die
+# einzige DELETE-Operation auf monitoring_entries -- kein Einzel-Delete.
+_DELETE_MONITORING_BY_CASE_SQL = "DELETE FROM monitoring_entries WHERE case_id = ?"
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +371,18 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
     )
 
 
+def _row_to_monitoring_entry(row: tuple[Any, ...]) -> MonitoringEntry:
+    """SQLite-Row (5-Tupel) -> MonitoringEntry."""
+    (entry_id, case_id, created_at_str, note, status_snapshot) = row
+    return MonitoringEntry(
+        id=str(entry_id),
+        case_id=str(case_id),
+        created_at=datetime.fromisoformat(str(created_at_str)),
+        note=str(note),
+        status_snapshot=str(status_snapshot),
+    )
+
+
 # ---------------------------------------------------------------------------
 # SQLiteRepository
 # ---------------------------------------------------------------------------
@@ -366,6 +417,7 @@ class SQLiteRepository:
         """
         with connect(self._db_path) as conn:
             conn.execute(_CREATE_TABLE_SQL)
+            conn.execute(_CREATE_MONITORING_TABLE_SQL)
             columns = {
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
             }
@@ -445,13 +497,18 @@ class SQLiteRepository:
         return [_row_to_case(row) for row in rows]
 
     def delete(self, case_id: str) -> None:
-        """Loescht einen Case per ID (DSGVO Art. 17, ADR-0038).
+        """Loescht einen Case + seine Monitoring-Eintraege (DSGVO Art. 17,
+        ADR-0038; Monitoring-Kaskade Monitoring-ADR).
 
-        Idempotent: DELETE auf eine nicht existierende ID ist ein No-op (kein
-        Fehler). Die Existenzpruefung (-> 404) liegt im Service, nicht hier.
+        Beide DELETEs laufen in derselben kurzlebigen Verbindung (eine
+        Transaktion) -- ein Case und seine append-only Zeitleiste verschwinden
+        gemeinsam, kein verwaister Eintrag. Idempotent: DELETE auf eine nicht
+        existierende ID ist ein No-op. Die Existenzpruefung (-> 404) liegt im
+        Service, nicht hier.
         """
         with connect(self._db_path) as conn:
             conn.execute(_DELETE_BY_ID_SQL, (case_id,))
+            conn.execute(_DELETE_MONITORING_BY_CASE_SQL, (case_id,))
 
     def update_field(
         self, case_id: str, field: CaseUpdateField, value: str | None
@@ -500,6 +557,31 @@ class SQLiteRepository:
                 _UPDATE_STATUS_SQL, (status.value, updated_at.isoformat(), case_id)
             )
 
+    def add_monitoring_entry(self, entry: MonitoringEntry) -> None:
+        """Haengt einen Monitoring-Eintrag an (append-only INSERT, Monitoring-ADR).
+
+        Kein UPDATE, kein OR REPLACE -- die id ist ein frischer generierter
+        Wert je Eintrag; ein Konflikt kaeme nur bei einem ID-Generator-Bug
+        vor und soll dann laut scheitern, nicht still ueberschreiben.
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(
+                _INSERT_MONITORING_SQL,
+                (
+                    entry.id,
+                    entry.case_id,
+                    entry.created_at.isoformat(),
+                    entry.note,
+                    entry.status_snapshot,
+                ),
+            )
+
+    def list_monitoring_entries(self, case_id: str) -> list[MonitoringEntry]:
+        """Eintraege eines Case, chronologisch aufsteigend (created_at, id)."""
+        with connect(self._db_path) as conn:
+            rows = conn.execute(_SELECT_MONITORING_BY_CASE_SQL, (case_id,)).fetchall()
+        return [_row_to_monitoring_entry(row) for row in rows]
+
     # -- async-Varianten (AUDIT-001, ADR-0037) -----------------------------
     # Lagern die blockierende SQLite-I/O in einen Worker-Thread aus, damit
     # async-Aufrufer den Event-Loop nicht blockieren. Die sync-Methoden bleiben
@@ -544,3 +626,13 @@ class SQLiteRepository:
     ) -> None:
         """Async-Wrapper um update_status() via asyncio.to_thread (Lifecycle-ADR)."""
         await asyncio.to_thread(self.update_status, case_id, status, updated_at)
+
+    async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
+        """Async-Wrapper um add_monitoring_entry() via asyncio.to_thread."""
+        await asyncio.to_thread(self.add_monitoring_entry, entry)
+
+    async def list_monitoring_entries_async(
+        self, case_id: str
+    ) -> list[MonitoringEntry]:
+        """Async-Wrapper um list_monitoring_entries() via asyncio.to_thread."""
+        return await asyncio.to_thread(self.list_monitoring_entries, case_id)

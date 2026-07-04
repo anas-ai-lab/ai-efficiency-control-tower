@@ -1033,6 +1033,124 @@ class TestTriageServiceUpdateStatus:
 
 
 # ---------------------------------------------------------------------------
+# Monitoring-Zeitleiste (append-only, Monitoring-ADR)
+# ---------------------------------------------------------------------------
+
+
+class TestTriageServiceMonitoring:
+    async def test_add_note_records_current_status_snapshot(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        entry = await service.add_monitoring_note(case.id, "Pilot gestartet")
+
+        assert entry is not None
+        assert entry.case_id == case.id
+        assert entry.note == "Pilot gestartet"
+        assert entry.status_snapshot == "submitted"
+        assert entry.created_at == _FIXED_TIME
+
+    async def test_add_note_missing_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.add_monitoring_note("does-not-exist", "hallo")
+        assert result is None
+
+    async def test_list_missing_case_returns_none(self, roi_config: ROIConfig) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.list_monitoring("does-not-exist")
+        assert result is None
+
+    async def test_list_of_case_without_entries_is_empty_list(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Case existiert, aber keine Eintraege: leere Liste, NICHT None
+        # (None ist reserviert fuer "Case existiert nicht").
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        result = await service.list_monitoring(case.id)
+        assert result == []
+
+    async def test_list_returns_entries_chronologically(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Sequenzielle Zeitstempel: submit (submitted_at) + drei Notizen.
+        t0 = datetime.datetime(2026, 6, 9, 8, 0, 0, tzinfo=datetime.UTC)
+        t1 = datetime.datetime(2026, 6, 10, 8, 0, 0, tzinfo=datetime.UTC)
+        t2 = datetime.datetime(2026, 6, 11, 8, 0, 0, tzinfo=datetime.UTC)
+        t3 = datetime.datetime(2026, 6, 12, 8, 0, 0, tzinfo=datetime.UTC)
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_SequentialClock([t0, t1, t2, t3]),
+            id_generator=_FakeIdGenerator(ids=["case-1", "m-1", "m-2", "m-3"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=MockLLMAdapter(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        await service.add_monitoring_note(case.id, "erste")
+        await service.add_monitoring_note(case.id, "zweite")
+        await service.add_monitoring_note(case.id, "dritte")
+
+        entries = await service.list_monitoring(case.id)
+        assert entries is not None
+        assert [e.note for e in entries] == ["erste", "zweite", "dritte"]
+        assert [e.created_at for e in entries] == [t1, t2, t3]
+
+    async def test_snapshots_reflect_status_at_entry_time(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Zwei Notizen ueber einen Statuswechsel hinweg -> verschiedene Snapshots.
+        # Der Snapshot der ersten Notiz bleibt eingefroren (kein Live-Verweis).
+        service, _ = _make_service(roi_config, ids=["case-1", "m-1", "m-2"])
+        case = service.submit_use_case(sample_use_case)
+
+        first = await service.add_monitoring_note(case.id, "vor Review")
+        await service.update_status(case.id, CaseStatus.IN_REVIEW)
+        second = await service.add_monitoring_note(case.id, "in Review")
+
+        assert first is not None
+        assert second is not None
+        assert first.status_snapshot == "submitted"
+        assert second.status_snapshot == "in_review"
+
+    async def test_delete_case_removes_monitoring_entries(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config, ids=["case-1", "m-1"])
+        case = service.submit_use_case(sample_use_case)
+        await service.add_monitoring_note(case.id, "wird mitgeloescht")
+        assert repo.list_monitoring_entries(case.id) != []
+
+        await service.delete_case(case.id)
+
+        # DSGVO-Kaskade (Art. 17): kein verwaister Eintrag zurueck.
+        assert repo.list_monitoring_entries(case.id) == []
+
+    async def test_add_note_emits_audit_log_without_note_text(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config, ids=["case-1", "m-1"])
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.add_monitoring_note(case.id, "vertrauliche Beobachtung")
+
+        events = [e for e in logs if e.get("event") == "monitoring_entry_added"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["entry_id"] == "m-1"
+        # PII-Allowlist-konform: die note (Freitext) wird NICHT geloggt.
+        assert "note" not in events[0]
+        assert "vertrauliche Beobachtung" not in str(events[0])
+
+
+# ---------------------------------------------------------------------------
 # L-3 Dedup: Embedding-Similarity bei Intake (ADR-0039)
 # ---------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ from aect.application.models import (
     BusinessSummary,
     ComplianceCitation,
     ComplianceHintsResult,
+    MonitoringEntry,
     ReportResult,
     SharpenedUseCase,
     SimilarityWarning,
@@ -459,7 +460,11 @@ class TriageService:
 
         DSGVO Art. 17 (ADR-0038): echte Loeschung, kein Soft-Delete. Ablauf:
         1. Existenz pruefen -> CaseNotFoundError wenn fehlend (Route -> 404).
-        2. Aus dem Repository loeschen (primaere, persistente Quelle).
+        2. Aus dem Repository loeschen (primaere, persistente Quelle). Der
+           Repository-Delete loescht die Monitoring-Eintraege des Case in
+           derselben Operation mit (Monitoring-ADR) -- die append-only
+           Zeitleiste ueberlebt ihren Case nicht. Das geschieht VOR dem
+           Audit-Log-Event unten; das Loesch-Event selbst bleibt erhalten.
         3. Best-effort aus dem Vektor-Store (ChromaDB) ueber den source_id-Tag.
            Faellt der Store aus, wird das geloggt aber NICHT propagiert -- die
            primaere Loeschung ist bereits erfolgt und darf nicht zurueckgedreht
@@ -605,6 +610,61 @@ class TriageService:
             updated_at=updated_at.isoformat(),
         )
         return case
+
+    async def add_monitoring_note(
+        self, case_id: str, note: str
+    ) -> MonitoringEntry | None:
+        """Haengt eine Monitoring-Notiz an die Zeitleiste eines Case (Monitoring-ADR).
+
+        Append-only: der Eintrag wird geschrieben, nie veraendert -- eine
+        Zeitleiste manueller Beobachtungen mit Audit-Charakter. id via
+        IdGeneratorPort, created_at via ClockPort (beide testbar-injiziert).
+
+        status_snapshot ist der case.status zum Zeitpunkt des Eintrags, als
+        String eingefroren -- eine Momentaufnahme, kein Live-Verweis: ein
+        spaeterer Statuswechsel des Case aendert bestehende Eintraege nicht.
+
+        Audit-Trail: monitoring_entry_added wird geloggt (case_id, entry_id,
+        created_at) -- OHNE note (Freitext koennte PII enthalten,
+        PII-Allowlist-konform, analog case_decision_recorded/case_deleted).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+
+        entry = MonitoringEntry(
+            id=self._id_generator.generate(),
+            case_id=case_id,
+            created_at=self._clock.now(),
+            note=note,
+            status_snapshot=case.status.value,
+        )
+        await self._repository.add_monitoring_entry_async(entry)
+
+        logger = structlog.get_logger()
+        logger.info(
+            "monitoring_entry_added",
+            case_id=case_id,
+            entry_id=entry.id,
+            created_at=entry.created_at.isoformat(),
+        )
+        return entry
+
+    async def list_monitoring(self, case_id: str) -> list[MonitoringEntry] | None:
+        """Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404) --
+            unterscheidet "Case existiert nicht" von "Case ohne Eintraege"
+            (leere Liste), analog get_case().
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        return await self._repository.list_monitoring_entries_async(case_id)
 
     async def sharpen_case(
         self, case_id: str, prompt_version: str = "v2"
