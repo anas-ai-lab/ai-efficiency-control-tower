@@ -30,11 +30,28 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 
 
 class CaseSummary(BaseModel):
-    """Komprimiertes Case-Ergebnis fuer die Listansicht."""
+    """Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.
+
+    Genug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den
+    vollen Report je Case zu laden. zone/net_expected_benefit_eur/
+    composite_total/hours_per_year sind None, wenn der Vorfilter nicht bestanden
+    wurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone
+    None bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).
+
+    Filter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines
+    privaten Portfolio-Builds braucht keine serverseitige Pagination (v3).
+    """
 
     id: str
     submitted_at: datetime
     title: str
+    department: str
+    status: str
+    zone: str | None
+    net_expected_benefit_eur: float | None
+    composite_total: int | None
+    hours_per_year: float | None
+    is_actionable: bool
 
 
 @router.get("", response_model=list[CaseSummary])
@@ -51,15 +68,33 @@ async def list_cases(
     response: Response -- von slowapi benoetigt fuer Header-Injektion.
     Auth: X-API-Key-Header (require_api_key).
     Rate Limit: 60 Requests/Minute pro API-Key.
+
+    Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
+    float, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine
+    Liste (kein Envelope) -- Abwaertskompatibilitaet.
     """
-    return [
-        CaseSummary(
-            id=case.id,
-            submitted_at=case.submitted_at,
-            title=case.use_case.title,
+    summaries: list[CaseSummary] = []
+    for case in service.list_cases():
+        r = case.result
+        summaries.append(
+            CaseSummary(
+                id=case.id,
+                submitted_at=case.submitted_at,
+                title=case.use_case.title,
+                department=case.use_case.department,
+                status=case.status.value,
+                zone=r.zone.final_zone.value if r.zone is not None else None,
+                net_expected_benefit_eur=(
+                    float(r.roi.net_expected_benefit_eur) if r.roi is not None else None
+                ),
+                composite_total=(
+                    r.composite.total if r.composite is not None else None
+                ),
+                hours_per_year=r.roi.hours_per_year if r.roi is not None else None,
+                is_actionable=r.is_actionable,
+            )
         )
-        for case in service.list_cases()
-    ]
+    return summaries
 
 
 @router.delete("/{case_id}", status_code=204)
