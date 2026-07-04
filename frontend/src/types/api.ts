@@ -46,6 +46,18 @@ export type TriageZone =
 // Request-Wert fuer POST /cases/{id}/decision (nur approved/rejected).
 export type ReviewerDecision = "pending" | "approved" | "rejected";
 
+// Case-Lifecycle-Status (Lifecycle-ADR / P1). Werte exakt aus api.generated.ts
+// (StatusUpdateRequest.status) gespiegelt. Keine Transitions-Matrix: jeder
+// Zustand ist aus jedem setzbar (menschliche Autoritaet, Single-User-Build).
+export type CaseStatus =
+  | "submitted"
+  | "in_review"
+  | "approved"
+  | "already_exists"
+  | "integrated"
+  | "rejected"
+  | "implemented";
+
 // ---- Request ---------------------------------------------------------------
 
 export interface UseCaseInput {
@@ -232,10 +244,21 @@ export interface ReportResponse {
   technical_detail: TechnicalDetail;
 }
 
+// Portfolio-Read (P2): erweiterte Listansicht. zone/net_expected_benefit_eur/
+// composite_total/hours_per_year sind null bei Vorfilter-Fail (gleiche
+// None-Semantik wie TriageResponse). status ist immer ein CaseStatus-Wert
+// (Backend liefert ihn als String, hier auf die Union verengt).
 export interface CaseSummary {
   id: string;
   submitted_at: string;
   title: string;
+  department: string;
+  status: CaseStatus;
+  zone: TriageZone | null;
+  net_expected_benefit_eur: number | null;
+  composite_total: number | null;
+  hours_per_year: number | null;
+  is_actionable: boolean;
 }
 
 // ---- Decision Response (/cases/{id}/decision POST) -------------------------
@@ -245,4 +268,33 @@ export interface DecisionResponse {
   reviewer_decision: ReviewerDecision;
   reviewer_note: string | null;
   decided_at: string | null;
+}
+
+// ---- Lifecycle-Status (/cases/{id}/status POST, P1) ------------------------
+
+export interface StatusUpdateRequest {
+  status: CaseStatus;
+}
+
+export interface StatusUpdateResponse {
+  case_id: string;
+  status: CaseStatus;
+  updated_at: string | null;
+}
+
+// ---- Monitoring-Zeitleiste (/cases/{id}/monitoring, P3) --------------------
+
+// Append-only Eintrag. status_snapshot ist der Case-Status zum Zeitpunkt des
+// Eintrags (Momentaufnahme, kein Live-Verweis) -- Backend liefert einen String,
+// der stets ein CaseStatus-Wert ist, hier auf die Union verengt.
+export interface MonitoringEntry {
+  id: string;
+  case_id: string;
+  created_at: string;
+  note: string;
+  status_snapshot: CaseStatus;
+}
+
+export interface MonitoringNoteRequest {
+  note: string;
 }

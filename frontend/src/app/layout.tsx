@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { MainNav } from "@/components/main-nav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,22 +40,23 @@ export default function RootLayout({
       </head>
       <body className="flex min-h-full flex-col bg-background">
         <header className="sticky top-0 z-40 border-b border-border/70 bg-background">
-          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5 sm:px-6">
-            <div className="flex items-center gap-2.5">
-              <span
-                aria-hidden
-                className="flex size-7 items-center justify-center rounded-md bg-primary font-mono text-[0.7rem] font-semibold tracking-tight text-primary-foreground"
+          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-5 sm:px-6">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+              <Link
+                href="/"
+                className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]"
               >
-                AE
-              </span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-semibold tracking-tight text-foreground">
+                <span
+                  aria-hidden
+                  className="flex size-7 items-center justify-center rounded-md bg-primary font-mono text-[0.7rem] font-semibold tracking-tight text-primary-foreground"
+                >
+                  AE
+                </span>
+                <span className="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">
                   AECT
                 </span>
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  AI Efficiency Control Tower
-                </span>
-              </div>
+              </Link>
+              <MainNav />
             </div>
             <ThemeToggle />
           </div>

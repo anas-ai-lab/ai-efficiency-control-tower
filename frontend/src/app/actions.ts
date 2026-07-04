@@ -1,11 +1,15 @@
 "use server";
 
 import type {
+  CaseStatus,
+  CaseSummary,
   ComplianceHintsResponse,
   DecisionResponse,
+  MonitoringEntry,
   ReportResponse,
   SharpenedCaseResponse,
   SolutionProposalResponse,
+  StatusUpdateResponse,
   TriageResponse,
   UseCaseInput,
 } from "@/types/api";
@@ -82,16 +86,23 @@ async function apiFetch<T>(
   path: string,
   timeoutMs: number,
   body?: string,
+  method: "GET" | "POST" = "POST",
 ): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
-      method: "POST",
+      method,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": API_KEY,
       },
       body,
+      // cache: "no-store" -- Lese-Actions (listCases/listMonitoringEntries)
+      // duerfen nie aus dem Next.js Data Cache bedient werden: nach einem
+      // Statuswechsel + router.refresh muss die Liste sofort den neuen Stand
+      // zeigen. Schreib-Actions (POST) sind ohnehin nie cachebar; das Flag
+      // hier schadet ihnen nicht und macht die Absicht explizit.
+      cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
@@ -163,5 +174,51 @@ export async function recordDecision(
     `/cases/${caseId}/decision`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ decision, note }),
+  );
+}
+
+// ---- Portfolio / Lifecycle / Monitoring (v3, regelbasiert) -----------------
+// Alle vier sind regelbasiert (kein LLM-Call) -> RULE_TIMEOUT_MS. Fehler laufen
+// durch dasselbe apiFetch/handleResponse-Muster und werden ueber
+// ERROR_MESSAGES_DE bzw. statusMessageDE auf Deutsch gemappt (z. B. "Case not
+// found" -> deutscher Text, 422 -> "Die Eingabe ist ungueltig...").
+
+export async function listCases(): Promise<CaseSummary[]> {
+  // GET ohne Body. cache: "no-store" (apiFetch) haelt die Liste nach einem
+  // Statuswechsel + router.refresh sofort aktuell.
+  return apiFetch<CaseSummary[]>("/cases", RULE_TIMEOUT_MS, undefined, "GET");
+}
+
+export async function updateCaseStatus(
+  caseId: string,
+  status: CaseStatus,
+): Promise<StatusUpdateResponse> {
+  return apiFetch<StatusUpdateResponse>(
+    `/cases/${caseId}/status`,
+    RULE_TIMEOUT_MS,
+    JSON.stringify({ status }),
+  );
+}
+
+export async function addMonitoringNote(
+  caseId: string,
+  note: string,
+): Promise<MonitoringEntry> {
+  return apiFetch<MonitoringEntry>(
+    `/cases/${caseId}/monitoring`,
+    RULE_TIMEOUT_MS,
+    JSON.stringify({ note }),
+  );
+}
+
+export async function listMonitoringEntries(
+  caseId: string,
+): Promise<MonitoringEntry[]> {
+  // GET ohne Body -- chronologisch aufsteigende Zeitleiste, ungecacht.
+  return apiFetch<MonitoringEntry[]>(
+    `/cases/${caseId}/monitoring`,
+    RULE_TIMEOUT_MS,
+    undefined,
+    "GET",
   );
 }

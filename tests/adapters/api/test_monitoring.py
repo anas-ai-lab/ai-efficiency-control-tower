@@ -80,9 +80,7 @@ async def test_add_without_key_returns_401() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
-        response = await client.post(
-            "/cases/some-id/monitoring", json={"note": "hi"}
-        )
+        response = await client.post("/cases/some-id/monitoring", json={"note": "hi"})
     assert response.status_code == 401
 
 
@@ -110,9 +108,7 @@ async def test_list_nonexistent_case_returns_404() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
-        response = await client.get(
-            "/cases/does-not-exist/monitoring", headers=_AUTH
-        )
+        response = await client.get("/cases/does-not-exist/monitoring", headers=_AUTH)
     assert response.status_code == 404
 
 

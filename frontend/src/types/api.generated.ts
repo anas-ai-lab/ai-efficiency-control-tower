@@ -82,6 +82,10 @@ export interface paths {
          *     response: Response -- von slowapi benoetigt fuer Header-Injektion.
          *     Auth: X-API-Key-Header (require_api_key).
          *     Rate Limit: 60 Requests/Minute pro API-Key.
+         *
+         *     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
+         *     float, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine
+         *     Liste (kein Envelope) -- Abwaertskompatibilitaet.
          */
         get: operations["list_cases_cases_get"];
         put?: never;
@@ -147,6 +151,80 @@ export interface paths {
          *         HTTPException 404: case_id existiert nicht.
          */
         post: operations["record_decision_cases__case_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Status
+         * @description Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
+         *     DELETE /cases/{id}.
+         *
+         *     Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["update_status_cases__case_id__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/monitoring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Monitoring
+         * @description Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+         *
+         *     Leere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der
+         *     Case selbst nicht existiert (Service unterscheidet beide Faelle).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        get: operations["list_monitoring_cases__case_id__monitoring_get"];
+        put?: never;
+        /**
+         * Add Monitoring Note
+         * @description Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
+         *     /status.
+         *
+         *     201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["add_monitoring_note_cases__case_id__monitoring_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -364,7 +442,16 @@ export interface components {
         };
         /**
          * CaseSummary
-         * @description Komprimiertes Case-Ergebnis fuer die Listansicht.
+         * @description Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.
+         *
+         *     Genug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den
+         *     vollen Report je Case zu laden. zone/net_expected_benefit_eur/
+         *     composite_total/hours_per_year sind None, wenn der Vorfilter nicht bestanden
+         *     wurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone
+         *     None bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).
+         *
+         *     Filter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines
+         *     privaten Portfolio-Builds braucht keine serverseitige Pagination (v3).
          */
         CaseSummary: {
             /** Id */
@@ -376,6 +463,20 @@ export interface components {
             submitted_at: string;
             /** Title */
             title: string;
+            /** Department */
+            department: string;
+            /** Status */
+            status: string;
+            /** Zone */
+            zone: string | null;
+            /** Net Expected Benefit Eur */
+            net_expected_benefit_eur: number | null;
+            /** Composite Total */
+            composite_total: number | null;
+            /** Hours Per Year */
+            hours_per_year: number | null;
+            /** Is Actionable */
+            is_actionable: boolean;
         };
         /**
          * ComplianceCitationResponse
@@ -533,6 +634,40 @@ export interface components {
          * @enum {string}
          */
         ImplementationApproach: "standard_product" | "custom_build" | "vendor_solution";
+        /**
+         * MonitoringEntryResponse
+         * @description Ein append-only Monitoring-Eintrag (Monitoring-ADR).
+         *
+         *     status_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,
+         *     kein Live-Verweis).
+         */
+        MonitoringEntryResponse: {
+            /** Id */
+            id: string;
+            /** Case Id */
+            case_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Note */
+            note: string;
+            /** Status Snapshot */
+            status_snapshot: string;
+        };
+        /**
+         * MonitoringNoteRequest
+         * @description Neue Monitoring-Notiz fuer die Zeitleiste eines Case (Monitoring-ADR).
+         *
+         *     note: Pflicht-Freitext (min 1, max 2000 -- Substanz + Token-Flooding-Schutz,
+         *     aect-security-checklist v2.1 Phase A). extra="forbid" konsistent mit den
+         *     uebrigen Request-Schemas.
+         */
+        MonitoringNoteRequest: {
+            /** Note */
+            note: string;
+        };
         /** ROIResponse */
         ROIResponse: {
             /** Theoretical Potential Eur */
@@ -667,6 +802,37 @@ export interface components {
             proposal_text: string;
             /** Prompt Version */
             prompt_version: string;
+        };
+        /**
+         * StatusUpdateRequest
+         * @description Neuer Lifecycle-Status fuer einen Case (Lifecycle-ADR).
+         *
+         *     status: einer der sieben CaseStatus-Werte. Bewusst keine Transitions-Matrix
+         *     -- jeder Zustand ist aus jedem setzbar (menschliche Autoritaet in einem
+         *     Single-User-Build). APPROVED/REJECTED sind hier ebenfalls setzbar, werden
+         *     aber zusaetzlich durch POST /decision gesetzt (Kopplung an ReviewerDecision,
+         *     ADR-0043).
+         *     extra="forbid": konsistent mit DecisionRequest (Eingabe-Disziplin, aect-
+         *     security-checklist v2.1 Phase A).
+         */
+        StatusUpdateRequest: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "submitted" | "in_review" | "approved" | "already_exists" | "integrated" | "rejected" | "implemented";
+        };
+        /**
+         * StatusUpdateResponse
+         * @description Aktueller Lifecycle-Status eines Case nach POST /status.
+         */
+        StatusUpdateResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Status */
+            status: string;
+            /** Updated At */
+            updated_at: string | null;
         };
         /**
          * TechnicalDetailResponse
@@ -1032,6 +1198,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_status_cases__case_id__status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_monitoring_cases__case_id__monitoring_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitoringEntryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_monitoring_note_cases__case_id__monitoring_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonitoringNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitoringEntryResponse"];
                 };
             };
             /** @description Validation Error */
