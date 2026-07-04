@@ -1,25 +1,53 @@
 import type { Metadata } from "next";
 
+import { listCases } from "@/app/actions";
+import { CasesTable } from "@/components/cases-table";
+import type { CaseSummary } from "@/types/api";
+
 export const metadata: Metadata = {
   title: "Ideenliste | AECT",
 };
 
-// Platzhalter -- die sortier-/filterbare Portfolio-Liste wird in P5 gebaut
-// (auf listCases() + STATUS_CONFIG). Route ist ab jetzt erreichbar und in der
-// Navigation verlinkt.
-export default function CasesPage() {
+// Immer frisch laden: nach einem Statuswechsel + Reload muss der neue Stand
+// erscheinen (listCases nutzt cache: "no-store"; force-dynamic verhindert
+// zusaetzlich statisches Prerendering dieser Route).
+export const dynamic = "force-dynamic";
+
+export default async function CasesPage() {
+  let cases: CaseSummary[] = [];
+  let loadError: string | null = null;
+  try {
+    cases = await listCases();
+  } catch (e) {
+    cases = [];
+    loadError =
+      e instanceof Error ? e.message : "Die Liste konnte nicht geladen werden.";
+  }
+
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6">
+    <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
       <p className="eyebrow">Ideenliste</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
         Alle eingereichten Use Cases
       </h1>
-      <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Hier entsteht in P5 die durchsuch- und sortierbare Portfolio-Liste: jeder
-        eingereichte Use Case mit Zone, erwartetem Netto-Nutzen und
-        Lifecycle-Status. Das Fundament (Server Action, Typen, Status-Semantik)
-        steht bereits.
+      <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+        Das gesamte Portfolio auf einen Blick: filtern nach Status und Zone,
+        sortieren nach Nettonutzen oder Einreichdatum, den Lifecycle-Status
+        direkt in der Zeile setzen.
       </p>
+
+      <div className="mt-8">
+        {loadError !== null ? (
+          <p
+            role="alert"
+            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            {loadError}
+          </p>
+        ) : (
+          <CasesTable cases={cases} />
+        )}
+      </div>
     </main>
   );
 }
