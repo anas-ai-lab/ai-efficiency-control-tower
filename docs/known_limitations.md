@@ -1,7 +1,8 @@
 # Known Limitations — AI Efficiency Control Tower (AECT)
 
 > Limitationen offen benennen ist das staerkste Glaubwuerdigkeits-Asset
-> dieses Projekts (Projekt-Prinzip "Grenzen offenlegen"). Gilt fuer v1 — Stand Juni 2026.
+> dieses Projekts (Projekt-Prinzip "Grenzen offenlegen"). #1-#14 gelten fuer v1
+> (Stand Juni 2026); #15-#17 ergaenzen die v3-Control-Tower-Module (Juli 2026).
 
 ---
 
@@ -205,9 +206,10 @@ dort konkret benannt (z. B. mehr als ein gleichzeitiger Reviewer).
 
 ## 12. Frontend: lokal laufend, kein Cloud-Deploy
 
-**Was:** Das Next.js 15 Frontend (App Router, shadcn/ui) ist fertig und laeuft
-lokal auf Port 3000. 6-Schritt-Flow: Intake -> Triage -> Sharpen -> Solution ->
-Compliance -> Report.
+**Was:** Das Next.js 16 Frontend (App Router, shadcn/ui) ist fertig und laeuft
+lokal auf Port 3000. Triage-Flow (Intake -> Triage -> Sharpen -> Solution ->
+Compliance -> Report) plus die v3-Control-Tower-Module (Ideenliste, Board,
+Monitoring).
 
 **Konsequenz:** Demo erfordert zwei laufende Prozesse (uvicorn + npm run dev)
 und Docker fuer ChromaDB. Kein öffentlicher URL -- privates Portfolio-Build
@@ -235,6 +237,67 @@ ist der guenstigere Workaround. Re-Evaluierung nur falls eine dritte Serie droht
 
 ---
 
+## 15. Monitoring ist manuell -- praediktive Validitaet bleibt unmessbar
+
+**Was:** Die Monitoring-Zeitleiste (v3, ADR-0046) fuellt sich ausschliesslich
+durch manuelle Notizen. Es gibt keinen automatischen Abgleich zwischen dem bei
+der Triage vorhergesagten Nutzen (Plan) und einem tatsaechlich realisierten
+Nutzen (Ist).
+
+**Konsequenz:** Das Monitoring dokumentiert den Bearbeitungsverlauf, schliesst
+aber NICHT den Plan-vs-Ist-Loop, der praediktive Validitaet messbar machen
+wuerde. Es ist dieselbe Grenze wie Limitation #1 -- die Zeitleiste macht den
+Verlauf nachvollziehbar, liefert aber keine gemessene Nutzen-Korrektheit. Ein
+Eintrag "Nutzen liegt unter Prognose" ist eine Notiz, kein strukturiertes
+Messsignal, das gegen die Bewertung zurueckfliesst.
+
+**v2-Kandidat:** siehe Limitation #1 -- ein geschlossener Monitoring-Loop mit
+strukturierten Ist-Werten je Case setzt produktiven Einsatz mit abgeschlossenen
+Cases voraus.
+
+---
+
+## 16. Status-Historie: nur Snapshots im Frontend sichtbar
+
+**Was:** Jeder Statuswechsel loggt ein `case_status_changed`-Event in structlog
+(vollstaendiges Audit-Log, ADR-0045). Im Frontend ist die Status-Historie
+jedoch NICHT als vollstaendiges Audit-Log sichtbar -- nur der aktuelle Status
+(Case-Detail) und die `status_snapshot`-Momentaufnahmen in den
+Monitoring-Eintraegen (ADR-0046) zeigen den Verlauf indirekt.
+
+**Konsequenz:** Wer im Frontend rekonstruieren will, wann ein Case von IN_REVIEW
+nach APPROVED wechselte, sieht das nur, wenn zu diesem Zeitpunkt zufaellig eine
+Monitoring-Notiz mit passendem Snapshot angelegt wurde. Der lueckenlose
+Statusverlauf existiert nur in den structlog-Events, nicht in einer abfragbaren
+Frontend-Ansicht.
+
+**v2-Kandidat:** eine eigene Status-Change-Tabelle (append-only, analog
+`monitoring_entries`) mit Frontend-Historie, falls ein lueckenloser
+Statusverlauf gebraucht wird.
+
+---
+
+## 17. Board-Quadranten-Linien sind Platzhalter, keine Schwellen
+
+**Was:** Die Board-Matrix (v3, ADR-0047) zeigt zwei gestrichelte
+Quadranten-Linien (x = 50.000 EUR, y = 6) und vier Ecklabels ("Quick Wins",
+"Nice to have", "Strategische Wetten", "Vermeiden"). Diese Werte sind statisch im
+Frontend hartcodiert (`board-matrix.tsx`, `QUADRANT_X`/`QUADRANT_Y`), NICHT aus
+`config/zone_thresholds.yaml` gelesen.
+
+**Konsequenz:** Die Linien sind eine visuelle Lese-Hilfe zur groben Gruppierung,
+KEINE Geschaeftsregel. Die tatsaechliche Triage-Zone transportiert die
+Punktfarbe -- nicht die Position relativ zur Linie. Das Backend exponiert die
+echten Schwellen bewusst nicht (IP-Trennung), darum kann die Board-Ansicht sie
+nicht spiegeln. Ein Punkt links der 50.000-Linie ist nicht automatisch
+MARGINAL_GAIN.
+
+**Bewusst so:** Eine aus der Config gelesene Schwellen-Linie wuerde den
+Eindruck einer zweiten, eventuell abweichenden Klassifikation erzeugen. Die
+Farbe ist die einzige Wahrheit; die Linien sind Dekoration mit Orientierungswert.
+
+---
+
 ---
 
 ## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
@@ -253,6 +316,6 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: Tag 83 (2026-06-27) -- v1.1.0. Phase-G-Triage aller 14
-Punkte (bewusstes Design / v1-Grenze + v2-Roadmap) in
-`docs/reviews/phase-g-review.md` SS3.*
+*Letzte Aktualisierung: 2026-07-05 -- v3.0.0 (Control-Tower-Closeout, #15-#17
+ergaenzt). Phase-G-Triage der urspruenglichen 14 Punkte (bewusstes Design /
+v1-Grenze + v2-Roadmap) in `docs/reviews/phase-g-review.md` SS3.*

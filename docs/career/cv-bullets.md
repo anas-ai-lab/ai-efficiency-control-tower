@@ -17,7 +17,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 - Vollstaendiges ROI-Bewertungsmodell deterministisch implementiert
   (Lookup-Tabellen je Land x Senioraet, Composite-Aufwand-Score,
-  3-Zonen-Einstufung) -- 449 Tests, 97% Coverage, kein LLM fuer Zahlen
+  3-Zonen-Einstufung) -- 670 Tests, 96% Coverage, kein LLM fuer Zahlen
 
 - Hexagonale Architektur: Domain-Layer vollstaendig isoliert von LLM-,
   Datenbank- und API-Adaptern; Adapter-Swap ohne Domain-Code-Aenderung
@@ -30,9 +30,15 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - LLM-Integration: Azure OpenAI EU-Datenzone, Function-Calling-Loop,
   Graceful Degradation, Cost-Logger (tiktoken), Resilience (tenacity)
 
-- Frontend: Next.js 15 (App Router, shadcn/ui, TypeScript strict),
+- Frontend: Next.js 16 (App Router, shadcn/ui, TypeScript strict),
   6-Schritt-Flow Intake bis Report, Server Actions fuer API-Key-
   Sicherheit (kein Secret im Client-Bundle)
+
+- Control-Tower-Layer (v3): Case-Lifecycle-Status (7 Zustaende, an die
+  Reviewer-Freigabe gekoppelt), Portfolio-Board als Nutzen-Machbarkeits-Matrix
+  (recharts: Nettonutzen x invertierter Aufwand-Score, Zone als Farbe),
+  append-only Monitoring-Zeitleiste mit Status-Snapshots (Lost-Update-sicher
+  per INSERT statt JSON-Rewrite, F-011) -- ADR-0045/0046/0047
 
 - Eval-Framework: JSONL Golden-Cases, 3-valued Match (True/False/None),
   Score-Breakdown-Diagnostik, 36 synthetische Cases fuer Konsistenz-Test,
@@ -49,12 +55,12 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 ## Entscheidungs-Bullets
 
-- 41 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
+- 53 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
 
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
   (begruendet im projekteigenen Strategiedokument mit Aenderungshistorie)
 
-- 14 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
+- 17 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
   staerker als Marketing-Darstellung ohne Schwaechen
 
 ---
@@ -68,7 +74,8 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 | Security | OWASP LLM01 -- 4 Lagen, Flagging vor Blocking |
 | Architektur | Adapter-Swap: AzureOpenAI -> Mock in einer Zeile |
 | Schwaeche benennen | Enge LIKELY_WIN-Schwelle + Hard-Threshold-Brittleness -- Agreement 9/24 Golden-Cases, Divergenzen dokumentiert statt kaschiert |
+| Datenmodell-Design | Append-only Monitoring statt JSON-Rewrite -- Lost-Update strukturell vermieden (F-011, ADR-0046) |
 
 ---
 
-*v1.0 -- Juni 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*
+*v3.0 -- Juli 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*

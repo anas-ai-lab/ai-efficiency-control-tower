@@ -142,6 +142,55 @@ Use-Case-Prioritaeten falsch setzt, kostet reale Budgets. Verteidigt als Projekt
 
 ---
 
+## Control-Tower (v3)
+
+**Warum append-only fuer die Monitoring-Zeitleiste?**
+
+Zwei Gruende, beide strukturell. Erstens Lost-Update: eine JSON-Liste am Case,
+an die man Eintraege anhaengt, muesste man lesen -> ergaenzen -> zurueckschreiben.
+Zwei parallele Notizen (oder eine Notiz parallel zu einem LLM-Feld-Write, der die
+ganze Zeile via `save()` ersetzt) lesen denselben Ausgangsstand; der langsamere
+Write gewinnt und verschluckt den anderen Eintrag. Genau das Muster, das schon
+die per-Feld-UPDATEs motiviert hat (F-011). Ein eigener INSERT je Eintrag hat das
+Problem strukturell nicht -- Zeilen kollidieren nicht. Zweitens Audit-Charakter:
+der Zweck der Zeitleiste IST die Historie. Ein ueberschreibbares Feld beantwortet
+"wie ist der Stand jetzt", nicht "was ist wann passiert". Es gibt bewusst keine
+UPDATE- und keine Einzel-DELETE-Methode -- ein Eintrag ist damit nicht
+faelschbar. Append-only ist hier das Feature, nicht eine Einschraenkung
+(ADR-0046). Die einzige Loeschung ist die DSGVO-Art.-17-Kaskade beim Loeschen
+des ganzen Case.
+
+**Warum recharts statt einer selbstgebauten SVG-Matrix?**
+
+Build-vs-Buy. Ein Scatter mit skalierten Achsen, invertierter y-Domain,
+Bubble-Groesse, Tooltip-Hit-Testing, responsivem Reflow und Klick-Navigation ist
+genau die Menge Arbeit, die eine Chart-Lib loest. Selbstbau haette Achsen-Ticks,
+Domain-Padding, Hover-Treffererkennung und Resize-Logik reproduziert -- viel
+fehleranfaelliger Code fuer null Differenzierung. D3 waere imperativ und
+React-fremd, Plotly gross und ueberdimensioniert; recharts ist deklarativ und
+React-nativ. Der Nettonutzen einer Portfolio-Ansicht liegt in der Aussage, nicht
+in einer handgeschriebenen Rendering-Engine -- dieselbe Abwaegung wie bei zod
+oder shadcn/ui. Eine dokumentierte Reibung: recharts loest `var(--token)` im
+SVG-`fill` nicht auf, darum werden die Zonen-Farben via `getComputedStyle` gelesen
+und bei Dark-Mode-Wechsel per MutationObserver neu aufgeloest (ADR-0047).
+
+**Warum ein Status-Enum mit Decision-Kopplung statt einem einzigen System?**
+
+Es sind zwei orthogonale Achsen. `reviewer_decision` (ADR-0043) beantwortet
+"ist der Case freigegeben?" (PENDING/APPROVED/REJECTED). `CaseStatus` (ADR-0045)
+beantwortet "wo im Bearbeitungsfluss steht er?" (SUBMITTED, IN_REVIEW, INTEGRATED,
+IMPLEMENTED ...). Ein Case kann freigegeben UND noch nicht integriert sein --
+beide Achsen zusammen in ein Enum zu ziehen braeuchte ein Kreuzprodukt der Werte.
+Getrennte Felder halten beide Achsen unabhaengig les- und setzbar. Die Kopplung
+ist gezielt und einseitig: `record_decision()` setzt zusaetzlich den
+Lifecycle-Status (APPROVED/REJECTED), damit der Lifecycle nie im Widerspruch zur
+fachlichen Freigabe steht -- die Freigabe gewinnt und darf einen manuell
+gesetzten Status ueberschreiben. Bewusst KEINE Transitions-Matrix: der
+Single-User-Inhaber des API-Keys ist die Autoritaet ueber den Stand, eine
+erzwungene Matrix wuerde nur legitime Korrekturen blockieren (ADR-0045).
+
+---
+
 ## Haertere Reviewer-Fragen (Senior-Challenge)
 
 **Ist Hexagonal fuer ein Single-User-Tool nicht Over-Engineering?**

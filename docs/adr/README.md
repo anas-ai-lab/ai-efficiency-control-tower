@@ -1,10 +1,10 @@
 # Architecture Decision Log -- AECT
 
-49 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+53 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
-> (Phase C+). Historisch gewachsen; bewusst NICHT konsolidiert (Rename aller 41 +
+> (Phase C+). Historisch gewachsen; bewusst NICHT konsolidiert (Rename aller +
 > Querverweise = hohe Churn, null funktionaler Gewinn -- known_limitations #13,
 > Entscheidung G-S6). Vor einer neuen ADR `ls docs/adr/` pruefen.
 
@@ -34,6 +34,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0041](0041-key-vault-settings-source.md) | Key-Vault-Referenzen statt Env-Strings (Design, ohne Live-Azure verifiziert) |
 | [0042](0042-retention-scheduled-job.md) | Retention-Enforcement als Scheduled Job (Design, kein Deploy) |
 | [0043](0043-decision-record-statt-reviewer-workflow.md) | Human-in-the-Loop-Decision-Record statt vollem Reviewer-Workflow |
+| [0044](0044-country-and-employee-level-schema-change.md) | Country- und Employee-Level-Schema-Erweiterung (5 Level, Impl.-Kosten) |
 
 ## LLM-Integration
 
@@ -76,6 +77,14 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0030](0030-eval-runner-report-format.md) | Eval-Runner-Vergleichslogik und Report-Format |
 | [0031](0031-score-breakdown-diagnostik.md) | Score-Breakdown als separate Diagnostik-Schicht |
 | [0032](0032-eval-gate-mechanik.md) | Eval-Gate E->F: pytest-Regression |
+
+## Control-Tower & Lifecycle (v3)
+
+| ADR | Titel |
+|---|---|
+| [0045](0045-case-lifecycle-status.md) | Case-Lifecycle-Status (7 Zustaende, an ReviewerDecision gekoppelt) |
+| [0046](0046-monitoring-append-only-timeline.md) | Monitoring-Zeitleiste als append-only Tabelle |
+| [0047](0047-portfolio-board-matrix.md) | Portfolio-Board: Nutzen-Machbarkeits-Matrix (recharts) |
 
 ## Compliance, Observability & Deployment
 

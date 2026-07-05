@@ -4,7 +4,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![CI](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml)
-[![Coverage: 97%](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)]()
+[![Coverage: 96%](https://img.shields.io/badge/coverage-96%25-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -110,6 +110,52 @@ Sequenzdiagrammen (Triage, RAG-Compliance, Function-Calling): [`docs/architectur
 
 ---
 
+## Control-Tower-Module (v3)
+
+Ueber den linearen Triage-Flow (Intake -> Report) legt v3 eine Portfolio- und
+Lifecycle-Schicht: eingereichte Cases werden nicht nur einzeln bewertet, sondern
+als Bestand gefuehrt, verglichen und ueber die Zeit begleitet.
+
+**Ideenliste (`/cases`)** -- alle eingereichten Cases als Tabelle mit
+Status-Verwaltung. Jeder Case traegt einen `CaseStatus` (7 Zustaende: SUBMITTED,
+IN_REVIEW, APPROVED, ALREADY_EXISTS, INTEGRATED, REJECTED, IMPLEMENTED). Der
+Status ist bewusst frei setzbar (keine erzwungene Transitions-Matrix) und an die
+Reviewer-Freigabe gekoppelt -- eine Freigabe setzt zugleich den Lifecycle-Status
+([ADR-0045](docs/adr/0045-case-lifecycle-status.md)).
+
+**Board-Matrix (`/board`)** -- ein Streudiagramm (recharts), das jeden bewerteten
+Case als Blase im Portfolio verortet:
+
+- **x-Achse:** erwarteter **Nettonutzen** pro Jahr (Potenzial x Nutzungsfaktor x
+  Evidenzfaktor abzueglich Lizenzkosten) -- netto, nicht das Brutto-Potenzial.
+- **y-Achse:** **Machbarkeit** -- der Aufwand-Score (2-10) invertiert dargestellt:
+  oben = geringer Aufwand = hohe Machbarkeit. So gilt die Lesart "gut = oben rechts".
+- **Blasengroesse:** eingesparte Arbeitsstunden pro Jahr.
+- **Farbe:** die Triage-Zone (LIKELY_WIN / CALCULATED_RISK / MARGINAL_GAIN).
+
+Die gestrichelten Quadranten-Linien und die Ecklabels ("Quick Wins" etc.) sind
+eine **reine Lese-Hilfe, keine Schwellen** -- statisch gesetzt, nicht aus der
+Config gelesen ([ADR-0047](docs/adr/0047-portfolio-board-matrix.md),
+`known_limitations.md` #17).
+
+**Monitoring-Zeitleiste (`/monitoring`, Case-Detail)** -- pro Case eine
+chronologische Liste manueller Beobachtungen ("Pilot gestartet", "Feedback
+eingeholt"). Die Zeitleiste ist **manuell gepflegt und append-only**: jeder
+Eintrag ist ein eigener INSERT mit Zeitstempel und einer Momentaufnahme des
+damaligen Status (`status_snapshot`); es gibt bewusst keine Update- oder
+Einzel-Delete-Methode. Append-only ist hier das Feature (Audit-Charakter), kein
+Mangel -- eine einmal festgehaltene Notiz bleibt unveraenderlich
+([ADR-0046](docs/adr/0046-monitoring-append-only-timeline.md)).
+
+*Screenshots: `docs/screenshots/board.png`, `docs/screenshots/monitoring.png` (Platzhalter).*
+
+Grenzen dieser Module offen dokumentiert in `docs/known_limitations.md` (#15-#17):
+Monitoring ist manuell -- praediktive Validitaet bleibt unmessbar (#1); die
+Status-Historie ist im Frontend nur ueber Monitoring-Snapshots sichtbar, das
+vollstaendige Audit-Log liegt in structlog.
+
+---
+
 ## Tech Stack
 
 | Schicht | Technologie |
@@ -145,7 +191,7 @@ Sequenzdiagrammen (Triage, RAG-Compliance, Function-Calling): [`docs/architectur
 | Semantic Caching / Model Routing abgelehnt | [0034](docs/adr/0034-semantic-caching-model-routing.md) | 0,003 EUR/Case, PII-in-Cache-Risiko, semantisch einzigartige Einreichungen = niedrige Hit-Rate |
 | Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung ausstehend; Demo via localhost vollstaendig erfuellbar |
 
-Alle 41 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
+Alle 53 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
 ---
 
@@ -161,7 +207,7 @@ Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
 | Cohen's Kappa (n=21, ohne Vorfilter-Ablehnungen) | 0,13 ("leicht") |
 | Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4) |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
-| Test-Coverage | 97 % (488 Tests) |
+| Test-Coverage | 96 % (670 Tests) |
 
 **Was die Eval-Zahlen bedeuten:**
 Das urspruengliche Sample (4 Cases, 3 gelabelt, Agreement 1/3) war zu klein fuer eine
@@ -266,7 +312,7 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 493 Tests (488 passed, 5 skipped), 97 % Coverage (pytest, hypothesis, httpx TestClient)
+tests/           # 675 Tests (670 passed, 5 skipped), 96 % Coverage (pytest, hypothesis, httpx TestClient)
 evals/
   golden/        # 25 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)
@@ -275,7 +321,7 @@ prompts/         # Versionierte Prompt-Dateien (v1)
 config/          # TOML/YAML-Config (ROI-Faktoren, Zonen-Schwellen, Stack-Optionen)
 scripts/         # Seeder, Eval-Runner, Diagnostics, synthetische Case-Generierung
 docs/
-  adr/           # 41 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
+  adr/           # 53 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
   reviews/       # Phasen-Reviews (A-F)
   threat-model.md
   limitations.md
