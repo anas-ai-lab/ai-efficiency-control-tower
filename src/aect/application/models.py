@@ -33,6 +33,44 @@ class SimilarityWarning(BaseModel):
     suggest_combine: bool
 
 
+class SimilarityPair(BaseModel):
+    """Ein Paar aehnlicher, bereits eingereichter Cases (Dedup-View, P9).
+
+    Dieselbe Cosinus-/Schwellen-Logik wie SimilarityWarning beim Intake
+    (_cosine_similarity + _DEDUP_THRESHOLD_* in service.py), nur aggregiert:
+    statt "neuer Case vs. bestehende" hier "alle bestehenden paarweise".
+
+    case_a/case_b: deterministisch nach id sortiert (case_a.id < case_b.id) --
+    ein Paar hat unabhaengig von der Iterationsreihenfolge dieselbe Gestalt.
+    similarity_score: Cosinus-Aehnlichkeit [0.0, 1.0], auf 4 Nachkommastellen
+    gerundet (analog SimilarityWarning). suggest_combine: True ab der hoeheren
+    Schwelle (>= 0.90) -- "wahrscheinlich derselbe Use Case".
+    """
+
+    case_a_id: str
+    case_a_title: str
+    case_b_id: str
+    case_b_title: str
+    similarity_score: float
+    suggest_combine: bool
+
+
+class SimilarityPairsResult(BaseModel):
+    """Aggregierte Dedup-Beziehungen ueber alle persistierten Cases (P9).
+
+    pairs: alle Case-Paare mit Cosinus-Aehnlichkeit >= Awareness-Schwelle
+    (>= 0.75), absteigend nach score sortiert (deterministisch, Sekundaer-
+    schluessel case_a_id/case_b_id). Leer, wenn kein Paar die Schwelle erreicht.
+    cases_without_embedding: Anzahl Cases ohne persistiertes Embedding -- der
+    Embedder war beim Intake nicht verfuegbar (Mock-/Testbetrieb) oder der Case
+    stammt aus einer aelteren DB-Version. Sie fliessen nicht in die Paarbildung
+    ein; der Zaehler macht diese Luecke im UI transparent.
+    """
+
+    pairs: list[SimilarityPair]
+    cases_without_embedding: int
+
+
 @dataclass
 class SubmittedCase:
     """Persistiertes Ergebnis einer Use-Case-Einreichung.

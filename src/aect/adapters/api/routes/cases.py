@@ -97,6 +97,81 @@ async def list_cases(
     return summaries
 
 
+class SimilarityPairResponse(BaseModel):
+    """Ein Paar aehnlicher Cases fuer die Dedup-View (P9, ADR-0039).
+
+    case_a/case_b sind deterministisch nach id sortiert (case_a_id < case_b_id).
+    similarity_score: Cosinus-Aehnlichkeit [0.0, 1.0], 4 Nachkommastellen.
+    suggest_combine: True ab der hoeheren Schwelle (>= 0.90).
+    extra="forbid": strikter Vertrag (Paragraph 3.5), konsistent mit den
+    uebrigen Schemas dieses Moduls.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_a_id: str
+    case_a_title: str
+    case_b_id: str
+    case_b_title: str
+    similarity_score: float
+    suggest_combine: bool
+
+
+class SimilarityPairsResponse(BaseModel):
+    """Aggregierte Dedup-Beziehungen ueber alle Cases (P9).
+
+    pairs: absteigend nach score (deterministisch). cases_without_embedding:
+    Anzahl Cases ohne Embedding (Embedder beim Intake nicht verfuegbar) --
+    fliessen nicht in die Paarbildung ein, der Zaehler macht die Luecke sichtbar.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pairs: list[SimilarityPairResponse]
+    cases_without_embedding: int
+
+
+# Routing-Reihenfolge (FastAPI matcht in Registrierungs-Reihenfolge): die
+# literale Route "/cases/similarity-pairs" steht bewusst VOR jeder
+# parametrisierten "/cases/{case_id}"-Route. Heute existiert zwar keine GET
+# "/cases/{case_id}"-Route, die sie schlucken koennte, aber diese Position
+# haelt die literale Route auch dann kollisionsfrei, wenn spaeter eine
+# GET-Detail-Route ergaenzt wird (Kommentar-Hinweis oben in diesem Modul).
+@router.get("/similarity-pairs", response_model=SimilarityPairsResponse)
+@limiter.limit("60/minute")
+async def list_similarity_pairs(
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> SimilarityPairsResponse:
+    """Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und
+    GET /cases/{id}/monitoring.
+
+    Read-only: kein Schreiben, kein LLM-Call. Nutzt dieselbe Cosinus-/Schwellen-
+    Logik wie die Intake-Dedup-Pruefung (application/service.py).
+    """
+    result = await service.list_similarity_pairs()
+    return SimilarityPairsResponse(
+        pairs=[
+            SimilarityPairResponse(
+                case_a_id=pair.case_a_id,
+                case_a_title=pair.case_a_title,
+                case_b_id=pair.case_b_id,
+                case_b_title=pair.case_b_title,
+                similarity_score=pair.similarity_score,
+                suggest_combine=pair.suggest_combine,
+            )
+            for pair in result.pairs
+        ],
+        cases_without_embedding=result.cases_without_embedding,
+    )
+
+
 @router.delete("/{case_id}", status_code=204)
 @limiter.limit("10/minute")
 async def delete_case(

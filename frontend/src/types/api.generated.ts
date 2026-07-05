@@ -96,6 +96,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/similarity-pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Similarity Pairs
+         * @description Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und
+         *     GET /cases/{id}/monitoring.
+         *
+         *     Read-only: kein Schreiben, kein LLM-Call. Nutzt dieselbe Cosinus-/Schwellen-
+         *     Logik wie die Intake-Dedup-Pruefung (application/service.py).
+         */
+        get: operations["list_similarity_pairs_cases_similarity_pairs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}": {
         parameters: {
             query?: never;
@@ -769,6 +797,44 @@ export interface components {
             prompt_version: string;
         };
         /**
+         * SimilarityPairResponse
+         * @description Ein Paar aehnlicher Cases fuer die Dedup-View (P9, ADR-0039).
+         *
+         *     case_a/case_b sind deterministisch nach id sortiert (case_a_id < case_b_id).
+         *     similarity_score: Cosinus-Aehnlichkeit [0.0, 1.0], 4 Nachkommastellen.
+         *     suggest_combine: True ab der hoeheren Schwelle (>= 0.90).
+         *     extra="forbid": strikter Vertrag (Paragraph 3.5), konsistent mit den
+         *     uebrigen Schemas dieses Moduls.
+         */
+        SimilarityPairResponse: {
+            /** Case A Id */
+            case_a_id: string;
+            /** Case A Title */
+            case_a_title: string;
+            /** Case B Id */
+            case_b_id: string;
+            /** Case B Title */
+            case_b_title: string;
+            /** Similarity Score */
+            similarity_score: number;
+            /** Suggest Combine */
+            suggest_combine: boolean;
+        };
+        /**
+         * SimilarityPairsResponse
+         * @description Aggregierte Dedup-Beziehungen ueber alle Cases (P9).
+         *
+         *     pairs: absteigend nach score (deterministisch). cases_without_embedding:
+         *     Anzahl Cases ohne Embedding (Embedder beim Intake nicht verfuegbar) --
+         *     fliessen nicht in die Paarbildung ein, der Zaehler macht die Luecke sichtbar.
+         */
+        SimilarityPairsResponse: {
+            /** Pairs */
+            pairs: components["schemas"]["SimilarityPairResponse"][];
+            /** Cases Without Embedding */
+            cases_without_embedding: number;
+        };
+        /**
          * SimilarityWarning
          * @description Hinweis auf einen aehnlichen, bereits eingereichten Case (L-3, ADR-0039).
          *
@@ -1143,6 +1209,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseSummary"][];
+                };
+            };
+        };
+    };
+    list_similarity_pairs_cases_similarity_pairs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarityPairsResponse"];
                 };
             };
         };

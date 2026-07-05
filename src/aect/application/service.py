@@ -23,6 +23,8 @@ from aect.application.models import (
     MonitoringEntry,
     ReportResult,
     SharpenedUseCase,
+    SimilarityPair,
+    SimilarityPairsResult,
     SimilarityWarning,
     SolutionProposal,
     SubmittedCase,
@@ -445,6 +447,66 @@ class TriageService:
             similar_case_title=best_case.use_case.title,
             similarity_score=round(best_score, 4),
             suggest_combine=best_score >= _DEDUP_THRESHOLD_COMBINE,
+        )
+
+    async def list_similarity_pairs(self) -> SimilarityPairsResult:
+        """Aggregiert alle Dedup-Beziehungen ueber die persistierten Cases (P9).
+
+        Read-only Gegenstueck zu check_similarity(): dort "neuer Case vs.
+        bestehende" beim Intake, hier "alle bestehenden paarweise" fuer eine
+        Dedup-Uebersicht. Dieselbe Cosinus-Funktion (_cosine_similarity) und
+        dieselben BEIDEN Schwellen (_DEDUP_THRESHOLD_AWARENESS/_COMBINE) --
+        eine Quelle im Code, keine zweite Implementierung.
+
+        Nur Cases mit persistiertem Embedding gehen in die Paarbildung ein;
+        Cases ohne Embedding (Embedder beim Intake nicht verfuegbar, oder Case
+        aus einer aelteren DB-Version) werden gezaehlt und in
+        cases_without_embedding zurueckgegeben, damit die Luecke im UI sichtbar
+        bleibt statt still zu verschwinden.
+
+        Komplexitaet O(n^2): bewusste Entscheidung fuer einen privaten Build
+        ohne Pagination-Scope (SDR-0002 Paragraph 12) -- die paarweise
+        Vollvergleichs-Matrix ueber eine kleine Portfolio-Datenmenge ist
+        akzeptabel; kein ADR, siehe Daily-Note.
+
+        Reine Lese-Operation: kein Schreiben in die DB, kein LLM-Call, keine
+        Aenderung an der Intake-Dedup-Logik.
+        """
+        all_cases = await self._repository.list_all_async()
+        # Embedding-Narrowing im Comprehension-Guard: (case, embedding) mit
+        # embedding als list[float] (nicht None) -- mypy-sauber ohne assert.
+        with_embedding = [
+            (case, case.embedding) for case in all_cases if case.embedding is not None
+        ]
+        cases_without_embedding = len(all_cases) - len(with_embedding)
+
+        pairs: list[SimilarityPair] = []
+        for i in range(len(with_embedding)):
+            case_a, embedding_a = with_embedding[i]
+            for j in range(i + 1, len(with_embedding)):
+                case_b, embedding_b = with_embedding[j]
+                score = _cosine_similarity(embedding_a, embedding_b)
+                if score < _DEDUP_THRESHOLD_AWARENESS:
+                    continue
+                # case_a/case_b deterministisch nach id -- ein Paar hat
+                # unabhaengig von der Iterationsreihenfolge dieselbe Gestalt.
+                first, second = sorted((case_a, case_b), key=lambda c: c.id)
+                pairs.append(
+                    SimilarityPair(
+                        case_a_id=first.id,
+                        case_a_title=first.use_case.title,
+                        case_b_id=second.id,
+                        case_b_title=second.use_case.title,
+                        similarity_score=round(score, 4),
+                        suggest_combine=score >= _DEDUP_THRESHOLD_COMBINE,
+                    )
+                )
+
+        # Absteigend nach score; Sekundaerschluessel (case_a_id, case_b_id)
+        # haelt die Reihenfolge bei Gleichstand deterministisch.
+        pairs.sort(key=lambda p: (-p.similarity_score, p.case_a_id, p.case_b_id))
+        return SimilarityPairsResult(
+            pairs=pairs, cases_without_embedding=cases_without_embedding
         )
 
     def get_case(self, case_id: str) -> SubmittedCase | None:

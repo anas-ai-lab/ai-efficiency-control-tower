@@ -101,6 +101,33 @@
         ]
       }
     },
+    "/cases/similarity-pairs": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "List Similarity Pairs",
+        "description": "Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und\nGET /cases/{id}/monitoring.\n\nRead-only: kein Schreiben, kein LLM-Call. Nutzt dieselbe Cosinus-/Schwellen-\nLogik wie die Intake-Dedup-Pruefung (application/service.py).",
+        "operationId": "list_similarity_pairs_cases_similarity_pairs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarityPairsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
     "/cases/{case_id}": {
       "delete": {
         "tags": [
@@ -1468,6 +1495,69 @@
         ],
         "title": "SharpenedCaseResponse",
         "description": "Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).\n\nErfolg: sharpened_title/current_state/desired_state gesetzt,\nimprovement_suggestions hat 1-10 Eintraege, raw_text ist None.\nGraceful Degradation: die drei sharpened_*-Felder sind None,\nimprovement_suggestions ist leer, raw_text enthaelt die rohe\nLLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,\nkein Crash bei Format-Verstoss)."
+      },
+      "SimilarityPairResponse": {
+        "properties": {
+          "case_a_id": {
+            "type": "string",
+            "title": "Case A Id"
+          },
+          "case_a_title": {
+            "type": "string",
+            "title": "Case A Title"
+          },
+          "case_b_id": {
+            "type": "string",
+            "title": "Case B Id"
+          },
+          "case_b_title": {
+            "type": "string",
+            "title": "Case B Title"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "suggest_combine": {
+            "type": "boolean",
+            "title": "Suggest Combine"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "case_a_id",
+          "case_a_title",
+          "case_b_id",
+          "case_b_title",
+          "similarity_score",
+          "suggest_combine"
+        ],
+        "title": "SimilarityPairResponse",
+        "description": "Ein Paar aehnlicher Cases fuer die Dedup-View (P9, ADR-0039).\n\ncase_a/case_b sind deterministisch nach id sortiert (case_a_id < case_b_id).\nsimilarity_score: Cosinus-Aehnlichkeit [0.0, 1.0], 4 Nachkommastellen.\nsuggest_combine: True ab der hoeheren Schwelle (>= 0.90).\nextra=\"forbid\": strikter Vertrag (Paragraph 3.5), konsistent mit den\nuebrigen Schemas dieses Moduls."
+      },
+      "SimilarityPairsResponse": {
+        "properties": {
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarityPairResponse"
+            },
+            "type": "array",
+            "title": "Pairs"
+          },
+          "cases_without_embedding": {
+            "type": "integer",
+            "title": "Cases Without Embedding"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pairs",
+          "cases_without_embedding"
+        ],
+        "title": "SimilarityPairsResponse",
+        "description": "Aggregierte Dedup-Beziehungen ueber alle Cases (P9).\n\npairs: absteigend nach score (deterministisch). cases_without_embedding:\nAnzahl Cases ohne Embedding (Embedder beim Intake nicht verfuegbar) --\nfliessen nicht in die Paarbildung ein, der Zaehler macht die Luecke sichtbar."
       },
       "SimilarityWarning": {
         "properties": {

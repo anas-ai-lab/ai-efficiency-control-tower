@@ -1548,3 +1548,107 @@ class TestGenerateComplianceHintsMarkerValidation:
         ]
         assert len(events) == 1
         assert events[0]["markers"] == [3, 99]
+
+
+# ---------------------------------------------------------------------------
+# P9 Dedup-View: aggregierte Similarity-Pairs (list_similarity_pairs)
+# ---------------------------------------------------------------------------
+
+
+class TestTriageServiceListSimilarityPairs:
+    """Read-only Aggregation der Dedup-Beziehungen ueber alle Cases (P9).
+
+    Nutzt dieselbe Cosinus-/Schwellen-Logik wie check_similarity(); die Tests
+    seeden Embeddings direkt in den Repo (_seed_embedding), ganz ohne Embedder
+    -- list_similarity_pairs() liest nur persistierte Vektoren."""
+
+    async def test_empty_db_returns_empty_pairs(self, roi_config: ROIConfig) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.list_similarity_pairs()
+        assert result.pairs == []
+        assert result.cases_without_embedding == 0
+
+    async def test_three_cases_expected_pairs_and_scores(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config, ids=["case-a", "case-b", "case-c"])
+        a = service.submit_use_case(sample_use_case)
+        b = service.submit_use_case(sample_use_case)
+        c = service.submit_use_case(sample_use_case)
+        # a==b (cosine 1.0 -> combine), a/c und b/c je 0.8 (Awareness, kein combine).
+        _seed_embedding(repo, a, [1.0, 0.0])
+        _seed_embedding(repo, b, [1.0, 0.0])
+        _seed_embedding(repo, c, [0.8, 0.6])
+
+        result = await service.list_similarity_pairs()
+
+        assert result.cases_without_embedding == 0
+        assert len(result.pairs) == 3
+        # Absteigend nach score; Gleichstand nach (case_a_id, case_b_id).
+        top = result.pairs[0]
+        assert (top.case_a_id, top.case_b_id) == ("case-a", "case-b")
+        assert top.similarity_score == pytest.approx(1.0)
+        assert top.suggest_combine is True
+        # Titel werden mitgeliefert (Dedup-View).
+        assert top.case_a_title == sample_use_case.title
+        # Die beiden 0.8-Paare, deterministisch geordnet.
+        assert [(p.case_a_id, p.case_b_id) for p in result.pairs[1:]] == [
+            ("case-a", "case-c"),
+            ("case-b", "case-c"),
+        ]
+        for pair in result.pairs[1:]:
+            assert pair.similarity_score == pytest.approx(0.8)
+            assert pair.suggest_combine is False
+
+    async def test_case_without_embedding_is_skipped_and_counted(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config, ids=["case-a", "case-b", "case-c"])
+        a = service.submit_use_case(sample_use_case)
+        b = service.submit_use_case(sample_use_case)
+        service.submit_use_case(sample_use_case)  # case-c bleibt ohne Embedding
+        _seed_embedding(repo, a, [1.0, 0.0])
+        _seed_embedding(repo, b, [1.0, 0.0])
+
+        result = await service.list_similarity_pairs()
+
+        assert result.cases_without_embedding == 1
+        assert len(result.pairs) == 1
+        assert (result.pairs[0].case_a_id, result.pairs[0].case_b_id) == (
+            "case-a",
+            "case-b",
+        )
+
+    async def test_just_below_awareness_threshold_yields_no_pair(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config, ids=["case-a", "case-b"])
+        a = service.submit_use_case(sample_use_case)
+        b = service.submit_use_case(sample_use_case)
+        # cosine([1,0],[1,1]) = 1/sqrt(2) = 0.7071 < 0.75 (Awareness-Schwelle).
+        _seed_embedding(repo, a, [1.0, 0.0])
+        _seed_embedding(repo, b, [1.0, 1.0])
+
+        result = await service.list_similarity_pairs()
+
+        assert result.pairs == []
+        assert result.cases_without_embedding == 0
+
+    async def test_combine_threshold_boundary_is_inclusive(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config, ids=["case-a", "case-b"])
+        a = service.submit_use_case(sample_use_case)
+        b = service.submit_use_case(sample_use_case)
+        # Zwei Einheitsvektoren mit dot = 0.9 -> cosine exakt 0.90 (== Combine-
+        # Schwelle). suggest_combine ist >= (inklusiv), also True am Rand.
+        import math as _math
+
+        _seed_embedding(repo, a, [1.0, 0.0])
+        _seed_embedding(repo, b, [0.9, _math.sqrt(1.0 - 0.81)])
+
+        result = await service.list_similarity_pairs()
+
+        assert len(result.pairs) == 1
+        assert result.pairs[0].similarity_score == pytest.approx(0.9)
+        assert result.pairs[0].suggest_combine is True
