@@ -40,6 +40,7 @@ from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.prompts import load_prompt
 from aect.application.sanitization import detect_injection_patterns
 from aect.application.structured_output import (
+    IdeationResult,
     InvalidLLMOutputError,
     SharpenedContentV2,
     parse_structured_llm_output,
@@ -1106,6 +1107,58 @@ class TriageService:
             citations=citations,
             prompt_version=prompt_version,
         )
+
+    async def ideate(self, problem_description: str) -> tuple[IdeationResult, bool]:
+        """Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
+
+        Ephemer (D16): KEINE Persistenz -- kein Repository-Aufruf, kein Case.
+        Die Entwuerfe leben nur in der Response.
+
+        Reihenfolge exakt wie der bestehende LLM-Pfad (sharpen_case/
+        propose_solution):
+        1. PII-Redaction: nur wenn ein Redactor injiziert ist (Mock-/Testbetrieb
+           None -> Text geht unredaktiert weiter, identisch zu check_similarity).
+        2. Injection-Sanitization (D21, OWASP LLM01): FLAGGEN, nicht BLOCKEN.
+           Erkannte Muster werden geloggt (nur Pattern-Namen, kein Body --
+           Logging-Allowlist) und als flagged in der Response gefuehrt; der
+           LLM-Call laeuft trotzdem. Geprueft wird der (ggf. redaktierte) Text,
+           der auch an das LLM geht.
+        3. LLM-Call: generate_ideation() validiert die rohe Antwort gegen
+           IdeationResult (Output als untrusted, ADR-0013). Eine
+           InvalidLLMOutputError propagiert -- die Route mappt sie auf einen
+           sauberen HTTP-Fehler (kein 500-Stack-Trace).
+
+        Log-Event ideation_requested: flagged + draft_count, KEIN Problemtext
+        (Allowlist-Regel). request_id kommt ueber structlog-contextvars
+        (CorrelationIDMiddleware) automatisch dazu.
+
+        Returns:
+            (IdeationResult, flagged) -- flagged True, wenn im Input ein
+            Injection-Muster erkannt wurde.
+        """
+        logger = structlog.get_logger()
+
+        description = problem_description
+        if self._redactor is not None:
+            description = self._redactor.redact(description)
+
+        detected = detect_injection_patterns(description)
+        flagged = bool(detected)
+        if flagged:
+            logger.warning(
+                "injection_pattern_detected",
+                operation="ideation",
+                patterns=detected,
+            )
+
+        result = await self._llm.generate_ideation(description)
+
+        logger.info(
+            "ideation_requested",
+            flagged=flagged,
+            draft_count=len(result.drafts),
+        )
+        return result, flagged
 
     def generate_report(
         self,

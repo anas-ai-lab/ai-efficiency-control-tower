@@ -21,14 +21,25 @@ from typing import Any
 
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
 
+from aect.application.cost_logger import log_llm_cost
 from aect.application.ports.llm import (
     LLMMessage,
     LLMResponse,
     ToolCall,
     ToolDefinition,
 )
+from aect.application.prompts import load_prompt
+from aect.application.structured_output import (
+    IdeationResult,
+    parse_structured_llm_output,
+)
 
 _MAX_TOKENS_DEFAULT = 1000
+
+# Sentinel-case_id fuer den ephemeren Ideation-Pfad (P10): generate_ideation
+# persistiert nichts (kein Case), log_llm_cost erwartet aber eine case_id.
+# Kein PII -- der request_id kommt ohnehin ueber structlog-contextvars dazu.
+_IDEATION_LOG_ID = "ideation-ephemeral"
 
 
 class AzureOpenAIAdapter:
@@ -105,6 +116,38 @@ class AzureOpenAIAdapter:
             ]
 
         return LLMResponse(content=content, tool_calls=tool_calls)
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        """Erzeugt 1-3 Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
+
+        Baut die Messages aus dem versionierten ideation-Prompt (System/User
+        getrennt, kein String-Concat -- LLM01), ruft complete() (inkl.
+        Exception-Translation + max_tokens-Cap, wie jeder andere Azure-Call),
+        loggt die Kosten und validiert die rohe Antwort gegen IdeationResult
+        (Output als untrusted, ADR-0013). Kein Function-Calling.
+
+        Raises:
+            InvalidLLMOutputError: rohe Antwort verletzt IdeationResult.
+            ConnectionError/TimeoutError: aus complete() durchgereicht.
+        """
+        system_prompt = load_prompt("ideation", "system")
+        user_template = load_prompt("ideation", "user")
+        user_content = user_template.format(problem_description=problem_description)
+
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self.complete(messages)
+
+        log_llm_cost(
+            case_id=_IDEATION_LOG_ID,
+            messages=messages,
+            response=response,
+            operation="generate_ideation",
+        )
+
+        return parse_structured_llm_output(response.content, IdeationResult)
 
 
 def _to_azure_message(msg: LLMMessage) -> dict[str, Any]:

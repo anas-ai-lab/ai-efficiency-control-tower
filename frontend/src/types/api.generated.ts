@@ -420,6 +420,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ideation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Ideation
+         * @description Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.
+         *
+         *     Ephemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf
+         *     IdeationRequest -> 422 bei zu kurzem/langem/unbekanntem Input.
+         *
+         *     Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
+         *     - LLM nach Retries nicht erreichbar (Connection/Timeout) -> 503.
+         *     - LLM liefert kein valides Schema (InvalidLLMOutputError) -> 502.
+         *
+         *     Raises:
+         *         HTTPException 502: KI-Antwort war nicht verwertbar.
+         *         HTTPException 503: KI-Dienst nicht erreichbar.
+         */
+        post: operations["generate_ideation_ideation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -655,6 +690,72 @@ export interface components {
             status: string;
             /** Version */
             version: string;
+        };
+        /**
+         * IdeationDraft
+         * @description Ein einzelner AI-Use-Case-Entwurf aus einer Problembeschreibung (P10).
+         *
+         *     Erzeugt von generate_ideation() fuer einen internen Intake, aus einer
+         *     vagen Problembeschreibung. Bewusst unvollstaendig: die qualitativen Felder
+         *     tragen die EXAKTEN UseCaseInput-Feldnamen (domain/models.py) --
+         *     current_state/desired_state/example_process -- damit ein Entwurf spaeter
+         *     ohne Feld-Umbenennung in ein UseCaseInput-Formular uebernommen werden kann.
+         *     title analog UseCaseInput.title, hier aber max 120 (kuerzere Entwurfs-
+         *     Titel), current_state/desired_state/example_process analog den
+         *     UseCaseInput-Bounds.
+         *
+         *     Zahlen-Regel (D17, ADR-0048): quantitative Angaben werden NICHT erfunden.
+         *     Statt eines Ziffern-Regex-Validators (zu fehleranfaellig -- legitime
+         *     Ziffern in Systemnamen wie "SAP S/4") ist die Regel doppelt gesichert:
+         *     (a) Prompt-Instruktion (prompts/ideation/v1), (b) P14 befuellt die
+         *     quantitativen Intake-Felder grundsaetzlich nicht vor. open_questions
+         *     traegt die quantitativen Luecken, die der Einreicher schliessen muss.
+         *
+         *     extra="forbid": unerwartete Felder im LLM-Output sind ein
+         *     Validierungsfehler (OWASP LLM10). frozen=True: nach Validierung
+         *     unveraenderlich (analog SharpenedContentV2).
+         */
+        IdeationDraft: {
+            /** Title */
+            title: string;
+            /** Current State */
+            current_state: string;
+            /** Desired State */
+            desired_state: string;
+            /** Example Process */
+            example_process: string;
+            /** Rationale */
+            rationale: string;
+            /** Open Questions */
+            open_questions: string[];
+        };
+        /**
+         * IdeationRequest
+         * @description Problembeschreibung fuer die Entwurfs-Generierung (P10).
+         *
+         *     problem_description: min 20 (Substanz), max 2000 (Token-Flooding-Schutz,
+         *     LLM10) -- konsistent mit den gebundenen Freitextfeldern von UseCaseInput.
+         *     extra="forbid": kein unerwarteter Input (LLM10).
+         */
+        IdeationRequest: {
+            /** Problem Description */
+            problem_description: string;
+        };
+        /**
+         * IdeationResponse
+         * @description 1-3 Use-Case-Entwuerfe + Injection-Flag (P10, ADR-0048).
+         *
+         *     drafts: die Entwuerfe (IdeationDraft aus der Application-Schicht direkt
+         *     wiederverwendet -- schon JSON-serialisierbar, analog SimilarityWarning in
+         *     TriageResponse). flagged_input: True, wenn im Input ein Injection-Muster
+         *     erkannt wurde (flag-not-block, D21) -- der Client sieht den Befund, die
+         *     Antwort ist trotzdem valide.
+         */
+        IdeationResponse: {
+            /** Drafts */
+            drafts: components["schemas"]["IdeationDraft"][];
+            /** Flagged Input */
+            flagged_input: boolean;
         };
         /**
          * ImplementationApproach
@@ -1548,6 +1649,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TriageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_ideation_ideation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeationResponse"];
                 };
             };
             /** @description Validation Error */

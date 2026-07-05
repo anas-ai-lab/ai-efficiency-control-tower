@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from aect.application.structured_output import IdeationResult
+
 Role = Literal["system", "user", "assistant", "tool"]
 
 
@@ -94,3 +96,21 @@ class LLMPort(Protocol):
     async def complete(
         self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
     ) -> LLMResponse: ...
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        """Erzeugt 1-3 AI-Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
+
+        Hoehere Faehigkeit als complete(): der Adapter laedt den versionierten
+        ideation-Prompt (System/User getrennt, Delimiter-Block gegen LLM01),
+        fuehrt den Call aus, loggt die Kosten und validiert die rohe Antwort
+        gegen IdeationResult (Output als untrusted, ADR-0013). Kein
+        Function-Calling (bewusst simpel -- tools.py bleibt unangetastet).
+
+        Raises:
+            InvalidLLMOutputError: rohe Antwort ist kein valides JSON oder
+                verletzt IdeationResult -- vom Aufrufer (Route) auf einen
+                sauberen HTTP-Fehler gemappt, kein 500-Stack-Trace.
+            ConnectionError/TimeoutError: LLM nicht erreichbar (nach Retries) --
+                vom Aufrufer auf 503 gemappt.
+        """
+        ...

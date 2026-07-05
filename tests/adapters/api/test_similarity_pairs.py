@@ -81,7 +81,9 @@ def _make_app() -> tuple[FastAPI, InMemoryRepository]:
 
 async def _create_case(client: AsyncClient, title: str) -> str:
     """POST /triage mit angepasstem Titel, gibt die Case-ID zurueck."""
-    resp = await client.post("/triage", json={**_PAYLOAD, "title": title}, headers=_AUTH)
+    resp = await client.post(
+        "/triage", json={**_PAYLOAD, "title": title}, headers=_AUTH
+    )
     assert resp.status_code == 201
     return str(resp.json()["id"])
 
@@ -154,7 +156,7 @@ async def test_literal_route_not_shadowed_by_param_route() -> None:
     nicht eine parametrisierte /cases/{case_id}-Route. Zugleich bleibt eine
     echte parametrisierte GET-Route (/cases/{id}/monitoring) erreichbar --
     beide koexistieren kollisionsfrei."""
-    app, repo = _make_app()
+    app, _repo = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

@@ -100,3 +100,17 @@ async def test_complete_with_tools_and_existing_tool_response_falls_back_to_echo
 
     assert response.tool_calls is None
     assert response.content == "[mock-response] Welche Plattform passt?"
+
+
+async def test_generate_ideation_returns_two_schema_conform_drafts(
+    adapter: MockLLMAdapter,
+) -> None:
+    """Mock liefert deterministisch 2 schema-konforme Entwuerfe (P10)."""
+    result = await adapter.generate_ideation("Beliebige Problembeschreibung")
+
+    assert len(result.drafts) == 2
+    for draft in result.drafts:
+        # IdeationDraft-Konstruktion validiert bereits alle Bounds; hier nur
+        # die Vertragszusagen: Titel gesetzt, mindestens eine offene Frage.
+        assert draft.title
+        assert len(draft.open_questions) >= 1

@@ -8,6 +8,7 @@ from aect.application.ports.llm import (
     ToolCall,
     ToolDefinition,
 )
+from aect.application.structured_output import IdeationDraft, IdeationResult
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
 
@@ -50,3 +51,60 @@ class MockLLMAdapter:
             "",
         )
         return LLMResponse(content=f"[mock-response] {last_user}")
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        """Liefert deterministisch 2 schema-konforme Entwuerfe (Tests, P10).
+
+        Ignoriert den Prompt bewusst (kein echter Call) und baut IdeationResult
+        direkt -- die Felder erfuellen die IdeationDraft-Bounds. Keine
+        erfundenen Zahlen (D17): quantitative Luecken stehen als offene Fragen.
+        """
+        return IdeationResult(
+            drafts=[
+                IdeationDraft(
+                    title="[mock] Entwurf A -- Automatisierte Vorpruefung",
+                    current_state=(
+                        "Der beschriebene Prozess wird heute manuell und ohne "
+                        "systematische Unterstuetzung bearbeitet."
+                    ),
+                    desired_state=(
+                        "Ein AI-System uebernimmt die Vorpruefung und legt nur "
+                        "Zweifelsfaelle einem Menschen vor."
+                    ),
+                    example_process=(
+                        "Ein einzelner Vorgang wird eingelesen, geprueft und mit "
+                        "einer Empfehlung an die Sachbearbeitung uebergeben."
+                    ),
+                    rationale=(
+                        "Passt zum Problem, weil wiederkehrende manuelle Pruefung "
+                        "der genannte Engpass ist."
+                    ),
+                    open_questions=[
+                        "Wie viele Vorgaenge fallen pro Jahr an?",
+                        "Wie viele Minuten dauert ein Vorgang heute?",
+                    ],
+                ),
+                IdeationDraft(
+                    title="[mock] Entwurf B -- Assistenz statt Vollautomatik",
+                    current_state=(
+                        "Die Bearbeitung erfolgt vollstaendig manuell durch die "
+                        "Fachabteilung."
+                    ),
+                    desired_state=(
+                        "Ein Assistenzsystem schlaegt Ergebnisse vor, die "
+                        "Entscheidung bleibt beim Menschen."
+                    ),
+                    example_process=(
+                        "Fuer einen Vorgang erzeugt das System einen "
+                        "Formulierungsvorschlag, den die Fachkraft freigibt."
+                    ),
+                    rationale=(
+                        "Geringeres Umsetzungsrisiko als Vollautomatik, weil der "
+                        "Mensch in der Schleife bleibt."
+                    ),
+                    open_questions=[
+                        "Welche Evidenz gibt es fuer die erwartete Zeitersparnis?",
+                    ],
+                ),
+            ]
+        )

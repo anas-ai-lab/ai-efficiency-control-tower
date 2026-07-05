@@ -65,6 +65,56 @@ class SharpenedContentV2(BaseModel):
     )
 
 
+_OpenQuestion = Annotated[str, Field(min_length=5, max_length=200)]
+
+
+class IdeationDraft(BaseModel):
+    """Ein einzelner AI-Use-Case-Entwurf aus einer Problembeschreibung (P10).
+
+    Erzeugt von generate_ideation() fuer einen internen Intake, aus einer
+    vagen Problembeschreibung. Bewusst unvollstaendig: die qualitativen Felder
+    tragen die EXAKTEN UseCaseInput-Feldnamen (domain/models.py) --
+    current_state/desired_state/example_process -- damit ein Entwurf spaeter
+    ohne Feld-Umbenennung in ein UseCaseInput-Formular uebernommen werden kann.
+    title analog UseCaseInput.title, hier aber max 120 (kuerzere Entwurfs-
+    Titel), current_state/desired_state/example_process analog den
+    UseCaseInput-Bounds.
+
+    Zahlen-Regel (D17, ADR-0048): quantitative Angaben werden NICHT erfunden.
+    Statt eines Ziffern-Regex-Validators (zu fehleranfaellig -- legitime
+    Ziffern in Systemnamen wie "SAP S/4") ist die Regel doppelt gesichert:
+    (a) Prompt-Instruktion (prompts/ideation/v1), (b) P14 befuellt die
+    quantitativen Intake-Felder grundsaetzlich nicht vor. open_questions
+    traegt die quantitativen Luecken, die der Einreicher schliessen muss.
+
+    extra="forbid": unerwartete Felder im LLM-Output sind ein
+    Validierungsfehler (OWASP LLM10). frozen=True: nach Validierung
+    unveraenderlich (analog SharpenedContentV2).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    title: str = Field(min_length=5, max_length=120)
+    current_state: str = Field(min_length=20, max_length=2000)
+    desired_state: str = Field(min_length=20, max_length=2000)
+    example_process: str = Field(min_length=20, max_length=2000)
+    rationale: str = Field(min_length=10, max_length=600)
+    open_questions: list[_OpenQuestion] = Field(min_length=1, max_length=8)
+
+
+class IdeationResult(BaseModel):
+    """1 bis 3 Use-Case-Entwuerfe aus einer Problembeschreibung (P10, ADR-0048).
+
+    max_length=3 begrenzt die Entwurfszahl gegen Token-Flooding (LLM10) und
+    haelt den Intake fokussiert. extra="forbid"/frozen=True analog
+    IdeationDraft.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    drafts: list[IdeationDraft] = Field(min_length=1, max_length=3)
+
+
 def parse_structured_llm_output[T: BaseModel](raw: str, schema: type[T]) -> T:
     """Validiert einen rohen LLM-Output-String gegen ein Pydantic-Schema.
 
