@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
+  getArchitectureSketch,
   listCases,
   listMonitoringEntries,
   listSimilarityPairs,
@@ -9,9 +10,11 @@ import {
 import { CaseStatusControl } from "@/components/case-status-control";
 import { MonitoringTimeline } from "@/components/monitoring-timeline";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
+import { SketchView } from "@/components/sketch-view";
 import { ZoneBadge } from "@/components/status-badge";
 import { formatEUR } from "@/lib/formatters";
 import type {
+  ArchitectureSketchResponse,
   CaseSummary,
   MonitoringEntry,
   SimilarityPair,
@@ -127,6 +130,19 @@ export default async function CaseDetailPage({
     );
   }
 
+  // Persistierte Architektur-Skizze optional laden (P13). null = nie erzeugt
+  // (dann bietet SketchView das Erzeugen an). Ein Ladefehler ist kein Blocker:
+  // die Client-Komponente startet dann wie ohne persistierte Skizze.
+  let initialSketch: ArchitectureSketchResponse | null = null;
+  try {
+    initialSketch = await getArchitectureSketch(id);
+  } catch (e) {
+    console.error(
+      "getArchitectureSketch fehlgeschlagen -- Detail ohne persistierte Skizze:",
+      e,
+    );
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
       {/* --- Kopf --- */}
@@ -170,6 +186,10 @@ export default async function CaseDetailPage({
       {/* --- Aehnliche Use Cases (P12/C): rendert sich selbst nur, wenn Paare
            fuer diese id existieren (sonst null, kein Leerraum). --- */}
       <SimilarCasesPanel caseId={found.id} pairs={similarityPairs} />
+
+      {/* --- Architektur-Skizze (P13): On-Demand-Graph, client-seitig via
+           mermaid gerendert. Zustaende in SketchView. --- */}
+      <SketchView caseId={found.id} initialSketch={initialSketch} />
 
       {/* --- Monitoring-Zeitleiste --- */}
       <div className="mt-10">

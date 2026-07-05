@@ -316,3 +316,43 @@ export interface MonitoringEntry {
 export interface MonitoringNoteRequest {
   note: string;
 }
+
+// ---- Architektur-Skizze (/cases/{id}/architecture-sketch, P11, ADR-0049) ---
+// On-Demand-Graph (kein Pipeline-Schritt). Das LLM emittiert nur den Graphen
+// (nodes/edges); mermaid_source erzeugt der deterministische Builder daraus
+// (D18). Gespiegelt aus api.generated.ts (ArchitectureSketchResponse /
+// ArchitectureSketchEnvelope). Das Frontend rendert mermaid_source; nodes/edges
+// werden aus Vertrags-Treue mitgefuehrt.
+export type SketchNodeKind =
+  | "user"
+  | "system"
+  | "ai_service"
+  | "data_store"
+  | "external";
+
+export interface SketchNode {
+  id: string;
+  label: string;
+  kind: string; // SketchNodeKind als String serialisiert (StrEnum.value)
+}
+
+export interface SketchEdge {
+  source: string;
+  target: string;
+  label: string | null;
+}
+
+export interface ArchitectureSketchResponse {
+  case_id: string;
+  nodes: SketchNode[];
+  edges: SketchEdge[];
+  mermaid_source: string;
+  generated_at: string; // ISO 8601, aendert sich bei jedem Regenerieren
+  prompt_version: string;
+}
+
+// GET-Antwort: sketch ist null, wenn der Case existiert, aber nie eine Skizze
+// erzeugt wurde (200 {"sketch": null}) -- unterschieden vom 404 (Case fehlt).
+export interface ArchitectureSketchEnvelope {
+  sketch: ArchitectureSketchResponse | null;
+}

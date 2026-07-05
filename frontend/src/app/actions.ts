@@ -1,6 +1,8 @@
 "use server";
 
 import type {
+  ArchitectureSketchEnvelope,
+  ArchitectureSketchResponse,
   CaseStatus,
   CaseSummary,
   ComplianceHintsResponse,
@@ -46,6 +48,21 @@ const ERROR_MESSAGES_DE: Record<string, string> = {
   "Internal error": "Interner Serverfehler. Bitte später erneut versuchen.",
 };
 
+// ApiError traegt den HTTP-Status, damit Aufrufer, die zwischen Status-Codes
+// unterscheiden muessen (Architektur-Skizze: 409 = kein Loesungsvorschlag,
+// 5xx = KI-Dienst nicht erreichbar), das serverseitig tun koennen. Extends
+// Error -> bestehende `e instanceof Error`-Pfade und e.message-Anzeigen bleiben
+// unveraendert; der Status ist ein zusaetzliches Feld.
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 function statusMessageDE(status: number): string {
   if (status === 401 || status === 403) {
     return "Zugriff verweigert — Authentifizierung prüfen.";
@@ -78,7 +95,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
       // JSON-Parsing gescheitert, HTTP-Status reicht als Fehlermeldung
     }
     const mapped = detail ? ERROR_MESSAGES_DE[detail] : undefined;
-    throw new Error(mapped ?? statusMessageDE(res.status));
+    throw new ApiError(res.status, mapped ?? statusMessageDE(res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -237,4 +254,65 @@ export async function listMonitoringEntries(
     undefined,
     "GET",
   );
+}
+
+// ---- Architektur-Skizze (/cases/{id}/architecture-sketch, P11/P13) ---------
+
+export async function getArchitectureSketch(
+  caseId: string,
+): Promise<ArchitectureSketchResponse | null> {
+  // GET: liest die persistierte Skizze. Regelbasierter DB-Read (kein LLM-Call)
+  // -> RULE_TIMEOUT_MS. Liefert 200 {"sketch": null}, wenn der Case existiert,
+  // aber nie eine Skizze erzeugt wurde -> hier zu null verengt.
+  const env = await apiFetch<ArchitectureSketchEnvelope>(
+    `/cases/${caseId}/architecture-sketch`,
+    RULE_TIMEOUT_MS,
+    undefined,
+    "GET",
+  );
+  return env.sketch;
+}
+
+// Ergebnis von generateArchitectureSketch als DATEN (kein throw): Next.js
+// redigiert aus Server Actions geworfene Fehler-Messages in Produktion, und der
+// HTTP-Status ueberlebt die Server/Client-Grenze ohnehin nicht. Der Client
+// leitet daraus die UI-Zustaende ab: no_proposal -> 409 (kein
+// Loesungsvorschlag), unavailable -> 5xx/Timeout (Retry sinnvoll), error ->
+// sonstiger Fehler mit deutscher Meldung.
+export type SketchGenerateResult =
+  | { kind: "ok"; sketch: ArchitectureSketchResponse }
+  | { kind: "no_proposal" }
+  | { kind: "unavailable"; message: string }
+  | { kind: "error"; message: string };
+
+export async function generateArchitectureSketch(
+  caseId: string,
+): Promise<SketchGenerateResult> {
+  // POST: erzeugt/ueberschreibt die Skizze via LLM. Timeout: dieselbe
+  // LLM_TIMEOUT_MS wie sharpenCase/generateComplianceHints (ein einzelner
+  // LLM-Call, kein Function-Calling-Loop -> nicht LLM_TOOL_LOOP_TIMEOUT_MS).
+  try {
+    const sketch = await apiFetch<ArchitectureSketchResponse>(
+      `/cases/${caseId}/architecture-sketch`,
+      LLM_TIMEOUT_MS,
+    );
+    return { kind: "ok", sketch };
+  } catch (e) {
+    if (e instanceof ApiError) {
+      // 409: Case hat keinen Loesungsvorschlag -- die Skizze braucht einen.
+      if (e.status === 409) return { kind: "no_proposal" };
+      // 5xx (502 unverwertbare KI-Antwort, 503 KI nicht erreichbar): Retry.
+      if (e.status >= 500) return { kind: "unavailable", message: e.message };
+      return { kind: "error", message: e.message };
+    }
+    // Timeout/Verbindungsfehler (apiFetch wirft hier ein einfaches Error):
+    // wie "Dienst nicht erreichbar" behandeln -> Retry anbieten.
+    return {
+      kind: "unavailable",
+      message:
+        e instanceof Error
+          ? e.message
+          : "KI-Dienst derzeit nicht erreichbar — bitte später erneut versuchen.",
+    };
+  }
 }
