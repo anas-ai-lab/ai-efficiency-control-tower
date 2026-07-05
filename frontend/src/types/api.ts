@@ -171,6 +171,24 @@ export interface TriageResponse {
   similarity_warning: SimilarityWarning | null;
 }
 
+// ---- Dedup / Similarity-Pairs (/cases/similarity-pairs GET, P9) ------------
+// Aggregierte Dedup-View ueber alle Cases (ADR-0039). Gespiegelt aus
+// api.generated.ts (SimilarityPairResponse / SimilarityPairsResponse).
+// case_a/case_b sind deterministisch nach id sortiert (case_a_id < case_b_id).
+export interface SimilarityPair {
+  case_a_id: string;
+  case_a_title: string;
+  case_b_id: string;
+  case_b_title: string;
+  similarity_score: number; // Cosinus [0, 1], 4 Nachkommastellen
+  suggest_combine: boolean; // true ab >= 0.90 ("zusammenlegen?")
+}
+
+export interface SimilarityPairsResponse {
+  pairs: SimilarityPair[]; // absteigend nach score
+  cases_without_embedding: number; // Cases ohne Embedding, fliessen nicht ein
+}
+
 // ---- Cases Responses (/cases/... POST) -------------------------------------
 
 export interface SharpenedCaseResponse {

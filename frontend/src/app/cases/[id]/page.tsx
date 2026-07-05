@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { listCases, listMonitoringEntries } from "@/app/actions";
+import {
+  listCases,
+  listMonitoringEntries,
+  listSimilarityPairs,
+} from "@/app/actions";
 import { CaseStatusControl } from "@/components/case-status-control";
 import { MonitoringTimeline } from "@/components/monitoring-timeline";
+import { SimilarCasesPanel } from "@/components/similar-cases-panel";
 import { ZoneBadge } from "@/components/status-badge";
 import { formatEUR } from "@/lib/formatters";
-import type { CaseSummary, MonitoringEntry } from "@/types/api";
+import type {
+  CaseSummary,
+  MonitoringEntry,
+  SimilarityPair,
+} from "@/types/api";
 
 export const metadata: Metadata = {
   title: "Fall-Detail | AECT",
@@ -105,6 +114,19 @@ export default async function CaseDetailPage({
         : "Die Monitoring-Einträge konnten nicht geladen werden.";
   }
 
+  // Aehnlichkeits-Paare optional laden (kein Per-Case-Endpoint -- volle Liste,
+  // client-/server-seitig auf diese id gefiltert). Fehlschlag = kein Panel,
+  // kein Blocker fuer die Detail-Seite.
+  let similarityPairs: SimilarityPair[] = [];
+  try {
+    similarityPairs = (await listSimilarityPairs()).pairs;
+  } catch (e) {
+    console.error(
+      "listSimilarityPairs fehlgeschlagen -- Detail ohne Aehnlichkeits-Panel:",
+      e,
+    );
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
       {/* --- Kopf --- */}
@@ -144,6 +166,10 @@ export default async function CaseDetailPage({
           <CaseStatusControl caseId={found.id} initialStatus={found.status} />
         </div>
       </div>
+
+      {/* --- Aehnliche Use Cases (P12/C): rendert sich selbst nur, wenn Paare
+           fuer diese id existieren (sonst null, kein Leerraum). --- */}
+      <SimilarCasesPanel caseId={found.id} pairs={similarityPairs} />
 
       {/* --- Monitoring-Zeitleiste --- */}
       <div className="mt-10">

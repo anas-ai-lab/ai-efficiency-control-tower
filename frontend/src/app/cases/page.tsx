@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { listCases } from "@/app/actions";
+import { listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesTable } from "@/components/cases-table";
-import type { CaseSummary } from "@/types/api";
+import type { CaseSummary, SimilarityPair } from "@/types/api";
 
 export const metadata: Metadata = {
   title: "Ideenliste | AECT",
@@ -16,6 +16,19 @@ export const dynamic = "force-dynamic";
 export default async function CasesPage() {
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
+  let pairs: SimilarityPair[] = [];
+
+  // Beide Calls parallel anstossen. Die Dedup-Paare sind optional: .catch()
+  // wird sofort angehaengt (kein unhandled rejection), ein Fehlschlag laesst
+  // die Kernliste unberuehrt -- die Ideenliste rendert dann nur ohne Badges.
+  const pairsPromise = listSimilarityPairs().catch((e) => {
+    console.error(
+      "listSimilarityPairs fehlgeschlagen -- Ideenliste ohne Aehnlichkeits-Badges:",
+      e,
+    );
+    return null;
+  });
+
   try {
     cases = await listCases();
   } catch (e) {
@@ -23,6 +36,8 @@ export default async function CasesPage() {
     loadError =
       e instanceof Error ? e.message : "Die Liste konnte nicht geladen werden.";
   }
+
+  pairs = (await pairsPromise)?.pairs ?? [];
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
@@ -45,7 +60,7 @@ export default async function CasesPage() {
             {loadError}
           </p>
         ) : (
-          <CasesTable cases={cases} />
+          <CasesTable cases={cases} pairs={pairs} />
         )}
       </div>
     </main>

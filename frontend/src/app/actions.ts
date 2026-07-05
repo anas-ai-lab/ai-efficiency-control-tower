@@ -8,6 +8,7 @@ import type {
   MonitoringEntry,
   ReportResponse,
   SharpenedCaseResponse,
+  SimilarityPairsResponse,
   SolutionProposalResponse,
   StatusUpdateResponse,
   TriageResponse,
@@ -187,6 +188,21 @@ export async function listCases(): Promise<CaseSummary[]> {
   // GET ohne Body. cache: "no-store" (apiFetch) haelt die Liste nach einem
   // Statuswechsel + router.refresh sofort aktuell.
   return apiFetch<CaseSummary[]>("/cases", RULE_TIMEOUT_MS, undefined, "GET");
+}
+
+export async function listSimilarityPairs(): Promise<SimilarityPairsResponse> {
+  // GET ohne Body -- Dedup-View (P9). Regelbasiert (Cosinus auf vorhandenen
+  // Embeddings), daher RULE_TIMEOUT_MS. cache: "no-store" (apiFetch) haelt die
+  // Paare nach einem Reload konsistent mit der Liste. Fehler laufen durch
+  // dasselbe apiFetch/handleResponse-Muster wie listCases -- die Aufrufer
+  // (/cases, /cases/{id}) behandeln einen Fehlschlag als "keine Badges/kein
+  // Panel", nicht als Blocker.
+  return apiFetch<SimilarityPairsResponse>(
+    "/cases/similarity-pairs",
+    RULE_TIMEOUT_MS,
+    undefined,
+    "GET",
+  );
 }
 
 export async function updateCaseStatus(

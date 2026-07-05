@@ -3,12 +3,19 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Download } from "lucide-react";
 
-import type { CaseStatus, CaseSummary, TriageZone } from "@/types/api";
+import type {
+  CaseStatus,
+  CaseSummary,
+  SimilarityPair,
+  TriageZone,
+} from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
 import { formatEUR, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
+import { downloadCasesCsv } from "@/lib/csv";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -78,6 +85,55 @@ function ZoneBadge({ zone }: { zone: TriageZone | null }) {
   );
 }
 
+// Dedup-Hinweis je Case (P9/P12): Titel der Partner-Cases + ob mindestens ein
+// Paar zur Zusammenfuehrung vorgeschlagen wird (suggest_combine).
+interface SimilarityInfo {
+  partnerTitles: string[];
+  suggestCombine: boolean;
+}
+
+// Baut aus der flachen Paar-Liste einen Index case_id -> SimilarityInfo. Ein
+// Paar taucht fuer beide beteiligten Cases auf (jeweils mit dem Titel des
+// anderen). Faellt listSimilarityPairs() aus, ist pairs leer -> leerer Index,
+// keine Badges, Tabelle bleibt voll funktionsfaehig.
+function buildSimilarityIndex(
+  pairs: SimilarityPair[],
+): Map<string, SimilarityInfo> {
+  const index = new Map<string, SimilarityInfo>();
+  const add = (id: string, partnerTitle: string, suggest: boolean) => {
+    const cur = index.get(id) ?? { partnerTitles: [], suggestCombine: false };
+    cur.partnerTitles.push(partnerTitle);
+    cur.suggestCombine = cur.suggestCombine || suggest;
+    index.set(id, cur);
+  };
+  for (const p of pairs) {
+    add(p.case_a_id, p.case_b_title, p.suggest_combine);
+    add(p.case_b_id, p.case_a_title, p.suggest_combine);
+  }
+  return index;
+}
+
+// Dezenter Hinweis neben dem Titel: "N ähnlich". Bei mindestens einem
+// suggest_combine-Paar staerkere Variante in Tinten-Akzent (--ink) -- ein
+// Hinweis, KEIN Fehler, daher bewusst nicht rot. Der Tooltip nennt die Titel
+// der aehnlichen Cases.
+function SimilarityBadge({ info }: { info: SimilarityInfo }) {
+  const n = info.partnerTitles.length;
+  return (
+    <span
+      title={`Ähnlich zu: ${info.partnerTitles.join(" · ")}`}
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap",
+        info.suggestCombine
+          ? "border-[var(--ink)]/25 bg-[var(--ink-subtle)] text-[var(--ink)]"
+          : "border-border bg-muted/50 text-muted-foreground",
+      )}
+    >
+      {n} ähnlich
+    </span>
+  );
+}
+
 // Status-Select je Zeile: zeigt den aktuellen Status als Badge (Dot + Label aus
 // STATUS_CONFIG) und bietet die 7 deutschen Labels zur Auswahl. Radix
 // SelectValue spiegelt die Kinder des gewaehlten Items -> Dot + Label erscheinen
@@ -142,7 +198,13 @@ function SortableHeader({ label, active, dir, onClick, align }: SortableHeaderPr
   );
 }
 
-export function CasesTable({ cases }: { cases: CaseSummary[] }) {
+export function CasesTable({
+  cases,
+  pairs = [],
+}: {
+  cases: CaseSummary[];
+  pairs?: SimilarityPair[];
+}) {
   const router = useRouter();
   const [rows, setRows] = useState<CaseSummary[]>(cases);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -151,6 +213,8 @@ export function CasesTable({ cases }: { cases: CaseSummary[] }) {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+
+  const similarityIndex = useMemo(() => buildSimilarityIndex(pairs), [pairs]);
 
   const visible = useMemo(() => {
     const filtered = rows.filter((c) => {
@@ -286,6 +350,20 @@ export function CasesTable({ cases }: { cases: CaseSummary[] }) {
             </SelectContent>
           </Select>
         </label>
+
+        {/* Export der AKTUELL gefilterten und sortierten Sicht (visible),
+            client-seitig, ohne Dependency. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => downloadCasesCsv(visible)}
+          disabled={visible.length === 0}
+        >
+          <Download aria-hidden />
+          CSV exportieren
+        </Button>
       </div>
 
       {/* Tabelle */}
@@ -340,9 +418,14 @@ export function CasesTable({ cases }: { cases: CaseSummary[] }) {
                 className="cursor-pointer border-b border-border/60 outline-none transition-colors last:border-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
               >
                 <td className="max-w-xs px-4 py-3">
-                  <span className="line-clamp-2 font-medium text-foreground">
-                    {c.title}
-                  </span>
+                  <div className="flex items-start gap-2">
+                    <span className="line-clamp-2 font-medium text-foreground">
+                      {c.title}
+                    </span>
+                    {similarityIndex.has(c.id) && (
+                      <SimilarityBadge info={similarityIndex.get(c.id)!} />
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {c.department}
