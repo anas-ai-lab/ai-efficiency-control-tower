@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 // (--ink) + kraeftigeres Gewicht + feine Unterstreichung.
 const LINKS = [
   { href: "/", label: "Einreichen" },
+  { href: "/ideation", label: "Ideen-Assistent" },
   { href: "/cases", label: "Ideenliste" },
   { href: "/board", label: "Board" },
   { href: "/monitoring", label: "Monitoring" },

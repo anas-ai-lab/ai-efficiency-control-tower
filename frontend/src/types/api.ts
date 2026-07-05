@@ -356,3 +356,32 @@ export interface ArchitectureSketchResponse {
 export interface ArchitectureSketchEnvelope {
   sketch: ArchitectureSketchResponse | null;
 }
+
+// ---- Ideation (/ideation POST, P10/P14, ADR-0048) --------------------------
+// Ephemer (D16): kein Case, keine Persistenz -- die Entwuerfe leben nur in der
+// Response. Die qualitativen Felder tragen exakt die UseCaseInput-Feldnamen
+// (title/current_state/desired_state/example_process), damit ein Entwurf ohne
+// Umbenennung ins Intake-Formular uebernommen werden kann (P14-Prefill).
+// Quantitative Angaben werden bewusst NICHT erfunden (D17); die Luecken tragen
+// die open_questions. Gespiegelt aus api.generated.ts (IdeationDraft/
+// IdeationResponse).
+export interface IdeationDraft {
+  title: string;
+  current_state: string;
+  desired_state: string;
+  example_process: string;
+  rationale: string;
+  open_questions: string[];
+}
+
+export interface IdeationRequest {
+  problem_description: string; // 20-2000
+}
+
+// flagged_input: true, wenn im Input ein Injection-Muster erkannt wurde
+// (flag-not-block, D21) -- der Client sieht den Befund, die Antwort ist
+// trotzdem valide (1-3 Entwuerfe).
+export interface IdeationResponse {
+  drafts: IdeationDraft[];
+  flagged_input: boolean;
+}

@@ -7,6 +7,7 @@ import type {
   CaseSummary,
   ComplianceHintsResponse,
   DecisionResponse,
+  IdeationResponse,
   MonitoringEntry,
   ReportResponse,
   SharpenedCaseResponse,
@@ -172,6 +173,21 @@ export async function generateComplianceHints(
   return apiFetch<ComplianceHintsResponse>(
     `/cases/${caseId}/compliance-hints`,
     LLM_TIMEOUT_MS,
+  );
+}
+
+// POST /ideation (P10/P14, ADR-0048): ephemere Use-Case-Entwuerfe aus einer
+// Problembeschreibung. Ein einzelner LLM-Call (kein Function-Calling-Loop) ->
+// dieselbe LLM_TIMEOUT_MS wie sharpen/compliance-hints. Fehler (503 KI nicht
+// erreichbar, 502 unverwertbare Antwort, Timeout) laufen durch dasselbe
+// apiFetch/handleResponse-Muster und werden auf Deutsch gemappt.
+export async function generateIdeas(
+  problemDescription: string,
+): Promise<IdeationResponse> {
+  return apiFetch<IdeationResponse>(
+    "/ideation",
+    LLM_TIMEOUT_MS,
+    JSON.stringify({ problem_description: problemDescription }),
   );
 }
 

@@ -3,10 +3,11 @@
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useTransition, useState } from "react"
+import { useTransition, useState, useEffect } from "react"
 import { Loader2 } from "lucide-react"
 import { submitTriage } from "@/app/actions"
 import { TriageResponse } from "@/types/api"
+import { IDEATION_PREFILL_KEY } from "@/lib/ideation-prefill"
 import {
   Form,
   FormField,
@@ -26,6 +27,18 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+
+// P14-Prefill-Whitelist: ausschliesslich die qualitativen Felder werden aus dem
+// Handoff des Ideen-Assistenten uebernommen. Quantitative Felder (Mengen,
+// Zeiten, Kosten, Evidenz, PII, Handlungsdruck, Country, Level) werden NIE
+// vorbefuellt -- doppelter Boden zu D17, auch wenn der Draft unerwartete Felder
+// traegt (Whitelist, keine Blacklist). Der Key liegt in lib/ideation-prefill.
+const PREFILL_FIELDS = [
+  "title",
+  "current_state",
+  "desired_state",
+  "example_process",
+] as const
 
 // Werte exakt aus src/types/api.generated.ts gespiegelt (Country,
 // EmployeeCategory) -- nicht aus dem Gedaechtnis ergaenzen.
@@ -152,6 +165,43 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
       notes: "",
     },
   })
+
+  // P14-Prefill (D16/D17): einmalig beim Mount den Handoff aus dem Ideen-
+  // Assistenten lesen, NUR die qualitativen Whitelist-Felder als Startwerte
+  // setzen und den Key SOFORT loeschen (read-once -- ein Reload ohne neuen
+  // Handoff startet leer). JSON.parse ist defensiv umschlossen: sessionStorage
+  // ist client-seitig manipulierbar; ein kaputter Wert faellt still auf "kein
+  // Prefill" zurueck (kein Crash, keine Fehlermeldung), der Key wird trotzdem
+  // geloescht. Der try/catch gilt nur fuer diesen Handoff-Pfad; das uebrige
+  // Fehlerverhalten des Formulars bleibt unveraendert.
+  useEffect(() => {
+    let raw: string | null
+    try {
+      raw = sessionStorage.getItem(IDEATION_PREFILL_KEY)
+      if (raw !== null) sessionStorage.removeItem(IDEATION_PREFILL_KEY)
+    } catch {
+      return // sessionStorage nicht verfuegbar -> kein Prefill
+    }
+    if (raw === null) return
+
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      const prefill: Partial<FormValues> = {}
+      for (const key of PREFILL_FIELDS) {
+        const value = parsed[key]
+        if (typeof value === "string") prefill[key] = value
+      }
+      if (Object.keys(prefill).length > 0) {
+        // reset ueber den bestehenden defaultValues-Stand: nur die Whitelist-
+        // Felder werden ueberschrieben, alle Zahlenfelder bleiben leer/Default.
+        form.reset({ ...form.getValues(), ...prefill })
+      }
+    } catch {
+      // kaputter/manipulierter Wert -- still ohne Prefill starten.
+    }
+    // Nur beim Mount ausfuehren (read-once). form ist referenzstabil.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function onSubmit(data: FormValues) {
     setSubmitError(null)
