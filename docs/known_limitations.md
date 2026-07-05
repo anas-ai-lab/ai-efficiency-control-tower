@@ -2,7 +2,8 @@
 
 > Limitationen offen benennen ist das staerkste Glaubwuerdigkeits-Asset
 > dieses Projekts (Projekt-Prinzip "Grenzen offenlegen"). #1-#14 gelten fuer v1
-> (Stand Juni 2026); #15-#17 ergaenzen die v3-Control-Tower-Module (Juli 2026).
+> (Stand Juni 2026); #15-#17 ergaenzen die v3-Control-Tower-Module und #18-#20
+> die v3.1-Assistenz-Features (Juli 2026).
 
 ---
 
@@ -298,6 +299,77 @@ Farbe ist die einzige Wahrheit; die Linien sind Dekoration mit Orientierungswert
 
 ---
 
+## 18. Generative Features nicht durch die Golden-Eval abgedeckt
+
+**Was:** Die zwei generativen v3.1-Features -- der Ideen-Assistent (`/ideation`,
+ADR-0048) und die Architektur-Skizze (`/cases/{id}/architecture-sketch`,
+ADR-0049) -- sind NICHT Teil der Golden-Eval. Die 25 Golden-Cases messen die
+deterministische Bewertung (Zone, ROI); es gibt keine gelabelten Referenz-
+Entwuerfe oder Referenz-Skizzen, gegen die eine generierte Ausgabe verglichen
+wird.
+
+**Warum:** Beide Ausgaben sind offen (freie Sprache bzw. ein Graph aus einer
+grossen Moeglichkeitsmenge). Eine belastbare Qualitaets-Metrik braeuchte
+menschlich gelabelte Referenzen ODER einen LLM-Judge mit eigener Validitaets-
+frage -- beides ist im privaten Build nicht aufgebaut. Self-Labeling (Ausgabe
+wird zur eigenen Ground-Truth) waere zirkulaer, dieselbe Falle wie bei den
+synthetischen Cases (#4).
+
+**Konsequenz:** Die Qualitaet der generativen Ausgaben ist NICHT metrisch
+belegt. Gesichert ist nur die *Form*, nicht der *Inhalt*: (1) Schema-Zwang --
+Ideation validiert gegen `IdeationResult`, die Skizze gegen `ArchitectureSketch`
+(Referenz-Integritaet per Model-Validator); eine schema-verletzende Antwort
+wird auf 502 gemappt, nicht ausgeliefert. (2) Menschliche Pruefung -- der
+Entwurf ist eine Arbeitsvorlage (Zahlen liefert der Mensch, ADR-0048), die
+Skizze ein "zu pruefen"-Artefakt. Eine sachlich schwache, aber schema-konforme
+Ausgabe wird akzeptiert -- dieselbe Grenze wie bei der Use-Case-Schaerfung (#8).
+
+**v2-Kandidat (Backlog "Eval-Abdeckung generative Features"):** eine kleine
+Referenz-Menge (Problembeschreibung -> erwartete Entwurfs-Merkmale;
+Loesungsvorschlag -> erwartete Knoten/Kanten) plus ein LLM-Judge mit
+dokumentierter Validitaetsgrenze -- analog zum Inter-Annotator-Ansatz bei den
+Golden-Cases (#3).
+
+---
+
+## 19. Dedup-Sicht rechnet O(n^2) beim Lesen
+
+**Was:** `GET /cases/similarity-pairs` (v3.1) vergleicht alle Cases mit Embedding
+paarweise -- der Aufwand waechst quadratisch mit der Case-Zahl. Der Vergleich
+laeuft bei jedem Aufruf neu (on-read), es gibt keinen vorberechneten
+Aehnlichkeits-Index.
+
+**Warum bewusst:** AECT ist ein privater Portfolio-Build ohne Pagination-Scope
+(SDR-0002 Paragraph 12), die Portfolio-Datenmenge bleibt klein. Bei wenigen
+Dutzend Cases ist die Matrix schlicht der einfachere, testbarere Code als ein
+Approximate-Nearest-Neighbor-Index (z. B. HNSW), der Index-Rebuild bei jedem
+Intake und Konsistenz Index-vs-DB als Betriebskomplexitaet einfuehren wuerde --
+Aufwand fuer eine Last, die es in diesem Build nie gibt.
+
+**Grenze:** Ab einigen Tausend Cases wird der Vollscan spuerbar; dann waere ein
+ANN-Index ueber den bestehenden Vektor-Store die richtige Antwort. Dokumentiert
+als Code-Kommentar in `list_similarity_pairs()` und in `notes/daily`
+(Tag 86) -- bewusst kein ADR, weil kein Architekturbruch.
+
+---
+
+## 20. Aehnlichkeit misst Text-Naehe, kein inhaltliches Urteil
+
+**Was:** Die Dedup-Sicht (#19) und die Intake-Warnung beruhen auf Cosinus-
+Aehnlichkeit von Embeddings (`all-MiniLM-L6-v2`) ueber Titel/Beschreibung. Ein
+hoher Score bedeutet Text-Naehe, nicht dass zwei Cases wirklich dieselbe
+fachliche Loesung meinen.
+
+**Konsequenz:** Zwei sprachlich aehnliche, fachlich verschiedene Cases koennen
+als Paar erscheinen (False Positive); zwei fachlich gleiche, aber anders
+formulierte Cases koennen unter der Schwelle bleiben (False Negative). Die Sicht
+ist deshalb eine *Vorschlagsliste* fuer eine menschliche Zusammenlege-
+Entscheidung ("N aehnlich" / "Zusammenlegen pruefen"), kein automatisches
+Dedup-Urteil -- dieselbe Human-in-the-Loop-Linie wie ueberall. Verstaerkt durch
+#10 (Embedding-Modell ist General-Purpose, nicht domain-spezifisch).
+
+---
+
 ---
 
 ## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
@@ -316,6 +388,6 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: 2026-07-05 -- v3.0.0 (Control-Tower-Closeout, #15-#17
+*Letzte Aktualisierung: 2026-07-06 -- v3.1.0 (Assistenz-Layer-Closeout, #18-#20
 ergaenzt). Phase-G-Triage der urspruenglichen 14 Punkte (bewusstes Design /
 v1-Grenze + v2-Roadmap) in `docs/reviews/phase-g-review.md` SS3.*

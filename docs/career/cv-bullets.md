@@ -17,7 +17,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 - Vollstaendiges ROI-Bewertungsmodell deterministisch implementiert
   (Lookup-Tabellen je Land x Senioraet, Composite-Aufwand-Score,
-  3-Zonen-Einstufung) -- 670 Tests, 96% Coverage, kein LLM fuer Zahlen
+  3-Zonen-Einstufung) -- 715 Tests, 95% Coverage, kein LLM fuer Zahlen
 
 - Hexagonale Architektur: Domain-Layer vollstaendig isoliert von LLM-,
   Datenbank- und API-Adaptern; Adapter-Swap ohne Domain-Code-Aenderung
@@ -40,6 +40,14 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
   append-only Monitoring-Zeitleiste mit Status-Snapshots (Lost-Update-sicher
   per INSERT statt JSON-Rewrite, F-011) -- ADR-0045/0046/0047
 
+- Generative Assistenz-Features (v3.1) mit striktem Schema-Zwang und ohne
+  erfundene Zahlen: Ideen-Assistent erzeugt qualitative Use-Case-Entwuerfe
+  (ROI-Zahlen bleiben menschlicher Input), Architektur-Skizze via LLM-Graph-JSON
+  + deterministischem Mermaid-Builder (Syntaxfehler- und Injection-Klasse
+  strukturell eliminiert), plus deterministische Dedup-Sicht (Embedding-
+  Aehnlichkeit, gleiche Schwellen wie Intake) und client-seitiger CSV-Export --
+  ADR-0048/0049
+
 - Eval-Framework: JSONL Golden-Cases, 3-valued Match (True/False/None),
   Score-Breakdown-Diagnostik, 36 synthetische Cases fuer Konsistenz-Test,
   dokumentierter Experten-Abgleich inkl. Limitationsanalyse
@@ -55,12 +63,12 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 ## Entscheidungs-Bullets
 
-- 53 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
+- 55 ADRs mit Alternativen und Trade-offs -- Interview-verteidigbar
 
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
   (begruendet im projekteigenen Strategiedokument mit Aenderungshistorie)
 
-- 17 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
+- 20 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
   staerker als Marketing-Darstellung ohne Schwaechen
 
 ---
@@ -78,4 +86,4 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 ---
 
-*v3.0 -- Juli 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*
+*v3.1 -- Juli 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*

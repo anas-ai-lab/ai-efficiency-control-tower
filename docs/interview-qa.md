@@ -191,6 +191,73 @@ erzwungene Matrix wuerde nur legitime Korrekturen blockieren (ADR-0045).
 
 ---
 
+## Assistenz-Layer (v3.1)
+
+**Warum erfindet der Ideen-Assistent keine Zahlen?**
+
+Regeln vor LLM. Die ROI-Zahlen (Zeitersparnis, Vorgaenge/Jahr, betroffene
+Mitarbeiter, Kosten) sind der Input der deterministischen Regel-Schicht -- sie
+bestimmen Zone und ROI. Eine vom LLM geschaetzte Zahl saehe im Report identisch
+aus wie eine belegte Zahl des Einreichers, obwohl sie geraten ist; sie wuerde
+die Bewertung kontaminieren, genau dort, wo die Regel-Schicht Trennschaerfe
+braucht. Deshalb sind die Entwuerfe rein qualitativ (Ist/Soll/Beispiel/
+Begruendung); jede quantitative Luecke wird zu einer `open_questions`-Frage an
+den Einreicher. Die Absicherung ist bewusst NICHT ein Ziffern-Regex (der wuerde
+legitime Ziffern in Systemnamen wie "SAP S/4" oder "Art. 35" abweisen), sondern
+struktureller: das Intake-Formular befuellt die quantitativen Felder ueber eine
+Feld-Whitelist grundsaetzlich nicht aus dem Entwurf vor -- sie bleiben leer, bis
+der Mensch sie setzt (ADR-0048). Der Prompt verbietet Zahlen zusaetzlich, aber
+die eigentliche Garantie ist der leere Intake, nicht die Prompt-Disziplin.
+
+**Warum laesst die Skizze das LLM Graph-JSON emittieren statt direkt Mermaid?**
+
+Zwei Fehlerklassen fallen damit strukturell weg. Erstens Syntaxfehler: ein LLM,
+das Mermaid direkt schreibt, kann eine unbalancierte Klammer setzen, die das
+Rendering bricht -- eine ganze Fehlerklasse, die man sonst nur per Nachbearbeitung
+oder Prompt-Disziplin eindaemmt. Wir lassen das LLM stattdessen nur ein
+schema-validiertes Graph-JSON emittieren (Knoten mit id/label/kind, Kanten mit
+source/target), und eine reine, deterministische Funktion (`build_mermaid`) baut
+daraus die Mermaid-Syntax -- die ist per Konstruktion immer valide und
+snapshot-getestet. Zweitens Injection: der Diagramm-Text wird spaeter im Browser
+gerendert, freier LLM-Text darin ist eine HTML-/Injection-Flaeche. Erschwerend
+ist die Eingabe der Skizze der `proposal_text`, der selbst LLM-Output ist -- eine
+Injection-Kette LLM->LLM. Mit dem Graph-JSON fliessen nur die Labels in den
+gerenderten Text, und die werden vor der Einbettung escaped (form-brechende und
+HTML-faehige Zeichen entfernt, Node-IDs per Pattern auf `[a-z0-9_]` beschraenkt).
+Die Referenz-Integritaet (Kanten zeigen auf existierende Knoten) prueft ein
+Pydantic-Model-Validator; ein Verstoss ist ein 502, kein 500 (ADR-0049).
+
+**Warum berechnet die Dedup-Sicht Aehnlichkeiten on-read statt persistierter
+Beziehungen?**
+
+Weil eine persistierte Aehnlichkeits-Beziehung eine Konsistenz-Verpflichtung
+einfuehren wuerde, die sich hier nicht lohnt: jeder neue oder geloeschte Case
+muesste die Beziehungs-Tabelle konsistent nachziehen (Index-Rebuild, Invalidierung),
+und die Beziehung koennte veralten, wenn ein Embedding-Modell wechselt. On-read
+kann per Definition nicht veralten -- die Antwort spiegelt immer den aktuellen
+Bestand. Der Preis ist ein O(n^2)-Vollscan pro Aufruf (known_limitations #19),
+den ich fuer eine kleine Portfolio-Datenmenge bewusst zahle: einfacherer,
+testbarer Code statt Betriebskomplexitaet fuer eine Last, die es im privaten
+Build nie gibt. Wichtig: die Sicht nutzt exakt dieselbe `_cosine_similarity()`
+und dieselben zwei Schwellen (0,75 / 0,90) wie die Intake-Warnung -- eine Quelle
+im Code, keine zweite Cosinus-Implementierung, die divergieren koennte. Ab einigen
+Tausend Cases waere ein ANN-Index (HNSW) die richtige Antwort.
+
+**Warum ist der CSV-Export client-seitig?**
+
+Der Export braucht keinen Server: er formatiert genau die Sicht, die der Nutzer
+im Browser schon gefiltert und sortiert vor sich hat, als String -- keine neuen
+Daten, kein neuer Rechenweg, nichts, was das Backend beisteuern muesste. Ein
+Endpoint dafuer waere eine zweite Quelle fuer die Spalten-Auswahl und die
+Formatierung (deutsches Excel: Semikolon, BOM, Dezimal-Komma), die mit der
+Tabellen-Anzeige synchron gehalten werden muesste. Client-seitig fallen Anzeige
+und Export aus derselben `CaseSummary`-Liste; was man sieht, ist was man
+exportiert. Kein externes Paket -- reine String-Erzeugung (`frontend/src/lib/csv.ts`).
+Grenze: bei sehr grossen Listen laeuft die Erzeugung im Main-Thread; fuer die
+Portfolio-Groesse dieses Builds irrelevant.
+
+---
+
 ## Haertere Reviewer-Fragen (Senior-Challenge)
 
 **Ist Hexagonal fuer ein Single-User-Tool nicht Over-Engineering?**

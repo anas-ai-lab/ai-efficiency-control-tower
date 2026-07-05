@@ -4,7 +4,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![CI](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/anas-ai-lab/ai-efficiency-control-tower/actions/workflows/ci.yml)
-[![Coverage: 96%](https://img.shields.io/badge/coverage-96%25-brightgreen.svg)]()
+[![Coverage: 95%](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -156,6 +156,58 @@ vollstaendige Audit-Log liegt in structlog.
 
 ---
 
+## Assistenz-Features (v3.1)
+
+Ueber die Portfolio-Schicht (v3) legt v3.1 eine duenne Assistenz-Schicht: vier
+Hilfsmittel, die den Bestand durchsuchbar und den Intake leichter machen, ohne
+die deterministische Bewertung anzutasten. Zwei sind rein deterministisch (Dedup,
+CSV), zwei nutzen das LLM streng schema-gebunden (Ideation, Skizze).
+
+**Dedup-Sicht (`/cases/similarity-pairs`)** -- eine read-only Aggregation, die alle
+persistierten Cases paarweise auf Text-Naehe vergleicht. Sie nutzt exakt dieselbe
+`_cosine_similarity()` und dieselben zwei Schwellen wie die Intake-Warnung beim
+Einreichen (`_DEDUP_THRESHOLD_AWARENESS` 0,75 fuer "aehnlich", `_DEDUP_THRESHOLD_COMBINE`
+0,90 fuer "Zusammenlegen pruefen") -- eine Quelle im Code, keine zweite Cosinus-
+Implementierung. Im Frontend erscheinen "N aehnlich"-Badges an der Ideenliste und
+ein Detail-Panel pro Case. Die Aehnlichkeit misst Text-Naehe ueber Embeddings, kein
+inhaltliches Urteil (`known_limitations.md` #20); der Vergleich rechnet bewusst
+O(n^2) beim Lesen (#19).
+
+**CSV-Export** -- exportiert exakt die aktuell gefilterte und sortierte Ideenliste
+(die uebergebene Sicht, nicht der ganze Bestand) als CSV fuer deutsches Excel:
+Semikolon als Trenner, UTF-8 mit BOM (Umlaute), CRLF-Zeilenende, Zahlen mit
+Dezimal-Komma und ohne Tausenderpunkte, Datum als ISO. Client-seitig als reine
+String-Erzeugung ohne Backend-Endpoint und ohne externes Paket (`frontend/src/lib/csv.ts`).
+
+**Ideen-Assistent (`/ideation`)** -- erzeugt aus einer vagen Problembeschreibung
+1-3 konkrete AI-Use-Case-Entwuerfe fuer den Intake. Kernregel: **der Assistent
+erzeugt Entwuerfe OHNE Zahlen -- die Zahlen liefert der Mensch.** Die Entwuerfe sind
+rein qualitativ (Ist-Zustand, Soll-Zustand, Beispielvorgang, Begruendung); jede
+quantitative Luecke wird als offene Frage formuliert, die der Einreicher beantwortet.
+Der Endpoint ist ephemer (kein Case, keine Persistenz); die Uebernahme in den Intake
+befuellt ueber eine Feld-Whitelist ausschliesslich die qualitativen Felder vor, die
+Zahlenfelder bleiben leer ([ADR-0048](docs/adr/0048-ideation-drafts-no-invented-numbers.md)).
+"Regeln vor LLM" -- die ROI-Zahlen bleiben Input der deterministischen Regel-Schicht,
+nie geraten.
+
+**Architektur-Skizze (`/cases/{id}/architecture-sketch`)** -- erzeugt on-demand zu
+einem Case mit Loesungsvorschlag ein grobes Baustein-Diagramm. Das LLM emittiert
+NIE Mermaid-Syntax, sondern nur ein schema-validiertes Graph-JSON (Knoten mit
+id/label/kind, Kanten mit source/target/label, max. 10 Knoten, 5 Bausteintypen);
+ein deterministischer, reiner Builder (`build_mermaid`, `application/mermaid.py`)
+baut daraus die Mermaid-Zeichenkette (snapshot-getestet). Das eliminiert die
+Syntaxfehler-Klasse strukturell und reduziert die Injection-Flaeche der Kette
+LLM->LLM (die Eingabe enthaelt `proposal_text`, selbst LLM-Output) auf escapte
+Labels ([ADR-0049](docs/adr/0049-architecture-sketch-structured-graph.md)). Die
+Skizze ist ein abgeleitetes "zu pruefen"-Artefakt: Regenerieren ueberschreibt,
+die DSGVO-Loesch-Kaskade greift automatisch.
+
+Grenzen dieser Features offen dokumentiert in `docs/known_limitations.md` (#18-#20):
+Ideation und Skizze sind NICHT durch die Golden-Eval abgedeckt -- ihre Qualitaet
+ist nur durch Schema-Zwang und menschliche Pruefung gesichert (#18).
+
+---
+
 ## Tech Stack
 
 | Schicht | Technologie |
@@ -191,7 +243,7 @@ vollstaendige Audit-Log liegt in structlog.
 | Semantic Caching / Model Routing abgelehnt | [0034](docs/adr/0034-semantic-caching-model-routing.md) | 0,003 EUR/Case, PII-in-Cache-Risiko, semantisch einzigartige Einreichungen = niedrige Hit-Rate |
 | Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung ausstehend; Demo via localhost vollstaendig erfuellbar |
 
-Alle 53 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
+Alle 55 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
 ---
 
@@ -207,7 +259,7 @@ Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
 | Cohen's Kappa (n=21, ohne Vorfilter-Ablehnungen) | 0,13 ("leicht") |
 | Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4) |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
-| Test-Coverage | 96 % (670 Tests) |
+| Test-Coverage | 95 % (720 Tests, 715 passed) |
 
 **Was die Eval-Zahlen bedeuten:**
 Das urspruengliche Sample (4 Cases, 3 gelabelt, Agreement 1/3) war zu klein fuer eine
@@ -312,7 +364,7 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 675 Tests (670 passed, 5 skipped), 96 % Coverage (pytest, hypothesis, httpx TestClient)
+tests/           # 720 Tests (715 passed, 5 skipped), 95 % Coverage (pytest, hypothesis, httpx TestClient)
 evals/
   golden/        # 25 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)
@@ -321,7 +373,7 @@ prompts/         # Versionierte Prompt-Dateien (v1)
 config/          # TOML/YAML-Config (ROI-Faktoren, Zonen-Schwellen, Stack-Optionen)
 scripts/         # Seeder, Eval-Runner, Diagnostics, synthetische Case-Generierung
 docs/
-  adr/           # 53 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
+  adr/           # 55 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
   reviews/       # Phasen-Reviews (A-F)
   threat-model.md
   limitations.md

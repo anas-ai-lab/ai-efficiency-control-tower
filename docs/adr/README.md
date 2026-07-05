@@ -1,6 +1,6 @@
 # Architecture Decision Log -- AECT
 
-53 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+55 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
@@ -85,6 +85,13 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0045](0045-case-lifecycle-status.md) | Case-Lifecycle-Status (7 Zustaende, an ReviewerDecision gekoppelt) |
 | [0046](0046-monitoring-append-only-timeline.md) | Monitoring-Zeitleiste als append-only Tabelle |
 | [0047](0047-portfolio-board-matrix.md) | Portfolio-Board: Nutzen-Machbarkeits-Matrix (recharts) |
+
+## Assistenz-Layer (v3.1)
+
+| ADR | Titel |
+|---|---|
+| [0048](0048-ideation-drafts-no-invented-numbers.md) | Ideation-Entwuerfe ohne erfundene Zahlen (Regeln vor LLM) |
+| [0049](0049-architecture-sketch-structured-graph.md) | Architektur-Skizze als schema-validierter Graph statt LLM-Mermaid |
 
 ## Compliance, Observability & Deployment
 
