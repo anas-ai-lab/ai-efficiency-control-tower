@@ -23,7 +23,13 @@ from aect.adapters.api.dependencies import (
     require_token_budget,
 )
 from aect.adapters.api.rate_limit import limiter
-from aect.application.service import CaseNotFoundError, TriageService
+from aect.application.models import ArchitectureSketchResult
+from aect.application.service import (
+    CaseNotFoundError,
+    NoProposalForSketchError,
+    TriageService,
+)
+from aect.application.structured_output import InvalidLLMOutputError
 from aect.domain import CaseStatus, ReviewerDecision
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -765,4 +771,166 @@ async def compliance_hints(
             for citation in result.citations
         ],
         prompt_version=result.prompt_version,
+    )
+
+
+class SketchNodeResponse(BaseModel):
+    """Ein Knoten der Architektur-Skizze (P11, ADR-0049).
+
+    kind: einer der fuenf generischen Bausteintypen (user/system/ai_service/
+    data_store/external) -- als String serialisiert (StrEnum.value).
+    """
+
+    id: str
+    label: str
+    kind: str
+
+
+class SketchEdgeResponse(BaseModel):
+    """Eine gerichtete Kante der Architektur-Skizze (P11)."""
+
+    source: str
+    target: str
+    label: str | None
+
+
+class ArchitectureSketchResponse(BaseModel):
+    """On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).
+
+    nodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom
+    deterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM
+    emittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei
+    jedem Regenerieren (abgeleitetes Artefakt, kein Verlauf).
+    """
+
+    case_id: str
+    nodes: list[SketchNodeResponse]
+    edges: list[SketchEdgeResponse]
+    mermaid_source: str
+    generated_at: datetime
+    prompt_version: str
+
+
+class ArchitectureSketchEnvelope(BaseModel):
+    """Read-Antwort fuer GET architecture-sketch (P11).
+
+    sketch ist None, wenn der Case existiert, aber nie eine Skizze erzeugt wurde
+    (200 {"sketch": null}) -- unterschieden vom 404 fuer einen fehlenden Case.
+    """
+
+    sketch: ArchitectureSketchResponse | None
+
+
+def _to_sketch_response(result: ArchitectureSketchResult) -> ArchitectureSketchResponse:
+    """Mappt das Application-Ergebnis auf das API-Schema (StrEnum -> .value)."""
+    return ArchitectureSketchResponse(
+        case_id=result.case_id,
+        nodes=[
+            SketchNodeResponse(id=node.id, label=node.label, kind=node.kind.value)
+            for node in result.graph.nodes
+        ],
+        edges=[
+            SketchEdgeResponse(source=edge.source, target=edge.target, label=edge.label)
+            for edge in result.graph.edges
+        ],
+        mermaid_source=result.mermaid_source,
+        generated_at=result.generated_at,
+        prompt_version=result.prompt_version,
+    )
+
+
+@router.post(
+    "/{case_id}/architecture-sketch", response_model=ArchitectureSketchResponse
+)
+@limiter.limit("10/minute")
+async def generate_architecture_sketch(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+    __: None = Depends(require_token_budget),
+) -> ArchitectureSketchResponse:
+    """Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.
+    Token-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche
+    Token-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-
+    LLM-Endpoints.
+
+    On-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.
+
+    Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
+    - Case fehlt -> 404.
+    - kein Loesungsvorschlag -> 409 (NoProposalForSketchError).
+    - LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).
+    - LLM nach Retries nicht erreichbar -> 503.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: Case hat keinen Loesungsvorschlag.
+        HTTPException 429: Token-Budget des API-Keys erschoepft.
+        HTTPException 502: KI-Antwort war nicht verwertbar.
+        HTTPException 503: KI-Dienst nicht erreichbar.
+    """
+    try:
+        result = await service.generate_sketch(case_id)
+    except NoProposalForSketchError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Fuer diesen Use Case liegt kein Loesungsvorschlag vor -- "
+                "Skizze nicht moeglich."
+            ),
+        ) from exc
+    except InvalidLLMOutputError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="KI-Antwort war nicht verwertbar -- bitte erneut versuchen.",
+        ) from exc
+    except (ConnectionError, TimeoutError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
+            ),
+        ) from exc
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return _to_sketch_response(result)
+
+
+@router.get("/{case_id}/architecture-sketch", response_model=ArchitectureSketchEnvelope)
+@limiter.limit("60/minute")
+async def get_architecture_sketch(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> ArchitectureSketchEnvelope:
+    """Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: X-API-Key-Header (require_api_key).
+    Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+
+    200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt
+    wurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide
+    Faelle ueber CaseNotFoundError vs. None).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    try:
+        result = await service.get_sketch(case_id)
+    except CaseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Case not found") from exc
+
+    return ArchitectureSketchEnvelope(
+        sketch=_to_sketch_response(result) if result is not None else None
     )

@@ -114,3 +114,29 @@ async def test_generate_ideation_returns_two_schema_conform_drafts(
         # die Vertragszusagen: Titel gesetzt, mindestens eine offene Frage.
         assert draft.title
         assert len(draft.open_questions) >= 1
+
+
+async def test_generate_architecture_sketch_returns_three_node_graph(
+    adapter: MockLLMAdapter,
+) -> None:
+    """P11: deterministischer 3-Knoten-Graph user -> system -> data_store."""
+    sketch = await adapter.generate_architecture_sketch(
+        case_id="case-1",
+        title="Titel",
+        description="Beschreibung",
+        proposal_text="Vorschlag",
+    )
+    assert [n.kind.value for n in sketch.nodes] == ["user", "system", "data_store"]
+    assert len(sketch.edges) == 2
+
+
+async def test_generate_architecture_sketch_is_deterministic(
+    adapter: MockLLMAdapter,
+) -> None:
+    first = await adapter.generate_architecture_sketch(
+        case_id="c", title="t", description="d", proposal_text="p"
+    )
+    second = await adapter.generate_architecture_sketch(
+        case_id="c", title="t", description="d", proposal_text="p"
+    )
+    assert first == second

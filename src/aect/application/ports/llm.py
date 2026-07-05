@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-from aect.application.structured_output import IdeationResult
+from aect.application.structured_output import ArchitectureSketch, IdeationResult
 
 Role = Literal["system", "user", "assistant", "tool"]
 
@@ -110,6 +110,36 @@ class LLMPort(Protocol):
             InvalidLLMOutputError: rohe Antwort ist kein valides JSON oder
                 verletzt IdeationResult -- vom Aufrufer (Route) auf einen
                 sauberen HTTP-Fehler gemappt, kein 500-Stack-Trace.
+            ConnectionError/TimeoutError: LLM nicht erreichbar (nach Retries) --
+                vom Aufrufer auf 503 gemappt.
+        """
+        ...
+
+    async def generate_architecture_sketch(
+        self,
+        case_id: str,
+        title: str,
+        description: str,
+        proposal_text: str,
+    ) -> ArchitectureSketch:
+        """Erzeugt eine strukturierte Architektur-Skizze als Graph (P11, ADR-0049).
+
+        Der Adapter laedt den versionierten architecture_sketch-Prompt (System/
+        User getrennt, Delimiter-Block gegen LLM01), fuehrt den Call aus, loggt
+        die Kosten (case_id zur Zuordnung) und validiert die rohe Antwort gegen
+        ArchitectureSketch (Output als untrusted, ADR-0013). Das LLM emittiert
+        NIE Mermaid-Syntax -- nur das Graph-JSON (D18); die Mermaid-Zeichenkette
+        baut ein deterministischer Renderer (application/mermaid.py). Kein
+        Function-Calling (tools.py bleibt unangetastet).
+
+        proposal_text ist selbst LLM-Output (Injection-Kette LLM->LLM) und wird
+        im Prompt explizit als Beschreibungsmaterial markiert, nicht als
+        Instruktion.
+
+        Raises:
+            InvalidLLMOutputError: rohe Antwort ist kein valides JSON oder
+                verletzt ArchitectureSketch (inkl. Referenz-Integritaet) --
+                vom Aufrufer (Route) auf 502 gemappt, kein 500-Stack-Trace.
             ConnectionError/TimeoutError: LLM nicht erreichbar (nach Retries) --
                 vom Aufrufer auf 503 gemappt.
         """

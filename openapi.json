@@ -602,6 +602,100 @@
         }
       }
     },
+    "/cases/{case_id}/architecture-sketch": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Generate Architecture Sketch",
+        "description": "Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche\nToken-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-\nLLM-Endpoints.\n\nOn-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- kein Loesungsvorschlag -> 409 (NoProposalForSketchError).\n- LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).\n- LLM nach Retries nicht erreichbar -> 503.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case hat keinen Loesungsvorschlag.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.\n    HTTPException 502: KI-Antwort war nicht verwertbar.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
+        "operationId": "generate_architecture_sketch_cases__case_id__architecture_sketch_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureSketchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Get Architecture Sketch",
+        "description": "Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\n200 {\"sketch\": null}, wenn der Case existiert, aber nie eine Skizze erzeugt\nwurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide\nFaelle ueber CaseNotFoundError vs. None).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "get_architecture_sketch_cases__case_id__architecture_sketch_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureSketchEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/triage": {
       "post": {
         "tags": [
@@ -726,6 +820,72 @@
         ],
         "title": "AdoptionType",
         "description": "Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell."
+      },
+      "ArchitectureSketchEnvelope": {
+        "properties": {
+          "sketch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchitectureSketchResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "sketch"
+        ],
+        "title": "ArchitectureSketchEnvelope",
+        "description": "Read-Antwort fuer GET architecture-sketch (P11).\n\nsketch ist None, wenn der Case existiert, aber nie eine Skizze erzeugt wurde\n(200 {\"sketch\": null}) -- unterschieden vom 404 fuer einen fehlenden Case."
+      },
+      "ArchitectureSketchResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/SketchNodeResponse"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/SketchEdgeResponse"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "mermaid_source": {
+            "type": "string",
+            "title": "Mermaid Source"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "nodes",
+          "edges",
+          "mermaid_source",
+          "generated_at",
+          "prompt_version"
+        ],
+        "title": "ArchitectureSketchResponse",
+        "description": "On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).\n\nnodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom\ndeterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM\nemittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei\njedem Regenerieren (abgeleitetes Artefakt, kein Verlauf)."
       },
       "BusinessSummaryResponse": {
         "properties": {
@@ -1730,6 +1890,61 @@
         ],
         "title": "SimilarityWarning",
         "description": "Hinweis auf einen aehnlichen, bereits eingereichten Case (L-3, ADR-0039).\n\nWird bei Intake (POST /triage) erzeugt, wenn die Embedding-Cosinus-\nAehnlichkeit des neuen Cases zu einem bestehenden Case eine Schwelle\nueberschreitet. Rein additiv -- veraendert die Triage-Entscheidung nicht.\n\nsimilarity_score: Cosinus-Aehnlichkeit [0.0, 1.0] zum aehnlichsten Case.\nsuggest_combine: True ab der hoeheren Schwelle (>= 0.90) -- \"wahrscheinlich\nderselbe Use Case, zusammenlegen?\". False im Awareness-Bereich\n([0.75, 0.90)) -- \"es gibt etwas Aehnliches, bitte pruefen\"."
+      },
+      "SketchEdgeResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "label"
+        ],
+        "title": "SketchEdgeResponse",
+        "description": "Eine gerichtete Kante der Architektur-Skizze (P11)."
+      },
+      "SketchNodeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind"
+        ],
+        "title": "SketchNodeResponse",
+        "description": "Ein Knoten der Architektur-Skizze (P11, ADR-0049).\n\nkind: einer der fuenf generischen Bausteintypen (user/system/ai_service/\ndata_store/external) -- als String serialisiert (StrEnum.value)."
       },
       "SolutionProposalResponse": {
         "properties": {

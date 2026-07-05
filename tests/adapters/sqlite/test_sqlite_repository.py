@@ -783,3 +783,65 @@ class TestMonitoringEntries:
 
         # DSGVO-Kaskade (Art. 17, ADR-0038): kein verwaister Eintrag.
         assert repo.list_monitoring_entries(sample_case.id) == []
+
+
+class TestArchitectureSketchColumn:
+    """P11 (ADR-0049): architecture_sketch als nullable Spalte am Case."""
+
+    def test_update_field_persists_and_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        sketch_json = json.dumps(
+            {
+                "graph": {"nodes": [], "edges": []},
+                "mermaid_source": "flowchart LR",
+                "generated_at": "2026-07-05T10:00:00+00:00",
+                "prompt_version": "v1",
+            }
+        )
+        repo.update_field(sample_case.id, "architecture_sketch", sketch_json)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.architecture_sketch == sketch_json
+
+    def test_default_is_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.architecture_sketch is None
+
+    def test_delete_removes_sketch(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        repo.update_field(sample_case.id, "architecture_sketch", '{"x": 1}')
+
+        repo.delete(sample_case.id)
+
+        # DSGVO-Kaskade: die Skizze liegt in der Case-Zeile und stirbt mit ihr.
+        assert repo.get(sample_case.id) is None
+
+    def test_migration_adds_column_to_old_table(self, db_path: Path) -> None:
+        """Alte DB ohne architecture_sketch-Spalte -> _init_db ergaenzt sie."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL)"
+            )
+
+        # Konstruktion triggert _init_db() -> PRAGMA-gestuetzte Migration.
+        SQLiteRepository(db_path)
+
+        with connect(db_path) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
+            }
+        assert "architecture_sketch" in columns

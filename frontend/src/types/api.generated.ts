@@ -392,6 +392,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/architecture-sketch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Architecture Sketch
+         * @description Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+         *
+         *     200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt
+         *     wurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide
+         *     Faelle ueber CaseNotFoundError vs. None).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        get: operations["get_architecture_sketch_cases__case_id__architecture_sketch_get"];
+        put?: never;
+        /**
+         * Generate Architecture Sketch
+         * @description Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: X-API-Key-Header (require_api_key).
+         *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.
+         *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche
+         *     Token-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-
+         *     LLM-Endpoints.
+         *
+         *     On-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.
+         *
+         *     Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
+         *     - Case fehlt -> 404.
+         *     - kein Loesungsvorschlag -> 409 (NoProposalForSketchError).
+         *     - LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).
+         *     - LLM nach Retries nicht erreichbar -> 503.
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: Case hat keinen Loesungsvorschlag.
+         *         HTTPException 429: Token-Budget des API-Keys erschoepft.
+         *         HTTPException 502: KI-Antwort war nicht verwertbar.
+         *         HTTPException 503: KI-Dienst nicht erreichbar.
+         */
+        post: operations["generate_architecture_sketch_cases__case_id__architecture_sketch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/triage": {
         parameters: {
             query?: never;
@@ -465,6 +522,42 @@ export interface components {
          * @enum {string}
          */
         AdoptionType: "mandatory" | "voluntary";
+        /**
+         * ArchitectureSketchEnvelope
+         * @description Read-Antwort fuer GET architecture-sketch (P11).
+         *
+         *     sketch ist None, wenn der Case existiert, aber nie eine Skizze erzeugt wurde
+         *     (200 {"sketch": null}) -- unterschieden vom 404 fuer einen fehlenden Case.
+         */
+        ArchitectureSketchEnvelope: {
+            sketch: components["schemas"]["ArchitectureSketchResponse"] | null;
+        };
+        /**
+         * ArchitectureSketchResponse
+         * @description On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).
+         *
+         *     nodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom
+         *     deterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM
+         *     emittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei
+         *     jedem Regenerieren (abgeleitetes Artefakt, kein Verlauf).
+         */
+        ArchitectureSketchResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Nodes */
+            nodes: components["schemas"]["SketchNodeResponse"][];
+            /** Edges */
+            edges: components["schemas"]["SketchEdgeResponse"][];
+            /** Mermaid Source */
+            mermaid_source: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Prompt Version */
+            prompt_version: string;
+        };
         /**
          * BusinessSummaryResponse
          * @description Entscheider-Schicht des Reports.
@@ -957,6 +1050,33 @@ export interface components {
             similarity_score: number;
             /** Suggest Combine */
             suggest_combine: boolean;
+        };
+        /**
+         * SketchEdgeResponse
+         * @description Eine gerichtete Kante der Architektur-Skizze (P11).
+         */
+        SketchEdgeResponse: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Label */
+            label: string | null;
+        };
+        /**
+         * SketchNodeResponse
+         * @description Ein Knoten der Architektur-Skizze (P11, ADR-0049).
+         *
+         *     kind: einer der fuenf generischen Bausteintypen (user/system/ai_service/
+         *     data_store/external) -- als String serialisiert (StrEnum.value).
+         */
+        SketchNodeResponse: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
         };
         /**
          * SolutionProposalResponse
@@ -1614,6 +1734,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComplianceHintsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_architecture_sketch_cases__case_id__architecture_sketch_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureSketchEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_architecture_sketch_cases__case_id__architecture_sketch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureSketchResponse"];
                 };
             };
             /** @description Validation Error */

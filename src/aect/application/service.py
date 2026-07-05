@@ -16,7 +16,9 @@ from typing import Any
 import structlog
 
 from aect.application.cost_logger import log_llm_cost
+from aect.application.mermaid import build_mermaid
 from aect.application.models import (
+    ArchitectureSketchResult,
     BusinessSummary,
     ComplianceCitation,
     ComplianceHintsResult,
@@ -40,6 +42,7 @@ from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.prompts import load_prompt
 from aect.application.sanitization import detect_injection_patterns
 from aect.application.structured_output import (
+    ArchitectureSketch,
     IdeationResult,
     InvalidLLMOutputError,
     SharpenedContentV2,
@@ -100,6 +103,22 @@ class CaseNotFoundError(Exception):
 
     def __init__(self, case_id: str) -> None:
         super().__init__(f"Case not found: {case_id}")
+        self.case_id = case_id
+
+
+class NoProposalForSketchError(Exception):
+    """Architektur-Skizze angefordert, aber der Case hat keinen Loesungsvorschlag
+    (P11, ADR-0049).
+
+    generate_sketch() braucht proposal_text als Eingabe -- ohne ihn gibt es kein
+    Beschreibungsmaterial fuer die Skizze. Eigener, typisierter Fehlerfall
+    (nicht None wie "Case fehlt"), damit die Route ihn von 404 unterscheiden und
+    auf 409 mappen kann (HTTP-Exceptions gehoeren in die Adapter-Schicht,
+    ADR-0004).
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"No proposal for sketch: {case_id}")
         self.case_id = case_id
 
 
@@ -1159,6 +1178,123 @@ class TriageService:
             draft_count=len(result.drafts),
         )
         return result, flagged
+
+    async def generate_sketch(
+        self, case_id: str, prompt_version: str = "v1"
+    ) -> ArchitectureSketchResult | None:
+        """Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
+
+        On-Demand, KEIN Pipeline-Schritt: die Triage-Kosten/-Latenz beim Intake
+        bleiben unveraendert. Drei Ausgaenge:
+        - Case fehlt -> None (Route -> 404).
+        - proposal_text fehlt/leer -> NoProposalForSketchError (Route -> 409):
+          ohne Loesungsvorschlag gibt es kein Beschreibungsmaterial.
+        - sonst: LLM -> Schema-Validierung (im Adapter) -> build_mermaid ->
+          persistieren -> zurueckgeben.
+
+        Eingabe an das LLM: Titel + geschaerfte Version (Fallback: Original-Ist/
+        Soll-Zustand) + proposal_text. proposal_text ist selbst LLM-Output
+        (Injection-Kette LLM->LLM) -- der Prompt markiert alles als
+        Beschreibungsmaterial (prompts/architecture_sketch/v1/user.md).
+
+        Persistenz (D20, abgeleitetes Artefakt): das Ergebnis wird als JSON auf
+        case.architecture_sketch gespeichert (per-Feld-UPDATE, F-011).
+        Regenerieren ueberschreibt (kein Verlauf, kein Audit-Log) -- generated_at
+        aendert sich bei jedem Aufruf.
+
+        Log-Event sketch_generated: case_id, node_count, edge_count,
+        prompt_version -- KEINE Labels, kein Freitext (Logging-Allowlist).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+
+        Raises:
+            NoProposalForSketchError: Case hat keinen Loesungsvorschlag (-> 409).
+            InvalidLLMOutputError: LLM-Antwort verletzt das Graph-Schema (-> 502).
+            ConnectionError/TimeoutError: LLM nicht erreichbar (-> 503).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+
+        proposal_text = case.proposal_text
+        if proposal_text is None or not proposal_text.strip():
+            raise NoProposalForSketchError(case_id)
+
+        # Geschaerfte Version bevorzugt; Fallback auf den Original-Ist/Soll-Zustand,
+        # wenn sharpen_case() fuer diesen Case nie lief.
+        description = _render_sharpened_content(case.sharpened_content_json)
+        if not description:
+            description = (
+                f"Ist-Zustand: {case.use_case.current_state}\n"
+                f"Soll-Zustand: {case.use_case.desired_state}"
+            )
+
+        sketch = await self._llm.generate_architecture_sketch(
+            case.id,
+            case.use_case.title,
+            description,
+            proposal_text,
+        )
+        mermaid_source = build_mermaid(sketch)
+        generated_at = self._clock.now()
+
+        sketch_json = json.dumps(
+            {
+                "graph": sketch.model_dump(mode="json"),
+                "mermaid_source": mermaid_source,
+                "generated_at": generated_at.isoformat(),
+                "prompt_version": prompt_version,
+            }
+        )
+        await self._repository.update_field_async(
+            case.id, "architecture_sketch", sketch_json
+        )
+
+        logger = structlog.get_logger()
+        logger.info(
+            "sketch_generated",
+            case_id=case.id,
+            node_count=len(sketch.nodes),
+            edge_count=len(sketch.edges),
+            prompt_version=prompt_version,
+        )
+
+        return ArchitectureSketchResult(
+            case_id=case.id,
+            graph=sketch,
+            mermaid_source=mermaid_source,
+            generated_at=generated_at,
+            prompt_version=prompt_version,
+        )
+
+    async def get_sketch(self, case_id: str) -> ArchitectureSketchResult | None:
+        """Liest die persistierte Architektur-Skizze eines Case (P11, ADR-0049).
+
+        Read-Pfad zu generate_sketch(). Die beiden None-Faelle sind sauber
+        getrennt, damit die Route sie unterschiedlich mappen kann:
+        - Case fehlt -> CaseNotFoundError (Route -> 404).
+        - Case existiert, aber es wurde nie eine Skizze erzeugt -> None
+          (Route -> 200 {"sketch": null}).
+
+        Raises:
+            CaseNotFoundError: case_id existiert nicht.
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if case.architecture_sketch is None:
+            return None
+
+        data = json.loads(case.architecture_sketch)
+        graph = ArchitectureSketch.model_validate(data["graph"])
+        return ArchitectureSketchResult(
+            case_id=case.id,
+            graph=graph,
+            mermaid_source=str(data["mermaid_source"]),
+            generated_at=datetime.fromisoformat(str(data["generated_at"])),
+            prompt_version=str(data["prompt_version"]),
+        )
 
     def generate_report(
         self,

@@ -47,6 +47,13 @@ status_updated_at nullable (Zeitstempel des letzten Wechsels, analog decided_at
 zur reviewer_decision). Geschrieben ueber update_status() -- ein dediziertes
 UPDATE beider Spalten in einem Statement, analog record_decision() (F-011).
 
+architecture_sketch (P11, ADR-0049): nullable Spalte mit dem JSON der
+On-Demand-Architektur-Skizze (graph + mermaid_source + generated_at +
+prompt_version). Geschrieben ueber update_field() (F-011, ein einzelnes
+Feld -- analog sharpened_content_json). Dieselbe PRAGMA-Migrationsstrategie
+wie embedding/status. Liegt in der Case-Zeile -> DSGVO-Loesch-Kaskade greift
+automatisch (delete() entfernt die Zeile mit der Spalte).
+
 monitoring_entries (Monitoring-ADR): EIGENE append-only Tabelle (nicht eine
 JSON-Spalte am Case -- das haette dasselbe Lost-Update-Risiko wie die per-Feld-
 UPDATEs, F-011). Nur INSERT + SELECT; die einzige Loeschung ist die DSGVO-
@@ -93,7 +100,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     reviewer_note           TEXT,
     decided_at              TEXT,
     status                  TEXT NOT NULL DEFAULT 'submitted',
-    status_updated_at       TEXT
+    status_updated_at       TEXT,
+    architecture_sketch     TEXT
 )
 """
 
@@ -118,21 +126,24 @@ _INSERT_SQL = (
     "INSERT OR REPLACE INTO submitted_cases "
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
+    "architecture_sketch) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at "
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
+    "architecture_sketch "
     "FROM submitted_cases WHERE id = ?"
 )
 
 _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
-    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at "
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
+    "architecture_sketch "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -150,6 +161,9 @@ _UPDATE_FIELD_SQL: dict[str, str] = {
         "UPDATE submitted_cases SET compliance_hints_json = ? WHERE id = ?"
     ),
     "embedding": "UPDATE submitted_cases SET embedding = ? WHERE id = ?",
+    "architecture_sketch": (
+        "UPDATE submitted_cases SET architecture_sketch = ? WHERE id = ?"
+    ),
 }
 
 # record_decision (ADR-0043): eigenes dediziertes UPDATE statt Eintrag in
@@ -321,7 +335,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (13-Tupel) -> SubmittedCase."""
+    """SQLite-Row (14-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -336,6 +350,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         decided_at_str,
         status_str,
         status_updated_at_str,
+        architecture_sketch,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -367,6 +382,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
             datetime.fromisoformat(str(status_updated_at_str))
             if status_updated_at_str is not None
             else None
+        ),
+        architecture_sketch=(
+            str(architecture_sketch) if architecture_sketch is not None else None
         ),
     )
 
@@ -443,6 +461,10 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN status_updated_at TEXT"
                 )
+            if "architecture_sketch" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN architecture_sketch TEXT"
+                )
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
@@ -476,6 +498,7 @@ class SQLiteRepository:
                     decided_at_str,
                     case.status.value,
                     status_updated_at_str,
+                    case.architecture_sketch,
                 ),
             )
 

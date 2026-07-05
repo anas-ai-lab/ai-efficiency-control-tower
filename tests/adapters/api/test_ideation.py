@@ -22,7 +22,10 @@ from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.ports.llm import LLMMessage, LLMPort, LLMResponse, ToolDefinition
 from aect.application.service import TriageService
-from aect.application.structured_output import IdeationResult, parse_structured_llm_output
+from aect.application.structured_output import (
+    IdeationResult,
+    parse_structured_llm_output,
+)
 from aect.domain.roi import load_roi_config
 
 TEST_API_KEY = "test-api-key-aect-2026"

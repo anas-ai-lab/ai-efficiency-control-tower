@@ -18,9 +18,10 @@ ungepruefte strukturierte Felder.
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 class InvalidLLMOutputError(Exception):
@@ -113,6 +114,105 @@ class IdeationResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     drafts: list[IdeationDraft] = Field(min_length=1, max_length=3)
+
+
+class SketchNodeKind(StrEnum):
+    """Bausteintyp eines Architektur-Skizzen-Knotens (P11, Vertrag Paragraph 3.7).
+
+    Bewusst genau fuenf generische Typen -- keine firmenspezifische Terminologie
+    (IP-Regel SDR-0002 Paragraph 5). Jeder Typ bestimmt die Mermaid-Knotenform
+    im deterministischen Builder (application/mermaid.py): user=Stadium,
+    system=Rechteck, ai_service=Hexagon, data_store=Zylinder, external=Subroutine.
+
+    Kein Config-Key -> gehoert NICHT in domain/types.py (dort liegt der StrEnum-
+    Anker ausschliesslich fuer TOML-Config-Keys). Dieses Enum ist Teil des
+    LLM-Output-Schemas und lebt daher bei den uebrigen Schema-Typen.
+    """
+
+    USER = "user"
+    SYSTEM = "system"
+    AI_SERVICE = "ai_service"
+    DATA_STORE = "data_store"
+    EXTERNAL = "external"
+
+
+# Node-IDs sind Mermaid-Bezeichner: kleingeschrieben, alphanumerisch + Unterstrich,
+# 1-24 Zeichen. Bewusst eng -- so kann keine Node-ID Mermaid-Syntax einschleusen
+# (die ID steht unescaped links vor der Knotenform, anders als das Label).
+_NODE_ID_PATTERN = r"^[a-z0-9_]{1,24}$"
+
+
+class SketchNode(BaseModel):
+    """Ein Knoten der Architektur-Skizze (P11).
+
+    id: Mermaid-Bezeichner (Pattern _NODE_ID_PATTERN). label: Anzeigetext,
+    1-60 Zeichen -- wird im Builder escaped, bevor er in die Mermaid-Form geht.
+    kind: einer der fuenf SketchNodeKind-Typen.
+
+    extra="forbid": unerwartete Felder im LLM-Output sind ein Validierungsfehler
+    (OWASP LLM10). frozen=True: nach Validierung unveraenderlich.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=_NODE_ID_PATTERN)
+    label: str = Field(min_length=1, max_length=60)
+    kind: SketchNodeKind
+
+
+class SketchEdge(BaseModel):
+    """Eine gerichtete Kante zwischen zwei Knoten der Architektur-Skizze (P11).
+
+    source/target: Node-IDs (Pattern _NODE_ID_PATTERN) -- die Referenz-Integritaet
+    (beide zeigen auf existierende Knoten) prueft der Model-Validator von
+    ArchitectureSketch, nicht der einzelne Kanten-Typ. label: optionale
+    Kantenbeschriftung, max 60 Zeichen -- ebenfalls im Builder escaped.
+
+    extra="forbid"/frozen=True analog SketchNode.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: str = Field(pattern=_NODE_ID_PATTERN)
+    target: str = Field(pattern=_NODE_ID_PATTERN)
+    label: str | None = Field(default=None, max_length=60)
+
+
+class ArchitectureSketch(BaseModel):
+    """Strukturierter Architektur-Graph aus einem Loesungsvorschlag (P11, D18).
+
+    Das LLM emittiert NIE Mermaid-Syntax, nur dieses Graph-JSON -- der
+    deterministische Builder (application/mermaid.py) erzeugt daraus die
+    Mermaid-Zeichenkette. Das eliminiert die Syntaxfehler-Klasse und minimiert
+    die Injection-Flaeche (ADR-0049).
+
+    nodes: 2-10 Knoten (bewusst begrenzt -- eine Skizze, kein vollstaendiges
+    Architekturbild). edges: 0-15 Kanten. Der Model-Validator erzwingt zwei
+    Invarianten, die einzelne Felder nicht sehen: Node-IDs sind eindeutig, und
+    jede Kante referenziert existierende Knoten -- sonst ValidationError (kein
+    500, die Route mappt auf 502 wie bei jedem anderen kaputten LLM-Output).
+
+    extra="forbid"/frozen=True analog SketchNode/SketchEdge.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    nodes: list[SketchNode] = Field(min_length=2, max_length=10)
+    edges: list[SketchEdge] = Field(max_length=15)
+
+    @model_validator(mode="after")
+    def _check_referential_integrity(self) -> ArchitectureSketch:
+        """Node-IDs eindeutig; jede Kante referenziert existierende IDs."""
+        ids = [node.id for node in self.nodes]
+        if len(ids) != len(set(ids)):
+            raise ValueError("node ids must be unique")
+        id_set = set(ids)
+        for edge in self.edges:
+            if edge.source not in id_set:
+                raise ValueError(f"edge references unknown node id: {edge.source}")
+            if edge.target not in id_set:
+                raise ValueError(f"edge references unknown node id: {edge.target}")
+        return self
 
 
 def parse_structured_llm_output[T: BaseModel](raw: str, schema: type[T]) -> T:

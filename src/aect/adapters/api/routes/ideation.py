@@ -97,8 +97,7 @@ async def generate_ideation(
         raise HTTPException(
             status_code=503,
             detail=(
-                "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut "
-                "versuchen."
+                "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
             ),
         ) from exc
 

@@ -8,7 +8,14 @@ from aect.application.ports.llm import (
     ToolCall,
     ToolDefinition,
 )
-from aect.application.structured_output import IdeationDraft, IdeationResult
+from aect.application.structured_output import (
+    ArchitectureSketch,
+    IdeationDraft,
+    IdeationResult,
+    SketchEdge,
+    SketchNode,
+    SketchNodeKind,
+)
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
 
@@ -107,4 +114,37 @@ class MockLLMAdapter:
                     ],
                 ),
             ]
+        )
+
+    async def generate_architecture_sketch(
+        self,
+        case_id: str,
+        title: str,
+        description: str,
+        proposal_text: str,
+    ) -> ArchitectureSketch:
+        """Liefert deterministisch einen 3-Knoten-Graph (Tests, P11).
+
+        Ignoriert die Eingaben bewusst (kein echter Call) und baut einen festen
+        Graphen user -> system -> data_store -- genug fuer den Mock-E2E-Pfad und
+        den Mermaid-Builder, ohne Netzwerk/Kosten.
+        """
+        return ArchitectureSketch(
+            nodes=[
+                SketchNode(id="user", label="Nutzer", kind=SketchNodeKind.USER),
+                SketchNode(
+                    id="system",
+                    label="[mock] Verarbeitungs-System",
+                    kind=SketchNodeKind.SYSTEM,
+                ),
+                SketchNode(
+                    id="data_store",
+                    label="Fall-Datenbank",
+                    kind=SketchNodeKind.DATA_STORE,
+                ),
+            ],
+            edges=[
+                SketchEdge(source="user", target="system", label="reicht ein"),
+                SketchEdge(source="system", target="data_store"),
+            ],
         )

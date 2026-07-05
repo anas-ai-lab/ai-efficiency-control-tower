@@ -11,6 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from aect.application.structured_output import ArchitectureSketch
 from aect.domain import CaseStatus, ReviewerDecision, TriageResult, UseCaseInput
 
 
@@ -99,6 +100,13 @@ class SubmittedCase:
     generate_report() rendert daraus hint_text + citations (
     _render_compliance_hints, service.py) in BusinessSummary.
 
+    architecture_sketch (P11, ADR-0049): optional persistiertes Ergebnis von
+    generate_sketch() -- JSON-Objekt mit graph (ArchitectureSketch),
+    mermaid_source (str), generated_at (ISO) und prompt_version. None, solange
+    generate_sketch() fuer diesen Case nie lief. Ein abgeleitetes Artefakt (D20):
+    Regenerieren ueberschreibt, kein Verlauf. Wird bei einem Case-Delete
+    automatisch mit-geloescht (DSGVO-Kaskade, liegt in der Case-Zeile).
+
     Kein frozen=True: TriageResult enthaelt verschachtelte Typen die nicht
     zwingend hashbar sind (list-Felder in FeasibilityResult). Immutabilitaet
     nach Konvention -- nach dem Speichern nicht mehr mutieren, ausser fuer
@@ -133,6 +141,7 @@ class SubmittedCase:
     sharpened_content_json: str | None = None
     proposal_text: str | None = None
     compliance_hints_json: str | None = None
+    architecture_sketch: str | None = None
     # Intake-Embedding fuer Dedup-Aehnlichkeitspruefung (L-3, ADR-0039).
     # None, solange kein Embedding berechnet wurde (Mock-Modus, erster Case,
     # oder Case aus einer aelteren DB-Version). Persistiert als JSON-Float-Liste.
@@ -364,4 +373,25 @@ class ComplianceHintsResult:
     case_id: str
     hint_text: str | None
     citations: tuple[ComplianceCitation, ...]
+    prompt_version: str
+
+
+@dataclass(frozen=True)
+class ArchitectureSketchResult:
+    """On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).
+
+    graph: das schema-validierte Graph-JSON (ArchitectureSketch) -- das LLM
+    emittiert nur dieses, nie Mermaid (D18). mermaid_source: die vom
+    deterministischen Builder (application/mermaid.py) daraus erzeugte
+    Mermaid-Zeichenkette. generated_at: Zeitpunkt der Erzeugung (aendert sich bei
+    jedem Regenerieren -- abgeleitetes Artefakt, kein Verlauf, D20).
+    prompt_version: welche Prompt-Version die Skizze erzeugt hat.
+
+    frozen=True: analog SharpenedUseCase/SolutionProposal.
+    """
+
+    case_id: str
+    graph: ArchitectureSketch
+    mermaid_source: str
+    generated_at: datetime
     prompt_version: str

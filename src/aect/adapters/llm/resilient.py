@@ -41,7 +41,7 @@ from aect.application.ports.llm import (
     LLMResponse,
     ToolDefinition,
 )
-from aect.application.structured_output import IdeationResult
+from aect.application.structured_output import ArchitectureSketch, IdeationResult
 
 
 class ResilientLLMAdapter:
@@ -127,6 +127,40 @@ class ResilientLLMAdapter:
                 with attempt:
                     return await asyncio.wait_for(
                         self._inner.generate_ideation(problem_description),
+                        timeout=self._timeout_seconds,
+                    )
+        raise AssertionError("unreachable: AsyncRetrying always returns or raises")
+
+    async def generate_architecture_sketch(
+        self,
+        case_id: str,
+        title: str,
+        description: str,
+        proposal_text: str,
+    ) -> ArchitectureSketch:
+        """Wrappt inner.generate_architecture_sketch mit Retry + Backoff + Timeout.
+
+        Identisches Muster wie complete()/generate_ideation(): Retry nur bei
+        TimeoutError/ConnectionError, Gesamtdeadline ueber alle Versuche (F-014).
+        Eine InvalidLLMOutputError (kaputte LLM-Antwort) ist KEIN transienter
+        Verbindungsfehler und propagiert sofort ohne Retry -- die Route mappt sie
+        auf einen sauberen HTTP-Fehler (502).
+        """
+        retrying = AsyncRetrying(
+            stop=stop_after_attempt(self._max_attempts),
+            wait=wait_exponential(
+                min=self._min_wait_seconds, max=self._max_wait_seconds
+            ),
+            retry=retry_if_exception_type((TimeoutError, ConnectionError)),
+            reraise=True,
+        )
+        async with asyncio.timeout(self._overall_timeout_seconds):
+            async for attempt in retrying:
+                with attempt:
+                    return await asyncio.wait_for(
+                        self._inner.generate_architecture_sketch(
+                            case_id, title, description, proposal_text
+                        ),
                         timeout=self._timeout_seconds,
                     )
         raise AssertionError("unreachable: AsyncRetrying always returns or raises")

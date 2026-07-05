@@ -30,6 +30,7 @@ from aect.application.ports.llm import (
 )
 from aect.application.prompts import load_prompt
 from aect.application.structured_output import (
+    ArchitectureSketch,
     IdeationResult,
     parse_structured_llm_output,
 )
@@ -148,6 +149,49 @@ class AzureOpenAIAdapter:
         )
 
         return parse_structured_llm_output(response.content, IdeationResult)
+
+    async def generate_architecture_sketch(
+        self,
+        case_id: str,
+        title: str,
+        description: str,
+        proposal_text: str,
+    ) -> ArchitectureSketch:
+        """Erzeugt eine Architektur-Skizze als Graph-JSON (P11, ADR-0049).
+
+        Baut die Messages aus dem versionierten architecture_sketch-Prompt
+        (System/User getrennt, kein String-Concat -- LLM01), ruft complete()
+        (inkl. Exception-Translation + max_tokens-Cap), loggt die Kosten unter
+        der echten case_id und validiert die rohe Antwort gegen
+        ArchitectureSketch (Output als untrusted, ADR-0013). Kein
+        Function-Calling. Kein Mermaid -- nur das Graph-JSON (D18).
+
+        Raises:
+            InvalidLLMOutputError: rohe Antwort verletzt ArchitectureSketch.
+            ConnectionError/TimeoutError: aus complete() durchgereicht.
+        """
+        system_prompt = load_prompt("architecture_sketch", "system")
+        user_template = load_prompt("architecture_sketch", "user")
+        user_content = user_template.format(
+            title=title,
+            description=description,
+            proposal_text=proposal_text,
+        )
+
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self.complete(messages)
+
+        log_llm_cost(
+            case_id=case_id,
+            messages=messages,
+            response=response,
+            operation="generate_architecture_sketch",
+        )
+
+        return parse_structured_llm_output(response.content, ArchitectureSketch)
 
 
 def _to_azure_message(msg: LLMMessage) -> dict[str, Any]:

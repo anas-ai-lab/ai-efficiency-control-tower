@@ -16,6 +16,7 @@ CaseUpdateField = Literal[
     "proposal_text",
     "compliance_hints_json",
     "embedding",
+    "architecture_sketch",
 ]
 
 
