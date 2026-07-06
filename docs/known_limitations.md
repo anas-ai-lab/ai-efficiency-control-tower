@@ -3,7 +3,9 @@
 > Limitationen offen benennen ist das staerkste Glaubwuerdigkeits-Asset
 > dieses Projekts (Projekt-Prinzip "Grenzen offenlegen"). #1-#14 gelten fuer v1
 > (Stand Juni 2026); #15-#17 ergaenzen die v3-Control-Tower-Module und #18-#20
-> die v3.1-Assistenz-Features (Juli 2026).
+> die v3.1-Assistenz-Features (Juli 2026). #21-#24 ergaenzen die im externen
+> Master-Audit H (Juli 2026) bestaetigten ehrlichen Luecken (#24 = offener
+> Fix-Kandidat, kein Design-Limit).
 
 ---
 
@@ -370,6 +372,91 @@ Dedup-Urteil -- dieselbe Human-in-the-Loop-Linie wie ueberall. Verstaerkt durch
 
 ---
 
+## 21. Prompt-Injection-Erkennung ist Best-Effort-Observability, kein Schutz
+
+**Was:** `sanitization.py` prueft Freitext mit vier Regex-Patterns (DE/EN) und
+FLAGGT Treffer (Log), blockt aber nicht (`flag-not-block`, bewusst). Ein externer
+Audit-Lauf (Master-Audit H-017, S2) hat gezeigt: fuenf von fuenf einfachen
+Obfuskations-Varianten (Zero-Width-Space, Leetspeak `1gn0re`, Synonyme `skip the
+rules`, Newline-Split, Sprach-Mix) umgehen ALLE vier Patterns. Der als "primaere
+Verteidigung" bezeichnete `<<<DATA>>>`-Delimiter ist zudem vom Nutzer-Input
+brechbar, weil der Freitext roh (ohne Delimiter-Neutralisierung) in den Prompt
+gesetzt wird (H-018). Auf zwei der fuenf LLM-Pfade (compliance-hints, sketch) laeuft
+die Erkennung gar nicht (H-030).
+
+**Konsequenz:** Der Wert der Injection-Erkennung ist ausschliesslich Observability
+(eine Log-Zeile), und diese ist mit trivialen Tricks stumm zu schalten. Sie ist
+KEIN Control. Der real begrenzte Blast-Radius ist strukturell bedingt, nicht durch
+die Regex: kein Secret im System-Prompt, Single-User, parameterloses Tool, Ausgabe
+ist Advisory-Text. Die Formulierung "vierlagiger Schutz" ueberschaetzt die Regex-
+Lage; strukturell tragen nur die getrennten `LLMMessage`-Rollen und die
+Pydantic-Output-Validierung.
+
+**v2-Kandidat:** Unicode-Normalisierung (NFKC + Zero-Width strippen) vor dem Match,
+Delimiter-Tokens im Feldwert neutralisieren, und die Erkennung auf allen LLM-Pfaden
+aufrufen -- ODER die Erkennung ehrlich nur als Logging deklarieren und die
+Verteidigung strukturell fuehren.
+
+---
+
+## 22. Country-Coverage: 3 von 12 Enum-Laendern konfiguriert
+
+**Was:** Das `Country`-Enum bietet 12 Laender an (de/at/ch/no/gb/es/it/tr/ro/pl/
+eg/in); die committete `config/roi_config.toml` traegt Stundensaetze nur fuer
+`de/at/ch`. Die uebrigen neun Laender liegen in der gitignorierten
+`roi_config.local.toml` (IP-Trennung) und fehlen im Fresh Clone.
+
+**Konsequenz:** Ein API-/Frontend-valides `country` ausserhalb DACH fuehrt zu
+Stundensatz 0 → Potenzial 0 → Vorfilter-Fail. Der Vorfilter meldet dann
+"Theoretisches Potenzial 0 EUR < Schwelle" statt "kein Stundensatz fuer Land X
+konfiguriert" -- eine inhaltlich falsch begruendete, still aussehende Ablehnung
+(Master-Audit H-011, S1). Im Docstring vermerkt, zur Laufzeit aber still.
+
+**v2-Kandidat:** Fail-fast bei fehlendem Land (expliziter Fehler statt stillem 0),
+oder das Enum/Frontend auf die tatsaechlich konfigurierten Laender beschraenken,
+oder mindestens den Vorfilter-Grund den wahren Ursprung nennen lassen.
+
+---
+
+## 23. Zonen-Einstufung nutzt den Brutto-Nutzen (vor Lizenzabzug)
+
+**Was:** Die Benefit-Achse der Zonen-Einstufung erhaelt `expected_benefit_eur`
+(Nutzen VOR Lizenzabzug); die Lizenzkosten wirken nur ueber den Composite-Kosten-
+Tier (Aufwand-Achse), nicht auf der Benefit-Achse (Master-Audit H-009, S1).
+
+**Konsequenz:** Ein Case mit hohem Brutto-Potenzial, aber duennem Netto-Nutzen nach
+Lizenz (z. B. 325.000 EUR Potenzial, 320.000 EUR Lizenz → 5.000 EUR netto) kann als
+LIKELY_WIN erscheinen, obwohl der reale Jahres-Nettonutzen minimal ist. Das steht in
+Spannung zu ADR-002, dessen Formulierung die untere Zonen-Schwelle mit dem
+Netto-Nutzen-Vorfilter gleichsetzt. Der Vorfilter selbst rechnet netto und faengt
+die extremsten Faelle ab; die Zonen-EINSTUFUNG darueber bleibt brutto.
+
+**v2-Kandidat:** Zone bewusst auf `net_expected_benefit_eur` umstellen ODER die
+Brutto-Semantik in ADR-002 + `zone_thresholds.yaml` explizit machen und begruenden,
+warum die Lizenz nur auf der Aufwand-Achse zaehlt.
+
+---
+
+## 24. CSV-Export ohne Formel-Injection-Schutz (Fix-Kandidat, kein Design-Limit)
+
+**Was:** Der client-seitige CSV-Export (`frontend/src/lib/csv.ts`) neutralisiert
+fuehrende Formel-Zeichen (`=`, `+`, `-`, `@`) in Feldwerten nicht (Master-Audit
+H-038, S6). Oeffnet ein Nutzer die exportierte Datei in Excel/LibreOffice, kann ein
+Case-Titel wie `=HYPERLINK(...)` oder `=cmd|...` als Formel ausgewertet werden
+(CSV/Formula Injection).
+
+**Konsequenz:** Ein per Intake eingeschleuster Titel wird beim Export zu einer
+potenziell aktiven Zelle. Im privaten Single-User-Build mit selbst eingegebenen
+Daten ist das Risiko klein, aber der Export ist die einzige Stelle, an der
+Case-Text die vertrauenswuerdige App-Grenze in eine fremde Anwendung verlaesst.
+
+**Anders als #1-#23 ist das kein bewusstes Design-Limit, sondern ein offener
+Fix-Kandidat (P1):** fuehrende `= + - @ \t \r` je Feld mit einem `'` praefixen
+(gaengige Anti-CSV-Injection-Konvention). Als Limitation gefuehrt, bis der Code-Fix
+gemacht ist.
+
+---
+
 ---
 
 ## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
@@ -388,6 +475,8 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: 2026-07-06 -- v3.1.0 (Assistenz-Layer-Closeout, #18-#20
-ergaenzt). Phase-G-Triage der urspruenglichen 14 Punkte (bewusstes Design /
-v1-Grenze + v2-Roadmap) in `docs/reviews/phase-g-review.md` SS3.*
+*Letzte Aktualisierung: 2026-07-06 -- v3.1.0 + Master-Audit-H-Konsolidierung
+(#21-#24 ergaenzt aus H-009/H-011/H-017/H-018/H-030/H-038, siehe
+`docs/reviews/master-audit-h-summary.md`). Phase-G-Triage der urspruenglichen 14
+Punkte (bewusstes Design / v1-Grenze + v2-Roadmap) in
+`docs/reviews/phase-g-review.md` SS3.*
