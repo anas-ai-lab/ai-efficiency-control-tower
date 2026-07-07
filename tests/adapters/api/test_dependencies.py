@@ -205,6 +205,49 @@ def test_check_azure_eu_region_skips_mock_endpoints(endpoint: str) -> None:
     assert check_azure_eu_region(endpoint) == "skipped_mock"
 
 
+def test_check_azure_eu_region_explicit_region_overrides_hostname() -> None:
+    """AUDIT-008-Fix: explizite Region validiert, auch wenn der Hostname
+    (Custom-Subdomain-Format https://<resource>.openai.azure.com) die Region
+    gar nicht enthaelt -- der Fall, der den Guard bisher blockierte."""
+    assert (
+        check_azure_eu_region(
+            "https://aect-openai-dev.openai.azure.com", "swedencentral"
+        )
+        == "ok"
+    )
+
+
+def test_check_azure_eu_region_explicit_region_rejects_non_eu() -> None:
+    """Explizite nicht-EU-Region schlaegt fehl, selbst wenn der Hostname
+    zufaellig eine EU-Region enthaelt -- explicit_region ignoriert den
+    Hostnamen vollstaendig, statt ihn als zusaetzlichen Fallback zu pruefen."""
+    with pytest.raises(ValueError, match="Configured AECT_AZURE_OPENAI_REGION"):
+        check_azure_eu_region("https://aect.swedencentral.openai.azure.com", "eastus")
+
+
+def test_check_azure_eu_region_hostname_fallback_logs_warning() -> None:
+    """Regressionsschutz: ohne explicit_region bleibt die bisherige
+    Hostname-Heuristik aktiv (gleiches Ergebnis wie vor dem AUDIT-008-Fix),
+    aber jetzt mit einem Warn-Log, das die geratene Region sichtbar macht."""
+    with capture_logs() as logs:
+        result = check_azure_eu_region("https://aect.westeurope.openai.azure.com")
+    assert result == "ok"
+    warn_logs = [
+        log for log in logs if log["event"] == "azure_eu_region_guessed_from_hostname"
+    ]
+    assert len(warn_logs) == 1
+    assert warn_logs[0]["log_level"] == "warning"
+
+
+def test_check_azure_eu_region_no_explicit_region_no_hostname_match_still_fails() -> (
+    None
+):
+    """Fail-safe-Default bleibt bestehen: ohne explicit_region UND ohne
+    Hostname-Match weiterhin ein harter Fehler, keine Aufweichung."""
+    with pytest.raises(ValueError, match="EU Data Zone"):
+        check_azure_eu_region("https://aect.eastus.openai.azure.com")
+
+
 def test_get_llm_adapter_rejects_non_eu_endpoint() -> None:
     """Fail-Fast (AUDIT-008): nicht-EU-Endpoint -> ValueError beim Adapter-Init."""
     settings = Settings(
@@ -214,6 +257,22 @@ def test_get_llm_adapter_rejects_non_eu_endpoint() -> None:
     )
     with pytest.raises(ValueError, match="EU Data Zone"):
         get_llm_adapter(settings=settings)
+
+
+def test_get_llm_adapter_accepts_custom_subdomain_with_explicit_region() -> None:
+    """AUDIT-008-Fix: ein Custom-Subdomain-Endpoint (Region nicht im
+    Hostnamen, das reale Azure-AI-Foundry-Format) wird hier nicht mehr
+    per-Request abgelehnt, wenn azure_openai_region explizit gesetzt ist --
+    sonst wuerde jede Triage-Anfrage scheitern, obwohl der Lifespan-Check
+    beim App-Start bereits erfolgreich war."""
+    settings = Settings(
+        azure_openai_endpoint="https://aect-openai-dev.openai.azure.com",
+        azure_openai_api_key="fake-key",
+        azure_openai_deployment="gpt-4o-mini",
+        azure_openai_region="swedencentral",
+    )
+    adapter = get_llm_adapter(settings=settings)
+    assert isinstance(adapter, ResilientLLMAdapter)
 
 
 # ---------------------------------------------------------------------------

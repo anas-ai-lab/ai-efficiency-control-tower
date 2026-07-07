@@ -68,7 +68,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # EU-Datenresidenz-Check (AUDIT-008): nicht-EU-Endpoint -> ValueError,
     # App startet nicht. Mock/leer -> uebersprungen. Ergebnis als info geloggt.
-    region_status = check_azure_eu_region(settings.azure_openai_endpoint)
+    region_status = check_azure_eu_region(
+        settings.azure_openai_endpoint, settings.azure_openai_region
+    )
     logger.info(
         "azure_eu_region_check",
         result=region_status,

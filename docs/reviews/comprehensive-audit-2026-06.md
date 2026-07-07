@@ -96,12 +96,18 @@ Logs. Für ein Single-User-Localhost-Build ohne echte Personendaten vertretbar,
 aber eine reale DSGVO-Lücke sobald produktiv. Entscheidung: v2 (Lösch-Pfad +
 Kaskade); bis dahin als Limitation führen.
 
-**AUDIT-008** [P2 / M / none] EU-Datenresidenz ist kein Code-Gate. Die Region
-(swedencentral/westeurope) ist nicht aus der Endpoint-URL ableitbar und wird nur
-deployment-seitig erzwungen (`settings.py:27`, `azure_openai.py:4`, ADR-0010).
-Bei Fehlkonfiguration könnten PII in eine Non-EU-Region gehen. Ehrlich
-dokumentiert. Entscheidung: v2 (optionaler Region-Allowlist-Check beim
-Settings-Load).
+**AUDIT-008** [P2 / M / none] **geloest** (explizite Region-Config, v3.1.x).
+`check_azure_eu_region()` (`settings.py`) validierte die Region bisher nur per
+Hostname-Substring-Match -- Custom-Subdomain-Endpoints
+(`https://<resource>.openai.azure.com`, das Standardformat aus Azure AI
+Foundry) enthalten die Region aber nie im Hostnamen, wodurch der Guard JEDEN
+echten Endpoint beim App-Start blockierte. Fix: neue optionale
+`AECT_AZURE_OPENAI_REGION` umgeht die Hostname-Heuristik explizit, wenn
+gesetzt (validiert dann nur die konfigurierte Region gegen die EU-Data-Zone-
+Allowlist). Fallback-Verhalten bleibt: ohne die Variable greift weiterhin die
+alte Hostname-Heuristik (jetzt mit Warn-Log bei Treffer) inklusive Fail-Safe-
+Default (kein Match -> ValueError) -- keine Aufweichung fuer bestehende
+Konfigurationen.
 
 **AUDIT-009** [P1 / L / none] PII-Redaction vor LLM-Calls nicht implementiert
 (`sanitization.py` macht nur Injection-Detection, known_limitations #7). In
@@ -249,7 +255,7 @@ iCloud-I/O (>7 Min). CI (sauberes Ubuntu) ist nicht betroffen. Echter Fix
 | AUDIT-003 | Security | P2 | S | none | v2 (lokale Security-Hooks) |
 | AUDIT-004 | Infra | P2 | M | none | v2 (Frontend-CI) |
 | AUDIT-007 | DSGVO | P2 | L | none | v2 (Löschung Art.17) |
-| AUDIT-008 | DSGVO | P2 | M | none | v2 (Region-Gate) |
+| AUDIT-008 | DSGVO | P2 | M | none | **GEFIXT** (explizite Region-Config, v3.1.x) |
 | AUDIT-015 | Doku | P2 | M | none | v2 (secret-compromise-Runbook) |
 | AUDIT-017 | Umgebung | P2 | M | none | Nutzer (Repo aus iCloud) |
 | AUDIT-002 | Architektur | P3 | S | none | Beobachtung |
@@ -278,7 +284,9 @@ Nutzer-Aktion und in phase-g-review.md §6 geführt.)
 4. **PII-Redaction fehlt (AUDIT-009)** -- PII erreicht den LLM ungefiltert.
    *Empfehlung: v2 spaCy-NER; bis dahin known_limitations #7 prominent halten.*
 5. **EU-Residenz ohne Code-Gate (AUDIT-008)** -- Fehlkonfiguration kann PII
-   außerhalb der EU verarbeiten. *Empfehlung: Region-Allowlist im Settings-Load.*
+   außerhalb der EU verarbeiten. **ERLEDIGT** (v3.1.x): explizite
+   `AECT_AZURE_OPENAI_REGION` ersetzt die bisherige Hostname-Heuristik als
+   primären Check, Hostname-Fallback bleibt mit Warn-Log bestehen.
 6. **stack_options.toml committed (AUDIT-011)** -- Plattform-Liste auf Generik pruefen.
    *Empfehlung: vor Public-Release splitten oder Header korrigieren.
    ERLEDIGT (Phase 2, 2026-07-02): gesplittet, Kategorien committet.*

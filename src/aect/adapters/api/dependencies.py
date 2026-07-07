@@ -286,9 +286,12 @@ def get_llm_adapter(
 
     EU-Datenresidenz (AUDIT-008): ein gesetzter, nicht-Mock-Endpoint muss in
     der EU-Data-Zone liegen -- sonst ValueError (Fail-Fast). Greift auch im
-    httpx-Testpfad, wo der Lifespan-Startup-Check nicht laeuft.
+    httpx-Testpfad, wo der Lifespan-Startup-Check nicht laeuft. Explizite
+    settings.azure_openai_region (falls gesetzt) umgeht dabei die Hostname-
+    Heuristik -- sonst wuerde jeder reale Custom-Subdomain-Endpoint hier
+    erneut abgelehnt, selbst wenn der Lifespan-Check ihn schon akzeptiert hat.
     """
-    check_azure_eu_region(settings.azure_openai_endpoint)
+    check_azure_eu_region(settings.azure_openai_endpoint, settings.azure_openai_region)
     inner: LLMPort
     if settings.azure_openai_endpoint and settings.azure_openai_api_key:
         client = AsyncAzureOpenAI(

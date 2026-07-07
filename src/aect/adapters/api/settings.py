@@ -10,6 +10,7 @@ Security (aect-security-checklist v2.1, Phase B):
 
 from __future__ import annotations
 
+import structlog
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -26,17 +27,25 @@ from aect.adapters.api.keyvault_settings import AzureKeyVaultSettingsSource
 _EU_DATA_ZONE_REGIONS = ("swedencentral", "westeurope")
 
 
-def check_azure_eu_region(endpoint: str) -> str:
+def check_azure_eu_region(endpoint: str, explicit_region: str = "") -> str:
     """Prueft die EU-Datenresidenz des Azure-OpenAI-Endpoints (AUDIT-008).
 
     Validiert nur echte Endpoints: leere, "mock"- oder localhost-Werte gelten
     als Test-/Mock-Konfiguration und werden uebersprungen.
 
+    explicit_region (AECT_AZURE_OPENAI_REGION) umgeht, wenn gesetzt, die
+    Hostname-Heuristik vollstaendig -- Azure-Custom-Subdomain-Endpoints
+    (https://<resource>.openai.azure.com, das Standardformat aus Azure AI
+    Foundry) enthalten die Region nie im Hostnamen. Ohne explicit_region
+    bleibt der bisherige Hostname-Best-Effort als Fallback aktiv (mit
+    Warn-Log bei einem Treffer, da die Erkennung dann nur geraten ist).
+
     Returns:
         "skipped_mock" wenn nicht validiert (Mock/Test), sonst "ok".
 
     Raises:
-        ValueError: Endpoint gesetzt, kein Mock, aber nicht in der EU-Data-Zone.
+        ValueError: konfigurierte oder aus dem Hostnamen erkannte Region ist
+        nicht in der EU-Data-Zone.
     """
     if (
         not endpoint
@@ -44,12 +53,30 @@ def check_azure_eu_region(endpoint: str) -> str:
         or endpoint.startswith("http://localhost")
     ):
         return "skipped_mock"
+
+    if explicit_region:
+        if explicit_region.lower() not in _EU_DATA_ZONE_REGIONS:
+            raise ValueError(
+                f"Configured AECT_AZURE_OPENAI_REGION '{explicit_region}' is "
+                "not an EU Data Zone (swedencentral or westeurope). See "
+                "AUDIT-008 in docs/reviews."
+            )
+        return "ok"
+
     lowered = endpoint.lower()
     if not any(region in lowered for region in _EU_DATA_ZONE_REGIONS):
         raise ValueError(
             "Azure OpenAI endpoint must be in EU Data Zone (swedencentral or "
             f"westeurope). Configured: {endpoint}. See AUDIT-008 in docs/reviews."
         )
+    # Kein Modul-globaler Logger (cache_logger_on_first_use=True bindet sonst
+    # permanent an die Processor-Kette des ersten Aufrufs, vgl. dependencies.py).
+    structlog.get_logger().warning(
+        "azure_eu_region_guessed_from_hostname",
+        endpoint=endpoint,
+        hint="AECT_AZURE_OPENAI_REGION nicht gesetzt, Region nur aus "
+        "Hostname geraten -- siehe AUDIT-008",
+    )
     return "ok"
 
 
@@ -78,6 +105,12 @@ class Settings(BaseSettings):
     azure_openai_api_key: str = ""  # AECT_AZURE_OPENAI_API_KEY
     azure_openai_deployment: str = ""  # AECT_AZURE_OPENAI_DEPLOYMENT
     azure_openai_api_version: str = "2024-10-21"  # AECT_AZURE_OPENAI_API_VERSION
+    # Explizite Region-Angabe (AUDIT-008-Fix): umgeht die Hostname-Heuristik
+    # in check_azure_eu_region, wenn gesetzt -- Custom-Subdomain-Endpoints
+    # (https://<resource>.openai.azure.com) enthalten die Region nicht
+    # zuverlaessig im Hostnamen. Leer = bisherige Hostname-Heuristik als
+    # Fallback (unveraendert).
+    azure_openai_region: str = ""  # AECT_AZURE_OPENAI_REGION
 
     # ChromaDB (Phase D, ADR-0018/0019/0025) -- leer = MockRetriever.
     # Docker-Container muss separat laufen (docker compose up -d).
