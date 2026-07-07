@@ -239,6 +239,15 @@ def parse_structured_llm_output[T: BaseModel](raw: str, schema: type[T]) -> T:
     try:
         return schema.model_validate(data)
     except ValidationError as exc:
+        # Nur loc/type je Fehler aufnehmen -- NICHT str(exc)/input_value, das
+        # LLM-Output-Fragmente (ggf. PII/Secrets) enthaelt und sonst ueber
+        # Logs und die 502-Antwort leakt (OWASP LLM02, H-031). Der volle
+        # ValidationError bleibt als __cause__ (from exc) fuer lokales Debugging.
+        summary = "; ".join(
+            f"{'.'.join(str(p) for p in err['loc']) or '<root>'}: {err['type']}"
+            for err in exc.errors()
+        )
         raise InvalidLLMOutputError(
-            f"LLM-Output erfuellt das Schema {schema.__name__} nicht: {exc}"
+            f"LLM-Output erfuellt das Schema {schema.__name__} nicht "
+            f"({exc.error_count()} Fehler): {summary}"
         ) from exc

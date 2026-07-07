@@ -44,7 +44,13 @@ Daten in Antworten preis (PII, Auth-Konfiguration, Secrets).
 
 - Logging-Allowlist (`adapters/api/logging_config.py`): kein Prompt-Body, kein
   LLM-Output, keine PII in Logs -- nur Metadaten (request_id, route, status,
-  latency_ms, token_count, cost_eur_estimate).
+  latency_ms, token_count, cost_eur_estimate). Strukturell durchgesetzt durch
+  den `_drop_denied_keys`-structlog-Processor (H-027): Freitext-Keys
+  (prompt/body/input/output/...) werden aus jedem Event entfernt, bevor
+  gerendert wird -- Defense-in-Depth statt reiner Call-Site-Konvention.
+- LLM-Output-Validierungsfehler leaken keinen `input_value` (H-031):
+  `parse_structured_llm_output` redaktiert `ValidationError` auf loc/type, statt
+  `str(exc)` (mit LLM-Output-Fragmenten) in Message/Log/502-Antwort zu tragen.
 - `debug=False` in `adapters/api/app.py`: kein Stack-Trace in HTTP-Responses.
 - Globaler Exception-Handler: gibt nur `{"detail": "Internal error",
   "request_id": "..."}` zurueck -- kein Kontext der Interna offenlegt.

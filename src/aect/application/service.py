@@ -40,7 +40,10 @@ from aect.application.ports.pii_redactor import PIIRedactorPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.prompts import load_prompt
-from aect.application.sanitization import detect_injection_patterns
+from aect.application.sanitization import (
+    detect_injection_patterns,
+    neutralize_delimiters,
+)
 from aect.application.structured_output import (
     ArchitectureSketch,
     IdeationResult,
@@ -91,6 +94,29 @@ def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def _flag_injection_in_fields(
+    fields: dict[str, str], **log_context: object
+) -> dict[str, list[str]]:
+    """Prueft Freitextfelder auf Injection-Muster und loggt Treffer (OWASP LLM01).
+
+    Zentrale Stelle fuer alle LLM-Pfade (sharpen/propose/compliance/sketch):
+    FLAGGEN, nicht BLOCKEN -- Treffer werden geloggt (Feldname + Pattern-Namen,
+    kein Body -- Logging-Allowlist), der Aufrufer laeuft trotzdem weiter. Frischer
+    Logger pro Aufruf (kein Modul-globaler get_logger()) -- cache_logger_on_first_use
+    wuerde capture_logs() in Tests an die falsche Prozessor-Kette binden (Tag 32).
+    """
+    detected: dict[str, list[str]] = {
+        field_name: patterns
+        for field_name, field_value in fields.items()
+        if (patterns := detect_injection_patterns(field_value))
+    }
+    if detected:
+        structlog.get_logger().warning(
+            "injection_pattern_detected", fields=detected, **log_context
+        )
+    return detected
 
 
 class CaseNotFoundError(Exception):
@@ -788,32 +814,23 @@ class TriageService:
         if case is None:
             return None
 
-        fields_to_check = {
-            "title": case.use_case.title,
-            "current_state": case.use_case.current_state,
-            "desired_state": case.use_case.desired_state,
-            "example_process": case.use_case.example_process,
-        }
-        detected: dict[str, list[str]] = {
-            field_name: patterns
-            for field_name, field_value in fields_to_check.items()
-            if (patterns := detect_injection_patterns(field_value))
-        }
-        if detected:
-            logger = structlog.get_logger()
-            logger.warning(
-                "injection_pattern_detected",
-                case_id=case.id,
-                fields=detected,
-            )
+        _flag_injection_in_fields(
+            {
+                "title": case.use_case.title,
+                "current_state": case.use_case.current_state,
+                "desired_state": case.use_case.desired_state,
+                "example_process": case.use_case.example_process,
+            },
+            case_id=case.id,
+        )
 
         system_prompt = load_prompt("sharpen_use_case", "system", prompt_version)
         user_template = load_prompt("sharpen_use_case", "user", prompt_version)
         user_content = user_template.format(
-            title=case.use_case.title,
-            current_state=case.use_case.current_state,
-            desired_state=case.use_case.desired_state,
-            example_process=case.use_case.example_process,
+            title=neutralize_delimiters(case.use_case.title),
+            current_state=neutralize_delimiters(case.use_case.current_state),
+            desired_state=neutralize_delimiters(case.use_case.desired_state),
+            example_process=neutralize_delimiters(case.use_case.example_process),
         )
 
         messages = [
@@ -913,32 +930,23 @@ class TriageService:
         if case is None:
             return None
 
-        fields_to_check = {
-            "title": case.use_case.title,
-            "current_state": case.use_case.current_state,
-            "desired_state": case.use_case.desired_state,
-            "example_process": case.use_case.example_process,
-        }
-        detected: dict[str, list[str]] = {
-            field_name: patterns
-            for field_name, field_value in fields_to_check.items()
-            if (patterns := detect_injection_patterns(field_value))
-        }
-        if detected:
-            logger = structlog.get_logger()
-            logger.warning(
-                "injection_pattern_detected",
-                case_id=case.id,
-                fields=detected,
-            )
+        _flag_injection_in_fields(
+            {
+                "title": case.use_case.title,
+                "current_state": case.use_case.current_state,
+                "desired_state": case.use_case.desired_state,
+                "example_process": case.use_case.example_process,
+            },
+            case_id=case.id,
+        )
 
         system_prompt = load_prompt("propose_solution", "system", prompt_version)
         user_template = load_prompt("propose_solution", "user", prompt_version)
         user_content = user_template.format(
-            title=case.use_case.title,
-            current_state=case.use_case.current_state,
-            desired_state=case.use_case.desired_state,
-            example_process=case.use_case.example_process,
+            title=neutralize_delimiters(case.use_case.title),
+            current_state=neutralize_delimiters(case.use_case.current_state),
+            desired_state=neutralize_delimiters(case.use_case.desired_state),
+            example_process=neutralize_delimiters(case.use_case.example_process),
         )
 
         messages = [
@@ -1068,10 +1076,15 @@ class TriageService:
 
         citations = _build_compliance_citations(retrieved)
 
+        # Injection-Check auch hier (H-030): der Titel geht in den Prompt.
+        # retrieved_chunks stammen aus der kuratierten KB (trusted), nicht aus
+        # User-Freitext -- daher nur der Titel geprueft/neutralisiert.
+        _flag_injection_in_fields({"title": case.use_case.title}, case_id=case.id)
+
         system_prompt = load_prompt("compliance_hints", "system", prompt_version)
         user_template = load_prompt("compliance_hints", "user", prompt_version)
         user_content = user_template.format(
-            title=case.use_case.title,
+            title=neutralize_delimiters(case.use_case.title),
             retrieved_chunks=_build_compliance_data_block(retrieved),
         )
 
@@ -1170,7 +1183,7 @@ class TriageService:
                 patterns=detected,
             )
 
-        result = await self._llm.generate_ideation(description)
+        result = await self._llm.generate_ideation(neutralize_delimiters(description))
 
         logger.info(
             "ideation_requested",
@@ -1221,6 +1234,17 @@ class TriageService:
         if proposal_text is None or not proposal_text.strip():
             raise NoProposalForSketchError(case_id)
 
+        # Injection-Check auch hier (H-030): Titel + Ist/Soll-Zustand koennen
+        # ueber die description in den Prompt fliessen.
+        _flag_injection_in_fields(
+            {
+                "title": case.use_case.title,
+                "current_state": case.use_case.current_state,
+                "desired_state": case.use_case.desired_state,
+            },
+            case_id=case.id,
+        )
+
         # Geschaerfte Version bevorzugt; Fallback auf den Original-Ist/Soll-Zustand,
         # wenn sharpen_case() fuer diesen Case nie lief.
         description = _render_sharpened_content(case.sharpened_content_json)
@@ -1232,9 +1256,9 @@ class TriageService:
 
         sketch = await self._llm.generate_architecture_sketch(
             case.id,
-            case.use_case.title,
-            description,
-            proposal_text,
+            neutralize_delimiters(case.use_case.title),
+            neutralize_delimiters(description),
+            neutralize_delimiters(proposal_text),
         )
         mermaid_source = build_mermaid(sketch)
         generated_at = self._clock.now()

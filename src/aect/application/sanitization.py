@@ -63,3 +63,27 @@ def detect_injection_patterns(text: str) -> list[str]:
         Reihenfolge entspricht der Pruefreihenfolge, keine Duplikate.
     """
     return [name for name, pattern in _PATTERNS if pattern.search(text)]
+
+
+# Delimiter-Marker, die die DATA-/SYSTEM-Region im Prompt abgrenzen
+# (prompts/*/user.md). Gleiche Marker wie das delimiter_breakout-Pattern oben.
+_DELIMITER_TOKEN: re.Pattern[str] = re.compile(
+    r"<<<\s*(?:DATA|END_DATA|SYSTEM|END_SYSTEM)\s*>>>", re.IGNORECASE
+)
+
+
+def neutralize_delimiters(text: str) -> str:
+    """Entschaerft Data-Region-Delimiter in User-Freitext (struktureller Schutz).
+
+    Ersetzt jedes <<<DATA>>>/<<<END_DATA>>>/<<<SYSTEM>>>/<<<END_SYSTEM>>>-Token
+    (case-insensitive, optionaler Whitespace) durch eine sichtbare, aber inerte
+    Form (Winkelklammern -> runde Klammern), sodass ein Feldwert die vom
+    Prompt-Template gesetzte Datenregion strukturell nicht aufbrechen kann.
+
+    Das macht den Delimiter-Contract belastbar statt konventionell: Flaggen
+    (detect_injection_patterns) bleibt Observability, dies ist die strukturelle
+    Verteidigung (OWASP LLM01, Delimiter-Breakout).
+    """
+    return _DELIMITER_TOKEN.sub(
+        lambda m: m.group(0).replace("<", "(").replace(">", ")"), text
+    )
