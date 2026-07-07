@@ -649,17 +649,19 @@ class TriageService:
         case.reviewer_note = note
         case.decided_at = decided_at
 
-        # Lifecycle-Kopplung (Lifecycle-ADR): der Freigabe-/Ablehnungs-Akt
-        # bewegt den Case auch im Lifecycle -- ein zusaetzlicher dedizierter
-        # UPDATE-Call (kein save()). Darf einen zuvor manuell gesetzten Status
-        # ueberschreiben: die Freigabe gewinnt. PENDING hat keinen Lifecycle-
-        # Gegenwert und wird uebersprungen (kommt ueber die Route ohnehin nicht).
+        # Lifecycle-Kopplung (Lifecycle-ADR), monoton (H-034): der Freigabe-/
+        # Ablehnungs-Akt bewegt den Case im Lifecycle NUR, solange er noch in
+        # einem fruehen Zustand ({submitted, in_review}) steht. Ein bereits
+        # fortgeschrittener Status (z. B. implemented/integrated) wird NICHT
+        # zurueckgestuft -- die reviewer_decision wird dennoch festgehalten.
+        # PENDING hat keinen Lifecycle-Gegenwert (kommt ueber die Route nicht).
         status_map = {
             ReviewerDecision.APPROVED: CaseStatus.APPROVED,
             ReviewerDecision.REJECTED: CaseStatus.REJECTED,
         }
         coupled_status = status_map.get(decision)
-        if coupled_status is not None:
+        early_statuses = (CaseStatus.SUBMITTED, CaseStatus.IN_REVIEW)
+        if coupled_status is not None and case.status in early_statuses:
             await self._repository.update_status_async(
                 case_id, coupled_status, decided_at
             )

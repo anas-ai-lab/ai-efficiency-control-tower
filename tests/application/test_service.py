@@ -1031,6 +1031,28 @@ class TestTriageServiceUpdateStatus:
         assert updated is not None
         assert updated.status == CaseStatus.APPROVED
 
+    async def test_decision_does_not_downgrade_advanced_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # H-034: eine Freigabe darf einen fortgeschrittenen Lifecycle-Status
+        # (implemented) NICHT auf approved zurueckstufen -- die reviewer_decision
+        # wird dennoch festgehalten (monotone Kopplung).
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.update_status(case.id, CaseStatus.IMPLEMENTED)
+        updated = await service.record_decision(
+            case.id, ReviewerDecision.APPROVED, None
+        )
+
+        assert updated is not None
+        assert updated.status == CaseStatus.IMPLEMENTED
+        assert updated.reviewer_decision == ReviewerDecision.APPROVED
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.status == CaseStatus.IMPLEMENTED
+        assert persisted.reviewer_decision == ReviewerDecision.APPROVED
+
 
 # ---------------------------------------------------------------------------
 # Monitoring-Zeitleiste (append-only, Monitoring-ADR)

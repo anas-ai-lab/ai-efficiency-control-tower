@@ -27,18 +27,39 @@ const COLUMNS = [
   "Stunden/Jahr",
 ] as const;
 
-// Ein Feld nur dann quoten, wenn es Semikolon, Anfuehrungszeichen oder einen
-// Zeilenumbruch enthaelt. Innere Anfuehrungszeichen werden verdoppelt.
-export function escapeCsvField(value: string): string {
+// Formel-Trigger am Feldanfang (OWASP CSV-Injection, H-038): Excel/LibreOffice
+// werten ein Feld, das mit = + - @ oder Tab/CR beginnt, als Formel aus (bis hin
+// zu DDE/RCE). Ausnahme: reine Zahlen (optional negativ, Dezimal-KOMMA) sind
+// keine Formel und muessen maschinell weiterverwendbar bleiben -- ein legitimer
+// negativer Nettonutzen (-1500,50) darf NICHT zu Text werden.
+const FORMULA_TRIGGERS = new Set(["=", "+", "-", "@", "\t", "\r"]);
+const PURE_NUMBER = /^-?\d+(,\d+)?$/;
+
+function neutralizeFormula(value: string): string {
   if (
-    value.includes(DELIMITER) ||
-    value.includes('"') ||
-    value.includes("\n") ||
-    value.includes("\r")
+    value.length > 0 &&
+    FORMULA_TRIGGERS.has(value[0]) &&
+    !PURE_NUMBER.test(value)
   ) {
-    return `"${value.replace(/"/g, '""')}"`;
+    return `'${value}`;
   }
   return value;
+}
+
+// Zuerst Formel-Trigger neutralisieren, dann quoten: ein Feld nur dann quoten,
+// wenn es Semikolon, Anfuehrungszeichen oder einen Zeilenumbruch enthaelt.
+// Innere Anfuehrungszeichen werden verdoppelt.
+export function escapeCsvField(value: string): string {
+  const safe = neutralizeFormula(value);
+  if (
+    safe.includes(DELIMITER) ||
+    safe.includes('"') ||
+    safe.includes("\n") ||
+    safe.includes("\r")
+  ) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
 
 // Rohwert mit Dezimal-KOMMA, ohne Tausenderpunkte. null/NaN -> leeres Feld.
