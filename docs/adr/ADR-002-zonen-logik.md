@@ -100,10 +100,23 @@ rechtfertigen. Composite <= 4 (NIEDRIG) bedeutet ueberschaubare Komplexitaet und
 erhoehtes Datenschutzrisiko -- typisch fuer klare LIKELY_WIN-Kandidaten.
 
 **CALCULATED_RISK: benefit >= 5.000 EUR, composite <= 7:**
-Die untere Nutzen-Schwelle entspricht dem Netto-Nutzen-Vorfilter -- alles darunter ist
-MARGINAL_GAIN per Definition. Composite <= 7 erlaubt mittlere bis hohe Komplexitaet,
-solange der Nutzen das rechtfertigt. CALCULATED_RISK signalisiert: wirtschaftlich
-grundsaetzlich sinnvoll, aber mit Vorbehalten (Datenschutz, Kosten, Komplexitaet).
+Praezisierung (H-009 -- Klarstellung Brutto vs. Netto): Die Benefit-ACHSE der
+Zonen-Einstufung nutzt den BRUTTO-Nutzen -- `roi.expected_benefit_eur` (Potenzial
+x Nutzung x Evidenz, VOR Lizenzabzug), so wie ihn `pipeline.py` an `classify()`
+uebergibt. Der Netto-Nutzen (nach Lizenzabzug) wirkt ausschliesslich im
+vorgelagerten Vorfilter (`_check_prefilter`, `min_expected_benefit_eur`): ein
+Case, der den Netto-Vorfilter nicht besteht, erreicht die Zonen-Einstufung gar
+nicht erst. Die 5.000-EUR-Schwelle hier ist also die untere BRUTTO-Grenze fuer
+CALCULATED_RISK, NICHT die Netto-Vorfilter-Schwelle -- beide Werte koennen
+zufaellig zusammenfallen, sind aber semantisch verschiedene Achsen. Lizenzkosten
+bleiben nicht folgenlos: sie schlagen ueber den Composite-Kostentier
+(`_cost_tier`) auf die Aufwand-Achse durch, statt den Nutzen zu mindern -- teure
+Lizenzen heben den Composite-Score und verschieben die Zone nach unten. Diese
+bewusste Trennung (Brutto auf der Nutzen-Achse, Kosten auf der Aufwand-Achse) ist
+als Limitation #23 in `docs/known_limitations.md` offen dokumentiert. Composite
+<= 7 erlaubt mittlere bis hohe Komplexitaet, solange der Nutzen das rechtfertigt.
+CALCULATED_RISK signalisiert: wirtschaftlich grundsaetzlich sinnvoll, aber mit
+Vorbehalten (Datenschutz, Kosten, Komplexitaet).
 
 **Handlungsdruck-Elevation (Schwelle >= 4, alle 3 Flags):**
 Drei aktive Flags (regulatorisch + Wettbewerb + strategisch) sind ein starkes externes

@@ -19,7 +19,6 @@ DATA_CLASSIFICATION_TO_SCORE: dict[DataClassification, int] = {
     DataClassification.PSEUDONYMOUS: 1,  # Pseudonymisiert (Art. 4 Nr. 5 DSGVO)
     DataClassification.PERSONAL: 2,  # Personenbezogen (Art. 4 Nr. 1 DSGVO)
     DataClassification.SENSITIVE_PERSONAL: 2,  # Besondere Kategorien (Art. 9 DSGVO)
-    # Falls RESTRICTED existiert: DataClassification.RESTRICTED: 2,
 }
 
 

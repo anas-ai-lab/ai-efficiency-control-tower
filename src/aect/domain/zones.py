@@ -127,7 +127,7 @@ class ZoneClassifier:
 
     @property
     def handlungsdruck_elevation_threshold(self) -> int:
-        """Handlungsdruck score (1-5) at or above which elevation triggers."""
+        """Handlungsdruck score (1-4) at or above which elevation triggers."""
         return self._hd_threshold
 
     def classify(
@@ -235,7 +235,7 @@ def _build_reason(
     ]
     if elevated:
         parts.append(
-            f"Handlungsdruck {handlungsdruck}/5 → Zone hochgestuft: "
+            f"Handlungsdruck {handlungsdruck}/4 → Zone hochgestuft: "
             f"{base.value} → {final.value}."
         )
     return " ".join(parts)

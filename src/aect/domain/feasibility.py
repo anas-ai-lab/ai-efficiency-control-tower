@@ -26,7 +26,14 @@ _MIN_EXAMPLE_LEN: int = 30  # minimum chars for a process example
 
 
 class FeasibilityFlag(StrEnum):
-    """Specific reasons why a submission is considered infeasible."""
+    """Specific reasons why a submission is considered infeasible.
+
+    NO_TIME_SAVING/NOT_RECURRING sind nur bei Direktnutzung des Checkers
+    erreichbar: der Pipeline-Pfad speist Pydantic-validierten UseCaseInput ein
+    (time/occurrences > 0 erzwungen), sodass diese beiden Flags dort nie
+    triggern. Sie bleiben fuer den direkten Checker-Aufruf (Tests, kuenftige
+    ungefilterte Quellen) definiert.
+    """
 
     DESCRIPTION_TOO_VAGUE = "DESCRIPTION_TOO_VAGUE"
     MISSING_EXAMPLE = "MISSING_EXAMPLE"

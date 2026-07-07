@@ -22,4 +22,4 @@ handlungsdruck:
   # If handlungsdruck_score >= this threshold, zone is elevated by one step:
   # MARGINAL_GAIN -> CALCULATED_RISK, CALCULATED_RISK -> LIKELY_WIN
   # (LIKELY_WIN stays LIKELY_WIN — already at maximum)
-  elevation_threshold: 4  # integer, 1-5 scale
+  elevation_threshold: 4  # integer, 1-4 scale

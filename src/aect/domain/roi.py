@@ -56,9 +56,9 @@ class ROIConfig:
     Wird per load_roi_config() befüllt — nie inline konstruieren (außer in Tests).
     IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (vertraglich bedingte IP-Trennung).
 
-    hourly_rates:     {"DE": {"PROFESSIONAL": Decimal("65"), ...}, ...}
-    evidence_factors: {"HIGH": 1.0, "MEDIUM": 0.75, ...}  — Keys = EvidenceLevel.value
-    adoption_factors: {"HIGH": 1.0, "MEDIUM": 0.60, ...}  — Keys = AdoptionType.value
+    hourly_rates:     {"de": {"professional": Decimal("65"), ...}, ...}  — Keys = Country.value / EmployeeCategory.value
+    evidence_factors: {"pure_estimate": 0.50, "similar_project": 0.75, "tested_piloted": 1.00}  — Keys = EvidenceLevel.value
+    adoption_factors: {"mandatory": 1.00, "voluntary": 0.60}  — Keys = AdoptionType.value
     """
 
     hourly_rates: dict[str, dict[str, Decimal]]
@@ -155,7 +155,10 @@ def _to_annual_hours(
     Args:
         time_per_occurrence: Zeitersparnis pro Vorgang in Stunden.
         occurrences_per_period: Vorgänge pro Periode (z. B. pro Woche).
-        frequency_unit_value: FrequencyUnit.value (z. B. "WEEKLY").
+        frequency_unit_value: FrequencyUnit.value (daily/weekly/monthly) oder das
+            Sentinel "ANNUALLY". Der Live-Pfad (calculate_roi) uebergibt immer
+            "ANNUALLY"; die uebrigen Werte sind vestigial (Input ist per Definition
+            jaehrlich, siehe _FREQUENCY_TO_ANNUAL-Kommentar oben).
 
     Raises:
         ValueError: Bei unbekanntem frequency_unit_value.
