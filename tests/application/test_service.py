@@ -13,7 +13,13 @@ from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.models import SubmittedCase
-from aect.application.ports.llm import LLMMessage, LLMResponse, ToolCall, ToolDefinition
+from aect.application.ports.llm import (
+    LLMMessage,
+    LLMPort,
+    LLMResponse,
+    ToolCall,
+    ToolDefinition,
+)
 from aect.application.ports.retriever import RetrievedChunk
 from aect.application.service import (
     CaseNotFoundError,
@@ -68,6 +74,7 @@ class _SequentialClock:
 def _make_service(
     roi_config: ROIConfig,
     ids: list[str] | None = None,
+    llm: LLMPort | None = None,
 ) -> tuple[TriageService, InMemoryRepository]:
     repo = InMemoryRepository()
     service = TriageService(
@@ -76,9 +83,36 @@ def _make_service(
         id_generator=_FakeIdGenerator(ids=ids or ["id-001", "id-002", "id-003"]),
         roi_config=roi_config,
         retriever=MockRetriever(),
-        llm=MockLLMAdapter(),
+        llm=llm if llm is not None else MockLLMAdapter(),
     )
     return service, repo
+
+
+class _SharpenSuccessLLM(MockLLMAdapter):
+    """complete() liefert schema-konformes SharpenedContentV2-JSON -- deckt den
+    Erfolgs-Zweig von parse_structured_llm_output ab (H-020), den der
+    Default-Mock (Echo, kein JSON) nie erreicht. Additiv, aendert den
+    Default-Mock nicht (die Degradation-Tests bleiben unberuehrt)."""
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        return LLMResponse(
+            content=json.dumps(
+                {
+                    "sharpened_title": "Geschaerfter Titel",
+                    "sharpened_current_state": (
+                        "Ein praeziser Ist-Zustand mit deutlich mehr als 30 Zeichen."
+                    ),
+                    "sharpened_desired_state": (
+                        "Ein praeziser Soll-Zustand mit deutlich mehr als 30 Zeichen."
+                    ),
+                    "improvement_suggestions": ["Konkreter Verbesserungsvorschlag."],
+                }
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +189,24 @@ class TestTriageServiceSharpen:
         assert sharpened.prompt_version == "v2"
         assert sharpened.raw_text is not None
         assert "[mock-response]" in sharpened.raw_text
+
+    async def test_sharpen_success_path_sets_structured_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # H-020: schema-konformes LLM-JSON -> strukturierte Felder gesetzt,
+        # raw_text None (Erfolgs-Zweig, nicht Graceful Degradation).
+        service, _ = _make_service(roi_config, llm=_SharpenSuccessLLM())
+        case = service.submit_use_case(sample_use_case)
+
+        sharpened = await service.sharpen_case(case.id)
+
+        assert sharpened is not None
+        assert sharpened.sharpened_title == "Geschaerfter Titel"
+        assert sharpened.sharpened_current_state is not None
+        assert sharpened.improvement_suggestions == (
+            "Konkreter Verbesserungsvorschlag.",
+        )
+        assert sharpened.raw_text is None
 
     async def test_sharpen_nonexistent_case_returns_none(
         self, roi_config: ROIConfig

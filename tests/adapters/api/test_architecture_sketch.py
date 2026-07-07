@@ -18,7 +18,13 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
+from aect.application.ports.llm import LLMMessage, LLMPort, LLMResponse, ToolDefinition
 from aect.application.service import TriageService
+from aect.application.structured_output import (
+    ArchitectureSketch,
+    IdeationResult,
+    parse_structured_llm_output,
+)
 from aect.domain.roi import load_roi_config
 
 TEST_API_KEY = "test-api-key-aect-2026"
@@ -52,21 +58,60 @@ _VALID_PAYLOAD: dict = {
 }
 
 
-def _make_app() -> FastAPI:
+def _make_app(llm: LLMPort | None = None) -> FastAPI:
     """Repository ausserhalb der Lambda -- State muss ueber mehrere Requests
     (Case anlegen, propose, sketch, get) erhalten bleiben (wie test_sharpen)."""
     app = create_app()
     repository = InMemoryRepository()
+    inner_llm = llm if llm is not None else MockLLMAdapter()
     app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
     app.dependency_overrides[get_triage_service] = lambda: TriageService(
         repository=repository,
         clock=SystemClock(),
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
-        llm=MockLLMAdapter(),
+        llm=inner_llm,
         retriever=MockRetriever(),
     )
     return app
+
+
+class _BrokenSketchLLM:
+    """complete() liefert eine valide Antwort (fuer propose_solution), aber
+    generate_architecture_sketch wirft ueber den realen Schema-Validierungspfad
+    eine InvalidLLMOutputError -- die Route muss sie sauber auf 502 mappen
+    (kein 500-Stack-Trace). Analog _BrokenIdeationLLM in test_ideation.py.
+    """
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        return LLMResponse(content="Ein knapper Loesungsvorschlag als Grundlage.")
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        raise NotImplementedError
+
+    async def generate_architecture_sketch(
+        self, case_id: str, title: str, description: str, proposal_text: str
+    ) -> ArchitectureSketch:
+        # Fehlende Pflichtfelder (nodes/edges) -> InvalidLLMOutputError.
+        return parse_structured_llm_output("{}", ArchitectureSketch)
+
+
+async def test_sketch_invalid_llm_output_returns_502_no_stacktrace() -> None:
+    app = _make_app(llm=_BrokenSketchLLM())
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await _add_proposal(client, case_id)
+        response = await client.post(
+            f"/cases/{case_id}/architecture-sketch",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 502
+    # Kein Stack-Trace / keine internen Details in der Antwort.
+    assert "Traceback" not in response.text
 
 
 async def _create_case(client: AsyncClient) -> str:

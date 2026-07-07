@@ -8,6 +8,11 @@ import pytest
 
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.application.ports.llm import LLMMessage, LLMResponse, ToolDefinition
+from aect.application.structured_output import (
+    ArchitectureSketch,
+    IdeationResult,
+    InvalidLLMOutputError,
+)
 
 _FAST: dict[str, float] = {"min_wait_seconds": 0.0, "max_wait_seconds": 0.0}
 _MESSAGES = [LLMMessage(role="user", content="Hallo")]
@@ -180,3 +185,93 @@ async def test_overall_deadline_does_not_interfere_with_fast_success() -> None:
     response = await adapter.complete(_MESSAGES)
     assert response.content == "ok"
     assert inner.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# H-042: generate_ideation / generate_architecture_sketch teilen denselben
+# Retry-/Timeout-Kern (_run_resilient) -- hier explizit gepinnt.
+# ---------------------------------------------------------------------------
+
+
+class _SlowIdeationAdapter:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+        self.call_count = 0
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        self.call_count += 1
+        await asyncio.sleep(self._delay_seconds)
+        raise AssertionError("unreached: wird vom Timeout abgebrochen")
+
+
+class _NonRetryableIdeationAdapter:
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        self.call_count += 1
+        raise InvalidLLMOutputError("schema kaputt")
+
+
+class _SlowSketchAdapter:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+        self.call_count = 0
+
+    async def generate_architecture_sketch(
+        self, case_id: str, title: str, description: str, proposal_text: str
+    ) -> ArchitectureSketch:
+        self.call_count += 1
+        await asyncio.sleep(self._delay_seconds)
+        raise AssertionError("unreached: wird vom Timeout abgebrochen")
+
+
+class _NonRetryableSketchAdapter:
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    async def generate_architecture_sketch(
+        self, case_id: str, title: str, description: str, proposal_text: str
+    ) -> ArchitectureSketch:
+        self.call_count += 1
+        raise InvalidLLMOutputError("schema kaputt")
+
+
+async def test_ideation_timeout_is_retried_then_raises() -> None:
+    inner = _SlowIdeationAdapter(delay_seconds=1.0)
+    adapter = ResilientLLMAdapter(inner, max_attempts=2, timeout_seconds=0.01, **_FAST)
+
+    with pytest.raises(TimeoutError):
+        await adapter.generate_ideation("Problem")
+
+    assert inner.call_count == 2
+
+
+async def test_ideation_non_retryable_propagates_immediately() -> None:
+    inner = _NonRetryableIdeationAdapter()
+    adapter = ResilientLLMAdapter(inner, max_attempts=3, **_FAST)
+
+    with pytest.raises(InvalidLLMOutputError):
+        await adapter.generate_ideation("Problem")
+
+    assert inner.call_count == 1
+
+
+async def test_sketch_timeout_is_retried_then_raises() -> None:
+    inner = _SlowSketchAdapter(delay_seconds=1.0)
+    adapter = ResilientLLMAdapter(inner, max_attempts=2, timeout_seconds=0.01, **_FAST)
+
+    with pytest.raises(TimeoutError):
+        await adapter.generate_architecture_sketch("id-1", "T", "D", "P")
+
+    assert inner.call_count == 2
+
+
+async def test_sketch_non_retryable_propagates_immediately() -> None:
+    inner = _NonRetryableSketchAdapter()
+    adapter = ResilientLLMAdapter(inner, max_attempts=3, **_FAST)
+
+    with pytest.raises(InvalidLLMOutputError):
+        await adapter.generate_architecture_sketch("id-1", "T", "D", "P")
+
+    assert inner.call_count == 1

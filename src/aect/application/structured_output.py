@@ -215,6 +215,22 @@ class ArchitectureSketch(BaseModel):
         return self
 
 
+def _extract_json_object(raw: str) -> str:
+    """Extrahiert den JSON-Objekt-Anteil aus einer LLM-Antwort (H-021).
+
+    Toleriert Markdown-Fences (```json ... ```) und erklaerenden Text vor/nach
+    dem Objekt, indem auf den Bereich vom ERSTEN '{' bis zum LETZTEN '}'
+    geschnitten wird. Findet sich kein Objekt-Bereich, wird der Rohtext
+    unveraendert zurueckgegeben -- der nachfolgende json.loads erzeugt dann die
+    uebliche InvalidLLMOutputError (Verhalten wie zuvor).
+    """
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end > start:
+        return raw[start : end + 1]
+    return raw
+
+
 def parse_structured_llm_output[T: BaseModel](raw: str, schema: type[T]) -> T:
     """Validiert einen rohen LLM-Output-String gegen ein Pydantic-Schema.
 
@@ -232,7 +248,7 @@ def parse_structured_llm_output[T: BaseModel](raw: str, schema: type[T]) -> T:
             unbekanntes Feld, Laengenverstoss).
     """
     try:
-        data = json.loads(raw)
+        data = json.loads(_extract_json_object(raw))
     except json.JSONDecodeError as exc:
         raise InvalidLLMOutputError(f"LLM-Output ist kein valides JSON: {exc}") from exc
 

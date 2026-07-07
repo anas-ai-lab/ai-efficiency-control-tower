@@ -27,6 +27,7 @@ IP-Trennung (vertraglich bedingt): keine firmenspezifischen Werte -- generischer
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from tenacity import (
     AsyncRetrying,
@@ -80,39 +81,19 @@ class ResilientLLMAdapter:
         self._max_wait_seconds = max_wait_seconds
         self._overall_timeout_seconds = overall_timeout_seconds
 
-    async def complete(
-        self,
-        messages: list[LLMMessage],
-        tools: list[ToolDefinition] | None = None,
-    ) -> LLMResponse:
-        retrying = AsyncRetrying(
-            stop=stop_after_attempt(self._max_attempts),
-            wait=wait_exponential(
-                min=self._min_wait_seconds, max=self._max_wait_seconds
-            ),
-            retry=retry_if_exception_type((TimeoutError, ConnectionError)),
-            reraise=True,
-        )
-        # Gesamtdeadline ueber Retries UND Backoff (F-014): asyncio.timeout
-        # bricht auch mitten in einer Backoff-Wartezeit ab und uebersetzt
-        # die Cancellation an dieser Grenze in TimeoutError.
-        async with asyncio.timeout(self._overall_timeout_seconds):
-            async for attempt in retrying:
-                with attempt:
-                    return await asyncio.wait_for(
-                        self._inner.complete(messages, tools=tools),
-                        timeout=self._timeout_seconds,
-                    )
-        raise AssertionError("unreachable: AsyncRetrying always returns or raises")
+    async def _run_resilient[T](self, operation: Callable[[], Awaitable[T]]) -> T:
+        """Fuehrt `operation` mit Retry (Backoff) + Einzel- und Gesamt-Timeout aus.
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
-        """Wrappt inner.generate_ideation mit Retry + Backoff + Timeout (P10).
+        Gemeinsamer Kern von complete()/generate_ideation()/
+        generate_architecture_sketch() (H-042 -- eine Retry-Policy, eine Quelle
+        statt drei Copy-Paste-Bloecke). `operation` MUSS bei jedem Aufruf eine
+        FRISCHE Coroutine liefern (Lambda um den inner-Call), damit jeder Versuch
+        neu awaitbar ist.
 
-        Identisches Muster wie complete(): Retry nur bei TimeoutError/
-        ConnectionError, Gesamtdeadline ueber alle Versuche (F-014). Eine
-        InvalidLLMOutputError (kaputte LLM-Antwort) ist KEIN transienter
-        Verbindungsfehler und propagiert sofort ohne Retry -- die Route mappt
-        sie auf einen sauberen HTTP-Fehler.
+        Retry nur bei TimeoutError/ConnectionError; andere Exceptions (z. B.
+        InvalidLLMOutputError, ValueError) propagieren sofort ohne Retry.
+        Gesamtdeadline (F-014): asyncio.timeout bricht auch mitten in einer
+        Backoff-Wartezeit ab und uebersetzt die Cancellation in TimeoutError.
         """
         retrying = AsyncRetrying(
             stop=stop_after_attempt(self._max_attempts),
@@ -126,10 +107,30 @@ class ResilientLLMAdapter:
             async for attempt in retrying:
                 with attempt:
                     return await asyncio.wait_for(
-                        self._inner.generate_ideation(problem_description),
-                        timeout=self._timeout_seconds,
+                        operation(), timeout=self._timeout_seconds
                     )
         raise AssertionError("unreachable: AsyncRetrying always returns or raises")
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        return await self._run_resilient(
+            lambda: self._inner.complete(messages, tools=tools)
+        )
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        """Wrappt inner.generate_ideation mit Retry + Backoff + Timeout (P10).
+
+        Identisches Muster wie complete() (gemeinsamer _run_resilient-Kern): Retry
+        nur bei TimeoutError/ConnectionError. Eine InvalidLLMOutputError (kaputte
+        LLM-Antwort) ist KEIN transienter Verbindungsfehler und propagiert sofort
+        ohne Retry -- die Route mappt sie auf einen sauberen HTTP-Fehler.
+        """
+        return await self._run_resilient(
+            lambda: self._inner.generate_ideation(problem_description)
+        )
 
     async def generate_architecture_sketch(
         self,
@@ -140,27 +141,14 @@ class ResilientLLMAdapter:
     ) -> ArchitectureSketch:
         """Wrappt inner.generate_architecture_sketch mit Retry + Backoff + Timeout.
 
-        Identisches Muster wie complete()/generate_ideation(): Retry nur bei
-        TimeoutError/ConnectionError, Gesamtdeadline ueber alle Versuche (F-014).
-        Eine InvalidLLMOutputError (kaputte LLM-Antwort) ist KEIN transienter
+        Identisches Muster wie complete()/generate_ideation() (gemeinsamer
+        _run_resilient-Kern): Retry nur bei TimeoutError/ConnectionError. Eine
+        InvalidLLMOutputError (kaputte LLM-Antwort) ist KEIN transienter
         Verbindungsfehler und propagiert sofort ohne Retry -- die Route mappt sie
         auf einen sauberen HTTP-Fehler (502).
         """
-        retrying = AsyncRetrying(
-            stop=stop_after_attempt(self._max_attempts),
-            wait=wait_exponential(
-                min=self._min_wait_seconds, max=self._max_wait_seconds
-            ),
-            retry=retry_if_exception_type((TimeoutError, ConnectionError)),
-            reraise=True,
+        return await self._run_resilient(
+            lambda: self._inner.generate_architecture_sketch(
+                case_id, title, description, proposal_text
+            )
         )
-        async with asyncio.timeout(self._overall_timeout_seconds):
-            async for attempt in retrying:
-                with attempt:
-                    return await asyncio.wait_for(
-                        self._inner.generate_architecture_sketch(
-                            case_id, title, description, proposal_text
-                        ),
-                        timeout=self._timeout_seconds,
-                    )
-        raise AssertionError("unreachable: AsyncRetrying always returns or raises")

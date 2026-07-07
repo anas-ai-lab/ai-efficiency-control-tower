@@ -215,3 +215,18 @@ class TestArchitectureSketchViolations:
         }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+
+
+class TestParseStructuredLLMOutputFenceTolerance:
+    """H-021: der Parser toleriert Markdown-Fences und umgebende Prosa."""
+
+    def test_markdown_json_fence_is_tolerated(self) -> None:
+        fenced = "```json\n" + json.dumps(_VALID_PAYLOAD) + "\n```"
+        result = parse_structured_llm_output(fenced, SharpenedContentV2)
+        assert isinstance(result, SharpenedContentV2)
+        assert result.sharpened_title == _VALID_PAYLOAD["sharpened_title"]
+
+    def test_surrounding_prose_is_tolerated(self) -> None:
+        wrapped = "Hier das Ergebnis:\n" + json.dumps(_VALID_PAYLOAD) + "\nFertig."
+        result = parse_structured_llm_output(wrapped, SharpenedContentV2)
+        assert isinstance(result, SharpenedContentV2)
