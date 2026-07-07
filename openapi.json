@@ -3,7 +3,7 @@
   "info": {
     "title": "AECT - AI Efficiency Control Tower",
     "description": "AI Use Case Intake & Triage Assistant",
-    "version": "1.2.0"
+    "version": "3.1.1"
   },
   "paths": {
     "/health/live": {
@@ -1226,7 +1226,7 @@
           "sensitive_personal"
         ],
         "title": "DataClassification",
-        "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1, SENSITIVE_PERSONAL=2.\nMapping liegt in config, nicht hier."
+        "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=2, SENSITIVE_PERSONAL=2.\nMapping liegt in config, nicht hier."
       },
       "DecisionRequest": {
         "properties": {

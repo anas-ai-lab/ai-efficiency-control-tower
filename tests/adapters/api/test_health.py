@@ -44,6 +44,18 @@ async def test_health_response_schema() -> None:
     assert isinstance(data["version"], str)
 
 
+async def test_health_version_matches_package_metadata() -> None:
+    """H-044: /health meldet die Paketversion aus pyproject.toml (Single Source),
+    kein handgepflegtes Literal, das gegen den Git-Tag driftet."""
+    from importlib.metadata import version
+
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/health")
+    assert response.json()["version"] == version("aect")
+
+
 async def test_health_content_type_is_json() -> None:
     """Response hat Content-Type application/json."""
     async with AsyncClient(

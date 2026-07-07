@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import sqlite3
 from asyncio import to_thread
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 import httpx
@@ -35,7 +36,10 @@ router = APIRouter(tags=["ops"])
 
 logger = structlog.get_logger(__name__)
 
-_VERSION = "1.2.0"
+# Single Source of Truth: die Paketversion aus pyproject.toml (H-044 -- kein
+# handgepflegtes Literal mehr, das gegen den Git-Tag driftet). importlib.metadata
+# liest die beim `uv sync` installierte Distributions-Version.
+_VERSION = _pkg_version("aect")
 
 # Timeout fuer den Chroma-Heartbeat-Call: Readiness-Checks muessen schnell
 # antworten (Orchestrierung pollt im Sekundentakt) -- ein haengender Chroma-

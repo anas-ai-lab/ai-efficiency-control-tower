@@ -26,6 +26,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.metadata import version as _pkg_version
 
 import structlog
 from fastapi import FastAPI, Request
@@ -156,7 +157,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AECT - AI Efficiency Control Tower",
         description="AI Use Case Intake & Triage Assistant",
-        version="1.2.0",
+        version=_pkg_version("aect"),  # Single Source: pyproject.toml (H-044)
         debug=False,
         docs_url="/docs",
         redoc_url=None,
