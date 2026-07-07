@@ -5,7 +5,7 @@ AI Efficiency Control Tower (AECT) -- Weboberflaechenmodul fuer internen
 Use-Case-Intake und KI-Triage. Privates Portfolio-Projekt, kein SaaS.
 
 ## Tech Stack
-- Next.js 15 (App Router, TypeScript)
+- Next.js 16 (App Router, TypeScript, Turbopack als Default-Bundler)
 - Tailwind CSS v4 + shadcn/ui (new-york Style, Zinc-Basis)
 - react-hook-form + zod fuer Client-seitige Formular-Validierung
 - KEINE Framer Motion in diesem Tag -- erst nach expliziter Anforderung

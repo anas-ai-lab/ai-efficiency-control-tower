@@ -14,7 +14,7 @@
 | Cross-Encoder | `cross-encoder/ms-marco-MiniLM-L-6-v2` | HuggingFace (lokal) | Lokal | RAG Reranking |
 | Embedding | `all-MiniLM-L6-v2` | HuggingFace (lokal) | Lokal | Vektorisierung KB + Queries (384d) |
 
-**EU-Datensidenzpflicht:** Azure-Deployment ausschliesslich in `swedencentral`
+**EU-Datenresidenzpflicht:** Azure-Deployment ausschliesslich in `swedencentral`
 oder `westeurope` — kein Global-Routing fuer Nutzerdaten.
 Konfiguriert in `AECT_AZURE_OPENAI_ENDPOINT` (Settings, ADR-0010).
 

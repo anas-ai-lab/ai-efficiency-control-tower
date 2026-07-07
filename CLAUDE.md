@@ -115,7 +115,7 @@ kein force-push/DROP/rm -rf (Ausnahme: venv-Fix oben).
 - `docs/known_limitations.md`: offen dokumentierte Grenzen (Staerke des Projekts)
 - `notes/daily/YYYY-MM-DD-day-NN.md`: Tages-Notizen (NN via `ls -t notes/daily/`)
 - `notes/learning-log.md`: kompakter Lernfortschritt (Tag-55-Format)
-- `docs/adr/`: 41 ADRs in zwei Serien (ADR-00X + 000X)
+- `docs/adr/`: 55 ADRs in zwei Serien (ADR-00X + 000X)
 - `src/aect/domain/types.py`: StrEnum-Ankerpunkt fuer Config-Keys
 - `config/roi_config.toml` + `config/zone_thresholds.yaml`: einzige Quelle fuer Schwellen
 

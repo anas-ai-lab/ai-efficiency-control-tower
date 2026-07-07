@@ -104,7 +104,8 @@ Flagging vor Blocking, loggt case_id + Feldname (nie Body). (2) System-/
 User-Prompt als getrennte `LLMMessage`-Objekte, kein String-Concat.
 (3) User-Input in abgegrenztem Block mit Delimiter-Markierung. (4) LLM-Output
 gegen Pydantic-Schema validiert, als untrusted behandelt -- nie direkt in SQL.
-Red-Team-Tests in `tests/adapters/llm/`. OWASP-Status in `docs/owasp-llm-checklist.md`.
+Red-Team-Tests in `tests/application/test_sanitization.py` (plus API-Ebene in
+`tests/adapters/api/`). OWASP-Status in `docs/owasp-llm-checklist.md`.
 
 **Wie verwalten Sie Secrets?**
 
@@ -264,21 +265,21 @@ Portfolio-Groesse dieses Builds irrelevant.
 
 Berechtigte Frage -- die ehrliche Antwort ist: teils ja, und das ist bewusst. Der
 Nutzen ist nicht die theoretische Austauschbarkeit, sondern dass die Domain ohne
-laufende Infrastruktur testbar ist (449 Tests, kein Azure/Chroma noetig, MockLLM/
-MockRetriever per DI) und dass der LLM-Provider-Wechsel eine Adapter-Zeile ist.
+laufende Infrastruktur testbar ist (alle 715 Tests laufen ohne echtes Azure/Chroma,
+MockLLM/MockRetriever per DI) und dass der LLM-Provider-Wechsel eine Adapter-Zeile ist.
 Der Preis sind Ports/Protocols, die bei einem Wegwerf-Skript Overhead waeren. Fuer
 ein Portfolio-Projekt, das Architektur-Kompetenz zeigen soll, ist genau diese
 Trennung der Punkt -- und sie hat sich beim Mock-First-Testen real ausgezahlt.
 Bei einem echten Wegwerf-Tool haette ich es nicht gemacht (ADR-004).
 
-**97% Coverage -- aber sind die Tests gut, oder testen sie nur Implementierung?**
+**95% Coverage -- aber sind die Tests gut, oder testen sie nur Implementierung?**
 
 Coverage misst Quantitaet, nicht Qualitaet. Deshalb gibt es Property-Tests
 (hypothesis) auf dem ROI-/Zonen-Kern, die Verhalten gegen Invarianten pruefen,
 nicht Zeilen abhaken. Mutation-Testing (mutmut) auf dem Domain-Kern ist als
 naechster Schritt dokumentiert (peak-optimization-roadmap.md) -- ueberlebende
 Mutanten zeigen, wo ein Test gruen bleibt, obwohl die Logik kaputt ist. Das ist
-das ehrliche Mass; 97% ist nur die Eintrittskarte.
+das ehrliche Mass; 95% ist nur die Eintrittskarte.
 
 **Warum kein Semantic Caching oder Model Routing?**
 

@@ -241,7 +241,7 @@ ist nur durch Schema-Zwang und menschliche Pruefung gesichert (#18).
 | Cross-Encoder Reranking | [0028](docs/adr/0028-cross-encoder-reranking.md) | Bi-Encoder-Recall + Cross-Encoder-Precision: hoehere Retrieval-Qualitaet fuer Compliance-Hinweise |
 | Citations-before-LLM | [0024](docs/adr/0024-rag-grounded-compliance-hints.md) | Halluzinierte Gesetzesartikel strukturell verhindert: Quellen aus Retrieval-Metadaten, nicht aus Modellwissen |
 | Semantic Caching / Model Routing abgelehnt | [0034](docs/adr/0034-semantic-caching-model-routing.md) | 0,003 EUR/Case, PII-in-Cache-Risiko, semantisch einzigartige Einreichungen = niedrige Hit-Rate |
-| Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung ausstehend; Demo via localhost vollstaendig erfuellbar |
+| Azure Container Apps: Design, kein Deploy | [0035](docs/adr/0035-azure-container-apps-deploy.md) | IP-Klaerung liegt vor (schriftliche Bestaetigung des Arbeitgebers); Demo via localhost vollstaendig erfuellbar |
 
 Alle 55 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 
@@ -285,7 +285,7 @@ in `docs/known_limitations.md` (Limitation #2).
 Die 36 synthetischen Cases beweisen Robustheit (kein Crash, deterministisch) --
 nicht inhaltliche Korrektheit. Zwei verschiedene Dinge, absichtlich nicht vermischt.
 
-Bekannte Limitation: praeiktive Validitaet (Plan-Nutzen vs. realisierter Nutzen) nicht
+Bekannte Limitation: praediktive Validitaet (Plan-Nutzen vs. realisierter Nutzen) nicht
 messbar im privaten Build -- dokumentiert in `docs/limitations.md`.
 
 ---
@@ -393,7 +393,7 @@ docs/
 | Dependency CVE Scan (pip-audit) | CI-Job, jeder Push | 2 begruendete Ignores: (1) CVE-2025-3000: torch gepatcht in 2.12.0, OSV-DB ohne Fix-Range, nicht exploitierbar; (2) GHSA-537c-gmf6-5ccf (cryptography 46.0.7, Fix 48.0.1): transitiv via presidio-anonymizer==2.2.363 (exakter Pin), das cryptography<47.0.0 erzwingt -- kein Upgrade-Pfad, 2.2.363 ist aktuellste PyPI-Version (Stand 2026-07-03) -- beide doc'd in CI |
 | GitHub Actions SHA-Pinned | Erledigt | Alle 4 Action-Refs durch Commit-SHA |
 | Prompt-Injection-Detection (LLM01) | Flag + Log vor LLM-Call (Delimiter primaer) | `application/sanitization.py` |
-| Prompt-Injection-Tests | pytest Red-Team-Cases | `tests/adapters/api/test_triage.py` |
+| Prompt-Injection-Tests | pytest Red-Team-Cases | `tests/application/test_sanitization.py` (plus API-Ebene in `tests/adapters/api/`) |
 | PII in Logs | Allowlist -- kein Body/Prompt/PII | `adapters/api/logging_config.py` |
 | PII-Redaction vor LLM (NER) | Bewusste v1-Grenze (Regex statt NER) | `docs/known_limitations.md` #7 |
 | Azure EU-Datenpflicht | Best-Effort (Startup-Guard) | Endpoint-URL-Substring-Pruefung auf `swedencentral`/`westeurope` beim Start (`settings.py`); kein Laufzeit-Nachweis der tatsaechlichen Datenregion |

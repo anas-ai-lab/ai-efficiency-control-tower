@@ -1,7 +1,7 @@
 # LinkedIn Case Study -- AECT
 
 > Stil: SCHREIBSTIL.md (Anti-Hype, Argument vor Gefuehl).
-> Veroeffentlichung: erst nach vertraglicher IP-Klaerung.
+> Veroeffentlichung: IP-Klaerung liegt vor (schriftliche Bestaetigung des Arbeitgebers).
 > 3 Post-Versionen fuer unterschiedliche Zielgruppen.
 
 ---
@@ -96,4 +96,4 @@ AI fuer Ambiguitaet. Regeln fuer Klarheit.
 
 *Entwurf -- Stil nach SCHREIBSTIL.md geprueft: kein "revolutionaer",
 kein "Game-Changer", kein "Du musst jetzt handeln".*
-*Veroeffentlichung erst nach vertraglicher IP-Klaerung.*
+*IP-Klaerung liegt vor (schriftliche Bestaetigung des Arbeitgebers).*

@@ -135,7 +135,7 @@ proportional zum Umfang der kuratierten Wissensbasis. Erweiterung: v2-Backlog.
 zurueckgeben, erscheint er doppelt in der Citation-Liste.
 
 **Konsequenz:** Hinweistext kann doppelte [N]-Referenzen enthalten. Bei
-heutiger KB-Groesse (< 20 Dokumente) selten -- wae chst die KB, haeufiger.
+heutiger KB-Groesse (< 20 Dokumente) selten -- waechst die KB, haeufiger.
 
 **Workaround:** Chunk-IDs vor dem Citation-Bau auf Set-Basis deduplizieren.
 Dokumentiert in `application/service.py` generate_compliance_hints() Docstring.

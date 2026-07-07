@@ -1,8 +1,8 @@
 # CV Bullets -- AECT Portfolio-Projekt
 
 > Ziel-Rolle: AI Engineer / Solution Architect, DACH-Markt.
-> Verwendung: XING, LinkedIn, Bewerbungsunterlagen -- nach IP-Klaerung
-> (vertraglich bedingte IP-Trennung). Alle Zahlen aus dem Repo verifizierbar.
+> Verwendung: XING, LinkedIn, Bewerbungsunterlagen. IP-Klaerung liegt vor
+> (schriftliche Bestaetigung des Arbeitgebers). Alle Zahlen aus dem Repo verifizierbar.
 
 ---
 
@@ -68,7 +68,7 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 - Scope-Disziplin dokumentiert: kein SaaS, kein Fine-Tuning, kein n8n
   (begruendet im projekteigenen Strategiedokument mit Aenderungshistorie)
 
-- 20 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
+- 24 Limitationen offen kommuniziert (`docs/known_limitations.md`) --
   staerker als Marketing-Darstellung ohne Schwaechen
 
 ---
@@ -86,4 +86,4 @@ Python 3.12 - FastAPI - Azure OpenAI (gpt-4.1-mini) - ChromaDB - RAG
 
 ---
 
-*v3.1 -- Juli 2026. Nach IP-Klaerung (vertraglich bedingt) veroeffentlichen.*
+*v3.1 -- Juli 2026. IP-Klaerung liegt vor (schriftliche Bestaetigung des Arbeitgebers).*
