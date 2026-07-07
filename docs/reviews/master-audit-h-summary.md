@@ -286,3 +286,50 @@ bleibt es `v3.1.0`.
   nicht sichtbar; lokale Aequivalente (ruff/mypy/pre-commit) gruen.
 - **Code-Fixes** — per Auftrag read-only fuer Produktivcode; nur Doku/Limitations
   geschrieben.
+
+---
+
+## 10. Fix-Pass 2 (v3.1.1) — Umsetzungsstatus
+
+Zwei Fix-Paesse nach dem Read-only-Audit. **Pass 1** (docs-only, Commit
+`4585809`): Doku-Drift, beide P0 (Coverage 95 %, Test-Orte), IP-Status auf
+"geklaert" (schriftliche Arbeitgeber-Bestaetigung liegt vor — §6/§9 "ausstehend"
+war ein Read-only-Artefakt, kein realer Blocker). **Pass 2** (Code, Commits
+`b75f645`/`9772422`/`f5b2873`/`02cfabd`/`ddd9187`): die Code-Findings, je mit
+rot-vor/gruen-nach-Test bei Verhaltens-Aenderung.
+
+Baseline vor Pass 2: 715 passed/5 skipped, 95 % Coverage, mypy 0.
+Nach Pass 2: **735 passed/5 skipped, 96 % Coverage, mypy 0, Frontend-Build gruen.**
+
+| Finding | Titel | Status Pass 2 |
+|---|---|---|
+| H-001 | Coverage-Claim 97 % | gefixt in Pass 1 (95 %) |
+| H-046 | Test-Ort-Verweise Injection | gefixt in Pass 1 |
+| H-002 | "449 Tests" | gefixt in Pass 1 (715) |
+| H-047 | Limitations #21-#24 | verifiziert vorhanden (Count 24), keine Aktion |
+| H-008 | DataClassification-Docstring PERSONAL=1 | gefixt (Docstring -> =2; Code war korrekt) |
+| H-010 | Handlungsdruck-Skala 1-5 vs 1-4 | gefixt (auf 1-4 vereinheitlicht, Anzeige-String) |
+| H-012 | ROIConfig-Docstring obsolete Keys | gefixt (Docstring auf reale lowercase-Values) |
+| H-013 | FrequencyUnit vestigial | doku (Docstring korrigiert, bewusst nicht entfernt) |
+| H-015 | Feasibility-Flags nur bei Direktnutzung | doku (Enum-Docstring-Hinweis) |
+| H-009 | Zone Brutto- vs Netto-Nutzen | doku (ADR-002 praezisiert, KEIN Code -- Golden-Baseline unveraendert) |
+| H-018 | Delimiter-Breakout | gefixt + Test (neutralize_delimiters an allen Insertion-Stellen) |
+| H-030 | Injection-Check nicht auf allen LLM-Pfaden | gefixt + Test (Chokepoint-Helper, compliance+sketch ergaenzt) |
+| H-031 | ValidationError leakt LLM-Output | gefixt + Test (loc/type statt str(exc)/input_value) |
+| H-027 | Logging-Allowlist nur Konvention | gefixt + Test (structlog Deny-Liste-Processor) |
+| H-034 | Decision stuft Status zurueck | gefixt + Test (monotone Kopplung, nur {submitted, in_review}) |
+| H-038 | CSV-Formel-Injection | gefixt + Node-Verifikation (' -Praefix, Zahlen-Exemption) |
+| H-042 | Resilient ideation/sketch ohne Test | gefixt (Retry-Kern dedupliziert _run_resilient + 4 Tests) |
+| H-043 | Sketch kein 502-Test | gefixt (Test _BrokenSketchLLM -> 502) |
+| H-020 | Mock-Success-Pfad ungetestet | gefixt (additiver _SharpenSuccessLLM-Test) |
+| H-021 | parse_structured_llm_output Fence-intolerant | gefixt + Test (JSON-Objekt-Extraktor) |
+| H-003 / H-039 | eslint lintet .next/ | gefixt (globaler ignores-Block) |
+| H-044 | Paketversion 1.2.0 | gefixt + Test (Single Source importlib.metadata, bump 3.1.1, /health + openapi) |
+| H-049 | Screenshots nicht eingecheckt | **STOPP** — board.png/monitoring.png liegen NICHT im Baum; nicht gefaked, README-Verweis "(Platzhalter)" bleibt |
+| H-048 | Limitations "(14 Punkte)" | **STOPP** — String existiert nicht in known_limitations.md (Audit-Zeile driftet), keine Aktion |
+
+**Bewusst deferred (nicht in Pass 2):** die P3/v2-Backlog-Findings
+(H-022/023/024/025/026/028/029/032/033 RAG/API-Backlog, H-016/019 Ports/Cost),
+das **ci.yml-Lint-Gate** (H-039-Folgeschritt: eslint-Gate in GitHub Actions --
+eigener CI-Scope) und die **H-009-Code-Variante** (Zone auf Netto umstellen wuerde
+die Golden-Baseline verschieben; bewusst als ADR-Doku geloest).
