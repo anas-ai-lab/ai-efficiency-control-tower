@@ -701,7 +701,7 @@ export interface components {
          * @description Datenschutz-Einstufung der verarbeiteten Daten.
          *
          *     Beeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).
-         *     Score-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1, SENSITIVE_PERSONAL=2.
+         *     Score-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=2, SENSITIVE_PERSONAL=2.
          *     Mapping liegt in config, nicht hier.
          * @enum {string}
          */
