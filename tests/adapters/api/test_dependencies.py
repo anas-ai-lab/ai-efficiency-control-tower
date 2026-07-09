@@ -70,6 +70,13 @@ async def test_get_llm_adapter_returns_resilient_wrapped_azure_with_credentials(
         azure_openai_api_key="fake-key",
         azure_openai_deployment="gpt-4o-mini",
         azure_openai_api_version="2024-10-21",
+        # Region explizit "" (Fund Tag 45, wie die Mock-Schwestertests oben):
+        # schirmt gegen ein aus der lokalen .env geleaktes
+        # AECT_AZURE_OPENAI_REGION ab -- ein dort gesetztes Nicht-EU-Region-Wort
+        # wuerde den swedencentral-Hostnamen sonst ueberschreiben und diesen
+        # Test je nach Entwicklerumgebung kippen (Test-Isolation darf nicht vom
+        # Inhalt einer lokalen, nicht versionierten Datei abhaengen).
+        azure_openai_region="",
     )
     adapter = get_llm_adapter(settings=settings)
 
@@ -249,11 +256,19 @@ def test_check_azure_eu_region_no_explicit_region_no_hostname_match_still_fails(
 
 
 def test_get_llm_adapter_rejects_non_eu_endpoint() -> None:
-    """Fail-Fast (AUDIT-008): nicht-EU-Endpoint -> ValueError beim Adapter-Init."""
+    """Fail-Fast (AUDIT-008): nicht-EU-Endpoint -> ValueError beim Adapter-Init.
+
+    azure_openai_region explizit "" (Fund Tag 45, wie die Mock-Schwestertests
+    oben): sonst zieht Settings() ein gesetztes AECT_AZURE_OPENAI_REGION aus der
+    lokalen .env, das die eastus-Hostname-Heuristik vollstaendig umginge und den
+    erwarteten ValueError unterdrueckte -- der Test war lokal rot, CI gruen
+    (dort ist die Env-Var nicht gesetzt).
+    """
     settings = Settings(
         azure_openai_endpoint="https://aect.eastus.openai.azure.com",
         azure_openai_api_key="fake-key",
         azure_openai_deployment="gpt-4o-mini",
+        azure_openai_region="",
     )
     with pytest.raises(ValueError, match="EU Data Zone"):
         get_llm_adapter(settings=settings)
