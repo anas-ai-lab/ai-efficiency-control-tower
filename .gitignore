@@ -51,9 +51,12 @@ chroma_db/
 .coverage*
 htmlcov/
 
-# Firmenspezifische ROI-Config (vertraglich bedingte IP-Trennung)
+# Firmenspezifische Config-Layer (vertraglich bedingte IP-Trennung) -- echte
+# Raten/Plattform-Namen NIE committen. Glob deckt alle *.local.toml ab.
+config/*.local.toml
+# Explizit belassen (Traceability): roi_config = ROI-Raten je Land x Level,
+# stack_options = echte Plattform-Namen (AUDIT-011).
 config/roi_config.local.toml
-# Echte Plattform-Namen (AUDIT-011, gleiches Muster wie roi_config)
 config/stack_options.local.toml
 
 # setuptools build artifacts
