@@ -72,6 +72,18 @@ from aect.domain import (
 _DSFA_QUERY = "Datenschutz-Folgenabschaetzung personenbezogene Daten Risiko"
 _TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
 
+# Fail loud statt stiller Mock-Fallback (CLAUDE.md). Chunks aus dem
+# synthetischen MockRetriever tragen einen "mock-"-praefigierten source_id. Sie
+# duerfen NIE als echte Quelle in einer Compliance-Citation erscheinen -- taucht
+# ein solcher Chunk auf, ist die echte Wissensbasis nicht verdrahtet
+# (AECT_CHROMA_HOST leer -> resolve_retriever() faellt auf MockRetriever zurueck).
+# Dann liefert der Compliance-Teil eine ehrliche "nicht verfuegbar"-Antwort statt
+# Mock-Zitaten. Mock-Fixtures sind ausschliesslich in Tests zulaessig.
+_MOCK_SOURCE_PREFIX = "mock-"
+_KB_UNAVAILABLE_HINT = (
+    "Wissensbasis nicht verfuegbar -- keine belegten Compliance-Hinweise moeglich."
+)
+
 # Dedup-Schwellen (L-3, ADR-0039). Generische Cosinus-Aehnlichkeitsgrenzen,
 # KEINE firmenspezifischen Werte (anders als ROI-/Zonen-Schwellen in config/):
 # Standardwerte fuer semantische Embedding-Aehnlichkeit, methodisch zeigbar.
@@ -1062,6 +1074,30 @@ class TriageService:
         retrieved: list[RetrievedChunk] = []
         for query in queries:
             retrieved.extend(await self._retriever.retrieve(query, top_k=2))
+
+        # Fail loud (CLAUDE.md): taucht ein mock-praefigierter source_id auf, ist
+        # die echte Wissensbasis nicht verdrahtet (MockRetriever-Fallback). Dann
+        # eine ehrliche "nicht verfuegbar"-Antwort, KEIN LLM-Call und KEINE
+        # (Mock-)Citation -- eine API-Response traegt so nie eine mock-Quelle.
+        # Persistiert wie jeder andere Ausgang (ADR-0026), damit der Report
+        # denselben ehrlichen Stand rendert.
+        if any(chunk.source_id.startswith(_MOCK_SOURCE_PREFIX) for chunk in retrieved):
+            structlog.get_logger().warning(
+                "compliance_kb_unavailable_mock_fallback",
+                case_id=case.id,
+                retrieved_source_ids=[chunk.source_id for chunk in retrieved],
+            )
+            await self._repository.update_field_async(
+                case.id,
+                "compliance_hints_json",
+                json.dumps({"hint_text": _KB_UNAVAILABLE_HINT, "citations": []}),
+            )
+            return ComplianceHintsResult(
+                case_id=case.id,
+                hint_text=_KB_UNAVAILABLE_HINT,
+                citations=(),
+                prompt_version=prompt_version,
+            )
 
         if not retrieved:
             await self._repository.update_field_async(

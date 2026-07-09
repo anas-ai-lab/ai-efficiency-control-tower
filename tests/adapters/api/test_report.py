@@ -288,10 +288,13 @@ async def test_report_uses_persisted_compliance_hints_after_compliance_hints_cal
     assert response.status_code == 200
     data = response.json()
     business = data["business_summary"]
+    # Fail loud (CLAUDE.md): MockRetriever -> ehrliche 'nicht verfuegbar'-Antwort
+    # im Report, NIE eine mock-Quelle als Citation.
     assert business["compliance_hint_text"] is not None
-    assert "[mock-response]" in business["compliance_hint_text"]
-    assert len(business["compliance_citations"]) == 1
-    assert business["compliance_citations"][0]["source_id"] == "mock-compliance-dsfa"
+    assert "nicht verfuegbar" in business["compliance_hint_text"]
+    assert business["compliance_citations"] == []
+    # Guard: die konkrete Mock-Quelle darf nie in der Report-Response auftauchen.
+    assert "mock-compliance-dsfa" not in response.text
 
 
 async def test_report_without_compliance_hints_call_has_no_hint() -> None:

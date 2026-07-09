@@ -13,6 +13,7 @@ from structlog.testing import capture_logs
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
+from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.service import TriageService
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
@@ -31,13 +32,35 @@ class _FakeIdGenerator:
         return "id-001"
 
 
-def _make_service(roi_config: ROIConfig) -> TriageService:
+class _CuratedRetriever:
+    """Liefert eine echte, NICHT mock-praefigierte Quelle -- damit
+    generate_compliance_hints den LLM-Pfad erreicht (der Mock-Fallback wuerde
+    'fail loud' vor der Injection-Flaggung abbrechen). Mock-Fixtures nur in
+    Tests zulaessig (CLAUDE.md)."""
+
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        return [
+            RetrievedChunk(
+                text="Eine DSFA kann bei hohem Risiko erforderlich sein.",
+                source_id="dsgvo-art-35-dsfa",
+                score=1.0,
+                metadata={"citation": "DSGVO Art. 35"},
+            )
+        ]
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        return None
+
+
+def _make_service(
+    roi_config: ROIConfig, retriever: RetrieverPort | None = None
+) -> TriageService:
     return TriageService(
         repository=InMemoryRepository(),
         clock=_FakeClock(),
         id_generator=_FakeIdGenerator(),
         roi_config=roi_config,
-        retriever=MockRetriever(),
+        retriever=retriever if retriever is not None else MockRetriever(),
         llm=MockLLMAdapter(),
     )
 
@@ -50,7 +73,9 @@ class TestComplianceHintsInjectionFlagging:
     async def test_flags_injection_in_title(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        service = _make_service(roi_config)
+        # Echte (nicht-mock) Quelle noetig: mit MockRetriever bricht compliance-
+        # hints jetzt 'fail loud' VOR der Injection-Flaggung ab (kein LLM-Pfad).
+        service = _make_service(roi_config, retriever=_CuratedRetriever())
         # SENSITIVE_PERSONAL -> risk_flags -> DSFA-Query -> Retrieval non-empty
         # -> LLM-Pfad wird erreicht.
         malicious = sample_use_case.model_copy(

@@ -700,13 +700,11 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         report = service.generate_report(case.id)
 
         assert report is not None
+        # Fail loud (CLAUDE.md): MockRetriever -> die ehrliche 'nicht
+        # verfuegbar'-Antwort fliesst in den Report, NIE eine mock-Quelle.
         assert report.business_summary.compliance_hint_text is not None
-        assert "[mock-response]" in report.business_summary.compliance_hint_text
-        assert len(report.business_summary.compliance_citations) == 1
-        assert (
-            report.business_summary.compliance_citations[0].source_id
-            == "mock-compliance-dsfa"
-        )
+        assert "nicht verfuegbar" in report.business_summary.compliance_hint_text
+        assert report.business_summary.compliance_citations == ()
 
 
 class TestTriageServiceComplianceHintsPersistence:
@@ -728,7 +726,11 @@ class TestTriageServiceComplianceHintsPersistence:
         stored = repo.get(case.id)
         assert stored is not None
         assert stored.compliance_hints_json is not None
-        assert "mock-compliance-dsfa" in stored.compliance_hints_json
+        # Fail loud: persistiert wird die ehrliche Antwort, NIE eine mock-Quelle.
+        assert "mock" not in stored.compliance_hints_json
+        data = json.loads(stored.compliance_hints_json)
+        assert data["citations"] == []
+        assert "nicht verfuegbar" in data["hint_text"]
 
     async def test_no_hit_case_persists_empty_citations(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig

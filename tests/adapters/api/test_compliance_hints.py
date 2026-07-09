@@ -13,10 +13,39 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
+from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
 from aect.application.service import TriageService
 from aect.domain.roi import load_roi_config
 
 TEST_API_KEY = "test-api-key-aect-2026"
+
+
+class _CuratedRetriever:
+    """Liefert eine echte, NICHT mock-praefigierte Quelle -- wie der Chroma-
+    Adapter gegen die geseedete Wissensbasis (source_id z. B. 'dsgvo-art-35-dsfa',
+    Metadata mit citation/url). Deckt den Erfolgspfad ab, ohne laufenden Chroma-
+    Container. Mock-Fixtures sind ausschliesslich in Tests zulaessig (CLAUDE.md).
+    """
+
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        return [
+            RetrievedChunk(
+                text=(
+                    "Eine Datenschutz-Folgenabschaetzung kann bei hohem Risiko "
+                    "fuer Betroffene erforderlich sein."
+                ),
+                source_id="dsgvo-art-35-dsfa",
+                score=1.0,
+                metadata={
+                    "citation": "DSGVO Art. 35",
+                    "url": "https://example.test/dsgvo-art-35",
+                },
+            )
+        ]
+
+    async def delete_by_source_id(self, source_id: str) -> None:
+        return None
+
 
 _VALID_PAYLOAD: dict = {
     "title": "Automatische Rechnungsverarbeitung mit AI",
@@ -57,12 +86,16 @@ _SENSITIVE_PAYLOAD: dict = {
 }
 
 
-def _make_app() -> FastAPI:
+def _make_app(retriever: RetrieverPort | None = None) -> FastAPI:
     """Repository ausserhalb der Lambda -- State muss zwischen 'Case anlegen'
     und 'Compliance-Hinweise abrufen' (zwei Requests) erhalten bleiben.
-    Gleiche Begruendung wie in test_sharpen.py._make_app."""
+    Gleiche Begruendung wie in test_sharpen.py._make_app.
+
+    retriever: Default MockRetriever (loest Fail-Loud aus); ein _CuratedRetriever
+    simuliert die echte, geseedete Wissensbasis fuer den Erfolgspfad."""
     app = create_app()
     repository = InMemoryRepository()
+    used_retriever = retriever if retriever is not None else MockRetriever()
     app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
     app.dependency_overrides[get_triage_service] = lambda: TriageService(
         repository=repository,
@@ -70,7 +103,7 @@ def _make_app() -> FastAPI:
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
         llm=MockLLMAdapter(),
-        retriever=MockRetriever(),
+        retriever=used_retriever,
     )
     return app
 
@@ -119,10 +152,11 @@ async def test_no_risk_case_has_no_hint_and_no_llm_call() -> None:
     assert data["citations"] == []
 
 
-async def test_sensitive_case_triggers_dsfa_query_and_returns_citation() -> None:
-    """sensitive_personal -> risk_flags nicht leer -> DSFA-Query laeuft
-    zusaetzlich zur Transparenz-Query. MockRetriever-Corpus liefert fuer die
-    DSFA-Query einen Treffer (mock-compliance-dsfa) -> LLM-Call + Citation."""
+async def test_sensitive_case_with_mock_retriever_fails_loud() -> None:
+    """Fail loud (CLAUDE.md): sensitive_personal -> DSFA-Query trifft im Mock-
+    Corpus 'mock-compliance-dsfa'. Statt diese Mock-Quelle als echte Citation zu
+    rendern (frueherer Bug), liefert der Endpoint eine ehrliche 'nicht
+    verfuegbar'-Antwort -- KEINE Citation, KEIN mock-Praefix in der Response."""
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -140,10 +174,39 @@ async def test_sensitive_case_triggers_dsfa_query_and_returns_citation() -> None
     assert response.status_code == 200
     data = response.json()
     assert data["hint_text"] is not None
+    assert "nicht verfuegbar" in data["hint_text"]
+    assert data["citations"] == []
+    # Guard: die konkrete Mock-Quelle darf nie in der Response auftauchen.
+    assert "mock-compliance-dsfa" not in response.text
+    assert all(not c["source_id"].startswith("mock") for c in data["citations"])
+
+
+async def test_sensitive_case_with_real_kb_returns_real_citation() -> None:
+    """Erfolgspfad: gegen die echte (geseedete) Wissensbasis -- der _Curated-
+    Retriever liefert eine reale Quelle (dsgvo-art-35-dsfa). LLM-Call + echte
+    Citation, kein mock-Praefix."""
+    app = _make_app(retriever=_CuratedRetriever())
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        response = await client.post(
+            f"/cases/{case_id}/compliance-hints",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hint_text"] is not None
     assert "[mock-response]" in data["hint_text"]
     assert len(data["citations"]) == 1
     assert data["citations"][0]["number"] == 1
-    assert data["citations"][0]["source_id"] == "mock-compliance-dsfa"
-    # MockRetriever liefert kein metadata -> Fallback citation == source_id
-    # (ComplianceCitation, application/models.py).
-    assert data["citations"][0]["citation"] == "mock-compliance-dsfa"
+    assert data["citations"][0]["source_id"] == "dsgvo-art-35-dsfa"
+    assert data["citations"][0]["citation"] == "DSGVO Art. 35"
+    # Guard: keine mock-praefigierte Quelle (der [mock-response]-Text stammt vom
+    # Test-LLM-Echo, ist keine Quellen-ID -- darum praezise auf source_id pruefen).
+    assert all(not c["source_id"].startswith("mock") for c in data["citations"])
