@@ -7,8 +7,11 @@ Regenerieren (ueberschreibt) und die DSGVO-Loesch-Kaskade (Case weg -> Skizze we
 
 from __future__ import annotations
 
+import json
+
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from structlog.testing import capture_logs
 
 from aect.adapters.api.app import create_app
 from aect.adapters.api.dependencies import get_settings, get_triage_service
@@ -19,6 +22,7 @@ from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
 from aect.application.ports.llm import LLMMessage, LLMPort, LLMResponse, ToolDefinition
+from aect.application.ports.repository import CaseUpdateField
 from aect.application.service import TriageService
 from aect.application.structured_output import (
     ArchitectureSketch,
@@ -58,15 +62,17 @@ _VALID_PAYLOAD: dict = {
 }
 
 
-def _make_app(llm: LLMPort | None = None) -> FastAPI:
+def _make_app(
+    llm: LLMPort | None = None, repository: InMemoryRepository | None = None
+) -> FastAPI:
     """Repository ausserhalb der Lambda -- State muss ueber mehrere Requests
     (Case anlegen, propose, sketch, get) erhalten bleiben (wie test_sharpen)."""
     app = create_app()
-    repository = InMemoryRepository()
+    repo = repository if repository is not None else InMemoryRepository()
     inner_llm = llm if llm is not None else MockLLMAdapter()
     app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
     app.dependency_overrides[get_triage_service] = lambda: TriageService(
-        repository=repository,
+        repository=repo,
         clock=SystemClock(),
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
@@ -79,8 +85,8 @@ def _make_app(llm: LLMPort | None = None) -> FastAPI:
 class _BrokenSketchLLM:
     """complete() liefert eine valide Antwort (fuer propose_solution), aber
     generate_architecture_sketch wirft ueber den realen Schema-Validierungspfad
-    eine InvalidLLMOutputError -- die Route muss sie sauber auf 502 mappen
-    (kein 500-Stack-Trace). Analog _BrokenIdeationLLM in test_ideation.py.
+    eine InvalidLLMOutputError -- die Route muss sie sauber auf 422 mappen
+    (kein 500/502-Stack-Trace). Analog _BrokenIdeationLLM in test_ideation.py.
     """
 
     async def complete(
@@ -98,7 +104,62 @@ class _BrokenSketchLLM:
         return parse_structured_llm_output("{}", ArchitectureSketch)
 
 
-async def test_sketch_invalid_llm_output_returns_502_no_stacktrace() -> None:
+class _OverlongLabelSketchLLM:
+    """Liefert VOLLSTAENDIGES, sonst valides Graph-JSON -- aber mit einem Label
+    > 60 Zeichen. Das ist der reale Fehlerfall (verbose deutsche Funktions-
+    Labels), der live zum 502 fuehrte: der LLM-Call gelingt (komplettes JSON,
+    nicht abgeschnitten), erst die Schema-Validierung im Adapter schlaegt fehl.
+    """
+
+    _OVERLONG_LABEL = (
+        "Automatisierte Klassifikation und Weiterleitung eingehender "
+        "Dokumente an die zustaendige Fachabteilung"
+    )
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        return LLMResponse(content="Ein knapper Loesungsvorschlag als Grundlage.")
+
+    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+        raise NotImplementedError
+
+    async def generate_architecture_sketch(
+        self, case_id: str, title: str, description: str, proposal_text: str
+    ) -> ArchitectureSketch:
+        raw = json.dumps(
+            {
+                "nodes": [
+                    {"id": "nutzer", "label": "Sachbearbeiter", "kind": "user"},
+                    {
+                        "id": "klassifikation",
+                        "label": self._OVERLONG_LABEL,
+                        "kind": "ai_service",
+                    },
+                    {"id": "db", "label": "Fall-Datenbank", "kind": "data_store"},
+                ],
+                "edges": [{"source": "nutzer", "target": "klassifikation"}],
+            }
+        )
+        return parse_structured_llm_output(raw, ArchitectureSketch)
+
+
+class _FailingSketchPersistRepo(InMemoryRepository):
+    """update_field_async wirft NUR fuer 'architecture_sketch' -- simuliert einen
+    Persistenzfehler HINTER dem gelungenen LLM-Call und dem Mermaid-Bau. Der
+    proposal_text-Write (vorher) bleibt intakt, sonst scheiterte schon propose-
+    solution. Die Route muss das auf 500 mappen (strukturiert geloggt), nicht 502.
+    """
+
+    async def update_field_async(
+        self, case_id: str, field: CaseUpdateField, value: str | None
+    ) -> None:
+        if field == "architecture_sketch":
+            raise RuntimeError("db write failed")
+        await super().update_field_async(case_id, field, value)
+
+
+async def test_sketch_invalid_llm_output_returns_422_with_reason() -> None:
     app = _make_app(llm=_BrokenSketchLLM())
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -109,9 +170,57 @@ async def test_sketch_invalid_llm_output_returns_502_no_stacktrace() -> None:
             f"/cases/{case_id}/architecture-sketch",
             headers={"X-API-Key": TEST_API_KEY},
         )
-    assert response.status_code == 502
+    # Schema-Verstoss -> 422 (nicht 502): der LLM-Call gelang, der Inhalt nicht.
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    # Praezise Begruendung: nennt das verletzte Schema.
+    assert "ArchitectureSketch" in detail
     # Kein Stack-Trace / keine internen Details in der Antwort.
     assert "Traceback" not in response.text
+
+
+async def test_sketch_realistic_schema_violation_returns_422_naming_rule() -> None:
+    """Realer Fehlerfall: vollstaendiges Graph-JSON, aber ein Label > 60 Zeichen.
+    Die 422-Begruendung nennt die konkret verletzte Regel (label/string_too_long),
+    damit das naechste Vorkommnis selbst-diagnostizierend ist."""
+    app = _make_app(llm=_OverlongLabelSketchLLM())
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await _add_proposal(client, case_id)
+        response = await client.post(
+            f"/cases/{case_id}/architecture-sketch",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "label" in detail
+    assert "string_too_long" in detail
+    assert "Traceback" not in response.text
+
+
+async def test_sketch_internal_persistence_error_returns_500_structured_log() -> None:
+    """Fehler HINTER dem LLM-Call (Persistenz) bleibt 500 -- aber strukturiert
+    geloggt (sketch_generation_failed) und ohne internes Leck an den Client."""
+    app = _make_app(repository=_FailingSketchPersistRepo())
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await _add_proposal(client, case_id)
+        with capture_logs() as logs:
+            response = await client.post(
+                f"/cases/{case_id}/architecture-sketch",
+                headers={"X-API-Key": TEST_API_KEY},
+            )
+    assert response.status_code == 500
+    assert "Traceback" not in response.text
+    assert "db write failed" not in response.text
+    events = [e for e in logs if e.get("event") == "sketch_generation_failed"]
+    assert len(events) == 1
+    assert events[0]["case_id"] == case_id
+    assert events[0]["error_type"] == "RuntimeError"
 
 
 async def _create_case(client: AsyncClient) -> str:

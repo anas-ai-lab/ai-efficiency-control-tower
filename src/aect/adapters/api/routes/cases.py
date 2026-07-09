@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
@@ -865,14 +866,20 @@ async def generate_architecture_sketch(
     Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
     - Case fehlt -> 404.
     - kein Loesungsvorschlag -> 409 (NoProposalForSketchError).
-    - LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).
+    - LLM-Antwort verletzt das Graph-Schema -> 422 (InvalidLLMOutputError),
+      mit der praezisen, verletzten Schema-Regel als Begruendung. Bewusst NICHT
+      502: der LLM-Call selbst gelang, nur der Inhalt ist unverwertbar -- ein
+      502 wuerde faelschlich einen Gateway-/Infrastrukturfehler suggerieren.
     - LLM nach Retries nicht erreichbar -> 503.
+    - interner Fehler HINTER dem LLM-Call (Mermaid-Builder/Persistenz) -> 500,
+      strukturiert geloggt (sketch_generation_failed), Detail generisch.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
         HTTPException 409: Case hat keinen Loesungsvorschlag.
+        HTTPException 422: KI-Antwort verletzt das Skizzen-Schema.
         HTTPException 429: Token-Budget des API-Keys erschoepft.
-        HTTPException 502: KI-Antwort war nicht verwertbar.
+        HTTPException 500: interner Builder-/Persistenzfehler.
         HTTPException 503: KI-Dienst nicht erreichbar.
     """
     try:
@@ -886,9 +893,14 @@ async def generate_architecture_sketch(
             ),
         ) from exc
     except InvalidLLMOutputError as exc:
+        # Die KI-Antwort verletzt das Graph-Schema (ArchitectureSketch). Der
+        # LLM-Call gelang -- der Inhalt ist unverwertbar, kein Gateway-Fehler.
+        # Darum 422 (nicht 502) und die praezise, verletzte Schema-Regel in der
+        # Begruendung. str(exc) traegt nur loc+type je Fehler (H-031,
+        # structured_output.py), nie LLM-Rohtext -- kein PII-Leak.
         raise HTTPException(
-            status_code=502,
-            detail="KI-Antwort war nicht verwertbar -- bitte erneut versuchen.",
+            status_code=422,
+            detail=f"KI-Antwort verletzt das Skizzen-Schema: {exc}",
         ) from exc
     except (ConnectionError, TimeoutError) as exc:
         raise HTTPException(
@@ -896,6 +908,20 @@ async def generate_architecture_sketch(
             detail=(
                 "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
             ),
+        ) from exc
+    except Exception as exc:
+        # Interner Fehler HINTER dem gelungenen LLM-Call: der deterministische
+        # Mermaid-Builder oder die Persistenz. Bleibt 500, aber mit
+        # strukturiertem Log statt nacktem Stack-Trace -- Detail generisch, kein
+        # internes Leck an den Client (OWASP LLM02).
+        structlog.get_logger().error(
+            "sketch_generation_failed",
+            case_id=case_id,
+            error_type=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Interner Fehler bei der Skizzen-Erzeugung.",
         ) from exc
 
     if result is None:
