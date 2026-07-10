@@ -244,6 +244,32 @@ class TestConfidenceScore:
         assert mg.confidence_score == pytest.approx(1.0)
         assert mg.confidence_label == "hoch"
 
+    def test_composite_range_bounds_1_and_9(self, clf: ZoneClassifier) -> None:
+        # Step-0-Fix (Composite-Range 1-9): der kleinste gueltige Composite (1)
+        # liegt maximal weit von der LW/CR-Grenze (4) entfernt -> LIKELY_WIN,
+        # Konfidenz 1.0. half_width = (4 - 1)/2 = 1.5, distance = 3 -> ratio 1.0.
+        lw = clf.classify(Decimal("75000"), composite_score=1, handlungsdruck_score=1)
+        assert lw.base_zone == TriageZone.LIKELY_WIN
+        assert lw.confidence_score == pytest.approx(1.0)
+        # Der groesste gueltige Composite (9) liegt maximal weit von der MG/CR-
+        # Grenze (7) entfernt -> MARGINAL_GAIN, Konfidenz 1.0. half_width =
+        # (9 - 7)/2 = 1.0, distance = 2 -> ratio 1.0.
+        mg = clf.classify(Decimal("100000"), composite_score=9, handlungsdruck_score=1)
+        assert mg.base_zone == TriageZone.MARGINAL_GAIN
+        assert mg.confidence_score == pytest.approx(1.0)
+
+    def test_marginal_gain_band_center_after_range_fix(
+        self, clf: ZoneClassifier
+    ) -> None:
+        # Composite 8 ist die Mitte des MG-Bandes [7, 9] nach der 1-9-Korrektur:
+        # half_width = (9 - 7)/2 = 1.0, distance = 8 - 7 = 1 -> ratio 1.0 -> 1.0.
+        # Unter der alten (falschen) 2-10-Range war half_width 1.5 -> 0.83; der
+        # Step-0-Fix macht den Nenner konsistent mit der echten Composite-Range.
+        mg = clf.classify(Decimal("100000"), composite_score=8, handlungsdruck_score=1)
+        assert mg.base_zone == TriageZone.MARGINAL_GAIN
+        assert mg.confidence_score == pytest.approx(1.0)
+        assert mg.confidence_label == "hoch"
+
 
 @given(benefit=_BENEFIT, composite=_COMPOSITE, hd=_HD)
 @settings(max_examples=300, suppress_health_check=[HealthCheck.function_scoped_fixture])

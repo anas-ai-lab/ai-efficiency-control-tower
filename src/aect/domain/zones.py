@@ -28,12 +28,16 @@ import yaml
 
 from aect.domain.types import TriageZone
 
-# Composite-Score-Wertebereich (siehe scoring.CompositeScore: Summe 2-10).
+# Composite-Score-Wertebereich (siehe scoring.CompositeScore: Summe 1-9 seit V4,
+# SDR-0003 -- Komplexitaet 1-5 + Kostenpunkte 0-2 + Datenschutz 0-2).
 # Strukturelle Grenze der Skala, kein IP-/Business-Wert -> hier konstant,
 # nicht in config. Wird nur fuer die Konfidenz-Normierung der offenen
-# Randzonen (LIKELY_WIN / MARGINAL_GAIN) gebraucht.
-_COMPOSITE_MIN = 2
-_COMPOSITE_MAX = 10
+# Randzonen (LIKELY_WIN / MARGINAL_GAIN) gebraucht: half_width der offenen
+# Bänder = (Grenze - MIN)/2 bzw. (MAX - Grenze)/2. Der alte 2/10-Stand rechnete
+# nach dem V4-Modell-Umbau mit einem falschen Nenner (Konfidenz zu tief in
+# LIKELY_WIN, zu hoch in MARGINAL_GAIN).
+_COMPOSITE_MIN = 1
+_COMPOSITE_MAX = 9
 
 
 def _confidence_label(score: float) -> str:
