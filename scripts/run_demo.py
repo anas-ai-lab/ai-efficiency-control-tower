@@ -143,8 +143,12 @@ def main() -> None:
         r = None
     if r is not None and r.status_code == 200:
         prop = r.json()
-        proposal_text = prop.get("proposal_text", "")
-        print(f"\n  {textwrap.shorten(proposal_text, 200)}")
+        # V4-P6: zweigeteilt -- Business-Absatz + technische Fassung.
+        proposal_text = prop.get("solution_technical", "")
+        business = prop.get("solution_business", "")
+        if business:
+            print(f"\n  [Business] {textwrap.shorten(business, 180)}")
+        print(f"  [Technisch] {textwrap.shorten(proposal_text, 180)}")
     else:
         print(f"  [Loesung: {r.status_code}]")
 
@@ -187,10 +191,14 @@ def main() -> None:
         print(f"  Empfehlung:      {bs.get('recommendation', 'n/a')}")
         if bs.get("expected_benefit_eur") is not None:
             print(f"  Nutzen:          {bs['expected_benefit_eur']:>12,.0f} EUR/Jahr")
-        if bs.get("summary_text"):
+        # V4-P6: decision_report ersetzt die alte summary_text-Zeile.
+        dr = bs.get("decision_report", {})
+        if dr.get("empfehlung_satz"):
             print(
-                f"\n  {textwrap.fill(bs['summary_text'], 58, initial_indent='  ', subsequent_indent='  ')}"
+                f"\n  {textwrap.fill(dr['empfehlung_satz'], 58, initial_indent='  ', subsequent_indent='  ')}"
             )
+        for contra in dr.get("contra_punkte", []):
+            print(f"    - contra: {textwrap.shorten(contra, 54)}")
         print("\n  TECHNICAL DETAIL")
         print(f"  Vorfilter:       {'OK' if td.get('passed_vorfilter') else 'FEHLT'}")
         print(

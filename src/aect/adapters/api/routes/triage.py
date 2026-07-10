@@ -47,6 +47,7 @@ from aect.adapters.api.rate_limit import limiter
 from aect.application.models import SimilarityWarning, SubmittedCase
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.service import TriageService
+from aect.domain.explainability import TriageExplanation
 from aect.domain.models import UseCaseInput
 
 router = APIRouter(prefix="/triage", tags=["triage"])
@@ -80,11 +81,48 @@ class ROIResponse(BaseModel):
 
 class RoutingResponse(BaseModel):
     recommendation: str
+    # Empfehlung als deutscher Satz (V4-P6) -- das Enum bleibt maschinenlesbar
+    # daneben. Feste Argument-Reihenfolge: Stunden/Jahr -> Netto -> Aufwand ->
+    # Datenschutzlage; Vorfilter-Fail nennt den Klartext-Grund.
+    recommendation_text: str
     confidence: str
     automation_signals: list[str]
     ai_signals: list[str]
     risk_flags: list[str]
     requires_human_review: bool
+
+
+class ScoreComponentResponse(BaseModel):
+    """Eine Aufwandscore-Komponente mit deterministischer Begruendung (V4-P6)."""
+
+    key: str
+    label: str
+    wert: int
+    max: int
+    begruendung: str
+
+
+class ScoreBreakdownResponse(BaseModel):
+    """Herkunft des Aufwandscores (V4-P6) -- Komponenten + Gesamtzeile + Machbarkeit.
+
+    feasibility_score = 10 - total; feasibility_definition ist der zentrale
+    Definitions-String (ueberall referenziert, auch in den Board-Daten).
+    """
+
+    components: list[ScoreComponentResponse]
+    total: int
+    max_total: int
+    effort_label: str
+    total_line: str
+    feasibility_score: int
+    feasibility_definition: str
+
+
+class ConfidenceReasoningResponse(BaseModel):
+    """Konfidenz als Begruendung statt Zahl (V4-P6): level + gruende."""
+
+    level: str
+    gruende: list[str]
 
 
 class FeasibilityResponse(BaseModel):
@@ -108,9 +146,14 @@ class ZoneResponse(BaseModel):
     reason: str
     # Additiver Konfidenz-Score (ADR-0036): Abstand des composite_score zur
     # naechsten Zonengrenze. Aendert die Zonen-Entscheidung nicht, macht nur
-    # die Grenzfall-Naehe sichtbar (known_limitations #2).
+    # die Grenzfall-Naehe sichtbar (known_limitations #2). Bleibt fuer
+    # Rueckwaertskompatibilitaet erhalten; die menschenlesbare Fassung ist
+    # confidence_reasoning (V4-P6).
     confidence_score: float
     confidence_label: str
+    # Konfidenz als Begruendung (V4-P6): level + deterministische Gruende
+    # (Evidenzlage, Zonengrenz-Naehe mit Kipp-Hebel).
+    confidence_reasoning: ConfidenceReasoningResponse
 
 
 class TriageResponse(BaseModel):
@@ -130,6 +173,9 @@ class TriageResponse(BaseModel):
     roi: ROIResponse | None
     composite: CompositeScoreResponse | None
     zone: ZoneResponse | None
+    # Score-Herkunft (V4-P6): deterministische Begruendung je Aufwandscore-
+    # Komponente + Machbarkeit. None bei Vorfilter-Fail (kein Composite).
+    score_breakdown: ScoreBreakdownResponse | None
     # Dedup-Hinweis (L-3, ADR-0039) -- None, wenn kein aehnlicher Case existiert
     # oder die Pruefung uebersprungen wurde (Mock-Modus, erster Case).
     similarity_warning: SimilarityWarning | None = None
@@ -140,18 +186,50 @@ class TriageResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _to_score_breakdown_response(
+    explanation: TriageExplanation,
+) -> ScoreBreakdownResponse | None:
+    """Mappt die Score-Herkunft auf das API-Schema (None bei Vorfilter-Fail)."""
+    breakdown = explanation.score_breakdown
+    if breakdown is None:
+        return None
+    return ScoreBreakdownResponse(
+        components=[
+            ScoreComponentResponse(
+                key=c.key,
+                label=c.label,
+                wert=c.wert,
+                max=c.max,
+                begruendung=c.begruendung,
+            )
+            for c in breakdown.components
+        ],
+        total=breakdown.total,
+        max_total=breakdown.max_total,
+        effort_label=breakdown.effort_label,
+        total_line=breakdown.total_line,
+        feasibility_score=breakdown.feasibility_score,
+        feasibility_definition=breakdown.feasibility_definition,
+    )
+
+
 def _to_triage_response(
-    case: SubmittedCase, similarity_warning: SimilarityWarning | None = None
+    case: SubmittedCase,
+    explanation: TriageExplanation,
+    similarity_warning: SimilarityWarning | None = None,
 ) -> TriageResponse:
-    """Mappt SubmittedCase auf TriageResponse.
+    """Mappt SubmittedCase + Erklaerbarkeit auf TriageResponse.
 
     Decimal -> float: JSON-Serialisierbarkeit.
     tuple[str, ...] -> list[str]: JSON-Serialisierbarkeit.
     StrEnum -> .value: explizite String-Darstellung.
+    explanation: deterministische Erklaerbarkeit (recommendation_text,
+    score_breakdown, confidence) -- reine Read-Time-Projektion, kein LLM.
     similarity_warning: optionaler Dedup-Hinweis (ADR-0039), nur beim
     Erst-Intake gesetzt, nicht beim Idempotency-Replay.
     """
     r = case.result
+    confidence = explanation.confidence
     return TriageResponse(
         id=case.id,
         submitted_at=case.submitted_at,
@@ -165,6 +243,7 @@ def _to_triage_response(
         ),
         routing=RoutingResponse(
             recommendation=r.routing.recommendation.value,
+            recommendation_text=explanation.recommendation_text,
             confidence=r.routing.confidence,
             automation_signals=list(r.routing.automation_signals),
             ai_signals=list(r.routing.ai_signals),
@@ -206,9 +285,14 @@ def _to_triage_response(
             reason=r.zone.reason,
             confidence_score=r.zone.confidence_score,
             confidence_label=r.zone.confidence_label,
+            confidence_reasoning=ConfidenceReasoningResponse(
+                level=confidence.level,
+                gruende=list(confidence.gruende),
+            ),
         )
-        if r.zone is not None
+        if r.zone is not None and confidence is not None
         else None,
+        score_breakdown=_to_score_breakdown_response(explanation),
         similarity_warning=similarity_warning,
     )
 
@@ -260,7 +344,9 @@ async def submit_use_case(
             if existing_case is not None:
                 response.status_code = 200
                 response.headers["Idempotent-Replay"] = "true"
-                return _to_triage_response(existing_case)
+                return _to_triage_response(
+                    existing_case, service.explain_case(existing_case)
+                )
             # Key gefuellt, aber Case geloescht (DSGVO Art. 17, ADR-0038):
             # neu verarbeiten; set() unten ueberschreibt mit der neuen ID.
 
@@ -279,4 +365,4 @@ async def submit_use_case(
     if idempotency_key is not None:
         idempotency_store.set(idempotency_key, case.id)
 
-    return _to_triage_response(case, similarity_warning)
+    return _to_triage_response(case, service.explain_case(case), similarity_warning)

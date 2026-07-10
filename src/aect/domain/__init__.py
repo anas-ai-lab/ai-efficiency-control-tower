@@ -6,6 +6,15 @@ Verbotene Imports: aect.adapters, aect.application (wuerde Dependency
 Inversion verletzen).
 """
 
+from aect.domain.explainability import (
+    ConfidenceReasoning,
+    ScoreBreakdown,
+    ScoreComponent,
+    TriageExplanation,
+    build_contra_points,
+    build_zu_entscheiden,
+    explain_triage,
+)
 from aect.domain.feasibility import (
     FeasibilityChecker,
     FeasibilityFlag,
@@ -37,6 +46,8 @@ __all__ = [
     "CaseStatus",
     # scoring
     "CompositeScore",
+    # explainability
+    "ConfidenceReasoning",
     "Country",
     "DataClassification",
     "EmployeeCategory",
@@ -55,6 +66,9 @@ __all__ = [
     "ReviewerDecision",
     "RoutingRecommendation",
     "RoutingResult",
+    "ScoreBreakdown",
+    "ScoreComponent",
+    "TriageExplanation",
     "TriageResult",
     "TriageZone",
     # models
@@ -63,9 +77,12 @@ __all__ = [
     "ZoneClassifier",
     "ZoneResult",
     "apply_prefilter",
+    "build_contra_points",
+    "build_zu_entscheiden",
     "calculate_roi",
     "compute_composite_score",
     "evaluate_use_case",
+    "explain_triage",
     "handlungsdruck_score",
     "load_roi_config",
     "load_zone_classifier",

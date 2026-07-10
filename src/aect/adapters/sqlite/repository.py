@@ -110,7 +110,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     status                  TEXT NOT NULL DEFAULT 'submitted',
     status_updated_at       TEXT,
     architecture_sketch     TEXT,
-    sharpening_draft        TEXT
+    sharpening_draft        TEXT,
+    solution_business       TEXT
 )
 """
 
@@ -136,15 +137,15 @@ _INSERT_SQL = (
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "architecture_sketch, sharpening_draft, solution_business) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft "
+    "architecture_sketch, sharpening_draft, solution_business "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -152,7 +153,7 @@ _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft "
+    "architecture_sketch, sharpening_draft, solution_business "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -175,6 +176,9 @@ _UPDATE_FIELD_SQL: dict[str, str] = {
     ),
     "sharpening_draft": (
         "UPDATE submitted_cases SET sharpening_draft = ? WHERE id = ?"
+    ),
+    "solution_business": (
+        "UPDATE submitted_cases SET solution_business = ? WHERE id = ?"
     ),
 }
 
@@ -350,7 +354,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (15-Tupel) -> SubmittedCase."""
+    """SQLite-Row (16-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -367,6 +371,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         status_updated_at_str,
         architecture_sketch,
         sharpening_draft,
+        solution_business,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -404,6 +409,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         ),
         sharpening_draft=(
             str(sharpening_draft) if sharpening_draft is not None else None
+        ),
+        solution_business=(
+            str(solution_business) if solution_business is not None else None
         ),
     )
 
@@ -488,6 +496,10 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN sharpening_draft TEXT"
                 )
+            if "solution_business" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN solution_business TEXT"
+                )
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
@@ -523,6 +535,7 @@ class SQLiteRepository:
                     status_updated_at_str,
                     case.architecture_sketch,
                     case.sharpening_draft,
+                    case.solution_business,
                 ),
             )
 

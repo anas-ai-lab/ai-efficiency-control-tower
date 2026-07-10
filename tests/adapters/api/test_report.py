@@ -124,8 +124,15 @@ async def test_report_passing_case_has_zone_and_recommendation() -> None:
     assert business["title"] == _PASSING_PAYLOAD["title"]
     assert business["zone"] is not None
     assert business["expected_benefit_eur"] is not None
-    assert _PASSING_PAYLOAD["title"] in business["summary_text"]
+    # summary_text entfaellt ersatzlos (V4-P6) -- decision_report ersetzt sie.
+    assert "summary_text" not in business
+    decision = business["decision_report"]
+    assert decision["empfehlung_satz"]
+    assert decision["kennzahlen"]["zone_label"] is not None
+    assert decision["kennzahlen"]["aufwand"]["max"] == 9
+    assert len(decision["contra_punkte"]) >= 2
     assert technical["passed_vorfilter"] is True
+    assert technical["technical_report"]["datenlage"]
     assert technical["composite_total"] is not None
     assert technical["roi_theoretical_potential_eur"] is not None
     assert business["sharpened_text"] is None
@@ -264,7 +271,7 @@ async def test_report_uses_persisted_proposal_text_after_propose_solution_call()
     data = response.json()
     proposal = data["technical_detail"]["proposal_text"]
     assert proposal is not None
-    assert "[mock-response]" in proposal
+    assert "[mock]" in proposal
 
 
 async def test_report_uses_persisted_compliance_hints_after_compliance_hints_call() -> (

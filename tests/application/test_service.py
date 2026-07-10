@@ -24,13 +24,125 @@ from aect.application.ports.retriever import RetrievedChunk
 from aect.application.service import (
     CaseNotFoundError,
     SharpeningNumberViolationError,
+    SolutionVocabularyViolationError,
     TriageService,
     _strip_dangling_citation_markers,
 )
-from aect.application.structured_output import InvalidLLMOutputError
+from aect.application.structured_output import (
+    InvalidLLMOutputError,
+    SolutionProposalV2,
+)
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
 from aect.domain.types import CaseStatus, DataClassification, ReviewerDecision
+
+
+def _solution_json(marker: str) -> str:
+    """Schema-valides, technikfreies Loesungs-JSON (V4-P6) mit Marker in der
+    technischen Fassung -- fuer Test-Adapter, die eine feste Antwort liefern."""
+    return SolutionProposalV2(
+        solution_business=(
+            "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+            "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
+            "Menschen."
+        ),
+        solution_technical=f"{marker} technische Fassung fuer den Test.",
+    ).model_dump_json()
+
+
+def _solution_json_business(business: str) -> str:
+    """Loesungs-JSON mit frei waehlbarem Business-Absatz (Vokabular-Guard-Tests)."""
+    return SolutionProposalV2(
+        solution_business=business,
+        solution_technical=(
+            "Ein technischer Absatz mit ausreichend Zeichen fuer das Schema."
+        ),
+    ).model_dump_json()
+
+
+_FORBIDDEN_BUSINESS = (
+    "Der Ablauf nutzt OCR und eine API zur Uebergabe an das ERP-System im Hintergrund."
+)
+_CLEAN_BUSINESS = (
+    "Die Vorgaenge werden kuenftig automatisch vorbereitet und den Mitarbeitenden "
+    "vorgelegt; die Entscheidung bleibt beim Menschen."
+)
+
+
+class _ForbiddenVocabLLM:
+    """Liefert IMMER einen Business-Absatz mit verbotenem Vokabular (auch im Retry)."""
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        return LLMResponse(
+            content=_solution_json_business(_FORBIDDEN_BUSINESS), tool_calls=None
+        )
+
+
+class _RetryRecoversVocabLLM:
+    """Erste Antwort verbotenes Vokabular, zweite (Retry) sauber -> Erfolg."""
+
+    def __init__(self) -> None:
+        self._calls = 0
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        self._calls += 1
+        business = _FORBIDDEN_BUSINESS if self._calls == 1 else _CLEAN_BUSINESS
+        return LLMResponse(content=_solution_json_business(business), tool_calls=None)
+
+
+class TestProposeSolutionVocabularyGuard:
+    """V4-P6: der Business-Absatz muss technikfrei sein (Vokabular-Guard)."""
+
+    async def test_forbidden_vocab_after_retry_raises(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=_ForbiddenVocabLLM(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(SolutionVocabularyViolationError) as exc:
+            await service.propose_solution(case.id)
+
+        assert exc.value.violations  # OCR/API/ERP erkannt
+        # Fail loud: nichts persistiert.
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.solution_business is None
+        assert stored.proposal_text is None
+
+    async def test_retry_recovers_clean_business(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=_RetryRecoversVocabLLM(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        proposal = await service.propose_solution(case.id)
+
+        assert proposal is not None
+        assert "OCR" not in proposal.solution_business
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.solution_business is not None
+
 
 # ---------------------------------------------------------------------------
 # Fake-Implementierungen (kein Mocking-Framework -- strukturelles Subtyping)
@@ -355,11 +467,7 @@ class _UnknownToolLLMAdapter:
                     ToolCall(id="fake-call-1", name="does_not_exist", arguments={})
                 ],
             )
-        last_user = next(
-            (m.content for m in reversed(messages) if m.role == "user"),
-            "",
-        )
-        return LLMResponse(content=f"[mock-response] {last_user}")
+        return LLMResponse(content=_solution_json("[mock-response]"))
 
 
 class TestTriageServiceProposeSolution:
@@ -373,8 +481,9 @@ class TestTriageServiceProposeSolution:
 
         assert proposal is not None
         assert proposal.case_id == case.id
-        assert proposal.prompt_version == "v2"
-        assert "[mock-response]" in proposal.proposal_text
+        assert proposal.prompt_version == "v3"
+        assert "[mock]" in proposal.solution_technical
+        assert proposal.solution_business
 
     async def test_propose_solution_logs_cost_for_both_llm_calls(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -418,7 +527,7 @@ class TestTriageServiceProposeSolutionUnknownTool:
         proposal = await service.propose_solution(case.id)
 
         assert proposal is not None
-        assert "[mock-response]" in proposal.proposal_text
+        assert "[mock-response]" in proposal.solution_technical
 
 
 class _NoToolCallLLMAdapter:
@@ -437,11 +546,7 @@ class _NoToolCallLLMAdapter:
         messages: list[LLMMessage],
         tools: list[ToolDefinition] | None = None,
     ) -> LLMResponse:
-        last_user = next(
-            (m.content for m in reversed(messages) if m.role == "user"),
-            "",
-        )
-        return LLMResponse(content=f"[direct-response] {last_user}", tool_calls=None)
+        return LLMResponse(content=_solution_json("[direct-response]"), tool_calls=None)
 
 
 class TestTriageServiceProposeSolutionNoToolCall:
@@ -470,7 +575,7 @@ class TestTriageServiceProposeSolutionNoToolCall:
             proposal = await service.propose_solution(case.id)
 
         assert proposal is not None
-        assert "[direct-response]" in proposal.proposal_text
+        assert "[direct-response]" in proposal.solution_technical
 
         # Genau ein Cost-Log -- kein zweiter complete()-Call, da kein
         # Tool-Call angefordert wurde (Abgrenzung zum Tool-Call-Pfad,
@@ -722,8 +827,11 @@ class TestTriageServiceProposeSolutionPersistence:
 
         stored = repo.get(case.id)
         assert stored is not None
+        # proposal_text traegt die technische Fassung (solution_technical),
+        # solution_business daneben (V4-P6, MockLLMAdapter markiert mit [mock]).
         assert stored.proposal_text is not None
-        assert "[mock-response]" in stored.proposal_text
+        assert "[mock]" in stored.proposal_text
+        assert stored.solution_business is not None
 
 
 class TestTriageServiceGenerateReportUsesPersistedText:
@@ -769,7 +877,7 @@ class TestTriageServiceGenerateReportUsesPersistedText:
 
         assert report is not None
         assert report.technical_detail.proposal_text is not None
-        assert "[mock-response]" in report.technical_detail.proposal_text
+        assert "[mock]" in report.technical_detail.proposal_text
 
     async def test_explicit_argument_overrides_persisted_sharpened_text(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig

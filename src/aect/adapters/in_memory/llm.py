@@ -18,9 +18,28 @@ from aect.application.structured_output import (
     SketchEdge,
     SketchNode,
     SketchNodeKind,
+    SolutionProposalV2,
 )
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
+
+# Deterministischer, schema-valider zweigeteilter Loesungsvorschlag (V4-P6).
+# solution_business ist bewusst FREI von verbotenem Technik-/Architektur-Vokabular
+# (domain/solution_guard) -- so verletzt der Mock nie den Vokabular-Guard. Der
+# "[mock]"-Marker macht die Herkunft in Assertions sichtbar.
+_SOLUTION_MOCK_JSON = SolutionProposalV2(
+    solution_business=(
+        "[mock] Eingehende Vorgaenge werden kuenftig automatisch vorbereitet und "
+        "den Mitarbeitenden strukturiert vorgelegt. Die Fachkraft prueft nur noch "
+        "Zweifelsfaelle und gibt frei; die endgueltige Entscheidung bleibt beim "
+        "Menschen."
+    ),
+    solution_technical=(
+        "[mock] Ein Dienst liest die benoetigten Felder aus und uebergibt sie an "
+        "das Zielsystem; eine Klassifizierung markiert Zweifelsfaelle fuer die "
+        "manuelle Pruefung."
+    ),
+).model_dump_json()
 
 # Deterministische, schema-valide Schaerfung fuer Tests (V4). Die drei
 # Beschreibungs-Felder sind bewusst ZAHLENFREI -- so verletzt der Mock nie den
@@ -91,6 +110,14 @@ class MockLLMAdapter:
         # Echo waere kein JSON und wuerde den neuen Fail-loud-Pfad ausloesen).
         if any("sharpened_title" in m.content for m in messages):
             return LLMResponse(content=_SHARPENING_MOCK_JSON)
+
+        # propose_solution v3: der System-Prompt beschreibt das JSON-Schema und
+        # traegt daher "solution_business". Dann liefert der Mock einen
+        # schema-validen, zweigeteilten Loesungsvorschlag (Business + technisch)
+        # statt eines Echos (das waere kein JSON und wuerde den Fail-loud-Pfad
+        # ausloesen).
+        if any("solution_business" in m.content for m in messages):
+            return LLMResponse(content=_SOLUTION_MOCK_JSON)
 
         last_user = next(
             (m.content for m in reversed(messages) if m.role == "user"),

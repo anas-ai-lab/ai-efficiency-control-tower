@@ -70,13 +70,104 @@
         }
       }
     },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Prueft das Admin-Passwort und legt bei Erfolg eine Session an.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key) bzw. zum Setzen des\nCookies. Rate Limit: 10/Minute (Brute-Force-Bremse fuer den anonymen Pfad).\n\nRaises:\n    HTTPException 503: kein AECT_ADMIN_PASSWORD_HASH konfiguriert (Login\n        serverseitig gar nicht eingerichtet -- kein Client-Fehler).\n    HTTPException 401: falsches Passwort.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "Loescht die Session (falls vorhanden) und raeumt das Cookie ab.\n\nIdempotent und ohne Auth: ist kein/ein ungueltiges Cookie gesetzt, wird\nnichts geloescht -- die Antwort ist in jedem Fall authenticated=false.",
+        "operationId": "logout_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Me",
+        "description": "Meldet, ob der Aufrufer als Admin authentifiziert ist.\n\nSpiegelt exakt require_admin (Session-Cookie ODER gueltiger API-Key) -- das\nFrontend blendet daran seine Admin-Flaechen ein/aus. Eine abgelaufene\nSession wird dabei (in authenticate_admin) verworfen.",
+        "operationId": "auth_me_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
     "/cases": {
       "get": {
         "tags": [
           "cases"
         ],
         "summary": "List Cases",
-        "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60 Requests/Minute pro API-Key.\n\nMapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->\nfloat, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine\nListe (kein Envelope) -- Abwaertskompatibilitaet.",
+        "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere\nZugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur\nUebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.\nRate Limit: 60 Requests/Minute pro Aufrufer.\n\nMapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->\nfloat, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine\nListe (kein Envelope) -- Abwaertskompatibilitaet.",
         "operationId": "list_cases_cases_get",
         "responses": {
           "200": {
@@ -93,12 +184,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ]
+        }
       }
     },
     "/cases/similarity-pairs": {
@@ -107,7 +193,7 @@
           "cases"
         ],
         "summary": "List Similarity Pairs",
-        "description": "Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und\nGET /cases/{id}/monitoring.\n\nRead-only: kein Schreiben, kein LLM-Call. Nutzt dieselbe Cosinus-/Schwellen-\nLogik wie die Intake-Dedup-Pruefung (application/service.py).",
+        "description": "Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und\nGET /cases/{id}/monitoring.\n\nRead-only: kein Schreiben, kein LLM-Call. Nutzt dieselbe Cosinus-/Schwellen-\nLogik wie die Intake-Dedup-Pruefung (application/service.py).",
         "operationId": "list_similarity_pairs_cases_similarity_pairs_get",
         "responses": {
           "200": {
@@ -134,7 +220,7 @@
           "cases"
         ],
         "summary": "Delete Case",
-        "description": "Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den\nLLM-Endpoints streng gehalten.\n\n204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404\ngemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den\nLLM-Endpoints streng gehalten.\n\n204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404\ngemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "delete_case_cases__case_id__delete",
         "security": [
           {
@@ -167,6 +253,47 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Get Case Detail",
+        "description": "Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den\nkompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.\nSubscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).\nNur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein\nLLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "get_case_detail_cases__case_id__get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/cases/{case_id}/decision": {
@@ -175,7 +302,7 @@
           "cases"
         ],
         "summary": "Record Decision",
-        "description": "Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).\nRate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.\n\nUeberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,\nkein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key, inkl. Key-Rotation).\nRate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.\n\nUeberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,\nkein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "record_decision_cases__case_id__decision_post",
         "security": [
           {
@@ -233,7 +360,7 @@
           "cases"
         ],
         "summary": "Update Status",
-        "description": "Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und\nDELETE /cases/{id}.\n\nKein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und\nDELETE /cases/{id}.\n\nKein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "update_status_cases__case_id__status_post",
         "security": [
           {
@@ -291,7 +418,7 @@
           "cases"
         ],
         "summary": "Add Monitoring Note",
-        "description": "Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und\n/status.\n\n201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und\n/status.\n\n201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "add_monitoring_note_cases__case_id__monitoring_post",
         "security": [
           {
@@ -347,7 +474,7 @@
           "cases"
         ],
         "summary": "List Monitoring",
-        "description": "Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nLeere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der\nCase selbst nicht existiert (Service unterscheidet beide Faelle).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nLeere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der\nCase selbst nicht existiert (Service unterscheidet beide Faelle).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "list_monitoring_cases__case_id__monitoring_get",
         "security": [
           {
@@ -399,7 +526,7 @@
           "cases"
         ],
         "summary": "Sharpen Case",
-        "description": "Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nDraft: das Ergebnis wird als sharpening_draft persistiert, ueberschreibt\nNICHTS am Case. Uebernahme via /sharpen/accept.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- KI erfindet Zahlen (auch nach Retry) -> 422 mit Violation-Liste.\n- KI-Antwort verletzt das Schaerfungs-Schema (auch nach Retry) -> 422.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 422: KI-Antwort erfindet Zahlen oder verletzt das Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
+        "description": "Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nDraft: das Ergebnis wird als sharpening_draft persistiert, ueberschreibt\nNICHTS am Case. Uebernahme via /sharpen/accept.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- KI erfindet Zahlen (auch nach Retry) -> 422 mit Violation-Liste.\n- KI-Antwort verletzt das Schaerfungs-Schema (auch nach Retry) -> 422.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 422: KI-Antwort erfindet Zahlen oder verletzt das Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "sharpen_case_cases__case_id__sharpen_post",
         "security": [
           {
@@ -447,7 +574,7 @@
           "cases"
         ],
         "summary": "Accept Sharpening",
-        "description": "Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).\n\nKein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.\nAuth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu uebernehmen).",
+        "description": "Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).\n\nKein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.\nAuth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu uebernehmen).",
         "operationId": "accept_sharpening_cases__case_id__sharpen_accept_post",
         "security": [
           {
@@ -495,7 +622,7 @@
           "cases"
         ],
         "summary": "Reject Sharpening",
-        "description": "Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.\n\nKein LLM-Call -> kein Token-Budget noetig.\nAuth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu verwerfen).",
+        "description": "Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.\n\nKein LLM-Call -> kein Token-Budget noetig.\nAuth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu verwerfen).",
         "operationId": "reject_sharpening_cases__case_id__sharpen_reject_post",
         "security": [
           {
@@ -543,7 +670,7 @@
           "cases"
         ],
         "summary": "Propose Solution",
-        "description": "Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nSkeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten\nZielplattformen -- Stack-Grounding via RAG folgt Phase D.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
+        "description": "Skizziert einen zweigeteilten Loesungsansatz fuer einen Case via LLM (V4-P6).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nDer Business-Absatz muss technikfrei sein (deterministischer Vokabular-Guard,\ndomain/solution_guard). Fehler-Mapping (kein Stack-Trace, OWASP LLM02):\n- Case fehlt -> 404.\n- Business-Absatz nutzt verbotenes Vokabular (auch nach Retry) -> 422.\n- KI-Antwort verletzt das Loesungs-Schema (auch nach Retry) -> 422.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 422: KI-Antwort verletzt Schema oder Vokabular-Regel.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "propose_solution_cases__case_id__propose_solution_post",
         "security": [
           {
@@ -591,7 +718,7 @@
           "cases"
         ],
         "summary": "Get Report",
-        "description": "Erstellt den zweischichtigen Report fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body\n-- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).\n\nbody: optional. Ohne Body (oder mit None-Feldern) werden die\npersistierten Werte aus /sharpen bzw. /propose-solution verwendet\n(Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten\nWert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/\ncompliance_citations kommen immer aus der Persistenz (ADR-0026), kein\nOverride.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Erstellt den zweischichtigen Report fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body\n-- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).\n\nbody: optional. Ohne Body (oder mit None-Feldern) werden die\npersistierten Werte aus /sharpen bzw. /propose-solution verwendet\n(Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten\nWert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/\ncompliance_citations kommen immer aus der Persistenz (ADR-0026), kein\nOverride.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "get_report_cases__case_id__report_post",
         "security": [
           {
@@ -656,7 +783,7 @@
           "cases"
         ],
         "summary": "Compliance Hints",
-        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
+        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "compliance_hints_cases__case_id__compliance_hints_post",
         "security": [
           {
@@ -704,7 +831,7 @@
           "cases"
         ],
         "summary": "Generate Architecture Sketch",
-        "description": "Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche\nToken-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-\nLLM-Endpoints.\n\nOn-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- kein Loesungsvorschlag -> 409 (NoProposalForSketchError).\n- LLM-Antwort verletzt das Graph-Schema -> 422 (InvalidLLMOutputError),\n  mit der praezisen, verletzten Schema-Regel als Begruendung. Bewusst NICHT\n  502: der LLM-Call selbst gelang, nur der Inhalt ist unverwertbar -- ein\n  502 wuerde faelschlich einen Gateway-/Infrastrukturfehler suggerieren.\n- LLM nach Retries nicht erreichbar -> 503.\n- interner Fehler HINTER dem LLM-Call (Mermaid-Builder/Persistenz) -> 500,\n  strukturiert geloggt (sketch_generation_failed), Detail generisch.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case hat keinen Loesungsvorschlag.\n    HTTPException 422: KI-Antwort verletzt das Skizzen-Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.\n    HTTPException 500: interner Builder-/Persistenzfehler.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
+        "description": "Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche\nToken-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-\nLLM-Endpoints.\n\nOn-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- kein Loesungsvorschlag -> 409 (NoProposalForSketchError).\n- LLM-Antwort verletzt das Graph-Schema -> 422 (InvalidLLMOutputError),\n  mit der praezisen, verletzten Schema-Regel als Begruendung. Bewusst NICHT\n  502: der LLM-Call selbst gelang, nur der Inhalt ist unverwertbar -- ein\n  502 wuerde faelschlich einen Gateway-/Infrastrukturfehler suggerieren.\n- LLM nach Retries nicht erreichbar -> 503.\n- interner Fehler HINTER dem LLM-Call (Mermaid-Builder/Persistenz) -> 500,\n  strukturiert geloggt (sketch_generation_failed), Detail generisch.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case hat keinen Loesungsvorschlag.\n    HTTPException 422: KI-Antwort verletzt das Skizzen-Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.\n    HTTPException 500: interner Builder-/Persistenzfehler.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
         "operationId": "generate_architecture_sketch_cases__case_id__architecture_sketch_post",
         "security": [
           {
@@ -750,7 +877,7 @@
           "cases"
         ],
         "summary": "Get Architecture Sketch",
-        "description": "Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\n200 {\"sketch\": null}, wenn der Case existiert, aber nie eine Skizze erzeugt\nwurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide\nFaelle ueber CaseNotFoundError vs. None).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\n200 {\"sketch\": null}, wenn der Case existiert, aber nie eine Skizze erzeugt\nwurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide\nFaelle ueber CaseNotFoundError vs. None).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "get_architecture_sketch_cases__case_id__architecture_sketch_get",
         "security": [
           {
@@ -798,13 +925,8 @@
           "triage"
         ],
         "summary": "Submit Use Case",
-        "description": "Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 30 Requests/Minute pro API-Key.\nValidation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.\n\nIdempotency: siehe Modul-Docstring. Bei Replay wird response.status_code\nauf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.",
+        "description": "Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nAuth: PUBLIC (V4-P-Auth) -- anonyme Einreichung ist eine Kern-Faehigkeit der\nunteren Zugriffsstufe (SDR-0003). Kein require_admin hier.\nRate Limit: 30 Requests/Minute pro Aufrufer.\nValidation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.\n\nIdempotency: siehe Modul-Docstring. Bei Replay wird response.status_code\nauf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.",
         "operationId": "submit_use_case_triage_post",
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -864,7 +986,7 @@
           "ideation"
         ],
         "summary": "Generate Ideation",
-        "description": "Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.\n\nEphemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf\nIdeationRequest -> 422 bei zu kurzem/langem/unbekanntem Input.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- LLM nach Retries nicht erreichbar (Connection/Timeout) -> 503.\n- LLM liefert kein valides Schema (InvalidLLMOutputError) -> 502.\n\nRaises:\n    HTTPException 502: KI-Antwort war nicht verwertbar.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
+        "description": "Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC (V4-P-Auth) -- anonymer Ideen-Assistent, kein require_admin.\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.\n\nEphemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf\nIdeationRequest -> 422 bei zu kurzem/langem/unbekanntem Input.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- LLM nach Retries nicht erreichbar (Connection/Timeout) -> 503.\n- LLM liefert kein valides Schema (InvalidLLMOutputError) -> 502.\n\nRaises:\n    HTTPException 502: KI-Antwort war nicht verwertbar.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
         "operationId": "generate_ideation_ideation_post",
         "requestBody": {
           "content": {
@@ -897,12 +1019,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ]
+        }
       }
     }
   },
@@ -984,6 +1101,44 @@
         "title": "ArchitectureSketchResponse",
         "description": "On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).\n\nnodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom\ndeterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM\nemittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei\njedem Regenerieren (abgeleitetes Artefakt, kein Verlauf)."
       },
+      "AufwandKennzahlResponse": {
+        "properties": {
+          "wert": {
+            "type": "integer",
+            "title": "Wert"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wert",
+          "max",
+          "label"
+        ],
+        "title": "AufwandKennzahlResponse",
+        "description": "Aufwand als Kennzahl im Entscheider-Report: Wert von max mit Label."
+      },
+      "AuthResponse": {
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authenticated"
+        ],
+        "title": "AuthResponse",
+        "description": "Einheitliche Auth-Statusantwort fuer login/logout/me."
+      },
       "BusinessSummaryResponse": {
         "properties": {
           "title": {
@@ -1020,9 +1175,19 @@
             ],
             "title": "Expected Benefit Eur"
           },
-          "summary_text": {
-            "type": "string",
-            "title": "Summary Text"
+          "decision_report": {
+            "$ref": "#/components/schemas/DecisionReportResponse"
+          },
+          "solution_business": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution Business"
           },
           "sharpened_text": {
             "anyOf": [
@@ -1088,7 +1253,8 @@
           "is_actionable",
           "recommendation",
           "expected_benefit_eur",
-          "summary_text",
+          "decision_report",
+          "solution_business",
           "sharpened_text",
           "compliance_hint_text",
           "compliance_citations",
@@ -1097,7 +1263,40 @@
           "decided_at"
         ],
         "title": "BusinessSummaryResponse",
-        "description": "Entscheider-Schicht des Reports.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
+        "description": "Entscheider-Schicht des Reports.\n\ndecision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die\nfrueher redundante summary_text-Zeile ersatzlos.\n\nsolution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus\npropose_solution(); None, solange der Endpoint nicht lief.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
+      },
+      "CaseDetailResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "triage": {
+            "$ref": "#/components/schemas/TriageResponse"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ReportResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submitted_at",
+          "status",
+          "triage",
+          "report"
+        ],
+        "title": "CaseDetailResponse",
+        "description": "Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).\n\nPublic GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin\nbereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,\nkein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand\nseines eigenen Case.\n\ntriage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.\nSubscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.\nreport: der zweischichtige Report (deterministische Regel-Schicht ueber den\npersistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte\nSchaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und\ntechnische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch\nnicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.\n\nDie Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine\nAdmin-Ansicht (GET wie POST require_admin), nicht Teil des public Read."
       },
       "CaseSummary": {
         "properties": {
@@ -1169,6 +1368,21 @@
           "is_actionable": {
             "type": "boolean",
             "title": "Is Actionable"
+          },
+          "feasibility_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feasibility Score"
+          },
+          "feasibility_definition": {
+            "type": "string",
+            "title": "Feasibility Definition"
           }
         },
         "type": "object",
@@ -1182,7 +1396,9 @@
           "net_expected_benefit_eur",
           "composite_total",
           "hours_per_year",
-          "is_actionable"
+          "is_actionable",
+          "feasibility_score",
+          "feasibility_definition"
         ],
         "title": "CaseSummary",
         "description": "Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.\n\nGenug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den\nvollen Report je Case zu laden. zone/net_expected_benefit_eur/\ncomposite_total/hours_per_year sind None, wenn der Vorfilter nicht bestanden\nwurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone\nNone bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).\n\nFilter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines\nprivaten Portfolio-Builds braucht keine serverseitige Pagination (v3)."
@@ -1295,6 +1511,28 @@
         ],
         "title": "CompositeScoreResponse"
       },
+      "ConfidenceReasoningResponse": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "gruende": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gruende"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "gruende"
+        ],
+        "title": "ConfidenceReasoningResponse",
+        "description": "Konfidenz als Begruendung statt Zahl (V4-P6): level + gruende."
+      },
       "Country": {
         "type": "string",
         "enum": [
@@ -1324,6 +1562,142 @@
         ],
         "title": "DataClassification",
         "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping (V4): NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1,\nSENSITIVE_PERSONAL=2. Pseudonymisierte Daten bleiben personenbezogen i. S. d.\nDSGVO (Art. 4 Nr. 5), daher gleicher Score wie PERSONAL. Mapping liegt in\ndomain/scoring.py, nicht hier."
+      },
+      "DecisionDetailsResponse": {
+        "properties": {
+          "sharpened_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Text"
+          },
+          "solution_business": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution Business"
+          },
+          "compliance_hint_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compliance Hint Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sharpened_text",
+          "solution_business",
+          "compliance_hint_text"
+        ],
+        "title": "DecisionDetailsResponse",
+        "description": "Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein)."
+      },
+      "DecisionKennzahlenResponse": {
+        "properties": {
+          "netto_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Netto Eur"
+          },
+          "stunden_pro_jahr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stunden Pro Jahr"
+          },
+          "aufwand": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AufwandKennzahlResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zone_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "netto_eur",
+          "stunden_pro_jahr",
+          "aufwand",
+          "zone_label"
+        ],
+        "title": "DecisionKennzahlenResponse",
+        "description": "Harte Kennzahlen des Entscheider-Reports (None bei Vorfilter-Fail)."
+      },
+      "DecisionReportResponse": {
+        "properties": {
+          "empfehlung_satz": {
+            "type": "string",
+            "title": "Empfehlung Satz"
+          },
+          "kennzahlen": {
+            "$ref": "#/components/schemas/DecisionKennzahlenResponse"
+          },
+          "zu_entscheiden": {
+            "type": "string",
+            "title": "Zu Entscheiden"
+          },
+          "contra_punkte": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contra Punkte"
+          },
+          "details": {
+            "$ref": "#/components/schemas/DecisionDetailsResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "empfehlung_satz",
+          "kennzahlen",
+          "zu_entscheiden",
+          "contra_punkte",
+          "details"
+        ],
+        "title": "DecisionReportResponse",
+        "description": "Entscheider-Report v2 (V4-P6) -- ersetzt die alte Zusammenfassungszeile."
       },
       "DecisionRequest": {
         "properties": {
@@ -1595,6 +1969,23 @@
         "title": "ImplementationApproach",
         "description": "Geplanter Umsetzungsansatz — ordinal, aufsteigende Komplexitaet (V4).\n\nDer Ansatz ersetzt das fruehere freie Komplexitaets-Eingabefeld: die\nKomplexitaet (1-5) wird deterministisch aus dem Ansatz abgeleitet\n(COMPLEXITY_BY_APPROACH in domain/scoring.py, SDR-0003 Entscheidung 4).\n\nDeutsche Labels:\n  simple_integration      -- einfache Implementierung in bestehende Umgebung\n  development_on_existing -- Entwicklung auf bestehender Umgebung\n  api_integration         -- API-Anbindung in bestehende Umgebung\n  custom_development       -- eigene Entwicklung\n  new_tool                -- Einfuehrung neues Tool"
       },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "Login-Body -- nur das Passwort.\n\nmax_length: Token-Flooding-/DoS-Schutz (scrypt auf sehr langem Input ist\nteuer), konsistent mit der Eingabe-Disziplin der uebrigen Request-Schemas."
+      },
       "MonitoringEntryResponse": {
         "properties": {
           "id": {
@@ -1772,6 +2163,10 @@
             "type": "string",
             "title": "Recommendation"
           },
+          "recommendation_text": {
+            "type": "string",
+            "title": "Recommendation Text"
+          },
           "confidence": {
             "type": "string",
             "title": "Confidence"
@@ -1805,6 +2200,7 @@
         "type": "object",
         "required": [
           "recommendation",
+          "recommendation_text",
           "confidence",
           "automation_signals",
           "ai_signals",
@@ -1812,6 +2208,87 @@
           "requires_human_review"
         ],
         "title": "RoutingResponse"
+      },
+      "ScoreBreakdownResponse": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreComponentResponse"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "max_total": {
+            "type": "integer",
+            "title": "Max Total"
+          },
+          "effort_label": {
+            "type": "string",
+            "title": "Effort Label"
+          },
+          "total_line": {
+            "type": "string",
+            "title": "Total Line"
+          },
+          "feasibility_score": {
+            "type": "integer",
+            "title": "Feasibility Score"
+          },
+          "feasibility_definition": {
+            "type": "string",
+            "title": "Feasibility Definition"
+          }
+        },
+        "type": "object",
+        "required": [
+          "components",
+          "total",
+          "max_total",
+          "effort_label",
+          "total_line",
+          "feasibility_score",
+          "feasibility_definition"
+        ],
+        "title": "ScoreBreakdownResponse",
+        "description": "Herkunft des Aufwandscores (V4-P6) -- Komponenten + Gesamtzeile + Machbarkeit.\n\nfeasibility_score = 10 - total; feasibility_definition ist der zentrale\nDefinitions-String (ueberall referenziert, auch in den Board-Daten)."
+      },
+      "ScoreComponentResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "wert": {
+            "type": "integer",
+            "title": "Wert"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "begruendung": {
+            "type": "string",
+            "title": "Begruendung"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "wert",
+          "max",
+          "begruendung"
+        ],
+        "title": "ScoreComponentResponse",
+        "description": "Eine Aufwandscore-Komponente mit deterministischer Begruendung (V4-P6)."
       },
       "SharpenSuggestionResponse": {
         "properties": {
@@ -2066,9 +2543,13 @@
             "type": "string",
             "title": "Case Id"
           },
-          "proposal_text": {
+          "solution_business": {
             "type": "string",
-            "title": "Proposal Text"
+            "title": "Solution Business"
+          },
+          "solution_technical": {
+            "type": "string",
+            "title": "Solution Technical"
           },
           "prompt_version": {
             "type": "string",
@@ -2078,11 +2559,12 @@
         "type": "object",
         "required": [
           "case_id",
-          "proposal_text",
+          "solution_business",
+          "solution_technical",
           "prompt_version"
         ],
         "title": "SolutionProposalResponse",
-        "description": "Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton)."
+        "description": "Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).\n\nsolution_business: technikfreier Absatz fuer die Geschaeftsleitung.\nsolution_technical: technischer Loesungsansatz (frueher proposal_text)."
       },
       "StatusUpdateRequest": {
         "properties": {
@@ -2240,6 +2722,9 @@
             ],
             "title": "Roi Net Expected Benefit Eur"
           },
+          "technical_report": {
+            "$ref": "#/components/schemas/TechnicalReportResponse"
+          },
           "proposal_text": {
             "anyOf": [
               {
@@ -2266,10 +2751,40 @@
           "requires_human_review",
           "roi_theoretical_potential_eur",
           "roi_net_expected_benefit_eur",
+          "technical_report",
           "proposal_text"
         ],
         "title": "TechnicalDetailResponse",
-        "description": "Reviewer-Schicht des Reports."
+        "description": "Reviewer-Schicht des Reports.\n\ntechnical_report (V4-P6): dieselben technischen Inhalte in Abschnitte\ngegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen)."
+      },
+      "TechnicalReportResponse": {
+        "properties": {
+          "architektur_kurzfassung": {
+            "type": "string",
+            "title": "Architektur Kurzfassung"
+          },
+          "datenlage": {
+            "type": "string",
+            "title": "Datenlage"
+          },
+          "risiken": {
+            "type": "string",
+            "title": "Risiken"
+          },
+          "offene_technische_fragen": {
+            "type": "string",
+            "title": "Offene Technische Fragen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "architektur_kurzfassung",
+          "datenlage",
+          "risiken",
+          "offene_technische_fragen"
+        ],
+        "title": "TechnicalReportResponse",
+        "description": "Technischer Report in Abschnitten statt Textwueste (V4-P6)."
       },
       "TriageResponse": {
         "properties": {
@@ -2333,6 +2848,16 @@
               }
             ]
           },
+          "score_breakdown": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoreBreakdownResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "similarity_warning": {
             "anyOf": [
               {
@@ -2356,7 +2881,8 @@
           "feasibility",
           "roi",
           "composite",
-          "zone"
+          "zone",
+          "score_breakdown"
         ],
         "title": "TriageResponse",
         "description": "Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.\n\nroi, composite und zone sind None wenn passed_vorfilter False ist."
@@ -2641,6 +3167,9 @@
           "confidence_label": {
             "type": "string",
             "title": "Confidence Label"
+          },
+          "confidence_reasoning": {
+            "$ref": "#/components/schemas/ConfidenceReasoningResponse"
           }
         },
         "type": "object",
@@ -2650,7 +3179,8 @@
           "handlungsdruck_elevated",
           "reason",
           "confidence_score",
-          "confidence_label"
+          "confidence_label",
+          "confidence_reasoning"
         ],
         "title": "ZoneResponse"
       }

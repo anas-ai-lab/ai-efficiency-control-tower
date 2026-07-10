@@ -14,6 +14,7 @@ from aect.domain.types import CaseStatus, ReviewerDecision
 CaseUpdateField = Literal[
     "sharpened_content_json",
     "proposal_text",
+    "solution_business",
     "compliance_hints_json",
     "embedding",
     "architecture_sketch",

@@ -19,9 +19,13 @@ from aect.application.cost_logger import log_llm_cost
 from aect.application.mermaid import build_mermaid
 from aect.application.models import (
     ArchitectureSketchResult,
+    AufwandKennzahl,
     BusinessSummary,
     ComplianceCitation,
     ComplianceHintsResult,
+    DecisionDetails,
+    DecisionKennzahlen,
+    DecisionReport,
     MonitoringEntry,
     ReportResult,
     SharpenedUseCase,
@@ -31,6 +35,7 @@ from aect.application.models import (
     SolutionProposal,
     SubmittedCase,
     TechnicalDetail,
+    TechnicalReport,
 )
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.embedder import EmbedderPort
@@ -49,6 +54,7 @@ from aect.application.structured_output import (
     IdeationResult,
     InvalidLLMOutputError,
     SharpenedContentV2,
+    SolutionProposalV2,
     parse_structured_llm_output,
 )
 from aect.application.tools import (
@@ -58,13 +64,28 @@ from aect.application.tools import (
 )
 from aect.domain import (
     CaseStatus,
+    EvidenceLevel,
     ReviewerDecision,
     ROIConfig,
+    TriageExplanation,
     TriageResult,
     UseCaseInput,
+    ZoneClassifier,
+    build_contra_points,
+    build_zu_entscheiden,
     evaluate_use_case,
+    explain_triage,
+    load_zone_classifier,
+)
+from aect.domain.explainability import (
+    ADOPTION_LABELS,
+    COMPOSITE_MAX_TOTAL,
+    DATA_CLASSIFICATION_CLARTEXT,
+    EVIDENCE_LABELS,
+    ZONE_LABELS,
 )
 from aect.domain.sharpening_guard import build_allowlist, find_violations
+from aect.domain.solution_guard import find_vocabulary_violations
 
 # Canonical Retrieval-Queries fuer Compliance-Hinweise (ADR-0024). Bewusst
 # fest, nicht aus Use-Case-Freitext abgeleitet -- vermeidet jede
@@ -180,6 +201,24 @@ class SharpeningNumberViolationError(Exception):
         self.violations = violations
 
 
+class SolutionVocabularyViolationError(Exception):
+    """Der Geschaeftsleitungs-Absatz nutzt verbotenes technisches Vokabular (V4-P6).
+
+    Wird von propose_solution() geworfen, wenn der deterministische Vokabular-Guard
+    (domain/solution_guard) auch NACH einem Korrektur-Retry noch Technik-/
+    Architektur-Begriffe im solution_business-Absatz findet. Die Route mappt auf
+    HTTP 422 mit der Violation-Liste; nichts wird gespeichert (Fail loud).
+    """
+
+    def __init__(self, case_id: str, violations: list[str]) -> None:
+        super().__init__(
+            f"Solution business paragraph uses forbidden technical vocabulary "
+            f"({case_id}): " + ", ".join(violations)
+        )
+        self.case_id = case_id
+        self.violations = violations
+
+
 class NoSharpeningDraftError(Exception):
     """Draft-Aktion (accept/reject) angefordert, aber kein Draft vorhanden (V4).
 
@@ -266,9 +305,94 @@ def _render_compliance_hints(
     return hint_text, citations
 
 
+def _build_kennzahlen(result: TriageResult) -> DecisionKennzahlen:
+    """Harte Kennzahlen des Entscheider-Reports (None bei Vorfilter-Fail)."""
+    if result.zone is None or result.roi is None or result.composite is None:
+        return DecisionKennzahlen(
+            netto_eur=None, stunden_pro_jahr=None, aufwand=None, zone_label=None
+        )
+    return DecisionKennzahlen(
+        netto_eur=float(result.roi.net_expected_benefit_eur),
+        stunden_pro_jahr=result.roi.hours_per_year,
+        aufwand=AufwandKennzahl(
+            wert=result.composite.total,
+            max=COMPOSITE_MAX_TOTAL,
+            label=result.composite.effort_label,
+        ),
+        zone_label=ZONE_LABELS[result.zone.final_zone],
+    )
+
+
+def _build_decision_report(
+    result: TriageResult,
+    use_case: UseCaseInput,
+    explanation: TriageExplanation,
+    sharpened_text: str | None,
+    solution_business: str | None,
+    compliance_hint_text: str | None,
+) -> DecisionReport:
+    """Baut den Entscheider-Report v2 aus TriageResult + Erklaerbarkeit (V4-P6)."""
+    return DecisionReport(
+        empfehlung_satz=explanation.recommendation_text,
+        kennzahlen=_build_kennzahlen(result),
+        zu_entscheiden=build_zu_entscheiden(result),
+        contra_punkte=build_contra_points(
+            result, use_case, confidence=explanation.confidence
+        ),
+        details=DecisionDetails(
+            sharpened_text=sharpened_text,
+            solution_business=solution_business,
+            compliance_hint_text=compliance_hint_text,
+        ),
+    )
+
+
+def _build_technical_report(
+    result: TriageResult, use_case: UseCaseInput, solution_technical: str | None
+) -> TechnicalReport:
+    """Baut den technischen Report in Abschnitten (V4-P6, Abschnitte statt Textwueste)."""
+    architektur = (
+        solution_technical
+        if solution_technical
+        else (
+            "Noch kein technischer Loesungsvorschlag erzeugt "
+            "(POST /cases/{id}/propose-solution)."
+        )
+    )
+    datenlage = (
+        f"Datenschutz: {DATA_CLASSIFICATION_CLARTEXT[use_case.data_classification]}. "
+        f"Evidenz: {EVIDENCE_LABELS[use_case.evidence_level]}. "
+        f"Verbindlichkeit: {ADOPTION_LABELS[use_case.adoption_type]}."
+    )
+    risiken = (
+        "; ".join(result.routing.risk_flags)
+        if result.routing.risk_flags
+        else "Keine regelbasierten Risikoflags."
+    )
+    offene: list[str] = []
+    if not solution_technical:
+        offene.append("Technischer Loesungsansatz noch offen.")
+    if result.routing.requires_human_review:
+        offene.append("Fachliche/datenschutzrechtliche Pruefung offen.")
+    if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
+        offene.append("Zeitersparnis ist unbelegt (reine Einschaetzung).")
+    offene_text = (
+        " ".join(offene) if offene else "Keine offenen technischen Fragen erkennbar."
+    )
+    return TechnicalReport(
+        architektur_kurzfassung=architektur,
+        datenlage=datenlage,
+        risiken=risiken,
+        offene_technische_fragen=offene_text,
+    )
+
+
 def _build_business_summary(
     result: TriageResult,
+    use_case: UseCaseInput,
+    explanation: TriageExplanation,
     sharpened_text: str | None,
+    solution_business: str | None,
     compliance_hint_text: str | None,
     compliance_citations: tuple[ComplianceCitation, ...],
     reviewer_decision: str,
@@ -278,34 +402,30 @@ def _build_business_summary(
     """Leitet die Entscheider-Schicht deterministisch aus TriageResult ab.
 
     result.zone ist None genau dann, wenn der Vorfilter nicht bestanden wurde
-    (domain/pipeline.py) -- in diesem Fall auch result.roi None.
+    (domain/pipeline.py) -- in diesem Fall auch result.roi None. Die frueher
+    redundante summary_text-Zeile entfaellt zugunsten von decision_report (V4-P6).
     """
-    if result.zone is not None:
-        zone_value: str | None = result.zone.final_zone.value
-        expected_benefit: float | None = (
-            float(result.roi.expected_benefit_eur) if result.roi is not None else None
-        )
-        summary_text = (
-            f"'{result.title}': Zone {zone_value}, "
-            f"Empfehlung {result.routing.recommendation.value}. "
-            f"{result.zone.reason}"
-        )
-    else:
-        zone_value = None
-        expected_benefit = None
-        summary_text = (
-            f"'{result.title}' erfuellt die Vorfilter-Kriterien nicht "
-            f"({', '.join(result.vorfilter.failed_criteria)}). "
-            f"Empfehlung {result.routing.recommendation.value}."
-        )
-
+    zone_value: str | None = (
+        result.zone.final_zone.value if result.zone is not None else None
+    )
+    expected_benefit: float | None = (
+        float(result.roi.expected_benefit_eur) if result.roi is not None else None
+    )
     return BusinessSummary(
         title=result.title,
         zone=zone_value,
         is_actionable=result.is_actionable,
         recommendation=result.routing.recommendation.value,
         expected_benefit_eur=expected_benefit,
-        summary_text=summary_text,
+        decision_report=_build_decision_report(
+            result,
+            use_case,
+            explanation,
+            sharpened_text,
+            solution_business,
+            compliance_hint_text,
+        ),
+        solution_business=solution_business,
         sharpened_text=sharpened_text,
         compliance_hint_text=compliance_hint_text,
         compliance_citations=compliance_citations,
@@ -316,12 +436,13 @@ def _build_business_summary(
 
 
 def _build_technical_detail(
-    result: TriageResult, proposal_text: str | None
+    result: TriageResult, use_case: UseCaseInput, proposal_text: str | None
 ) -> TechnicalDetail:
     """Leitet die Reviewer-Schicht deterministisch aus TriageResult ab.
 
     composite/roi sind None wenn passed_vorfilter False ist (siehe
-    domain/pipeline.py) -- entsprechende Felder werden dann None.
+    domain/pipeline.py) -- entsprechende Felder werden dann None. proposal_text
+    ist die technische Loesungsfassung (solution_technical).
     """
     return TechnicalDetail(
         passed_vorfilter=result.passed_vorfilter,
@@ -348,6 +469,7 @@ def _build_technical_detail(
             if result.roi is not None
             else None
         ),
+        technical_report=_build_technical_report(result, use_case, proposal_text),
         proposal_text=proposal_text,
     )
 
@@ -455,6 +577,11 @@ class TriageService:
         # echtes Embedding-Modell). Kein Pflichtparameter, damit bestehende
         # Konstruktionsstellen unveraendert bleiben.
         self._embedder = embedder
+        # Zonen-Klassifikator fuer die Erklaerbarkeit (V4-P6): lazily geladen,
+        # danach gecached. explain_case() braucht die Zonen-Schwellen fuer die
+        # Konfidenz-Begruendung (Zonengrenz-Abstand). Dieselben Schwellen, die
+        # der Pipeline-Pfad (load_zone_classifier) beim Klassifizieren nutzt.
+        self._zone_classifier: ZoneClassifier | None = None
         # Optional (Phase G Privacy-Haertung, B1-Spike): redaktiert PII NUR
         # im Text, der an den Dedup-Embedder geht (check_similarity()) --
         # NICHT die gespeicherten title/current_state-Felder selbst (siehe
@@ -617,6 +744,29 @@ class TriageService:
         pairs.sort(key=lambda p: (-p.similarity_score, p.case_a_id, p.case_b_id))
         return SimilarityPairsResult(
             pairs=pairs, cases_without_embedding=cases_without_embedding
+        )
+
+    def _get_zone_classifier(self) -> ZoneClassifier:
+        """Lazily geladener, gecachter Zonen-Klassifikator (V4-P6)."""
+        if self._zone_classifier is None:
+            self._zone_classifier = load_zone_classifier()
+        return self._zone_classifier
+
+    def explain_case(self, case: SubmittedCase) -> TriageExplanation:
+        """Deterministische Erklaerbarkeit eines Case (V4-P6).
+
+        Score-Herkunft, Konfidenz-Begruendung und Empfehlungs-Satz -- reine
+        Read-Time-Projektion ueber case.result, kein LLM, keine Persistenz. Nutzt
+        dieselben Kostenschwellen (roi_config) und Zonen-Schwellen (classifier)
+        wie die Pipeline-Bewertung. Wird sowohl von der Triage-Response als auch
+        vom Entscheider-Report (generate_report) verwendet -- eine Quelle.
+        """
+        return explain_triage(
+            case.use_case,
+            case.result,
+            impl_cost_point_min_eur=self._roi_config.impl_cost_point_min_eur,
+            license_cost_point_min_eur=self._roi_config.license_cost_point_min_eur,
+            classifier=self._get_zone_classifier(),
         )
 
     def get_case(self, case_id: str) -> SubmittedCase | None:
@@ -886,6 +1036,45 @@ class TriageService:
             "Verbesserungsvorschlag braucht bezugsfeld, vorschlag und hebel."
         )
 
+    def _validate_solution(
+        self, content: str
+    ) -> tuple[SolutionProposalV2 | None, InvalidLLMOutputError | None, list[str]]:
+        """Prueft eine rohe LLM-Antwort auf Schema UND verbotenes Vokabular (V4-P6).
+
+        Rueckgabe (parsed, schema_error, violations):
+        - Schema verletzt -> (None, InvalidLLMOutputError, []).
+        - Schema ok, aber Technik-/Architektur-Vokabular im Business-Absatz ->
+          (parsed, None, [Begriffe]).
+        - Sauber -> (parsed, None, []).
+
+        Der Vokabular-Guard laeuft NUR ueber solution_business -- solution_technical
+        darf und soll Technologiebegriffe nennen.
+        """
+        try:
+            parsed = parse_structured_llm_output(content, SolutionProposalV2)
+        except InvalidLLMOutputError as exc:
+            return None, exc, []
+        return parsed, None, find_vocabulary_violations(parsed.solution_business)
+
+    @staticmethod
+    def _solution_correction(
+        schema_error: InvalidLLMOutputError | None, violations: list[str]
+    ) -> str:
+        """Baut die an den Retry angehaengte Korrektur-Instruktion (V4-P6)."""
+        if violations:
+            return (
+                "Der Absatz fuer die Geschaeftsleitung (solution_business) enthaelt "
+                f"verbotene technische Begriffe: {', '.join(violations)}. Formuliere "
+                "ihn ohne Technologie-/Produktnamen und ohne Architekturvokabular "
+                "neu; das JSON-Schema (solution_business, solution_technical) bleibt "
+                "gleich."
+            )
+        return (
+            "Deine Antwort erfuellte das vorgegebene JSON-Schema nicht "
+            f"({schema_error}). Antworte erneut exakt im Schema mit genau den "
+            "Feldern solution_business und solution_technical."
+        )
+
     async def sharpen_case(
         self, case_id: str, prompt_version: str = "v3"
     ) -> SharpenedUseCase | None:
@@ -1093,7 +1282,7 @@ class TriageService:
         return await self._repository.get_async(case.id)
 
     async def propose_solution(
-        self, case_id: str, prompt_version: str = "v2"
+        self, case_id: str, prompt_version: str = "v3"
     ) -> SolutionProposal | None:
         """Skizziert einen Loesungsansatz fuer einen persistierten Case via LLM.
 
@@ -1191,13 +1380,62 @@ class TriageService:
                 operation="propose_solution",
             )
 
+        # Strukturierte Ausgabe + Vokabular-Guard + genau EIN Retry (V4-P6, Muster
+        # aus sharpen_case). Schlaegt Schema ODER der Business-Vokabular-Guard an,
+        # laeuft ein Korrektur-Retry; bleibt der Verstoss -> Fail loud (Route 422).
+        parsed, schema_error, violations = self._validate_solution(response.content)
+
+        if parsed is None or violations:
+            logger = structlog.get_logger()
+            logger.warning(
+                "solution_guard_retry",
+                case_id=case.id,
+                reason="vocabulary" if violations else "schema",
+                violations=violations,
+            )
+            correction = self._solution_correction(schema_error, violations)
+            retry_messages = [
+                *messages,
+                LLMMessage(role="assistant", content=response.content),
+                LLMMessage(role="user", content=correction),
+            ]
+            retry_response = await self._llm.complete(retry_messages)
+            log_llm_cost(
+                case_id=case.id,
+                messages=retry_messages,
+                response=retry_response,
+                operation="propose_solution_retry",
+            )
+            parsed, schema_error, violations = self._validate_solution(
+                retry_response.content
+            )
+
+        if parsed is None:
+            structlog.get_logger().warning(
+                "solution_schema_invalid_after_retry", case_id=case.id
+            )
+            raise schema_error or InvalidLLMOutputError("LLM-Output ohne Schema")
+        if violations:
+            structlog.get_logger().warning(
+                "solution_vocabulary_violation_after_retry",
+                case_id=case.id,
+                violations=violations,
+            )
+            raise SolutionVocabularyViolationError(case.id, violations)
+
+        # proposal_text traegt weiter die technische Fassung (Sketch-Eingabe,
+        # technische Report-Sicht, Request-Override); solution_business daneben.
         await self._repository.update_field_async(
-            case.id, "proposal_text", response.content
+            case.id, "proposal_text", parsed.solution_technical
+        )
+        await self._repository.update_field_async(
+            case.id, "solution_business", parsed.solution_business
         )
 
         return SolutionProposal(
             case_id=case.id,
-            proposal_text=response.content,
+            solution_business=parsed.solution_business,
+            solution_technical=parsed.solution_technical,
             prompt_version=prompt_version,
         )
 
@@ -1593,12 +1831,16 @@ class TriageService:
         compliance_hint_text, compliance_citations = _render_compliance_hints(
             case.compliance_hints_json
         )
+        explanation = self.explain_case(case)
 
         return ReportResult(
             case_id=case.id,
             business_summary=_build_business_summary(
                 case.result,
+                case.use_case,
+                explanation,
                 effective_sharpened_text,
+                case.solution_business,
                 compliance_hint_text,
                 compliance_citations,
                 case.reviewer_decision.value,
@@ -1606,6 +1848,6 @@ class TriageService:
                 case.decided_at,
             ),
             technical_detail=_build_technical_detail(
-                case.result, effective_proposal_text
+                case.result, case.use_case, effective_proposal_text
             ),
         )

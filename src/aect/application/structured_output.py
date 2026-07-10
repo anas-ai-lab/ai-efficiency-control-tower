@@ -115,6 +115,27 @@ class SharpenedContentV2(BaseModel):
     )
 
 
+class SolutionProposalV2(BaseModel):
+    """Zweigeteilter Loesungsvorschlag (V4-P6).
+
+    solution_business: ein Absatz fuer die Geschaeftsleitung -- was sich im
+    Arbeitsalltag aendert, wer was tut, was beim Menschen bleibt. VERBOTEN sind
+    Technologie-/Produktnamen und Architektur-Vokabular (Abkuerzungen wie
+    OCR/LLM/API/ERP); das prueft zusaetzlich ein deterministischer Vokabular-Guard
+    (domain/solution_guard) nach der Schema-Validierung.
+    solution_technical: der technische Loesungsansatz (bestehende Freitext-Struktur,
+    frueher proposal_text).
+
+    extra="forbid": unerwartete Felder sind ein Validierungsfehler (OWASP LLM10).
+    frozen=True: nach Validierung unveraenderlich (analog SharpenedContentV2).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    solution_business: str = Field(min_length=30, max_length=1500)
+    solution_technical: str = Field(min_length=30, max_length=3000)
+
+
 _OpenQuestion = Annotated[str, Field(min_length=5, max_length=200)]
 
 

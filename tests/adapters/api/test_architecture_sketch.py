@@ -82,6 +82,20 @@ def _make_app(
     return app
 
 
+# Schema-valides, technikfreies Loesungs-JSON (V4-P6) -- propose_solution() setzt
+# damit proposal_text (Voraussetzung fuer die Skizze), bevor die Skizze scheitert.
+_SOLUTION_JSON = json.dumps(
+    {
+        "solution_business": (
+            "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+            "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
+            "Menschen."
+        ),
+        "solution_technical": "Ein knapper technischer Loesungsvorschlag als Grundlage.",
+    }
+)
+
+
 class _BrokenSketchLLM:
     """complete() liefert eine valide Antwort (fuer propose_solution), aber
     generate_architecture_sketch wirft ueber den realen Schema-Validierungspfad
@@ -92,7 +106,7 @@ class _BrokenSketchLLM:
     async def complete(
         self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
     ) -> LLMResponse:
-        return LLMResponse(content="Ein knapper Loesungsvorschlag als Grundlage.")
+        return LLMResponse(content=_SOLUTION_JSON)
 
     async def generate_ideation(self, problem_description: str) -> IdeationResult:
         raise NotImplementedError
@@ -119,7 +133,7 @@ class _OverlongLabelSketchLLM:
     async def complete(
         self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
     ) -> LLMResponse:
-        return LLMResponse(content="Ein knapper Loesungsvorschlag als Grundlage.")
+        return LLMResponse(content=_SOLUTION_JSON)
 
     async def generate_ideation(self, problem_description: str) -> IdeationResult:
         raise NotImplementedError

@@ -105,16 +105,32 @@ async def test_case_detail_public_returns_full_state() -> None:
         "total",
         "effort_label",
     } <= set(triage["composite"])
-    # Zonen-Konfidenz (ADR-0036).
+    # Zonen-Konfidenz (ADR-0036) + Konfidenz-Begruendung (V4-P6).
     assert triage["zone"] is not None
     assert "confidence_score" in triage["zone"]
     assert "confidence_label" in triage["zone"]
+    conf = triage["zone"]["confidence_reasoning"]
+    assert conf["level"] in {"hoch", "mittel", "niedrig"}
+    assert conf["gruende"]
 
-    # Report: Entscheider- + technische Sicht vorhanden.
+    # Empfehlung als Satz + Score-Herkunft + Machbarkeit (V4-P6).
+    assert triage["routing"]["recommendation_text"]
+    breakdown = triage["score_breakdown"]
+    assert len(breakdown["components"]) == 3
+    assert breakdown["max_total"] == 9
+    assert breakdown["total_line"]
+    assert breakdown["feasibility_score"] == 10 - breakdown["total"]
+    assert "10 - Aufwandscore" in breakdown["feasibility_definition"]
+
+    # Report: Entscheider- (decision_report) + technische Sicht (technical_report).
     report = body["report"]
-    assert "business_summary" in report
-    assert "technical_detail" in report
     assert "compliance_citations" in report["business_summary"]
+    assert "summary_text" not in report["business_summary"]
+    decision = report["business_summary"]["decision_report"]
+    assert decision["empfehlung_satz"]
+    assert decision["kennzahlen"]["aufwand"]["max"] == 9
+    assert len(decision["contra_punkte"]) >= 2
+    assert report["technical_detail"]["technical_report"]["datenlage"]
 
 
 async def test_case_detail_untriggered_steps_are_null() -> None:

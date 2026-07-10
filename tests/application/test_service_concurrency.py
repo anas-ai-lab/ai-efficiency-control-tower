@@ -62,6 +62,20 @@ _SHARPEN_JSON = json.dumps(
 )
 
 
+_SOLUTION_JSON = json.dumps(
+    {
+        "solution_business": (
+            "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+            "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
+            "Menschen."
+        ),
+        "solution_technical": (
+            "Technische Fassung: parallel-antwort fuer den Nebenlaeufigkeitstest."
+        ),
+    }
+)
+
+
 class _RendezvousLLMAdapter:
     """Antwortet erst, wenn BEIDE parallelen complete()-Calls angekommen sind.
 
@@ -71,8 +85,8 @@ class _RendezvousLLMAdapter:
 
     Fuer den Schaerfungs-Aufruf (System-Prompt traegt "sharpened_title")
     liefert der Adapter schema-valides, zahlenfreies JSON -- sonst laeuft
-    sharpen_case() in den Fail-loud-Pfad. Fuer propose_solution() bleibt es
-    die schlichte Text-Antwort "parallel-antwort".
+    sharpen_case() in den Fail-loud-Pfad. Fuer propose_solution() (System-Prompt
+    traegt "solution_business") schema-valides, technikfreies Loesungs-JSON.
     """
 
     def __init__(self, expected_calls: int = 2) -> None:
@@ -91,7 +105,7 @@ class _RendezvousLLMAdapter:
         await asyncio.wait_for(self._all_arrived.wait(), timeout=5.0)
         if any("sharpened_title" in m.content for m in messages):
             return LLMResponse(content=_SHARPEN_JSON, tool_calls=None)
-        return LLMResponse(content="parallel-antwort", tool_calls=None)
+        return LLMResponse(content=_SOLUTION_JSON, tool_calls=None)
 
 
 class _EmptyRetriever:
@@ -127,7 +141,11 @@ async def test_parallel_sharpen_and_propose_keep_both_narratives(
     # sharpen schreibt jetzt sharpening_draft (Draft-Flow), propose weiterhin
     # proposal_text -- verschiedene Spalten, kein Lost Update.
     assert loaded.sharpening_draft is not None
-    assert loaded.proposal_text == "parallel-antwort"
+    # proposal_text traegt die technische Fassung (solution_technical), daneben
+    # der Business-Absatz -- verschiedene Spalten, kein Lost Update.
+    assert loaded.proposal_text is not None
+    assert "parallel-antwort" in loaded.proposal_text
+    assert loaded.solution_business is not None
 
 
 async def test_update_field_does_not_touch_other_columns(

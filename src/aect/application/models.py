@@ -140,6 +140,12 @@ class SubmittedCase:
     result: TriageResult
     sharpened_content_json: str | None = None
     proposal_text: str | None = None
+    # solution_business (V4-P6): der Geschaeftsleitungs-Absatz aus
+    # propose_solution(); proposal_text traegt weiter die technische Fassung
+    # (solution_technical). None, solange propose_solution() nie lief.
+    # Ueberschrieben bei jedem erneuten Aufruf (letzter gewinnt, analog
+    # proposal_text). Per-Feld-UPDATE (F-011).
+    solution_business: str | None = None
     compliance_hints_json: str | None = None
     architecture_sketch: str | None = None
     # sharpening_draft (V4, Draft/Accept-Flow): geschaerfte Fassung + Vorschlaege,
@@ -226,24 +232,25 @@ class SharpenedUseCase:
 
 @dataclass(frozen=True)
 class SolutionProposal:
-    """Ergebnis des Stack-passenden Loesungsvorschlags (Phase C, Skeleton).
+    """Ergebnis des zweigeteilten Loesungsvorschlags (V4-P6).
 
-    Mock-First-Skeleton (Tag 36) analog SharpenedUseCase: proposal_text ist
-    die rohe LLM-Antwort als str -- strukturierte Validierung (Plattform,
-    Begruendung, Alternativen als separate Felder) folgt, sobald ein
-    Provider strukturierte Antworten liefert (gleicher offener Punkt wie
-    SharpenedUseCase, siehe ADR-0006).
+    solution_business: ein Absatz fuer die Geschaeftsleitung -- was sich im
+    Arbeitsalltag aendert, ohne Technik-/Architektur-Vokabular (deterministischer
+    Vokabular-Guard, domain/solution_guard). solution_technical: der technische
+    Loesungsansatz (frueher das einzige proposal_text-Feld).
 
-    v1-Prompt (prompts/propose_solution/v1/) nennt bewusst keine konkreten
-    Zielplattformen -- Stack-Grounding via RAG folgt Phase D (Master-Plan
-    v3.1). case_id verweist auf den persistierten SubmittedCase.
+    Strukturierte Ausgabe (SolutionProposalV2, extra="forbid"): schlaegt Schema
+    ODER Vokabular-Guard an, laeuft genau EIN Retry; scheitert auch der, wirft
+    propose_solution() (Fail loud, Route -> 422). case_id verweist auf den
+    persistierten SubmittedCase.
 
     frozen=True: analog SharpenedUseCase, Ergebnis ist nach Erstellung
     unveraenderlich.
     """
 
     case_id: str
-    proposal_text: str
+    solution_business: str
+    solution_technical: str
     prompt_version: str
 
 
@@ -270,11 +277,89 @@ class ComplianceCitation:
 
 
 @dataclass(frozen=True)
+class AufwandKennzahl:
+    """Aufwand als Kennzahl im Entscheider-Report: Wert von max mit Label."""
+
+    wert: int
+    max: int
+    label: str
+
+
+@dataclass(frozen=True)
+class DecisionKennzahlen:
+    """Die harten Kennzahlen des Entscheider-Reports (V4-P6).
+
+    Alle Felder None, wenn der Vorfilter nicht bestanden wurde (kein
+    ROI/Composite/Zone). zone_label ist das deutsche Zonen-Label
+    (ZONE_LABELS), nicht das rohe Enum.
+    """
+
+    netto_eur: float | None
+    stunden_pro_jahr: float | None
+    aufwand: AufwandKennzahl | None
+    zone_label: str | None
+
+
+@dataclass(frozen=True)
+class DecisionDetails:
+    """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
+
+    sharpened_text: geschaerfte Beschreibung (falls akzeptiert). solution_business:
+    Geschaeftsleitungs-Absatz aus propose_solution(). compliance_hint_text:
+    RAG-gegruendeter Compliance-Hinweis. Alle None, solange der jeweilige
+    Schritt nicht ausgeloest wurde.
+    """
+
+    sharpened_text: str | None
+    solution_business: str | None
+    compliance_hint_text: str | None
+
+
+@dataclass(frozen=True)
+class DecisionReport:
+    """Entscheider-Report v2 (V4-P6) -- ersetzt die alte Zusammenfassungszeile.
+
+    empfehlung_satz: die Empfehlung als deutscher Satz (feste Argument-Reihenfolge).
+    kennzahlen: netto_eur, stunden_pro_jahr, aufwand, zone_label. zu_entscheiden:
+    ein Satz, was das Board konkret freigeben soll. contra_punkte: 2-4
+    regelbasierte Gegenargumente (KEIN LLM). details: geschaerfte Beschreibung etc.
+    """
+
+    empfehlung_satz: str
+    kennzahlen: DecisionKennzahlen
+    zu_entscheiden: str
+    contra_punkte: tuple[str, ...]
+    details: DecisionDetails
+
+
+@dataclass(frozen=True)
+class TechnicalReport:
+    """Technischer Report in Abschnitten statt Textwueste (V4-P6).
+
+    Deterministisch aus TriageResult + solution_technical abgeleitet:
+    Architektur-Kurzfassung, Datenlage, Risiken, offene technische Fragen.
+    """
+
+    architektur_kurzfassung: str
+    datenlage: str
+    risiken: str
+    offene_technische_fragen: str
+
+
+@dataclass(frozen=True)
 class BusinessSummary:
     """Entscheider-Schicht des zweischichtigen Reports (Projekt-Anforderung).
 
     Enthaelt nur, was fuer eine Go/No-Go-Einschaetzung noetig ist -- keine
     Rohwerte aus Vorfilter/Composite (siehe TechnicalDetail).
+
+    decision_report (V4-P6): die strukturierte Entscheider-Sicht (empfehlung_satz,
+    kennzahlen, zu_entscheiden, contra_punkte, details) -- ersetzt die frueher
+    redundante summary_text-Zeile ersatzlos.
+
+    solution_business (V4-P6): der Geschaeftsleitungs-Absatz aus propose_solution()
+    (technikfrei). None, solange propose_solution() fuer diesen Case nie lief. Als
+    untrusted LLM-Output unveraendert weitergereicht.
 
     sharpened_text: LLM-Schaerfung des Cases. Default ist der persistierte
     Wert aus sharpen_case() (Tag 42, ADR-0012); ein im Request-Body
@@ -305,7 +390,8 @@ class BusinessSummary:
     is_actionable: bool
     recommendation: str
     expected_benefit_eur: float | None
-    summary_text: str
+    decision_report: DecisionReport
+    solution_business: str | None
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: tuple[ComplianceCitation, ...]
@@ -321,9 +407,12 @@ class TechnicalDetail:
     Rohwerte aus Vorfilter, Composite-Score, Feasibility und Routing fuer
     Personen, die die Bewertung nachvollziehen wollen.
 
-    proposal_text: Loesungsvorschlag des Cases, analog sharpened_text in
-    BusinessSummary (persistiert via propose_solution(), Tag 42, ADR-0012;
-    Request-Body-Wert ueberschreibt den persistierten).
+    technical_report (V4-P6): dieselben technischen Inhalte in Abschnitte
+    gegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen).
+
+    proposal_text: technische Loesungsfassung des Cases (solution_technical),
+    analog sharpened_text in BusinessSummary (persistiert via propose_solution(),
+    Tag 42, ADR-0012; Request-Body-Wert ueberschreibt den persistierten).
     """
 
     passed_vorfilter: bool
@@ -338,6 +427,7 @@ class TechnicalDetail:
     requires_human_review: bool
     roi_theoretical_potential_eur: float | None
     roi_net_expected_benefit_eur: float | None
+    technical_report: TechnicalReport
     proposal_text: str | None
 
 

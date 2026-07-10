@@ -105,9 +105,10 @@ async def test_propose_solution_existing_case_returns_proposal() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["case_id"] == case_id
-    assert data["prompt_version"] == "v2"
-    assert "[mock-response]" in data["proposal_text"]
-    assert _VALID_PAYLOAD["title"] in data["proposal_text"]
+    assert data["prompt_version"] == "v3"
+    # Zweigeteilt (V4-P6): technische Fassung + technikfreier Business-Absatz.
+    assert "[mock]" in data["solution_technical"]
+    assert data["solution_business"]
 
 
 async def test_propose_solution_with_injection_payload_still_returns_200() -> None:
@@ -135,4 +136,4 @@ async def test_propose_solution_with_injection_payload_still_returns_200() -> No
 
     assert response.status_code == 200
     data = response.json()
-    assert "[mock-response]" in data["proposal_text"]
+    assert "[mock]" in data["solution_technical"]

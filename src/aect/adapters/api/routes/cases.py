@@ -34,10 +34,15 @@ from aect.application.service import (
     NoProposalForSketchError,
     NoSharpeningDraftError,
     SharpeningNumberViolationError,
+    SolutionVocabularyViolationError,
     TriageService,
 )
 from aect.application.structured_output import InvalidLLMOutputError
 from aect.domain import CaseStatus, ReviewerDecision
+from aect.domain.explainability import (
+    FEASIBILITY_DEFINITION,
+    feasibility_from_composite,
+)
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -65,6 +70,12 @@ class CaseSummary(BaseModel):
     composite_total: int | None
     hours_per_year: float | None
     is_actionable: bool
+    # Machbarkeit = 10 - Aufwandscore (V4-P6, Board-Daten): zentral definiert in
+    # domain/explainability, damit die Board-Matrix den Wert nicht selbst
+    # ausrechnet. None bei Vorfilter-Fail (kein Composite). feasibility_definition
+    # ist der ueberall referenzierte Definitions-String.
+    feasibility_score: int | None
+    feasibility_definition: str
 
 
 @router.get("", response_model=list[CaseSummary])
@@ -106,6 +117,12 @@ async def list_cases(
                 ),
                 hours_per_year=r.roi.hours_per_year if r.roi is not None else None,
                 is_actionable=r.is_actionable,
+                feasibility_score=(
+                    feasibility_from_composite(r.composite.total)
+                    if r.composite is not None
+                    else None
+                ),
+                feasibility_definition=FEASIBILITY_DEFINITION,
             )
         )
     return summaries
@@ -630,10 +647,15 @@ async def reject_sharpening(
 
 
 class SolutionProposalResponse(BaseModel):
-    """Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton)."""
+    """Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).
+
+    solution_business: technikfreier Absatz fuer die Geschaeftsleitung.
+    solution_technical: technischer Loesungsansatz (frueher proposal_text).
+    """
 
     case_id: str
-    proposal_text: str
+    solution_business: str
+    solution_technical: str
     prompt_version: str
 
 
@@ -647,7 +669,7 @@ async def propose_solution(
     _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
 ) -> SolutionProposalResponse:
-    """Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.
+    """Skizziert einen zweigeteilten Loesungsansatz fuer einen Case via LLM (V4-P6).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: require_admin (Session-Cookie ODER X-API-Key).
@@ -656,20 +678,49 @@ async def propose_solution(
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
     stuendliche Token-Budget des API-Keys (Phase G).
 
-    Skeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten
-    Zielplattformen -- Stack-Grounding via RAG folgt Phase D.
+    Der Business-Absatz muss technikfrei sein (deterministischer Vokabular-Guard,
+    domain/solution_guard). Fehler-Mapping (kein Stack-Trace, OWASP LLM02):
+    - Case fehlt -> 404.
+    - Business-Absatz nutzt verbotenes Vokabular (auch nach Retry) -> 422.
+    - KI-Antwort verletzt das Loesungs-Schema (auch nach Retry) -> 422.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 422: KI-Antwort verletzt Schema oder Vokabular-Regel.
         HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
-    proposal = await service.propose_solution(case_id)
+    try:
+        proposal = await service.propose_solution(case_id)
+    except SolutionVocabularyViolationError as exc:
+        # Der Business-Absatz nutzt verbotene technische Begriffe -- auch der Retry
+        # hat sie nicht entfernt. 422 (LLM-Call gelang, Inhalt unverwertbar), die
+        # Violation-Liste hilft beim Nachjustieren.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason": "forbidden_vocabulary",
+                "message": (
+                    "Der Geschaeftsleitungs-Absatz enthielt technisches Vokabular, "
+                    "auch nach einem Korrektur-Versuch."
+                ),
+                "violations": exc.violations,
+            },
+        ) from exc
+    except InvalidLLMOutputError as exc:
+        # Schema-Verstoss, auch nach Retry. str(exc) traegt nur loc+type je Fehler
+        # (H-031), nie LLM-Rohtext.
+        raise HTTPException(
+            status_code=422,
+            detail=f"KI-Antwort verletzt das Loesungs-Schema: {exc}",
+        ) from exc
+
     if proposal is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
     return SolutionProposalResponse(
         case_id=proposal.case_id,
-        proposal_text=proposal.proposal_text,
+        solution_business=proposal.solution_business,
+        solution_technical=proposal.solution_technical,
         prompt_version=proposal.prompt_version,
     )
 
@@ -706,8 +757,58 @@ class ReportRequest(BaseModel):
     proposal_text: str | None = Field(default=None, max_length=5000)
 
 
+class AufwandKennzahlResponse(BaseModel):
+    """Aufwand als Kennzahl im Entscheider-Report: Wert von max mit Label."""
+
+    wert: int
+    max: int
+    label: str
+
+
+class DecisionKennzahlenResponse(BaseModel):
+    """Harte Kennzahlen des Entscheider-Reports (None bei Vorfilter-Fail)."""
+
+    netto_eur: float | None
+    stunden_pro_jahr: float | None
+    aufwand: AufwandKennzahlResponse | None
+    zone_label: str | None
+
+
+class DecisionDetailsResponse(BaseModel):
+    """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein)."""
+
+    sharpened_text: str | None
+    solution_business: str | None
+    compliance_hint_text: str | None
+
+
+class DecisionReportResponse(BaseModel):
+    """Entscheider-Report v2 (V4-P6) -- ersetzt die alte Zusammenfassungszeile."""
+
+    empfehlung_satz: str
+    kennzahlen: DecisionKennzahlenResponse
+    zu_entscheiden: str
+    contra_punkte: list[str]
+    details: DecisionDetailsResponse
+
+
+class TechnicalReportResponse(BaseModel):
+    """Technischer Report in Abschnitten statt Textwueste (V4-P6)."""
+
+    architektur_kurzfassung: str
+    datenlage: str
+    risiken: str
+    offene_technische_fragen: str
+
+
 class BusinessSummaryResponse(BaseModel):
     """Entscheider-Schicht des Reports.
+
+    decision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die
+    frueher redundante summary_text-Zeile ersatzlos.
+
+    solution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus
+    propose_solution(); None, solange der Endpoint nicht lief.
 
     compliance_hint_text/compliance_citations (ADR-0026): aus dem
     persistierten compliance_hints_json gelesen, kein Override moeglich
@@ -723,7 +824,8 @@ class BusinessSummaryResponse(BaseModel):
     is_actionable: bool
     recommendation: str
     expected_benefit_eur: float | None
-    summary_text: str
+    decision_report: DecisionReportResponse
+    solution_business: str | None
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: list[ComplianceCitationResponse]
@@ -733,7 +835,11 @@ class BusinessSummaryResponse(BaseModel):
 
 
 class TechnicalDetailResponse(BaseModel):
-    """Reviewer-Schicht des Reports."""
+    """Reviewer-Schicht des Reports.
+
+    technical_report (V4-P6): dieselben technischen Inhalte in Abschnitte
+    gegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen).
+    """
 
     passed_vorfilter: bool
     vorfilter_failed_criteria: list[str]
@@ -747,6 +853,7 @@ class TechnicalDetailResponse(BaseModel):
     requires_human_review: bool
     roi_theoretical_potential_eur: float | None
     roi_net_expected_benefit_eur: float | None
+    technical_report: TechnicalReportResponse
     proposal_text: str | None
 
 
@@ -765,17 +872,46 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
     -- kein Berechnungs- oder LLM-Pfad. Von POST /report (Trigger-Kompatibilitaet)
     UND vom public GET /cases/{id} (read-only) wiederverwendet.
     """
+    business = report.business_summary
+    technical = report.technical_detail
+    dr = business.decision_report
+    kz = dr.kennzahlen
+    tr = technical.technical_report
     return ReportResponse(
         case_id=report.case_id,
         business_summary=BusinessSummaryResponse(
-            title=report.business_summary.title,
-            zone=report.business_summary.zone,
-            is_actionable=report.business_summary.is_actionable,
-            recommendation=report.business_summary.recommendation,
-            expected_benefit_eur=report.business_summary.expected_benefit_eur,
-            summary_text=report.business_summary.summary_text,
-            sharpened_text=report.business_summary.sharpened_text,
-            compliance_hint_text=report.business_summary.compliance_hint_text,
+            title=business.title,
+            zone=business.zone,
+            is_actionable=business.is_actionable,
+            recommendation=business.recommendation,
+            expected_benefit_eur=business.expected_benefit_eur,
+            decision_report=DecisionReportResponse(
+                empfehlung_satz=dr.empfehlung_satz,
+                kennzahlen=DecisionKennzahlenResponse(
+                    netto_eur=kz.netto_eur,
+                    stunden_pro_jahr=kz.stunden_pro_jahr,
+                    aufwand=(
+                        AufwandKennzahlResponse(
+                            wert=kz.aufwand.wert,
+                            max=kz.aufwand.max,
+                            label=kz.aufwand.label,
+                        )
+                        if kz.aufwand is not None
+                        else None
+                    ),
+                    zone_label=kz.zone_label,
+                ),
+                zu_entscheiden=dr.zu_entscheiden,
+                contra_punkte=list(dr.contra_punkte),
+                details=DecisionDetailsResponse(
+                    sharpened_text=dr.details.sharpened_text,
+                    solution_business=dr.details.solution_business,
+                    compliance_hint_text=dr.details.compliance_hint_text,
+                ),
+            ),
+            solution_business=business.solution_business,
+            sharpened_text=business.sharpened_text,
+            compliance_hint_text=business.compliance_hint_text,
             compliance_citations=[
                 ComplianceCitationResponse(
                     number=c.number,
@@ -783,26 +919,32 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
                     citation=c.citation,
                     url=c.url,
                 )
-                for c in report.business_summary.compliance_citations
+                for c in business.compliance_citations
             ],
-            reviewer_decision=report.business_summary.reviewer_decision,
-            reviewer_note=report.business_summary.reviewer_note,
-            decided_at=report.business_summary.decided_at,
+            reviewer_decision=business.reviewer_decision,
+            reviewer_note=business.reviewer_note,
+            decided_at=business.decided_at,
         ),
         technical_detail=TechnicalDetailResponse(
-            passed_vorfilter=report.technical_detail.passed_vorfilter,
-            vorfilter_failed_criteria=report.technical_detail.vorfilter_failed_criteria,
-            composite_total=report.technical_detail.composite_total,
-            composite_effort_label=report.technical_detail.composite_effort_label,
-            feasibility_flags=report.technical_detail.feasibility_flags,
-            feasibility_recommendation=report.technical_detail.feasibility_recommendation,
-            automation_signals=report.technical_detail.automation_signals,
-            ai_signals=report.technical_detail.ai_signals,
-            risk_flags=report.technical_detail.risk_flags,
-            requires_human_review=report.technical_detail.requires_human_review,
-            roi_theoretical_potential_eur=report.technical_detail.roi_theoretical_potential_eur,
-            roi_net_expected_benefit_eur=report.technical_detail.roi_net_expected_benefit_eur,
-            proposal_text=report.technical_detail.proposal_text,
+            passed_vorfilter=technical.passed_vorfilter,
+            vorfilter_failed_criteria=technical.vorfilter_failed_criteria,
+            composite_total=technical.composite_total,
+            composite_effort_label=technical.composite_effort_label,
+            feasibility_flags=technical.feasibility_flags,
+            feasibility_recommendation=technical.feasibility_recommendation,
+            automation_signals=technical.automation_signals,
+            ai_signals=technical.ai_signals,
+            risk_flags=technical.risk_flags,
+            requires_human_review=technical.requires_human_review,
+            roi_theoretical_potential_eur=technical.roi_theoretical_potential_eur,
+            roi_net_expected_benefit_eur=technical.roi_net_expected_benefit_eur,
+            technical_report=TechnicalReportResponse(
+                architektur_kurzfassung=tr.architektur_kurzfassung,
+                datenlage=tr.datenlage,
+                risiken=tr.risiken,
+                offene_technische_fragen=tr.offene_technische_fragen,
+            ),
+            proposal_text=technical.proposal_text,
         ),
     )
 
@@ -1161,6 +1303,6 @@ async def get_case_detail(
         id=case.id,
         submitted_at=case.submitted_at,
         status=case.status.value,
-        triage=_to_triage_response(case),
+        triage=_to_triage_response(case, service.explain_case(case)),
         report=_to_report_response(report),
     )

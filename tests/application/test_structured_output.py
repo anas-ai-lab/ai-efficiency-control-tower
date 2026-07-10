@@ -9,8 +9,45 @@ import pytest
 from aect.application.structured_output import (
     InvalidLLMOutputError,
     SharpenedContentV2,
+    SolutionProposalV2,
     parse_structured_llm_output,
 )
+
+
+def test_solution_proposal_v2_valid() -> None:
+    raw = json.dumps(
+        {
+            "solution_business": (
+                "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+                "Mitarbeitenden vorgelegt."
+            ),
+            "solution_technical": (
+                "Ein Dienst liest die Felder aus und uebergibt sie an das Zielsystem."
+            ),
+        }
+    )
+    parsed = parse_structured_llm_output(raw, SolutionProposalV2)
+    assert parsed.solution_business
+    assert parsed.solution_technical
+
+
+def test_solution_proposal_v2_rejects_extra_field() -> None:
+    raw = json.dumps(
+        {
+            "solution_business": "Ein ausreichend langer Geschaeftsleitungs-Absatz.",
+            "solution_technical": "Ein ausreichend langer technischer Absatz hier.",
+            "unexpected": "x",
+        }
+    )
+    with pytest.raises(InvalidLLMOutputError):
+        parse_structured_llm_output(raw, SolutionProposalV2)
+
+
+def test_solution_proposal_v2_rejects_too_short() -> None:
+    raw = json.dumps({"solution_business": "kurz", "solution_technical": "auch kurz"})
+    with pytest.raises(InvalidLLMOutputError):
+        parse_structured_llm_output(raw, SolutionProposalV2)
+
 
 _VALID_PAYLOAD: dict = {
     "sharpened_title": (
