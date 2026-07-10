@@ -398,7 +398,9 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
         status: CaseStatus = spec["status"]
         if status is not CaseStatus.SUBMITTED:
             # +1 Tag als Zeitstempel des Statuswechsels (deterministisch).
-            repository.update_status(spec["id"], status, submitted_at + timedelta(days=1))
+            repository.update_status(
+                spec["id"], status, submitted_at + timedelta(days=1)
+            )
 
         zone = (
             result.zone.final_zone.value
