@@ -53,12 +53,16 @@ interface TriageResultProps {
   result: TriageResponse
   onSharpen: () => void
   isSharpenLoading: boolean
+  // V4-P-Auth: die Schaerfung ist eine Admin-Aktion. Anonyme sehen das
+  // read-only Bewertungsergebnis, aber keinen Schaerfen-Button.
+  authenticated: boolean
 }
 
 export function TriageResult({
   result,
   onSharpen,
   isSharpenLoading,
+  authenticated,
 }: TriageResultProps) {
   const zone = result.zone
   const zoneConfig = zone ? ZONE_CONFIG[zone.final_zone as ZoneKey] : null
@@ -323,15 +327,28 @@ export function TriageResult({
         )}
       </section>
 
-      {/* Naechster Schritt: KI-Schaerfung. */}
+      {/* Naechster Schritt: KI-Schaerfung -- nur fuer angemeldete Admins. */}
       <div className="pt-1">
-        <LlmAction
-          onAction={onSharpen}
-          isLoading={isSharpenLoading}
-          idleLabel="Use Case schärfen"
-          loadingLabel="Use Case wird geschärft …"
-          hint="KI-gestützte Schärfung der Beschreibung · 5–30 Sekunden"
-        />
+        {authenticated ? (
+          <LlmAction
+            onAction={onSharpen}
+            isLoading={isSharpenLoading}
+            idleLabel="Use Case schärfen"
+            loadingLabel="Use Case wird geschärft …"
+            hint="KI-gestützte Schärfung der Beschreibung · 5–30 Sekunden"
+          />
+        ) : (
+          <p className="rounded-xl border border-border bg-muted/40 px-4 py-3.5 text-sm text-muted-foreground">
+            Die weitere Bearbeitung (Schärfen, Lösung, Compliance, Report) ist
+            angemeldeten Admins vorbehalten.{" "}
+            <a
+              href="/login"
+              className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
+            >
+              Admin-Login
+            </a>
+          </p>
+        )}
       </div>
     </div>
   )

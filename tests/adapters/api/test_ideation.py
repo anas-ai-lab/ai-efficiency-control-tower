@@ -199,14 +199,16 @@ async def test_ideation_too_long_returns_422() -> None:
     assert response.status_code == 422
 
 
-async def test_ideation_without_api_key_returns_401() -> None:
+async def test_ideation_without_api_key_is_public() -> None:
+    """POST /ideation ist public (V4-P-Auth) -- der Ideen-Assistent ist ohne
+    X-API-Key erreichbar (200 mit Entwuerfen), nicht 401."""
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
         response = await client.post(
             "/ideation", json={"problem_description": _VALID_PROBLEM}
         )
-    assert response.status_code == 401
+    assert response.status_code == 200
 
 
 async def test_ideation_does_not_touch_repository() -> None:

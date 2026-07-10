@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
+  checkAuth,
   getArchitectureSketch,
   listCases,
   listMonitoringEntries,
@@ -11,7 +12,7 @@ import { CaseStatusControl } from "@/components/case-status-control";
 import { MonitoringTimeline } from "@/components/monitoring-timeline";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
 import { SketchView } from "@/components/sketch-view";
-import { ZoneBadge } from "@/components/status-badge";
+import { StatusBadge, ZoneBadge } from "@/components/status-badge";
 import { formatEUR } from "@/lib/formatters";
 import type {
   ArchitectureSketchResponse,
@@ -75,8 +76,13 @@ export default async function CaseDetailPage({
 }) {
   const { id } = await params;
 
+  // V4-P-Auth: Kopf (Zone/Nutzen/Aufwand/Status) ist read-only public. Die
+  // Admin-Panels (Status wechseln, Aehnlichkeit, Skizze, Monitoring) laden und
+  // rendern nur fuer angemeldete Admins -- ihre Endpoints sind require_admin.
+  const authenticated = await checkAuth();
+
   // GET /cases/{id} als Detail-Endpoint existiert nicht -- CaseSummary aus der
-  // Liste reicht fuer den Kopf.
+  // Liste (public) reicht fuer den Kopf.
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   try {
@@ -105,42 +111,44 @@ export default async function CaseDetailPage({
     return <NotFound id={id} />;
   }
 
-  // Monitoring erst laden, wenn der Fall existiert (sonst 404 vom Backend).
+  // Admin-Panels nur fuer Angemeldete laden -- fuer Anonyme wuerden die
+  // require_admin-Endpoints ohnehin 401 liefern (kein 401-Rauschen im Log).
   let entries: MonitoringEntry[] = [];
   let timelineError: string | null = null;
-  try {
-    entries = await listMonitoringEntries(id);
-  } catch (e) {
-    timelineError =
-      e instanceof Error
-        ? e.message
-        : "Die Monitoring-Einträge konnten nicht geladen werden.";
-  }
-
-  // Aehnlichkeits-Paare optional laden (kein Per-Case-Endpoint -- volle Liste,
-  // client-/server-seitig auf diese id gefiltert). Fehlschlag = kein Panel,
-  // kein Blocker fuer die Detail-Seite.
   let similarityPairs: SimilarityPair[] = [];
-  try {
-    similarityPairs = (await listSimilarityPairs()).pairs;
-  } catch (e) {
-    console.error(
-      "listSimilarityPairs fehlgeschlagen -- Detail ohne Aehnlichkeits-Panel:",
-      e,
-    );
-  }
-
-  // Persistierte Architektur-Skizze optional laden (P13). null = nie erzeugt
-  // (dann bietet SketchView das Erzeugen an). Ein Ladefehler ist kein Blocker:
-  // die Client-Komponente startet dann wie ohne persistierte Skizze.
   let initialSketch: ArchitectureSketchResponse | null = null;
-  try {
-    initialSketch = await getArchitectureSketch(id);
-  } catch (e) {
-    console.error(
-      "getArchitectureSketch fehlgeschlagen -- Detail ohne persistierte Skizze:",
-      e,
-    );
+
+  if (authenticated) {
+    // Monitoring erst laden, wenn der Fall existiert (sonst 404 vom Backend).
+    try {
+      entries = await listMonitoringEntries(id);
+    } catch (e) {
+      timelineError =
+        e instanceof Error
+          ? e.message
+          : "Die Monitoring-Einträge konnten nicht geladen werden.";
+    }
+
+    // Aehnlichkeits-Paare optional laden (kein Per-Case-Endpoint -- volle Liste,
+    // auf diese id gefiltert). Fehlschlag = kein Panel, kein Blocker.
+    try {
+      similarityPairs = (await listSimilarityPairs()).pairs;
+    } catch (e) {
+      console.error(
+        "listSimilarityPairs fehlgeschlagen -- Detail ohne Aehnlichkeits-Panel:",
+        e,
+      );
+    }
+
+    // Persistierte Architektur-Skizze optional laden (P13). null = nie erzeugt.
+    try {
+      initialSketch = await getArchitectureSketch(id);
+    } catch (e) {
+      console.error(
+        "getArchitectureSketch fehlgeschlagen -- Detail ohne persistierte Skizze:",
+        e,
+      );
+    }
   }
 
   return (
@@ -179,31 +187,53 @@ export default async function CaseDetailPage({
         </div>
         <div className="mt-5 border-t border-border pt-4">
           <p className="eyebrow mb-2">Status</p>
-          <CaseStatusControl caseId={found.id} initialStatus={found.status} />
+          {authenticated ? (
+            <CaseStatusControl caseId={found.id} initialStatus={found.status} />
+          ) : (
+            // Anonym: Status read-only (kein Wechsel-Select).
+            <StatusBadge status={found.status} />
+          )}
         </div>
       </div>
 
-      {/* --- Aehnliche Use Cases (P12/C): rendert sich selbst nur, wenn Paare
-           fuer diese id existieren (sonst null, kein Leerraum). --- */}
-      <SimilarCasesPanel caseId={found.id} pairs={similarityPairs} />
+      {authenticated ? (
+        <>
+          {/* --- Aehnliche Use Cases (P12/C): rendert sich selbst nur, wenn
+               Paare fuer diese id existieren (sonst null, kein Leerraum). --- */}
+          <SimilarCasesPanel caseId={found.id} pairs={similarityPairs} />
 
-      {/* --- Architektur-Skizze (P13): On-Demand-Graph, client-seitig via
-           mermaid gerendert. Zustaende in SketchView. --- */}
-      <SketchView caseId={found.id} initialSketch={initialSketch} />
+          {/* --- Architektur-Skizze (P13): On-Demand-Graph, client-seitig via
+               mermaid gerendert. Zustaende in SketchView. --- */}
+          <SketchView caseId={found.id} initialSketch={initialSketch} />
 
-      {/* --- Monitoring-Zeitleiste --- */}
-      <div className="mt-10">
-        {timelineError !== null ? (
-          <p
-            role="alert"
-            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          {/* --- Monitoring-Zeitleiste --- */}
+          <div className="mt-10">
+            {timelineError !== null ? (
+              <p
+                role="alert"
+                className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              >
+                {timelineError}
+              </p>
+            ) : (
+              <MonitoringTimeline caseId={found.id} initialEntries={entries} />
+            )}
+          </div>
+        </>
+      ) : (
+        // Anonym: read-only Fall-Detail. Aehnlichkeit, Skizze und Monitoring
+        // sind Admin-Ansichten und bleiben ausgeblendet.
+        <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-3.5 text-sm text-muted-foreground">
+          Weitere Ansichten (Ähnlichkeit, Architektur-Skizze, Monitoring) sowie
+          der Statuswechsel sind angemeldeten Admins vorbehalten.{" "}
+          <Link
+            href="/login"
+            className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
           >
-            {timelineError}
-          </p>
-        ) : (
-          <MonitoringTimeline caseId={found.id} initialEntries={entries} />
-        )}
-      </div>
+            Admin-Login
+          </Link>
+        </p>
+      )}
     </main>
   );
 }

@@ -7,12 +7,16 @@ import { usePathname } from "next/navigation";
 // (aktiver Link) -- das Layout selbst bleibt Server Component. Dezente
 // Text-Links auf den Design-Tokens, keine Pill-Nav: aktiv = Tinten-Akzent
 // (--ink) + kraeftigeres Gewicht + feine Unterstreichung.
+//
+// V4-P-Auth: adminOnly-Links (Board, Monitoring) sind nur fuer Angemeldete
+// sichtbar -- die Sicherheit erzwingt das Backend (require_admin), die Nav
+// blendet sie nur aus.
 const LINKS = [
-  { href: "/", label: "Einreichen" },
-  { href: "/ideation", label: "Ideen-Assistent" },
-  { href: "/cases", label: "Ideenliste" },
-  { href: "/board", label: "Board" },
-  { href: "/monitoring", label: "Monitoring" },
+  { href: "/", label: "Einreichen", adminOnly: false },
+  { href: "/ideation", label: "Ideen-Assistent", adminOnly: false },
+  { href: "/cases", label: "Ideenliste", adminOnly: false },
+  { href: "/board", label: "Board", adminOnly: true },
+  { href: "/monitoring", label: "Monitoring", adminOnly: true },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -21,12 +25,13 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function MainNav() {
+export function MainNav({ authenticated }: { authenticated: boolean }) {
   const pathname = usePathname();
+  const links = LINKS.filter((link) => authenticated || !link.adminOnly);
 
   return (
     <nav aria-label="Hauptnavigation" className="flex items-center gap-4 sm:gap-5">
-      {LINKS.map((link) => {
+      {links.map((link) => {
         const active = isActive(pathname, link.href);
         return (
           <Link

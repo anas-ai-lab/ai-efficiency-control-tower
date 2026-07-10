@@ -58,11 +58,13 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.session_store import InMemorySessionStore
 from aect.adapters.in_memory.token_budget_store import InMemoryTokenBudgetStore
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
 from aect.adapters.sqlite.idempotency_store import SQLiteIdempotencyStore
 from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.adapters.sqlite.session_store import SQLiteSessionStore
 from aect.adapters.sqlite.token_budget_store import SQLiteTokenBudgetStore
 from aect.application.cost_logger import count_tokens
 from aect.application.ports.embedder import EmbedderPort
@@ -71,6 +73,7 @@ from aect.application.ports.llm import LLMPort
 from aect.application.ports.pii_redactor import PIIRedactorPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrieverPort
+from aect.application.ports.session_store import SessionStorePort
 from aect.application.ports.token_budget import TokenBudgetPort
 from aect.application.service import TriageService
 from aect.domain.roi import ROIConfig, load_roi_config
@@ -89,9 +92,18 @@ _repository: InMemoryRepository = InMemoryRepository()
 # (analog _repository; nur relevant ohne AECT_DB_PATH).
 _idempotency_store: InMemoryIdempotencyStore = InMemoryIdempotencyStore()
 
+# Singleton -- Admin-Session-State lebt fuer die Prozess-Lebensdauer (analog
+# _idempotency_store; nur relevant ohne AECT_DB_PATH, sonst SQLiteSessionStore).
+_session_store: InMemorySessionStore = InMemorySessionStore()
+
 # auto_error=False: fehlender Header liefert None statt automatischem 403.
 # Unser require_api_key gibt dann einheitlich 401 zurueck.
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+# Admin-Login (V4-P-Auth). Cookie-Name und Gueltigkeit (12 h) sind fest --
+# ein Single-User-Demo braucht keine konfigurierbare Session-Laufzeit.
+SESSION_COOKIE_NAME = "aect_session"
+SESSION_TTL_HOURS = 12
 
 # Standard-Reranking-Modell aus dem sentence-transformers-Oekosystem
 # (trainiert auf MS MARCO Passage Ranking, ADR-0028). Generischer,
@@ -369,17 +381,45 @@ def _matches(candidate: bytes, secret: str) -> bool:
     return bool(secret) and secrets.compare_digest(candidate, secret.encode("utf-8"))
 
 
+def _match_api_key(api_key: str | None, settings: Settings) -> str | None:
+    """Prueft den X-API-Key gegen die konfigurierten Keys (mit Rotation).
+
+    Rotation ohne Downtime (Phase G): akzeptiert sowohl settings.api_key
+    (primaer) als auch settings.api_key_next (optional, waehrend einer Rotation)
+    -- jeweils per eigenem compare_digest-Aufruf, nie per Listen-Mitgliedschaft
+    (`in`), das waere timing-unsicher. Loggt bei Erfolg api_key_authenticated
+    (kid = kurzer Fingerprint, nie der Klartext-Key).
+
+    Returns:
+        den uebergebenen Key bei Match, sonst None (fehlender Header, leerer
+        Server-Key oder kein Treffer).
+    """
+    if api_key is None:
+        return None
+    # Bytes statt str: compare_digest auf str wirft TypeError bei Nicht-ASCII.
+    candidate = api_key.encode("utf-8")
+    if _matches(candidate, settings.api_key):
+        structlog.get_logger().info(
+            "api_key_authenticated", kid=key_fingerprint(settings.api_key)
+        )
+        return api_key
+    if _matches(candidate, settings.api_key_next):
+        structlog.get_logger().info(
+            "api_key_authenticated", kid=key_fingerprint(settings.api_key_next)
+        )
+        return api_key
+    return None
+
+
 async def require_api_key(
     api_key: str | None = Depends(_api_key_header),
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> str:
     """FastAPI-Dependency: prueft X-API-Key-Header gegen konfigurierte Keys.
 
-    Rotation ohne Downtime (Phase G): akzeptiert sowohl settings.api_key
-    (primaer) als auch settings.api_key_next (optional, waehrend einer
-    Rotation) -- jeweils per eigenem compare_digest-Aufruf, nie per
-    Listen-Mitgliedschaft (`in`), das waere timing-unsicher (README.md
-    "API-Key-Rotation" beschreibt den Ablauf).
+    Bleibt fuer den reinen API-Key-Zugriff bestehen (Skripte/Tests). Die
+    Admin-Routen laufen ueber require_admin, das zusaetzlich Session-Cookies
+    akzeptiert und den API-Key-Zweig via _match_api_key wiederverwendet.
 
     Raises:
         HTTPException 503: Server hat keinen primaeren API-Key konfiguriert
@@ -388,33 +428,101 @@ async def require_api_key(
             Client-Fehler.
         HTTPException 401: Key fehlt oder stimmt gegen keinen der
             konfigurierten Keys.
-
-    /health, /health/live, /health/ready sind explizit exempt -- kein
-    Depends(require_api_key) dort.
     """
     if not settings.api_key:
         raise HTTPException(
             status_code=503,
             detail="API key not configured on server",
         )
-    if api_key is not None:
-        candidate = api_key.encode("utf-8")
-        # Bytes statt str: compare_digest auf str wirft TypeError bei
-        # Nicht-ASCII. Beide Keys werden ueber je einen eigenen
-        # compare_digest-Aufruf geprueft -- konstante Laufzeit pro Vergleich.
-        if _matches(candidate, settings.api_key):
-            structlog.get_logger().info(
-                "api_key_authenticated", kid=key_fingerprint(settings.api_key)
-            )
-            return api_key
-        if _matches(candidate, settings.api_key_next):
-            structlog.get_logger().info(
-                "api_key_authenticated", kid=key_fingerprint(settings.api_key_next)
-            )
-            return api_key
+    matched = _match_api_key(api_key, settings)
+    if matched is not None:
+        return matched
     raise HTTPException(
         status_code=401,
         detail="Invalid or missing API key",
+        headers={"WWW-Authenticate": "X-API-Key"},
+    )
+
+
+def get_session_store(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> SessionStorePort:
+    """Liefert den Session-Store passend zur Persistenz-Wahl (analog
+    get_idempotency_store).
+
+    AECT_DB_PATH gesetzt -> SQLiteSessionStore (persistent, eigene Tabelle in
+    derselben DB-Datei wie SQLiteRepository -- Sessions ueberleben Neustart).
+    AECT_DB_PATH leer  -> In-Memory-Singleton (Dev/Test/Demo).
+    """
+    if settings.db_path:
+        return SQLiteSessionStore(Path(settings.db_path))
+    return _session_store
+
+
+def authenticate_admin(
+    request: Request,
+    api_key: str | None,
+    settings: Settings,
+    session_store: SessionStorePort,
+) -> str | None:
+    """Ermittelt die Admin-Identitaet aus Session-Cookie ODER API-Key.
+
+    Reihenfolge: zuerst das Session-Cookie (der Browser-Weg nach dem Login),
+    dann der X-API-Key (Skripte/Tests). Eine abgelaufene Session wird beim
+    Zugriff verworfen (delete) und zaehlt als nicht authentifiziert.
+
+    Returns:
+        "session"      -- gueltige, nicht abgelaufene Admin-Session.
+        <der API-Key>  -- gueltiger X-API-Key (Wert dient als Budget-/Log-ID).
+        None           -- weder gueltige Session noch gueltiger Key.
+
+    Kein Raise -- der Aufrufer entscheidet ueber 401/503 (require_admin) bzw.
+    ueber das authenticated-Flag (GET /auth/me).
+    """
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if token:
+        token_hash = key_fingerprint(token, length=0)
+        session = session_store.get(token_hash)
+        if session is not None:
+            if session.expires_at <= SystemClock().now():
+                # Abgelaufen -> verwerfen (Vorgabe: "beim Zugriff verworfen").
+                session_store.delete(token_hash)
+                structlog.get_logger().info("admin_session_expired")
+            else:
+                structlog.get_logger().info("admin_session_authenticated")
+                return "session"
+    return _match_api_key(api_key, settings)
+
+
+async def require_admin(
+    request: Request,
+    api_key: str | None = Depends(_api_key_header),
+    settings: Settings = Depends(get_settings),  # noqa: B008
+    session_store: SessionStorePort = Depends(get_session_store),  # noqa: B008
+) -> str:
+    """FastAPI-Dependency fuer alle Admin-Routen: Session-Cookie ODER API-Key.
+
+    Public-Routen (POST /triage, POST /ideation, GET /cases, GET /auth/me,
+    POST /auth/login, Health/Docs) haengen NICHT an dieser Dependency -- sie
+    sind bewusst ohne Auth erreichbar (anonyme Einreichung/Ideen/Ideenliste).
+
+    Raises:
+        HTTPException 503: Server hat WEDER einen API-Key NOCH einen
+            Admin-Passwort-Hash konfiguriert -- die Admin-Flaeche ist gar nicht
+            eingerichtet (ehrliches "nicht betriebsbereit" statt 401).
+        HTTPException 401: keine gueltige Session und kein gueltiger API-Key.
+    """
+    identity = authenticate_admin(request, api_key, settings, session_store)
+    if identity is not None:
+        return identity
+    if not settings.api_key and not settings.admin_password_hash:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin auth not configured on server",
+        )
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid or missing admin credentials",
         headers={"WWW-Authenticate": "X-API-Key"},
     )
 
@@ -519,7 +627,7 @@ def get_token_budget_store(
 
 async def require_token_budget(
     case_id: str,
-    api_key: str = Depends(require_api_key),
+    identity: str = Depends(require_admin),
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     token_budget: TokenBudgetPort = Depends(get_token_budget_store),  # noqa: B008
 ) -> None:
@@ -551,8 +659,12 @@ async def require_token_budget(
         f"{case.use_case.desired_state} {case.use_case.example_process}"
     )
     tokens = count_tokens(text)
-    api_key_hash = key_fingerprint(api_key, length=0)
-    if not token_budget.try_consume(api_key_hash, tokens):
+    # identity ist "session" (Browser-Login) oder der API-Key (Skripte). Beide
+    # bekommen ueber ihren Fingerprint einen eigenen Budget-Bucket -- im
+    # Single-User-Demo teilen sich alle Session-Requests denselben "session"-
+    # Bucket, was hier gewollt ist (ein Admin).
+    identity_hash = key_fingerprint(identity, length=0)
+    if not token_budget.try_consume(identity_hash, tokens):
         raise HTTPException(
             status_code=429,
             detail="Token budget exceeded for this API key",

@@ -40,7 +40,7 @@ from starlette.responses import Response
 from aect.adapters.api.dependencies import get_settings, resolve_retriever
 from aect.adapters.api.logging_config import configure_logging
 from aect.adapters.api.rate_limit import limiter
-from aect.adapters.api.routes import cases, health, ideation, triage
+from aect.adapters.api.routes import auth, cases, health, ideation, triage
 from aect.adapters.api.settings import check_azure_eu_region
 
 logger = structlog.get_logger()
@@ -197,6 +197,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(cases.router)
     app.include_router(triage.router)
     app.include_router(ideation.router)

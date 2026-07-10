@@ -33,7 +33,7 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "report", label: "Report" },
 ]
 
-export default function AectApp() {
+export default function AectApp({ authenticated }: { authenticated: boolean }) {
   const [currentStep, setCurrentStep] = useState<Step>("form")
   const [triageResult, setTriageResult] = useState<TriageResponse | null>(null)
   const [sharpenedResult, setSharpenedResult] = useState<SharpenedCaseResponse | null>(null)
@@ -183,6 +183,7 @@ export default function AectApp() {
               result={triageResult!}
               onSharpen={handleSharpen}
               isSharpenLoading={isSharpenLoading}
+              authenticated={authenticated}
             />
           </div>
         )}

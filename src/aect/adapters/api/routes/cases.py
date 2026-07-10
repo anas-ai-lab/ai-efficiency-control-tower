@@ -1,11 +1,11 @@
 """Cases-Endpoint -- listet eingereichte Use Cases.
 
-Security (aect-security-checklist v2.1, Phase B):
-  Auth: require_api_key (X-API-Key-Header).
-  Rate Limiting: 60/minute pro API-Key (lesender Zugriff, grosszuegiger).
+Security (aect-security-checklist v2.1, Phase B; V4-P-Auth):
+  Auth-Matrix: GET /cases (Liste) ist PUBLIC (Ideenliste, untere Zugriffsstufe).
+  Alle uebrigen Routen dieses Moduls verlangen require_admin (Session-Cookie
+  ODER X-API-Key) -- inkl. der lesenden Admin-Sichten (similarity-pairs,
+  monitoring, architecture-sketch GET).
   Schichttrennung: CaseSummary-Schema serialisiert nur was der Client braucht.
-
-Phase C: GET /cases/{id} fuer Detail-Ansicht ergaenzen.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from starlette.responses import Response
 
 from aect.adapters.api.dependencies import (
     get_triage_service,
-    require_api_key,
+    require_admin,
     require_token_budget,
 )
 from aect.adapters.api.rate_limit import limiter
@@ -69,14 +69,15 @@ async def list_cases(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
 ) -> list[CaseSummary]:
     """Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.
 
     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-    Auth: X-API-Key-Header (require_api_key).
-    Rate Limit: 60 Requests/Minute pro API-Key.
+    Auth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere
+    Zugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur
+    Uebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.
+    Rate Limit: 60 Requests/Minute pro Aufrufer.
 
     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
     float, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine
@@ -152,12 +153,12 @@ async def list_similarity_pairs(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> SimilarityPairsResponse:
     """Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und
     GET /cases/{id}/monitoring.
 
@@ -188,12 +189,12 @@ async def delete_case(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> Response:
     """Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den
     LLM-Endpoints streng gehalten.
 
@@ -246,12 +247,12 @@ async def record_decision(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> DecisionResponse:
     """Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).
+    Auth: require_admin (Session-Cookie ODER X-API-Key, inkl. Key-Rotation).
     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
 
     Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
@@ -315,12 +316,12 @@ async def update_status(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> StatusUpdateResponse:
     """Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
     DELETE /cases/{id}.
 
@@ -379,12 +380,12 @@ async def add_monitoring_note(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> MonitoringEntryResponse:
     """Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
     /status.
 
@@ -416,12 +417,12 @@ async def list_monitoring(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> list[MonitoringEntryResponse]:
     """Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
 
     Leere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der
@@ -495,13 +496,13 @@ async def sharpen_case(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
 ) -> SharpenedCaseResponse:
     """Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
@@ -573,12 +574,12 @@ async def accept_sharpening(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> SharpeningActionResponse:
     """Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
 
     Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
-    Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+    Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
 
     Raises:
         HTTPException 404: case_id existiert nicht.
@@ -603,12 +604,12 @@ async def reject_sharpening(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> SharpeningActionResponse:
     """Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
 
     Kein LLM-Call -> kein Token-Budget noetig.
-    Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+    Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
 
     Raises:
         HTTPException 404: case_id existiert nicht.
@@ -641,13 +642,13 @@ async def propose_solution(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
 ) -> SolutionProposalResponse:
     """Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen
     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
@@ -763,12 +764,12 @@ async def get_report(
     response: Response,
     body: ReportRequest | None = None,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> ReportResponse:
     """Erstellt den zweischichtigen Report fuer einen bestehenden Case.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
     -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
 
@@ -855,13 +856,13 @@ async def compliance_hints(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
 ) -> ComplianceHintsResponse:
     """Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und
     /propose-solution (aect-security-checklist v2.1, Phase B: "LLM-Endpoints
     strenger").
@@ -966,13 +967,13 @@ async def generate_architecture_sketch(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
 ) -> ArchitectureSketchResponse:
     """Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche
     Token-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-
@@ -1054,12 +1055,12 @@ async def get_architecture_sketch(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
+    _: str = Depends(require_admin),
 ) -> ArchitectureSketchEnvelope:
     """Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
 
     200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt

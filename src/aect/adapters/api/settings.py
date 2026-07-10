@@ -95,6 +95,16 @@ class Settings(BaseSettings):
     api_key_next: str = ""  # AECT_API_KEY_NEXT
     db_path: str = ""  # Leer = InMemoryRepository. AECT_DB_PATH=/pfad/aect.db = SQLite.
 
+    # Admin-Login (V4-P-Auth) -- Passwort-Hash im Format scrypt$<salt>$<hash>
+    # (adapters/api/password.py). Erzeugt via scripts/hash_password.py. Leer =
+    # Admin-Login deaktiviert (dann ist die Admin-Flaeche nur ueber den API-Key
+    # erreichbar). Der Klartext gehoert NIE ins Repo/in die Env.example.
+    admin_password_hash: str = ""  # AECT_ADMIN_PASSWORD_HASH
+    # Secure-Flag des Session-Cookies. Default False fuer die localhost-Demo
+    # ueber http (ein Secure-Cookie wuerde ueber http nie gesetzt). Hinter HTTPS
+    # auf True setzen.
+    session_cookie_secure: bool = False  # AECT_SESSION_COOKIE_SECURE
+
     # Azure OpenAI (Phase C, ADR-0010) -- leer = MockLLMAdapter.
     # EU-Data-Zone-Pflicht (ADR-0003): Deployment muss in swedencentral oder
     # westeurope liegen -- primaer Deployment-Zeit-Pflicht. AUDIT-008 ergaenzt

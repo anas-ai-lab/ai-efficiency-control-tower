@@ -82,12 +82,14 @@ def _make_triage_app() -> FastAPI:
 # ---------------------------------------------------------------------------
 
 
-async def test_post_triage_without_key_returns_401() -> None:
+async def test_post_triage_without_key_is_public_201() -> None:
+    """POST /triage ist public (V4-P-Auth) -- anonyme Einreichung ohne X-API-Key
+    liefert 201, nicht 401."""
     async with AsyncClient(
         transport=ASGITransport(app=_make_triage_app()), base_url="http://test"
     ) as client:
         response = await client.post("/triage", json=_VALID_PAYLOAD)
-    assert response.status_code == 401
+    assert response.status_code == 201
 
 
 async def test_post_triage_with_correct_key_returns_201() -> None:

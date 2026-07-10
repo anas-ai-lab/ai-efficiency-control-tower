@@ -9,8 +9,8 @@ Sie mappen Domain-Objekte auf JSON-serialisierbare Typen
 Security (aect-security-checklist v2.1, Phase B):
   extra='forbid' auf UseCaseInput: kein unerwarteter Input (OWASP LLM10).
   max_length auf Freitextfeldern: Token-Flooding-Schutz (Phase A).
-  Auth: require_api_key (X-API-Key-Header).
-  Rate Limiting: 30/minute pro API-Key (limiter aus rate_limit.py).
+  Auth: PUBLIC (V4-P-Auth) -- anonyme Einreichung, kein require_admin.
+  Rate Limiting: 30/minute pro Aufrufer (limiter aus rate_limit.py).
   Response: keine Domain-Exceptions geleakt (globaler Handler in app.py).
 
 Idempotency (aect-security-checklist v2.1, Phase B):
@@ -42,7 +42,6 @@ from starlette.responses import Response
 from aect.adapters.api.dependencies import (
     get_idempotency_store,
     get_triage_service,
-    require_api_key,
 )
 from aect.adapters.api.rate_limit import limiter
 from aect.application.models import SimilarityWarning, SubmittedCase
@@ -230,13 +229,13 @@ async def submit_use_case(
     idempotency_key: str | None = Header(
         default=None, alias="Idempotency-Key", max_length=200
     ),
-    _: str = Depends(require_api_key),
 ) -> TriageResponse:
     """Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.
 
     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
-    Auth: X-API-Key-Header (require_api_key).
-    Rate Limit: 30 Requests/Minute pro API-Key.
+    Auth: PUBLIC (V4-P-Auth) -- anonyme Einreichung ist eine Kern-Faehigkeit der
+    unteren Zugriffsstufe (SDR-0003). Kein require_admin hier.
+    Rate Limit: 30 Requests/Minute pro Aufrufer.
     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
 
     Idempotency: siehe Modul-Docstring. Bei Replay wird response.status_code

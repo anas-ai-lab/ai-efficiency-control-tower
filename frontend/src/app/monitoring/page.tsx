@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { listCases } from "@/app/actions";
+import { checkAuth, listCases } from "@/app/actions";
+import { AdminGate } from "@/components/admin-gate";
 import { StatusBadge, ZoneBadge } from "@/components/status-badge";
 import { formatEUR } from "@/lib/formatters";
 import type { CaseSummary } from "@/types/api";
@@ -23,6 +24,11 @@ function formatDate(iso: string): string {
 }
 
 export default async function MonitoringPage() {
+  // V4-P-Auth: Monitoring ist ein Admin-Bereich -- ohne Anmeldung ausgeblendet.
+  if (!(await checkAuth())) {
+    return <AdminGate title="Monitoring" />;
+  }
+
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   try {

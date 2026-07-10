@@ -1,5 +1,7 @@
 "use server";
 
+import { cookies } from "next/headers";
+
 import type {
   ArchitectureSketchEnvelope,
   ArchitectureSketchResponse,
@@ -19,7 +21,39 @@ import type {
 } from "@/types/api";
 
 const BASE_URL = process.env.AECT_API_BASE_URL ?? "http://localhost:8000";
-const API_KEY = process.env.AECT_API_KEY ?? "";
+
+// V4-P-Auth: der Browser authentifiziert sich ausschliesslich ueber das
+// Admin-Session-Cookie (aect_session), NICHT mehr ueber einen serverseitig
+// injizierten X-API-Key. Anonyme Flows (Einreichung, Ideen-Assistent,
+// Ideenliste, Case-Detail-Kopf) laufen ganz ohne Auth; alle mutierenden/
+// sensiblen Admin-Routen verlangen ein gueltiges Session-Cookie. Der frueher
+// server-seitig verwendete AECT_API_KEY wird bewusst NICHT mehr mitgeschickt --
+// sonst waere jeder anonyme Aufruf automatisch Admin (Zwei-Stufen-Modell kaputt).
+const SESSION_COOKIE = "aect_session";
+// Muss zur Backend-Session-Laufzeit passen (SESSION_TTL_HOURS = 12 h).
+const SESSION_MAX_AGE_S = 12 * 3600;
+
+/**
+ * Leitet das Session-Cookie des Browsers als Cookie-Header an das Backend
+ * weiter. Ohne Cookie (anonym) wird kein Header gesetzt -- Public-Routen
+ * funktionieren trotzdem, Admin-Routen antworten dann 401.
+ */
+async function sessionHeaders(): Promise<Record<string, string>> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? { Cookie: `${SESSION_COOKIE}=${token}` } : {};
+}
+
+/** Liest den Session-Token aus dem Set-Cookie des Backends (Login-Antwort). */
+function extractSessionToken(res: Response): string | null {
+  const setCookies = res.headers.getSetCookie?.() ?? [];
+  for (const raw of setCookies) {
+    if (raw.startsWith(`${SESSION_COOKIE}=`)) {
+      const first = raw.split(";", 1)[0];
+      return first.slice(first.indexOf("=") + 1);
+    }
+  }
+  return null;
+}
 
 // Request-Timeouts (F-014): ohne AbortSignal wartet ein Server-Action-Fetch
 // unbegrenzt. Regelbasierte Endpunkte (Triage, Report) antworten in
@@ -38,10 +72,14 @@ const LLM_TOOL_LOOP_TIMEOUT_MS = 135_000;
 const ERROR_MESSAGES_DE: Record<string, string> = {
   "Case not found":
     "Der Fall wurde nicht gefunden. Bitte die Triage erneut starten.",
+  "Invalid or missing admin credentials":
+    "Nicht angemeldet — bitte als Admin einloggen, um diese Aktion auszuführen.",
   "Invalid or missing API key":
-    "Authentifizierung fehlgeschlagen — API-Key in frontend/.env.local prüfen.",
+    "Nicht angemeldet — bitte als Admin einloggen, um diese Aktion auszuführen.",
+  "Admin auth not configured on server":
+    "Server-Konfiguration unvollständig: Auf dem Backend ist kein Admin-Zugang hinterlegt.",
   "API key not configured on server":
-    "Server-Konfiguration unvollständig: Auf dem Backend ist kein API-Key hinterlegt.",
+    "Server-Konfiguration unvollständig: Auf dem Backend ist kein Admin-Zugang hinterlegt.",
   "Request with this Idempotency-Key is already in progress":
     "Diese Einreichung wird bereits verarbeitet. Einen Moment warten und erneut versuchen.",
   "Token budget exceeded for this API key":
@@ -113,7 +151,7 @@ async function apiFetch<T>(
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
+        ...(await sessionHeaders()),
       },
       body,
       // cache: "no-store" -- Lese-Actions (listCases/listMonitoringEntries)
@@ -330,5 +368,96 @@ export async function generateArchitectureSketch(
           ? e.message
           : "KI-Dienst derzeit nicht erreichbar — bitte später erneut versuchen.",
     };
+  }
+}
+
+// ---- Admin-Auth (V4-P-Auth): Login/Logout/Status ueber das Session-Cookie ---
+// Der Token verlaesst nie den Client-Bundle: Login laeuft server-seitig, das
+// Cookie wird als httpOnly gesetzt und ist fuer Browser-JS unsichtbar.
+
+/**
+ * Meldet den Admin an. Bei Erfolg wird das vom Backend erzeugte Session-Token
+ * als httpOnly-Cookie (aect_session) im Browser gesetzt.
+ */
+export async function login(
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
+    });
+  } catch {
+    return {
+      ok: false,
+      error:
+        "Verbindung zum Backend fehlgeschlagen. Läuft der API-Server (Port 8000)?",
+    };
+  }
+  if (!res.ok) {
+    if (res.status === 401) return { ok: false, error: "Falsches Passwort." };
+    if (res.status === 503) {
+      return {
+        ok: false,
+        error: "Admin-Login ist auf dem Server nicht eingerichtet.",
+      };
+    }
+    if (res.status === 429) {
+      return {
+        ok: false,
+        error: "Zu viele Login-Versuche — bitte kurz warten und erneut versuchen.",
+      };
+    }
+    return { ok: false, error: statusMessageDE(res.status) };
+  }
+  const token = extractSessionToken(res);
+  if (token === null) {
+    return { ok: false, error: "Login-Antwort ohne Session-Token." };
+  }
+  (await cookies()).set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.AECT_SESSION_COOKIE_SECURE === "true",
+    path: "/",
+    maxAge: SESSION_MAX_AGE_S,
+  });
+  return { ok: true };
+}
+
+/** Meldet den Admin ab (Backend-Session loeschen + lokales Cookie entfernen). */
+export async function logout(): Promise<void> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  try {
+    await fetch(`${BASE_URL}/auth/logout`, {
+      method: "POST",
+      headers: token ? { Cookie: `${SESSION_COOKIE}=${token}` } : {},
+      cache: "no-store",
+      signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
+    });
+  } catch {
+    // Backend nicht erreichbar: das Cookie wird trotzdem lokal entfernt.
+  }
+  store.delete(SESSION_COOKIE);
+}
+
+/** Prueft, ob der aktuelle Aufrufer als Admin authentifiziert ist (GET /auth/me). */
+export async function checkAuth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/me`, {
+      method: "GET",
+      headers: await sessionHeaders(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { authenticated?: boolean };
+    return data.authenticated === true;
+  } catch {
+    return false;
   }
 }

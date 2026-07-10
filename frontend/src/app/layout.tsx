@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MainNav } from "@/components/main-nav";
+import { AuthControl } from "@/components/auth-control";
+import { checkAuth } from "@/app/actions";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,11 +26,16 @@ export const metadata: Metadata = {
 // ist hell; dunkel nur, wenn die Person es ausdruecklich gewaehlt hat.
 const themeInitScript = `(function(){try{var t=localStorage.getItem('aect-theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // V4-P-Auth: Auth-Zustand serverseitig ermitteln -> steuert Nav-Sichtbarkeit
+  // und den Login/Logout-Schalter. Die eigentliche Kontrolle erzwingt das
+  // Backend; die UI blendet nur aus.
+  const authenticated = await checkAuth();
+
   return (
     <html
       lang="de"
@@ -56,9 +63,12 @@ export default function RootLayout({
                   AECT
                 </span>
               </Link>
-              <MainNav />
+              <MainNav authenticated={authenticated} />
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-4 sm:gap-5">
+              <AuthControl authenticated={authenticated} />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

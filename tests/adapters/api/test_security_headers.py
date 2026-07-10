@@ -51,13 +51,15 @@ async def test_error_responses_carry_security_headers() -> None:
         api_key="test-api-key-aect-2026", chroma_host=""
     )
     # V4-P2: resolve_retriever ist fail-loud -- get_triage_service (Dependency
-    # von /cases, wird noch VOR require_api_key aufgeloest) wuerde sonst einen
+    # der Admin-Route, wird noch VOR require_admin aufgeloest) wuerde sonst einen
     # echten Chroma-Build versuchen. Expliziter MockRetriever, chroma_host="".
     app.dependency_overrides[get_retriever_port] = lambda: MockRetriever()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        resp = await client.get("/cases")  # ohne X-API-Key -> 401
+        # V4-P-Auth: GET /cases ist jetzt public -- eine Admin-Route (require_admin)
+        # ohne Credentials erzwingt das 401 fuer die Header-Pruefung.
+        resp = await client.get("/cases/similarity-pairs")
 
     assert resp.status_code == 401
     assert resp.headers["X-Content-Type-Options"] == "nosniff"
@@ -67,22 +69,23 @@ async def test_error_responses_carry_security_headers() -> None:
 async def test_unconfigured_api_key_returns_503_with_security_headers() -> None:
     """Fehlende Server-Konfiguration -> bewusstes 503, kein 500.
 
-    Settings(api_key="") erzwingt den Unkonfiguriert-Pfad unabhaengig davon,
-    ob die Umgebung ein .env hat -- deterministisch lokal wie im CI.
+    Weder AECT_API_KEY noch AECT_ADMIN_PASSWORD_HASH gesetzt -> die Admin-Flaeche
+    ist gar nicht eingerichtet: require_admin antwortet 503 (deterministisch
+    lokal wie im CI, unabhaengig vom .env der Umgebung).
     """
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: Settings(
-        api_key="", chroma_host=""
+        api_key="", admin_password_hash="", chroma_host=""
     )
     # V4-P2: siehe test_error_responses_carry_security_headers -- get_triage_service
-    # wird vor require_api_key aufgeloest, MockRetriever explizit injizieren.
+    # wird vor require_admin aufgeloest, MockRetriever explizit injizieren.
     app.dependency_overrides[get_retriever_port] = lambda: MockRetriever()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        resp = await client.get("/cases")
+        resp = await client.get("/cases/similarity-pairs")
 
     assert resp.status_code == 503
-    assert resp.json()["detail"] == "API key not configured on server"
+    assert resp.json()["detail"] == "Admin auth not configured on server"
     assert resp.headers["X-Content-Type-Options"] == "nosniff"
     assert resp.headers["X-Frame-Options"] == "DENY"

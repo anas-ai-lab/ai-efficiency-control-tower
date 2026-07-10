@@ -6,7 +6,8 @@ Pfad nicht auf einem gespeicherten Case, sondern nimmt die Problembeschreibung
 direkt im Body entgegen.
 
 Security (aect-security-checklist v2.1):
-  Auth: require_api_key (X-API-Key-Header).
+  Auth: PUBLIC (V4-P-Auth) -- der Ideen-Assistent ist eine anonyme Kern-
+    Faehigkeit der unteren Zugriffsstufe (SDR-0003), kein require_admin.
   Rate Limit: 10/minute -- so streng wie die uebrigen LLM-Endpoints
     (/sharpen, /propose-solution, /compliance-hints), da echter LLM-Call.
   Injection-Sanitization: flag-not-block (D21) im Service -- flagged_input
@@ -25,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
-from aect.adapters.api.dependencies import get_triage_service, require_api_key
+from aect.adapters.api.dependencies import get_triage_service
 from aect.adapters.api.rate_limit import limiter
 from aect.application.service import TriageService
 from aect.application.structured_output import IdeationDraft, InvalidLLMOutputError
@@ -67,12 +68,11 @@ async def generate_ideation(
     response: Response,
     body: IdeationRequest,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_api_key),
 ) -> IdeationResponse:
     """Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: X-API-Key-Header (require_api_key).
+    Auth: PUBLIC (V4-P-Auth) -- anonymer Ideen-Assistent, kein require_admin.
     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.
 
     Ephemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf
