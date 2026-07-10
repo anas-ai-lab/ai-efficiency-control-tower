@@ -54,6 +54,14 @@ Feld -- analog sharpened_content_json). Dieselbe PRAGMA-Migrationsstrategie
 wie embedding/status. Liegt in der Case-Zeile -> DSGVO-Loesch-Kaskade greift
 automatisch (delete() entfernt die Zeile mit der Spalte).
 
+sharpening_draft (V4, Draft/Accept-Flow): nullable Spalte mit dem JSON des
+noch nicht uebernommenen Schaerfungs-Entwurfs (original/sharpened/vorschlaege).
+Geschrieben ueber update_field() (F-011). POST /cases/{id}/sharpen fuellt sie,
+/sharpen/accept traegt den Draft nach sharpened_content_json und leert die
+Spalte, /sharpen/reject leert sie. Dieselbe PRAGMA-Migrationsstrategie wie
+embedding/status/architecture_sketch. Liegt in der Case-Zeile -> DSGVO-
+Loesch-Kaskade greift automatisch.
+
 monitoring_entries (Monitoring-ADR): EIGENE append-only Tabelle (nicht eine
 JSON-Spalte am Case -- das haette dasselbe Lost-Update-Risiko wie die per-Feld-
 UPDATEs, F-011). Nur INSERT + SELECT; die einzige Loeschung ist die DSGVO-
@@ -101,7 +109,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     decided_at              TEXT,
     status                  TEXT NOT NULL DEFAULT 'submitted',
     status_updated_at       TEXT,
-    architecture_sketch     TEXT
+    architecture_sketch     TEXT,
+    sharpening_draft        TEXT
 )
 """
 
@@ -127,15 +136,15 @@ _INSERT_SQL = (
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "architecture_sketch, sharpening_draft) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch "
+    "architecture_sketch, sharpening_draft "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -143,7 +152,7 @@ _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch "
+    "architecture_sketch, sharpening_draft "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -163,6 +172,9 @@ _UPDATE_FIELD_SQL: dict[str, str] = {
     "embedding": "UPDATE submitted_cases SET embedding = ? WHERE id = ?",
     "architecture_sketch": (
         "UPDATE submitted_cases SET architecture_sketch = ? WHERE id = ?"
+    ),
+    "sharpening_draft": (
+        "UPDATE submitted_cases SET sharpening_draft = ? WHERE id = ?"
     ),
 }
 
@@ -335,7 +347,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (14-Tupel) -> SubmittedCase."""
+    """SQLite-Row (15-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -351,6 +363,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         status_str,
         status_updated_at_str,
         architecture_sketch,
+        sharpening_draft,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -385,6 +398,9 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         ),
         architecture_sketch=(
             str(architecture_sketch) if architecture_sketch is not None else None
+        ),
+        sharpening_draft=(
+            str(sharpening_draft) if sharpening_draft is not None else None
         ),
     )
 
@@ -465,6 +481,10 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN architecture_sketch TEXT"
                 )
+            if "sharpening_draft" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN sharpening_draft TEXT"
+                )
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
@@ -499,6 +519,7 @@ class SQLiteRepository:
                     case.status.value,
                     status_updated_at_str,
                     case.architecture_sketch,
+                    case.sharpening_draft,
                 ),
             )
 

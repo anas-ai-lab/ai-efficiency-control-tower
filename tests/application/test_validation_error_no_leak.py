@@ -29,7 +29,13 @@ class TestValidationErrorRedaction:
                 "sharpened_title": "Ein ausreichend langer Titel",
                 "sharpened_current_state": "Ist-Zustand mit mehr als dreissig Zeichen.",
                 "sharpened_desired_state": "Soll-Zustand mit mehr als dreissig Zeichen.",
-                "improvement_suggestions": ["Konkreter Vorschlag."],
+                "improvement_suggestions": [
+                    {
+                        "bezugsfeld": "notes",
+                        "vorschlag": "Konkreter Vorschlag.",
+                        "hebel": "ROI steigt.",
+                    }
+                ],
                 "leak_field": _SENTINEL,
             }
         )

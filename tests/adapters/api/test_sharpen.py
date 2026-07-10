@@ -1,6 +1,12 @@
-"""Integrations-Tests fuer POST /cases/{case_id}/sharpen."""
+"""Integrations-Tests fuer den Schaerfungs-Flow (V4).
+
+POST /cases/{id}/sharpen (Draft) + /sharpen/accept + /sharpen/reject, plus
+Zahlen-Guard (422 bei erfundenen Zahlen).
+"""
 
 from __future__ import annotations
+
+import json
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -13,6 +19,7 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
+from aect.application.ports.llm import LLMMessage, LLMResponse, ToolDefinition
 from aect.application.service import TriageService
 from aect.domain.roi import load_roi_config
 
@@ -50,22 +57,64 @@ _VALID_PAYLOAD: dict = {
 }
 
 
-def _make_app() -> FastAPI:
-    """Repository ausserhalb der Lambda -- State muss zwischen 'Case anlegen'
-    und 'Case schaerfen' (zwei Requests) erhalten bleiben. Gleiche Begruendung
-    wie in test_idempotency.py._make_idempotency_app."""
+class _InventsNumbersLLM(MockLLMAdapter):
+    """Liefert schema-valide Schaerfung, erfindet aber im Ist-Zustand eine Zahl
+    (999), die nirgends in der Eingabe steht -- loest den Zahlen-Guard aus."""
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        if any("sharpened_title" in m.content for m in messages):
+            return LLMResponse(
+                content=json.dumps(
+                    {
+                        "sharpened_title": "[mock] Erfundene Zahl",
+                        "sharpened_current_state": (
+                            "Der Prozess bindet exakt 999 Stunden pro Jahr und "
+                            "ist reine Routine im Team."
+                        ),
+                        "sharpened_desired_state": (
+                            "Ein AI-System uebernimmt die Routine qualitativ und "
+                            "ohne weitere numerische Angabe im Text."
+                        ),
+                        "improvement_suggestions": [
+                            {
+                                "bezugsfeld": "evidence_level",
+                                "vorschlag": "Belege die Ersparnis mit Messung.",
+                                "hebel": "Evidenzfaktor steigt.",
+                            }
+                        ],
+                    }
+                )
+            )
+        return await super().complete(messages, tools)
+
+
+def _make_app(llm: object | None = None) -> FastAPI:
+    """Repository ausserhalb der Lambda -- State muss zwischen den Requests
+    erhalten bleiben (analog test_idempotency.py)."""
     app = create_app()
     repository = InMemoryRepository()
+    resolved_llm = llm if llm is not None else MockLLMAdapter()
     app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
     app.dependency_overrides[get_triage_service] = lambda: TriageService(
         repository=repository,
         clock=SystemClock(),
         id_generator=UUIDGenerator(),
         roi_config=load_roi_config(),
-        llm=MockLLMAdapter(),
+        llm=resolved_llm,
         retriever=MockRetriever(),
     )
     return app
+
+
+async def _create_case(client: AsyncClient) -> str:
+    created = await client.post(
+        "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+    )
+    return str(created.json()["id"])
 
 
 async def test_sharpen_without_key_returns_401() -> None:
@@ -87,30 +136,145 @@ async def test_sharpen_unknown_case_returns_404() -> None:
     assert response.status_code == 404
 
 
-async def test_sharpen_existing_case_returns_original_and_sharpened() -> None:
+async def test_sharpen_existing_case_returns_draft() -> None:
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        created = await client.post(
-            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
-        )
-        case_id = created.json()["id"]
-
+        case_id = await _create_case(client)
         response = await client.post(
-            f"/cases/{case_id}/sharpen",
-            headers={"X-API-Key": TEST_API_KEY},
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
         )
 
     assert response.status_code == 200
     data = response.json()
     assert data["case_id"] == case_id
     assert data["original_title"] == _VALID_PAYLOAD["title"]
-    assert data["prompt_version"] == "v2"
-    assert data["sharpened_title"] is None
-    assert data["improvement_suggestions"] == []
-    assert "[mock-response]" in data["raw_text"]
-    assert _VALID_PAYLOAD["title"] in data["raw_text"]
+    assert data["prompt_version"] == "v3"
+    # Erfolgs-Form: geschaerfte Felder gesetzt, Vorschlaege mit Feldbezug + Hebel.
+    assert data["sharpened_title"].startswith("[mock]")
+    assert len(data["improvement_suggestions"]) >= 1
+    first = data["improvement_suggestions"][0]
+    assert set(first) == {"bezugsfeld", "vorschlag", "hebel"}
+    assert first["bezugsfeld"] == "evidence_level"
+    # Diff-tauglich: Original steht feldweise neben der geschaerften Fassung.
+    assert data["original_current_state"] == _VALID_PAYLOAD["current_state"]
+
+
+async def test_sharpen_draft_does_not_appear_in_report_until_accept() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await client.post(
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert report.json()["business_summary"]["sharpened_text"] is None
+
+
+async def test_sharpen_accept_applies_draft() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await client.post(
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
+        )
+        accept = await client.post(
+            f"/cases/{case_id}/sharpen/accept", headers={"X-API-Key": TEST_API_KEY}
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert accept.status_code == 200
+    assert accept.json() == {"case_id": case_id, "status": "accepted"}
+    sharpened_text = report.json()["business_summary"]["sharpened_text"]
+    assert sharpened_text is not None
+    assert "[mock]" in sharpened_text
+
+
+async def test_sharpen_reject_discards_draft() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await client.post(
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
+        )
+        reject = await client.post(
+            f"/cases/{case_id}/sharpen/reject", headers={"X-API-Key": TEST_API_KEY}
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert reject.status_code == 200
+    assert reject.json()["status"] == "rejected"
+    assert report.json()["business_summary"]["sharpened_text"] is None
+
+
+async def test_accept_without_draft_returns_409() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        response = await client.post(
+            f"/cases/{case_id}/sharpen/accept", headers={"X-API-Key": TEST_API_KEY}
+        )
+    assert response.status_code == 409
+
+
+async def test_reject_without_draft_returns_409() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        response = await client.post(
+            f"/cases/{case_id}/sharpen/reject", headers={"X-API-Key": TEST_API_KEY}
+        )
+    assert response.status_code == 409
+
+
+async def test_accept_unknown_case_returns_404() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/cases/does-not-exist/sharpen/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 404
+
+
+async def test_sharpen_invented_numbers_returns_422_with_violations() -> None:
+    app = _make_app(llm=_InventsNumbersLLM())
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        response = await client.post(
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
+        )
+        # Nichts uebernommen: der Report zeigt weiterhin keine Schaerfung.
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["reason"] == "invented_numbers"
+    assert "999" in detail["violations"]
+    assert report.json()["business_summary"]["sharpened_text"] is None
 
 
 async def test_sharpen_with_injection_payload_still_returns_200() -> None:
@@ -129,12 +293,9 @@ async def test_sharpen_with_injection_payload_still_returns_200() -> None:
             "/triage", json=payload, headers={"X-API-Key": TEST_API_KEY}
         )
         case_id = created.json()["id"]
-
         response = await client.post(
-            f"/cases/{case_id}/sharpen",
-            headers={"X-API-Key": TEST_API_KEY},
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
         )
 
     assert response.status_code == 200
-    data = response.json()
-    assert "[mock-response]" in data["raw_text"]
+    assert response.json()["sharpened_title"].startswith("[mock]")

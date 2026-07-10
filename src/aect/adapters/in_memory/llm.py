@@ -10,14 +10,46 @@ from aect.application.ports.llm import (
 )
 from aect.application.structured_output import (
     ArchitectureSketch,
+    CaseField,
     IdeationDraft,
     IdeationResult,
+    ImprovementSuggestion,
+    SharpenedContentV2,
     SketchEdge,
     SketchNode,
     SketchNodeKind,
 )
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
+
+# Deterministische, schema-valide Schaerfung fuer Tests (V4). Die drei
+# Beschreibungs-Felder sind bewusst ZAHLENFREI -- so verletzt der Mock nie den
+# Zahlen-Guard (domain/sharpening_guard), unabhaengig vom Case. Der "[mock]"-
+# Marker macht die Herkunft in Assertions sichtbar.
+_SHARPENING_MOCK_JSON = SharpenedContentV2(
+    sharpened_title="[mock] Geschaerfte Fassung des Use Case",
+    sharpened_current_state=(
+        "Der beschriebene Prozess laeuft heute manuell und bindet spuerbar "
+        "Kapazitaet im zustaendigen Team."
+    ),
+    sharpened_desired_state=(
+        "Ein AI-System uebernimmt die wiederkehrende Routine und legt nur "
+        "Zweifelsfaelle einem Menschen zur Pruefung vor."
+    ),
+    improvement_suggestions=[
+        ImprovementSuggestion(
+            bezugsfeld=CaseField.EVIDENCE_LEVEL,
+            vorschlag=(
+                "Belege die Zeitersparnis mit einer kurzen Vorher-Nachher-"
+                "Messung an echten Vorgaengen."
+            ),
+            hebel=(
+                "Evidenzfaktor steigt, der erwartete Nutzen wird im ROI hoeher "
+                "gewichtet."
+            ),
+        )
+    ],
+).model_dump_json()
 
 
 class MockLLMAdapter:
@@ -52,6 +84,13 @@ class MockLLMAdapter:
                     ToolCall(id=_MOCK_TOOL_CALL_ID, name=tools[0].name, arguments={})
                 ],
             )
+
+        # Schaerfungs-Aufruf erkennen: der sharpen-System-Prompt beschreibt das
+        # JSON-Schema und traegt daher "sharpened_title". Dann liefert der Mock
+        # eine schema-valide, zahlenfreie Schaerfung statt eines Echos (der
+        # Echo waere kein JSON und wuerde den neuen Fail-loud-Pfad ausloesen).
+        if any("sharpened_title" in m.content for m in messages):
+            return LLMResponse(content=_SHARPENING_MOCK_JSON)
 
         last_user = next(
             (m.content for m in reversed(messages) if m.role == "user"),

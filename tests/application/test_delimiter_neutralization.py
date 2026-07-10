@@ -113,8 +113,8 @@ class TestSharpenAssemblesSafePrompt:
 
         user_msg = next(m.content for m in recording.captured[0] if m.role == "user")
         # Der injizierte <<<END_DATA>>>-Marker ist neutralisiert -> kein
-        # zusaetzlicher Marker gegenueber dem Template.
-        template = load_prompt("sharpen_use_case", "user", "v2")
+        # zusaetzlicher Marker gegenueber dem Template. Der Service laedt v3.
+        template = load_prompt("sharpen_use_case", "user", "v3")
         assert user_msg.count("<<<END_DATA>>>") == template.count("<<<END_DATA>>>")
         # Die injizierte SYSTEM:-Zeile bleibt INNERHALB der Datenregion
         # (vor dem abschliessenden Marker), statt sie vorzeitig zu schliessen.

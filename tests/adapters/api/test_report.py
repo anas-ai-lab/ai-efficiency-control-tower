@@ -205,7 +205,9 @@ async def test_report_rejects_unknown_field() -> None:
     assert response.status_code == 422
 
 
-async def test_report_uses_persisted_sharpened_text_after_sharpen_call() -> None:
+async def test_report_uses_persisted_sharpened_text_after_accept() -> None:
+    # V4-Draft-Flow: /sharpen erzeugt nur einen Entwurf; erst /sharpen/accept
+    # macht die geschaerfte Fassung im Report sichtbar.
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -219,6 +221,10 @@ async def test_report_uses_persisted_sharpened_text_after_sharpen_call() -> None
             f"/cases/{case_id}/sharpen",
             headers={"X-API-Key": TEST_API_KEY},
         )
+        await client.post(
+            f"/cases/{case_id}/sharpen/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
 
         response = await client.post(
             f"/cases/{case_id}/report",
@@ -229,7 +235,7 @@ async def test_report_uses_persisted_sharpened_text_after_sharpen_call() -> None
     data = response.json()
     sharpened = data["business_summary"]["sharpened_text"]
     assert sharpened is not None
-    assert "[mock-response]" in sharpened
+    assert "[mock]" in sharpened
 
 
 async def test_report_uses_persisted_proposal_text_after_propose_solution_call() -> (

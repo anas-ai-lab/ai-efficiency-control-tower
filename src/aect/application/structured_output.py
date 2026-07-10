@@ -34,22 +34,71 @@ class InvalidLLMOutputError(Exception):
     """
 
 
-_ImprovementSuggestion = Annotated[str, Field(min_length=5, max_length=500)]
+class CaseField(StrEnum):
+    """Bezugsfeld eines Verbesserungsvorschlags (V4, Hebel-Pflicht).
+
+    Werte = exakte UseCaseInput-Feldnamen (domain/models.py) -- so kann das
+    Frontend (V4-P7) einen Vorschlag direkt einem Formularfeld zuordnen und der
+    Prompt kann die erlaubten Werte aufzaehlen. Ein Vorschlag muss benennen,
+    WELCHES Feld er betrifft (kein generischer Beratungssatz ohne Feldbezug).
+
+    Kein Config-Key -> gehoert NICHT in domain/types.py (dort liegt der StrEnum-
+    Anker ausschliesslich fuer TOML-Config-Keys, siehe SketchNodeKind). Teil des
+    LLM-Output-Schemas, lebt daher bei den uebrigen Schema-Typen.
+    """
+
+    TITLE = "title"
+    CURRENT_STATE = "current_state"
+    DESIRED_STATE = "desired_state"
+    EXAMPLE_PROCESS = "example_process"
+    DESIRED_EXAMPLE_PROCESS = "desired_example_process"
+    TIME_SAVINGS = "time_savings_hours_per_case"
+    FREQUENCY = "frequency_per_year"
+    AFFECTED_EMPLOYEES = "affected_employees_count"
+    EMPLOYEE_CATEGORY = "employee_category"
+    EVIDENCE_LEVEL = "evidence_level"
+    ADOPTION_TYPE = "adoption_type"
+    IMPLEMENTATION_APPROACH = "implementation_approach"
+    IMPLEMENTATION_COMPLEXITY = "implementation_complexity"
+    ESTIMATED_LICENSE_COST = "estimated_license_cost_eur"
+    IMPLEMENTATION_COST = "implementation_cost_eur"
+    DATA_CLASSIFICATION = "data_classification"
+    NOTES = "notes"
+
+
+class ImprovementSuggestion(BaseModel):
+    """Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
+
+    Ersetzt die frueheren generischen Beratungs-Floskeln (freier String). Jeder
+    Vorschlag muss dreiteilig sein:
+      bezugsfeld: welches Case-Feld er betrifft (CaseField),
+      vorschlag:  die konkrete, umsetzbare Massnahme,
+      hebel:      welche Bewertungsgroesse sich wie veraendert (z. B.
+                  "Evidenzfaktor steigt von 0,40 auf 0,90").
+
+    Fehlt bezugsfeld oder hebel, ist das ein Schema-Fehler -- die Retry-/Fail-
+    Mechanik in sharpen_case() (application/service.py) greift dann analog zum
+    Zahlen-Guard.
+
+    extra="forbid"/frozen=True analog den uebrigen Schema-Typen.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    bezugsfeld: CaseField
+    vorschlag: str = Field(min_length=5, max_length=500)
+    hebel: str = Field(min_length=5, max_length=300)
 
 
 class SharpenedContentV2(BaseModel):
-    """Strukturierte Schaerfung (ADR-0013, Teil 1/2 -- noch nicht verdrahtet).
-
-    Ersetzt perspektivisch SharpenedUseCase.sharpened_text: str (Teil 2,
-    Breaking Change auf SubmittedCase/SQLite/API-Response, eigener Tag).
+    """Strukturierte Schaerfung (ADR-0013 Teil 2, erweitert V4).
 
     Feld-Bounds orientieren sich an UseCaseInput (domain/models.py):
     sharpened_title analog title (5-200), sharpened_current_state/
     sharpened_desired_state analog current_state/desired_state (30-2000).
 
-    improvement_suggestions deckt die Projekt-Anforderung ("konkrete
-    Verbesserungsvorschlaege") ab -- max_length=10 begrenzt die Liste selbst
-    gegen Token-Flooding (LLM10), je 5-500 Zeichen pro Eintrag.
+    improvement_suggestions: max. 3 Eintraege (V4, Hebel-Pflicht -- Fokus statt
+    Floskel-Liste), je ein ImprovementSuggestion mit bezugsfeld/vorschlag/hebel.
 
     extra="forbid": unerwartete Felder im LLM-Output sind ein
     Validierungsfehler, kein stiller Datenverlust (OWASP LLM10).
@@ -61,8 +110,8 @@ class SharpenedContentV2(BaseModel):
     sharpened_title: str = Field(min_length=5, max_length=200)
     sharpened_current_state: str = Field(min_length=30, max_length=2000)
     sharpened_desired_state: str = Field(min_length=30, max_length=2000)
-    improvement_suggestions: list[_ImprovementSuggestion] = Field(
-        min_length=1, max_length=10
+    improvement_suggestions: list[ImprovementSuggestion] = Field(
+        min_length=1, max_length=3
     )
 
 

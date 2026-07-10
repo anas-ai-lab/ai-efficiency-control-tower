@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 from pathlib import Path
 
 from aect.adapters.sqlite.repository import SQLiteRepository
@@ -41,12 +42,37 @@ class _SequentialIdGenerator:
         return f"id-{self._counter:03d}"
 
 
+_SHARPEN_JSON = json.dumps(
+    {
+        "sharpened_title": "[mock] Parallel geschaerft",
+        "sharpened_current_state": (
+            "Ein zahlenfreier Ist-Zustand mit ausreichend Zeichen fuer das Schema."
+        ),
+        "sharpened_desired_state": (
+            "Ein zahlenfreier Soll-Zustand mit ausreichend Zeichen fuer das Schema."
+        ),
+        "improvement_suggestions": [
+            {
+                "bezugsfeld": "evidence_level",
+                "vorschlag": "Belege die Zeitersparnis mit einer Messung.",
+                "hebel": "Evidenzfaktor steigt.",
+            }
+        ],
+    }
+)
+
+
 class _RendezvousLLMAdapter:
     """Antwortet erst, wenn BEIDE parallelen complete()-Calls angekommen sind.
 
     Erzwingt deterministisch die Interleaving-Reihenfolge des Audits:
     beide Service-Methoden haben den Case bereits gelesen, bevor eine
     von beiden ihr Ergebnis persistiert.
+
+    Fuer den Schaerfungs-Aufruf (System-Prompt traegt "sharpened_title")
+    liefert der Adapter schema-valides, zahlenfreies JSON -- sonst laeuft
+    sharpen_case() in den Fail-loud-Pfad. Fuer propose_solution() bleibt es
+    die schlichte Text-Antwort "parallel-antwort".
     """
 
     def __init__(self, expected_calls: int = 2) -> None:
@@ -63,6 +89,8 @@ class _RendezvousLLMAdapter:
         if self._arrived >= self._expected:
             self._all_arrived.set()
         await asyncio.wait_for(self._all_arrived.wait(), timeout=5.0)
+        if any("sharpened_title" in m.content for m in messages):
+            return LLMResponse(content=_SHARPEN_JSON, tool_calls=None)
         return LLMResponse(content="parallel-antwort", tool_calls=None)
 
 
@@ -96,7 +124,9 @@ async def test_parallel_sharpen_and_propose_keep_both_narratives(
     assert loaded is not None
     # Vor F-011 gewann der langsamere save() und loeschte das Feld der
     # anderen Operation -- genau eines der beiden Felder war wieder None.
-    assert loaded.sharpened_content_json is not None
+    # sharpen schreibt jetzt sharpening_draft (Draft-Flow), propose weiterhin
+    # proposal_text -- verschiedene Spalten, kein Lost Update.
+    assert loaded.sharpening_draft is not None
     assert loaded.proposal_text == "parallel-antwort"
 
 

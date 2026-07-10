@@ -23,9 +23,11 @@ from aect.application.ports.llm import (
 from aect.application.ports.retriever import RetrievedChunk
 from aect.application.service import (
     CaseNotFoundError,
+    SharpeningNumberViolationError,
     TriageService,
     _strip_dangling_citation_markers,
 )
+from aect.application.structured_output import InvalidLLMOutputError
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
 from aect.domain.types import CaseStatus, DataClassification, ReviewerDecision
@@ -88,31 +90,64 @@ def _make_service(
     return service, repo
 
 
+def _valid_sharpen_json(
+    *,
+    current_state: str = (
+        "Ein praeziser Ist-Zustand, ausreichend lang und ganz ohne Zahlen "
+        "oder Zahlwoerter formuliert."
+    ),
+    desired_state: str = (
+        "Ein praeziser Soll-Zustand, qualitativ und ausreichend lang, ohne "
+        "jede numerische Angabe im Text."
+    ),
+) -> str:
+    """Schema-konformes, standardmaessig zahlenfreies SharpenedContentV2-JSON.
+
+    current_state/desired_state ueberschreibbar, um dem Zahlen-Guard gezielt
+    eine erfundene Zahl unterzuschieben (Retry-/Fail-Tests)."""
+    return json.dumps(
+        {
+            "sharpened_title": "Geschaerfter Titel",
+            "sharpened_current_state": current_state,
+            "sharpened_desired_state": desired_state,
+            "improvement_suggestions": [
+                {
+                    "bezugsfeld": "evidence_level",
+                    "vorschlag": "Belege die Zeitersparnis mit einer Messung.",
+                    "hebel": "Evidenzfaktor steigt von 0,40 auf 0,90.",
+                }
+            ],
+        }
+    )
+
+
 class _SharpenSuccessLLM(MockLLMAdapter):
-    """complete() liefert schema-konformes SharpenedContentV2-JSON -- deckt den
-    Erfolgs-Zweig von parse_structured_llm_output ab (H-020), den der
-    Default-Mock (Echo, kein JSON) nie erreicht. Additiv, aendert den
-    Default-Mock nicht (die Degradation-Tests bleiben unberuehrt)."""
+    """complete() liefert schema-konformes, zahlenfreies SharpenedContentV2-JSON
+    -- deckt den Erfolgs-Zweig ab. Additiv, aendert den Default-Mock nicht."""
 
     async def complete(
         self,
         messages: list[LLMMessage],
         tools: list[ToolDefinition] | None = None,
     ) -> LLMResponse:
-        return LLMResponse(
-            content=json.dumps(
-                {
-                    "sharpened_title": "Geschaerfter Titel",
-                    "sharpened_current_state": (
-                        "Ein praeziser Ist-Zustand mit deutlich mehr als 30 Zeichen."
-                    ),
-                    "sharpened_desired_state": (
-                        "Ein praeziser Soll-Zustand mit deutlich mehr als 30 Zeichen."
-                    ),
-                    "improvement_suggestions": ["Konkreter Verbesserungsvorschlag."],
-                }
-            )
-        )
+        return LLMResponse(content=_valid_sharpen_json())
+
+
+class _ScriptedLLM:
+    """Gibt bei jedem complete()-Aufruf den naechsten Content aus einer Liste
+    zurueck -- macht Retry-/Fail-Pfade der Schaerfung deterministisch pruefbar."""
+
+    def __init__(self, contents: list[str]) -> None:
+        self._iter = iter(contents)
+        self.calls = 0
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+    ) -> LLMResponse:
+        self.calls += 1
+        return LLMResponse(content=next(self._iter))
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +213,7 @@ class TestTriageServiceSharpen:
     async def test_sharpen_existing_case_returns_sharpened_use_case(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
+        # Default-Mock liefert schema-valide, zahlenfreie Schaerfung.
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
@@ -186,15 +222,13 @@ class TestTriageServiceSharpen:
         assert sharpened is not None
         assert sharpened.case_id == case.id
         assert sharpened.original_title == sample_use_case.title
-        assert sharpened.prompt_version == "v2"
-        assert sharpened.raw_text is not None
-        assert "[mock-response]" in sharpened.raw_text
+        assert sharpened.prompt_version == "v3"
+        assert sharpened.sharpened_title.startswith("[mock]")
 
     async def test_sharpen_success_path_sets_structured_fields(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        # H-020: schema-konformes LLM-JSON -> strukturierte Felder gesetzt,
-        # raw_text None (Erfolgs-Zweig, nicht Graceful Degradation).
+        # Schema-konformes LLM-JSON -> strukturierte Felder + Vorschlaege gesetzt.
         service, _ = _make_service(roi_config, llm=_SharpenSuccessLLM())
         case = service.submit_use_case(sample_use_case)
 
@@ -203,10 +237,10 @@ class TestTriageServiceSharpen:
         assert sharpened is not None
         assert sharpened.sharpened_title == "Geschaerfter Titel"
         assert sharpened.sharpened_current_state is not None
-        assert sharpened.improvement_suggestions == (
-            "Konkreter Verbesserungsvorschlag.",
-        )
-        assert sharpened.raw_text is None
+        assert len(sharpened.improvement_suggestions) == 1
+        suggestion = sharpened.improvement_suggestions[0]
+        assert suggestion.bezugsfeld.value == "evidence_level"
+        assert suggestion.hebel != ""
 
     async def test_sharpen_nonexistent_case_returns_none(
         self, roi_config: ROIConfig
@@ -251,8 +285,7 @@ class TestTriageServiceSharpenInjectionDetection:
             sharpened = await service.sharpen_case(case.id)
 
         assert sharpened is not None
-        assert sharpened.raw_text is not None
-        assert "[mock-response]" in sharpened.raw_text
+        assert sharpened.sharpened_title.startswith("[mock]")
 
         warnings = [log for log in logs if log["event"] == "injection_pattern_detected"]
         assert len(warnings) == 1
@@ -448,9 +481,10 @@ class TestTriageServiceProposeSolutionNoToolCall:
 
 
 class TestTriageServiceSharpenPersistence:
-    """Belegt ADR-0012: sharpen_case() persistiert das Ergebnis auf SubmittedCase."""
+    """Belegt den V4-Draft-Flow: sharpen_case() persistiert als sharpening_draft,
+    ueberschreibt NICHT sharpened_content_json (erst accept traegt es dorthin)."""
 
-    async def test_sharpen_persists_text_on_case(
+    async def test_sharpen_persists_draft_not_active_field(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, repo = _make_service(roi_config)
@@ -460,8 +494,55 @@ class TestTriageServiceSharpenPersistence:
 
         stored = repo.get(case.id)
         assert stored is not None
-        assert stored.sharpened_content_json is not None
-        assert "[mock-response]" in stored.sharpened_content_json
+        assert stored.sharpening_draft is not None
+        assert "[mock]" in stored.sharpening_draft
+        # Der Draft ueberschreibt das regulaere Feld noch NICHT.
+        assert stored.sharpened_content_json is None
+
+    async def test_accept_moves_draft_into_active_field(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+
+        updated = await service.accept_sharpening(case.id)
+
+        assert updated is not None
+        assert updated.sharpened_content_json is not None
+        assert "[mock]" in updated.sharpened_content_json
+        # Draft ist nach Uebernahme geleert.
+        assert updated.sharpening_draft is None
+
+    async def test_reject_clears_draft_without_touching_active_field(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+
+        updated = await service.reject_sharpening(case.id)
+
+        assert updated is not None
+        assert updated.sharpening_draft is None
+        assert updated.sharpened_content_json is None
+
+    async def test_accept_without_draft_raises(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        from aect.application.service import NoSharpeningDraftError
+
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(NoSharpeningDraftError):
+            await service.accept_sharpening(case.id)
+
+    async def test_accept_unknown_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        assert await service.accept_sharpening("does-not-exist") is None
 
     async def test_proposal_text_remains_none_after_sharpen_only(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -476,123 +557,155 @@ class TestTriageServiceSharpenPersistence:
         assert stored.proposal_text is None
 
 
-class _StructuredSharpenLLMAdapter:
-    """Liefert valides SharpenedContentV2-JSON -- belegt den Erfolgspfad von
-    ADR-0013 Teil 2. Der Graceful-Degradation-Pfad wird bereits durch
-    MockLLMAdapter (Echo, kein JSON) in TestTriageServiceSharpen abgedeckt."""
-
-    async def complete(
-        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
-    ) -> LLMResponse:
-        content = json.dumps(
-            {
-                "sharpened_title": (
-                    "Automatisierte Rechnungsverarbeitung mit OCR-Erkennung"
-                ),
-                "sharpened_current_state": (
-                    "Mitarbeiter im Finance-Team scannen Rechnungen manuell "
-                    "und uebertragen Daten per Hand in SAP, ca. 15 Minuten "
-                    "pro Vorgang."
-                ),
-                "sharpened_desired_state": (
-                    "Ein KI-System liest Rechnungen automatisch aus und "
-                    "befuellt SAP direkt, Ziel unter 2 Minuten pro Vorgang."
-                ),
-                "improvement_suggestions": [
-                    "Lege Eskalationsregeln fuer Erkennungsfehler fest.",
-                ],
-            }
-        )
-        return LLMResponse(content=content)
-
-
 class TestTriageServiceSharpenStructuredOutput:
-    """Belegt ADR-0013 Teil 2 Erfolgspfad: valides JSON -> strukturierte
-    Felder gesetzt, raw_text None, keine Validierungs-Warnung."""
+    """Belegt den Erfolgspfad: valides, zahlenfreies JSON -> strukturierte
+    Felder + Vorschlaege gesetzt, keine Retry-Warnung."""
+
+    def _service(
+        self, roi_config: ROIConfig
+    ) -> tuple[TriageService, InMemoryRepository]:
+        return _make_service(roi_config, llm=_SharpenSuccessLLM())
 
     async def test_valid_structured_response_populates_fields(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        repo = InMemoryRepository()
-        service = TriageService(
-            repository=repo,
-            clock=_FakeClock(),
-            id_generator=_FakeIdGenerator(ids=["id-001"]),
-            roi_config=roi_config,
-            retriever=MockRetriever(),
-            llm=_StructuredSharpenLLMAdapter(),
-        )
+        service, _ = self._service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
         sharpened = await service.sharpen_case(case.id)
 
         assert sharpened is not None
-        assert sharpened.sharpened_title is not None
+        assert sharpened.sharpened_title == "Geschaerfter Titel"
         assert sharpened.sharpened_current_state is not None
         assert sharpened.sharpened_desired_state is not None
         assert len(sharpened.improvement_suggestions) == 1
-        assert sharpened.raw_text is None
-        assert sharpened.prompt_version == "v2"
+        assert sharpened.prompt_version == "v3"
 
-    async def test_valid_structured_response_does_not_log_warning(
+    async def test_valid_structured_response_does_not_retry(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        repo = InMemoryRepository()
-        service = TriageService(
-            repository=repo,
-            clock=_FakeClock(),
-            id_generator=_FakeIdGenerator(ids=["id-001"]),
-            roi_config=roi_config,
-            retriever=MockRetriever(),
-            llm=_StructuredSharpenLLMAdapter(),
-        )
+        service, _ = self._service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
         with capture_logs() as logs:
             await service.sharpen_case(case.id)
 
-        warnings = [
-            log for log in logs if log["event"] == "structured_output_validation_failed"
-        ]
-        assert warnings == []
+        retries = [log for log in logs if log["event"] == "sharpening_guard_retry"]
+        assert retries == []
 
 
-class TestTriageServiceSharpenGracefulDegradation:
-    """Belegt ADR-0013 Teil 2 Degradation-Pfad: MockLLMAdapter liefert kein
-    valides JSON -> raw_text gesetzt, strukturierte Felder None/leer,
-    Validierungs-Warnung geloggt, kein Crash."""
+class TestTriageServiceSharpenNumberGuard:
+    """Belegt den V4-Zahlen-Guard: erfundene Zahlen loesen Retry aus, dann Fail."""
 
-    async def test_invalid_json_falls_back_to_raw_text(
+    async def test_invented_number_triggers_retry_then_succeeds(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        service, _ = _make_service(roi_config)
+        # Erster Versuch erfindet "20 Minuten" (nicht in der Eingabe), Retry ist
+        # sauber -> Draft wird gespeichert, genau ein Retry.
+        llm = _ScriptedLLM(
+            [
+                _valid_sharpen_json(
+                    current_state=(
+                        "Der Vorgang dauert 20 Minuten und bindet Kapazitaet "
+                        "im Team, deutlich mehr als noetig."
+                    )
+                ),
+                _valid_sharpen_json(),
+            ]
+        )
+        service, repo = _make_service(roi_config, llm=llm)
         case = service.submit_use_case(sample_use_case)
 
-        sharpened = await service.sharpen_case(case.id)
+        with capture_logs() as logs:
+            sharpened = await service.sharpen_case(case.id)
 
         assert sharpened is not None
-        assert sharpened.sharpened_title is None
-        assert sharpened.sharpened_current_state is None
-        assert sharpened.sharpened_desired_state is None
-        assert sharpened.improvement_suggestions == ()
-        assert sharpened.raw_text is not None
-        assert "[mock-response]" in sharpened.raw_text
+        assert llm.calls == 2
+        retries = [log for log in logs if log["event"] == "sharpening_guard_retry"]
+        assert len(retries) == 1
+        assert retries[0]["reason"] == "numbers"
+        assert "20" in retries[0]["violations"]
+        stored = repo.get(case.id)
+        assert stored is not None and stored.sharpening_draft is not None
 
-    async def test_invalid_json_logs_validation_warning(
+    async def test_persistent_invented_numbers_raise_after_retry(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        service, _ = _make_service(roi_config)
+        # Beide Versuche erfinden dieselbe Zahl -> harter Fehler, nichts gespeichert.
+        bad = _valid_sharpen_json(
+            current_state=(
+                "Der Vorgang spart 4.200 EUR pro Jahr und ist ein klarer "
+                "Business-Case fuer das Team."
+            )
+        )
+        llm = _ScriptedLLM([bad, bad])
+        service, repo = _make_service(roi_config, llm=llm)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(SharpeningNumberViolationError) as exc_info:
+            await service.sharpen_case(case.id)
+
+        assert "4200" in exc_info.value.violations
+        assert llm.calls == 2
+        stored = repo.get(case.id)
+        assert stored is not None and stored.sharpening_draft is None
+
+    async def test_cost_logged_for_both_attempts_on_retry(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        llm = _ScriptedLLM(
+            [
+                _valid_sharpen_json(
+                    current_state=(
+                        "Der Vorgang dauert 20 Minuten und ist reine Routine, "
+                        "die sich automatisieren laesst."
+                    )
+                ),
+                _valid_sharpen_json(),
+            ]
+        )
+        service, _ = _make_service(roi_config, llm=llm)
         case = service.submit_use_case(sample_use_case)
 
         with capture_logs() as logs:
             await service.sharpen_case(case.id)
 
-        warnings = [
-            log for log in logs if log["event"] == "structured_output_validation_failed"
-        ]
-        assert len(warnings) == 1
-        assert warnings[0]["case_id"] == case.id
-        assert warnings[0]["operation"] == "sharpen_case"
+        cost_logs = [log for log in logs if log["event"] == "llm_call_cost"]
+        operations = {log["operation"] for log in cost_logs}
+        assert operations == {"sharpen_case", "sharpen_case_retry"}
+
+
+class TestTriageServiceSharpenSchemaFailLoud:
+    """Belegt Fail loud bei Schema-Verstoss: kein raw_text-Fallback mehr."""
+
+    async def test_invalid_json_twice_raises(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        llm = _ScriptedLLM(["kein json", "immer noch kein json"])
+        service, repo = _make_service(roi_config, llm=llm)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(InvalidLLMOutputError):
+            await service.sharpen_case(case.id)
+
+        assert llm.calls == 2
+        stored = repo.get(case.id)
+        assert stored is not None and stored.sharpening_draft is None
+
+    async def test_schema_error_retries_then_succeeds(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        llm = _ScriptedLLM(["nicht valide", _valid_sharpen_json()])
+        service, _ = _make_service(roi_config, llm=llm)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            sharpened = await service.sharpen_case(case.id)
+
+        assert sharpened is not None
+        retries = [log for log in logs if log["event"] == "sharpening_guard_retry"]
+        assert len(retries) == 1
+        assert retries[0]["reason"] == "schema"
 
 
 class TestTriageServiceProposeSolutionPersistence:
@@ -617,9 +730,25 @@ class TestTriageServiceGenerateReportUsesPersistedText:
     """Belegt ADR-0012: generate_report() liest persistierte Narrative als
     Default, ein explizites Argument ueberschreibt sie."""
 
-    async def test_report_uses_persisted_sharpened_text_without_argument(
+    async def test_report_uses_persisted_sharpened_text_after_accept(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+        await service.accept_sharpening(case.id)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        assert report.business_summary.sharpened_text is not None
+        assert "[mock]" in report.business_summary.sharpened_text
+
+    async def test_report_ignores_unaccepted_draft(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Ein nur geschaerfter (nicht uebernommener) Case zeigt im Report noch
+        # keinen sharpened_text -- der Draft ueberschreibt nichts.
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
         await service.sharpen_case(case.id)
@@ -627,8 +756,7 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         report = service.generate_report(case.id)
 
         assert report is not None
-        assert report.business_summary.sharpened_text is not None
-        assert "[mock-response]" in report.business_summary.sharpened_text
+        assert report.business_summary.sharpened_text is None
 
     async def test_report_uses_persisted_proposal_text_without_argument(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -649,6 +777,7 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
         await service.sharpen_case(case.id)
+        await service.accept_sharpening(case.id)
 
         report = service.generate_report(case.id, sharpened_text="Override-Text")
 

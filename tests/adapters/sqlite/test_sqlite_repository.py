@@ -845,3 +845,69 @@ class TestArchitectureSketchColumn:
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
             }
         assert "architecture_sketch" in columns
+
+
+class TestSharpeningDraftColumn:
+    """V4 (Draft/Accept-Flow): sharpening_draft als nullable Spalte am Case."""
+
+    def test_update_field_persists_and_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        draft_json = json.dumps(
+            {
+                "original": {"title": "x", "current_state": "y", "desired_state": "z"},
+                "sharpened": {
+                    "sharpened_title": "s",
+                    "sharpened_current_state": "sc",
+                    "sharpened_desired_state": "sd",
+                },
+                "improvement_suggestions": [],
+                "prompt_version": "v3",
+                "created_at": "2026-07-10T10:00:00+00:00",
+            }
+        )
+        repo.update_field(sample_case.id, "sharpening_draft", draft_json)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.sharpening_draft == draft_json
+
+    def test_default_is_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.sharpening_draft is None
+
+    def test_clearing_draft_sets_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        repo.update_field(sample_case.id, "sharpening_draft", '{"x": 1}')
+        repo.update_field(sample_case.id, "sharpening_draft", None)
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.sharpening_draft is None
+
+    def test_migration_adds_column_to_old_table(self, db_path: Path) -> None:
+        """Alte DB ohne sharpening_draft-Spalte -> _init_db ergaenzt sie."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL)"
+            )
+
+        SQLiteRepository(db_path)
+
+        with connect(db_path) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
+            }
+        assert "sharpening_draft" in columns

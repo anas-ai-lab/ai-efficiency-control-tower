@@ -64,6 +64,7 @@ from aect.domain import (
     UseCaseInput,
     evaluate_use_case,
 )
+from aect.domain.sharpening_guard import build_allowlist, find_violations
 
 # Canonical Retrieval-Queries fuer Compliance-Hinweise (ADR-0024). Bewusst
 # fest, nicht aus Use-Case-Freitext abgeleitet -- vermeidet jede
@@ -160,6 +161,55 @@ class NoProposalForSketchError(Exception):
         self.case_id = case_id
 
 
+class SharpeningNumberViolationError(Exception):
+    """Die Schaerfung hat Zahlen erfunden, die nicht im Original stehen (V4).
+
+    Wird von sharpen_case() geworfen, wenn der deterministische Zahlen-Guard
+    (domain/sharpening_guard) auch NACH einem Korrektur-Retry noch Zahlen im
+    geschaerften Text findet, die nicht in der Allowlist der Eingabe-Zahlen
+    liegen. Die Route mappt auf HTTP 422 mit der Violation-Liste; nichts wird
+    gespeichert (Projektregel "keine erfundenen Zahlen", Fail loud).
+    """
+
+    def __init__(self, case_id: str, violations: list[str]) -> None:
+        super().__init__(
+            f"Sharpening invented numbers not in the original ({case_id}): "
+            + ", ".join(violations)
+        )
+        self.case_id = case_id
+        self.violations = violations
+
+
+class NoSharpeningDraftError(Exception):
+    """Draft-Aktion (accept/reject) angefordert, aber kein Draft vorhanden (V4).
+
+    accept_sharpening()/reject_sharpening() setzen einen offenen
+    sharpening_draft voraus. Fehlt er (nie geschaerft, oder bereits
+    uebernommen/verworfen), ist das ein typisierter Fehlerfall -- von "Case
+    fehlt" (None -> 404) unterschieden, damit die Route auf 409 mappen kann.
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"No open sharpening draft: {case_id}")
+        self.case_id = case_id
+
+
+def _render_suggestion_line(suggestion: object) -> str:
+    """Rendert einen Verbesserungsvorschlag als lesbare Zeile.
+
+    Neue Form (V4): dict mit bezugsfeld/vorschlag/hebel -> "- vorschlag
+    (Feld: bezugsfeld; Hebel: hebel)". Alt-Form (vor V4, reiner String in
+    persistierten Cases) -> unveraendert als "- <string>" (Rueckwaerts-
+    kompatibel fuer bereits gespeicherte sharpened_content_json).
+    """
+    if isinstance(suggestion, dict):
+        vorschlag = suggestion.get("vorschlag", "")
+        bezugsfeld = suggestion.get("bezugsfeld", "")
+        hebel = suggestion.get("hebel", "")
+        return f"- {vorschlag} (Feld: {bezugsfeld}; Hebel: {hebel})"
+    return f"- {suggestion}"
+
+
 def _render_sharpened_content(content_json: str | None) -> str | None:
     """Rendert den persistierten Schaerfungs-Inhalt zu lesbarem Text.
 
@@ -171,6 +221,8 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     if content_json is None:
         return None
     data = json.loads(content_json)
+    # raw_text: Rueckwaerts-kompatibel fuer vor V4 persistierte Graceful-
+    # Degradation-Cases (der neue Fail-loud-Pfad schreibt nie mehr raw_text).
     if data.get("raw_text") is not None:
         return str(data["raw_text"])
     lines = [
@@ -179,7 +231,7 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
         f"Soll-Zustand: {data['sharpened_desired_state']}",
         "Verbesserungsvorschlaege:",
     ]
-    lines += [f"- {s}" for s in data["improvement_suggestions"]]
+    lines += [_render_suggestion_line(s) for s in data["improvement_suggestions"]]
     return "\n".join(lines)
 
 
@@ -788,8 +840,54 @@ class TriageService:
             return None
         return await self._repository.list_monitoring_entries_async(case_id)
 
+    def _validate_sharpening(
+        self, content: str, allowlist: set[str]
+    ) -> tuple[SharpenedContentV2 | None, InvalidLLMOutputError | None, list[str]]:
+        """Prueft eine rohe LLM-Antwort auf Schema UND erfundene Zahlen.
+
+        Rueckgabe (parsed, schema_error, violations):
+        - Schema verletzt -> (None, InvalidLLMOutputError, []).
+        - Schema ok, aber erfundene Zahlen -> (parsed, None, [Zahlen]).
+        - Sauber -> (parsed, None, []).
+
+        Der Zahlen-Guard laeuft NUR ueber die drei Beschreibungs-Felder
+        (sharpened_title/current_state/desired_state) -- NICHT ueber die
+        improvement_suggestions. Deren hebel darf bewusst Bewertungsgroessen
+        beziffern ("Evidenzfaktor steigt von 0,40 auf 0,90"); das sind
+        Config-/Modell-Werte, keine erfundenen Case-Zahlen.
+        """
+        try:
+            parsed = parse_structured_llm_output(content, SharpenedContentV2)
+        except InvalidLLMOutputError as exc:
+            return None, exc, []
+        guarded_text = "\n".join(
+            (
+                parsed.sharpened_title,
+                parsed.sharpened_current_state,
+                parsed.sharpened_desired_state,
+            )
+        )
+        return parsed, None, find_violations(allowlist, guarded_text)
+
+    @staticmethod
+    def _sharpening_correction(
+        schema_error: InvalidLLMOutputError | None, violations: list[str]
+    ) -> str:
+        """Baut die an den Retry angehaengte Korrektur-Instruktion."""
+        if violations:
+            return (
+                "Du hast folgende Zahlen verwendet, die nicht im Original "
+                f"stehen: {', '.join(violations)}. Entferne sie ersatzlos oder "
+                "formuliere qualitativ, ohne neue Zahlen einzufuehren."
+            )
+        return (
+            "Deine Antwort erfuellte das vorgegebene JSON-Schema nicht "
+            f"({schema_error}). Antworte erneut exakt im Schema; jeder "
+            "Verbesserungsvorschlag braucht bezugsfeld, vorschlag und hebel."
+        )
+
     async def sharpen_case(
-        self, case_id: str, prompt_version: str = "v2"
+        self, case_id: str, prompt_version: str = "v3"
     ) -> SharpenedUseCase | None:
         """Schaerft die Use-Case-Beschreibung eines persistierten Cases via LLM.
 
@@ -798,20 +896,20 @@ class TriageService:
         geschaerfte Version steht daneben (sharpened_title/current_state/
         desired_state + improvement_suggestions).
 
-        Strukturierte Ausgabe + Graceful Degradation (ADR-0013 Teil 2):
-        response.content wird gegen SharpenedContentV2 validiert
-        (parse_structured_llm_output). Erfolg -> strukturierte Felder
-        gesetzt, raw_text=None. InvalidLLMOutputError -> alle strukturierten
-        Felder None/leer, raw_text=response.content, Warnung
-        "structured_output_validation_failed" geloggt (case_id, operation,
-        error), kein Abbruch.
+        Zahlen-Guard + Retry + Fail loud (V4, SDR-0003): die rohe Antwort wird
+        gegen SharpenedContentV2 validiert UND ein deterministischer
+        Zahlen-Guard (domain/sharpening_guard) prueft, dass die geschaerften
+        Beschreibungs-Felder keine im Original fehlenden Zahlen erfinden.
+        Schlaegt Schema ODER Zahlen-Guard an, laeuft genau EIN Retry mit
+        angehaengter Korrektur-Instruktion (Cost-Logging wie ueblich). Bleibt
+        der Verstoss:
+        - Schema weiterhin verletzt -> InvalidLLMOutputError (Route -> 422).
+        - Zahlen weiterhin erfunden -> SharpeningNumberViolationError (422 mit
+          Violation-Liste). Nichts wird gespeichert.
 
-        Persistenz (Tag 42 ADR-0012, erweitert ADR-0013 Teil 2): das
-        Ergebnis wird als JSON auf case.sharpened_content_json gespeichert
-        (per-Feld-UPDATE, F-011 -- kein Lost Update bei parallelen
-        LLM-Operationen auf demselben Case). generate_report() rendert daraus den
-        sichtbaren Text (_render_sharpened_content) -- /report-Schema bleibt
-        unveraendert.
+        Draft statt Direkt-Speichern (V4): Erfolg persistiert das Ergebnis als
+        sharpening_draft (per-Feld-UPDATE, F-011) -- ueberschreibt NICHTS am
+        Case. Erst accept_sharpening() traegt es nach sharpened_content_json.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -846,53 +944,84 @@ class TriageService:
             desired_state=neutralize_delimiters(case.use_case.desired_state),
             example_process=neutralize_delimiters(case.use_case.example_process),
         )
+        allowlist = build_allowlist(case.use_case)
 
         messages = [
             LLMMessage(role="system", content=system_prompt),
             LLMMessage(role="user", content=user_content),
         ]
         response = await self._llm.complete(messages)
-
         log_llm_cost(
             case_id=case.id,
             messages=messages,
             response=response,
             operation="sharpen_case",
         )
+        parsed, schema_error, violations = self._validate_sharpening(
+            response.content, allowlist
+        )
 
-        try:
-            parsed = parse_structured_llm_output(response.content, SharpenedContentV2)
-        except InvalidLLMOutputError as exc:
+        if parsed is None or violations:
             logger = structlog.get_logger()
             logger.warning(
-                "structured_output_validation_failed",
+                "sharpening_guard_retry",
                 case_id=case.id,
-                operation="sharpen_case",
-                error=str(exc),
+                reason="numbers" if violations else "schema",
+                violations=violations,
             )
-            sharpened_title: str | None = None
-            sharpened_current_state: str | None = None
-            sharpened_desired_state: str | None = None
-            improvement_suggestions: tuple[str, ...] = ()
-            raw_text: str | None = response.content
-        else:
-            sharpened_title = parsed.sharpened_title
-            sharpened_current_state = parsed.sharpened_current_state
-            sharpened_desired_state = parsed.sharpened_desired_state
-            improvement_suggestions = tuple(parsed.improvement_suggestions)
-            raw_text = None
+            correction = self._sharpening_correction(schema_error, violations)
+            retry_messages = [
+                *messages,
+                LLMMessage(role="assistant", content=response.content),
+                LLMMessage(role="user", content=correction),
+            ]
+            retry_response = await self._llm.complete(retry_messages)
+            log_llm_cost(
+                case_id=case.id,
+                messages=retry_messages,
+                response=retry_response,
+                operation="sharpen_case_retry",
+            )
+            parsed, schema_error, violations = self._validate_sharpening(
+                retry_response.content, allowlist
+            )
 
-        sharpened_content_json = json.dumps(
+        if parsed is None:
+            # parsed None <=> _validate_sharpening lieferte einen schema_error.
+            structlog.get_logger().warning(
+                "sharpening_schema_invalid_after_retry", case_id=case.id
+            )
+            raise schema_error or InvalidLLMOutputError("LLM-Output ohne Schema")
+        if violations:
+            structlog.get_logger().warning(
+                "sharpening_number_violation_after_retry",
+                case_id=case.id,
+                violations=violations,
+            )
+            raise SharpeningNumberViolationError(case.id, violations)
+
+        suggestions = tuple(parsed.improvement_suggestions)
+        draft_json = json.dumps(
             {
-                "sharpened_title": sharpened_title,
-                "sharpened_current_state": sharpened_current_state,
-                "sharpened_desired_state": sharpened_desired_state,
-                "improvement_suggestions": list(improvement_suggestions),
-                "raw_text": raw_text,
+                "original": {
+                    "title": case.use_case.title,
+                    "current_state": case.use_case.current_state,
+                    "desired_state": case.use_case.desired_state,
+                },
+                "sharpened": {
+                    "sharpened_title": parsed.sharpened_title,
+                    "sharpened_current_state": parsed.sharpened_current_state,
+                    "sharpened_desired_state": parsed.sharpened_desired_state,
+                },
+                "improvement_suggestions": [
+                    s.model_dump(mode="json") for s in suggestions
+                ],
+                "prompt_version": prompt_version,
+                "created_at": self._clock.now().isoformat(),
             }
         )
         await self._repository.update_field_async(
-            case.id, "sharpened_content_json", sharpened_content_json
+            case.id, "sharpening_draft", draft_json
         )
 
         return SharpenedUseCase(
@@ -900,13 +1029,68 @@ class TriageService:
             original_title=case.use_case.title,
             original_current_state=case.use_case.current_state,
             original_desired_state=case.use_case.desired_state,
-            sharpened_title=sharpened_title,
-            sharpened_current_state=sharpened_current_state,
-            sharpened_desired_state=sharpened_desired_state,
-            improvement_suggestions=improvement_suggestions,
-            raw_text=raw_text,
+            sharpened_title=parsed.sharpened_title,
+            sharpened_current_state=parsed.sharpened_current_state,
+            sharpened_desired_state=parsed.sharpened_desired_state,
+            improvement_suggestions=suggestions,
             prompt_version=prompt_version,
         )
+
+    async def accept_sharpening(self, case_id: str) -> SubmittedCase | None:
+        """Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
+
+        Traegt den sharpening_draft nach sharpened_content_json (das Feld, das
+        generate_report() rendert -- bestehende Zwei-Versionen-Logik: Original
+        bleibt unangetastet, geschaerfte Fassung steht daneben) und leert den
+        Draft. Beide Schreibvorgaenge sind per-Feld-UPDATEs (F-011).
+
+        Returns:
+            Den aktualisierten Case (reload), oder None wenn case_id fehlt
+            (Route -> 404).
+
+        Raises:
+            NoSharpeningDraftError: kein offener Draft (Route -> 409).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        if case.sharpening_draft is None:
+            raise NoSharpeningDraftError(case.id)
+
+        draft = json.loads(case.sharpening_draft)
+        sharpened = draft["sharpened"]
+        content_json = json.dumps(
+            {
+                "sharpened_title": sharpened["sharpened_title"],
+                "sharpened_current_state": sharpened["sharpened_current_state"],
+                "sharpened_desired_state": sharpened["sharpened_desired_state"],
+                "improvement_suggestions": draft["improvement_suggestions"],
+                "prompt_version": draft.get("prompt_version"),
+            }
+        )
+        await self._repository.update_field_async(
+            case.id, "sharpened_content_json", content_json
+        )
+        await self._repository.update_field_async(case.id, "sharpening_draft", None)
+        return await self._repository.get_async(case.id)
+
+    async def reject_sharpening(self, case_id: str) -> SubmittedCase | None:
+        """Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
+
+        Returns:
+            Den aktualisierten Case (reload), oder None wenn case_id fehlt
+            (Route -> 404).
+
+        Raises:
+            NoSharpeningDraftError: kein offener Draft (Route -> 409).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        if case.sharpening_draft is None:
+            raise NoSharpeningDraftError(case.id)
+        await self._repository.update_field_async(case.id, "sharpening_draft", None)
+        return await self._repository.get_async(case.id)
 
     async def propose_solution(
         self, case_id: str, prompt_version: str = "v2"

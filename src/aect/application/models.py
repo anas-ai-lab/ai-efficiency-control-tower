@@ -11,7 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from aect.application.structured_output import ArchitectureSketch
+from aect.application.structured_output import ArchitectureSketch, ImprovementSuggestion
 from aect.domain import CaseStatus, ReviewerDecision, TriageResult, UseCaseInput
 
 
@@ -142,6 +142,12 @@ class SubmittedCase:
     proposal_text: str | None = None
     compliance_hints_json: str | None = None
     architecture_sketch: str | None = None
+    # sharpening_draft (V4, Draft/Accept-Flow): geschaerfte Fassung + Vorschlaege,
+    # die POST /cases/{id}/sharpen erzeugt hat, BEVOR ein Mensch sie uebernimmt.
+    # Ueberschreibt nichts am Case; accept traegt den Draft in
+    # sharpened_content_json, reject leert ihn. None, solange kein Draft offen
+    # ist. JSON-Objekt (original/sharpened/improvement_suggestions/metadaten).
+    sharpening_draft: str | None = None
     # Intake-Embedding fuer Dedup-Aehnlichkeitspruefung (L-3, ADR-0039).
     # None, solange kein Embedding berechnet wurde (Mock-Modus, erster Case,
     # oder Case aus einer aelteren DB-Version). Persistiert als JSON-Float-Liste.
@@ -189,24 +195,19 @@ class SharpenedUseCase:
     case_id verweist auf den persistierten SubmittedCase, original_*
     sind die unveraenderten Eingabefelder.
 
-    Strukturierte Ausgabe (ADR-0013 Teil 2): die LLM-Antwort wird gegen
-    SharpenedContentV2 validiert (application.structured_output). Zwei
-    sich gegenseitig ausschliessende Formen:
-
-    - Erfolg: sharpened_title/sharpened_current_state/
-      sharpened_desired_state sind str, improvement_suggestions hat 1-10
-      Eintraege, raw_text ist None.
-    - Graceful Degradation (LLM-Output erfuellt das Schema nicht --
-      kaputtes JSON, fehlendes Feld, Laengenverstoss): die drei
-      sharpened_*-Felder sind None, improvement_suggestions ist leer,
-      raw_text enthaelt die rohe LLM-Antwort. Validierungsfehler werden
-      geloggt (structured_output_validation_failed), der Aufruf schlaegt
-      nicht fehl (aect-security-checklist v2.1: Graceful Degradation).
+    Strukturierte Ausgabe (ADR-0013 Teil 2, verschaerft V4): die LLM-Antwort
+    wird gegen SharpenedContentV2 validiert UND ein deterministischer
+    Zahlen-Guard (domain/sharpening_guard) prueft, dass die geschaerften
+    Beschreibungs-Felder keine im Original fehlenden Zahlen erfinden. Bei
+    Schema- oder Zahlen-Verstoss laeuft genau EIN Retry; scheitert auch der,
+    wirft sharpen_case() (Fail loud, kein Graceful-Degradation-Fallback mehr).
+    In der Erfolgs-Form sind alle drei sharpened_*-Felder gesetzt und
+    improvement_suggestions traegt 1-3 ImprovementSuggestion (bezugsfeld/
+    vorschlag/hebel).
 
     prompt_version macht nachvollziehbar, welche Prompt-Version dieses
-    Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default
-    seit ADR-0013 Teil 2: "v2" (JSON-Output-Anweisung). v1 (Fliesstext)
-    bleibt fuer Rollback erhalten.
+    Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default seit
+    V4: "v3" (Zahlen-Verbot + Hebel-Pflicht). v2/v1 bleiben fuer Rollback.
 
     frozen=True: Schaerfungs-Ergebnis ist nach Erstellung unveraenderlich,
     analog zu UseCaseInput.
@@ -216,11 +217,10 @@ class SharpenedUseCase:
     original_title: str
     original_current_state: str
     original_desired_state: str
-    sharpened_title: str | None
-    sharpened_current_state: str | None
-    sharpened_desired_state: str | None
-    improvement_suggestions: tuple[str, ...]
-    raw_text: str | None
+    sharpened_title: str
+    sharpened_current_state: str
+    sharpened_desired_state: str
+    improvement_suggestions: tuple[ImprovementSuggestion, ...]
     prompt_version: str
 
 

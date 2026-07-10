@@ -30,8 +30,16 @@ _VALID_PAYLOAD: dict = {
         "Fehlerquote unter 1 Prozent."
     ),
     "improvement_suggestions": [
-        "Lege fest, wer bei Erkennungsfehlern eskaliert.",
-        "Definiere die Fehlerquote-Messung vor dem Rollout.",
+        {
+            "bezugsfeld": "evidence_level",
+            "vorschlag": "Belege die Zeitersparnis mit einer Vorher-Nachher-Messung.",
+            "hebel": "Evidenzfaktor steigt von 0,40 auf 0,90.",
+        },
+        {
+            "bezugsfeld": "adoption_type",
+            "vorschlag": "Lege die Nutzung als verbindlich fest.",
+            "hebel": "Nutzungsfaktor steigt, der erwartete Nutzen im ROI waechst.",
+        },
     ],
 }
 
@@ -83,17 +91,63 @@ class TestParseStructuredLLMOutputSchemaViolations:
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
     def test_too_many_suggestions_raises(self) -> None:
+        # max_length=3 (V4, Hebel-Pflicht -- Fokus statt Floskel-Liste).
         payload = {
             **_VALID_PAYLOAD,
             "improvement_suggestions": [
-                f"Vorschlag Nummer {i} mit genug Zeichen" for i in range(11)
+                {
+                    "bezugsfeld": "notes",
+                    "vorschlag": f"Vorschlag Nummer {i} mit genug Zeichen",
+                    "hebel": "Aufwand-Score sinkt.",
+                }
+                for i in range(4)
             ],
         }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
-    def test_suggestion_item_too_long_raises(self) -> None:
-        payload = {**_VALID_PAYLOAD, "improvement_suggestions": ["x" * 501]}
+    def test_suggestion_vorschlag_too_long_raises(self) -> None:
+        payload = {
+            **_VALID_PAYLOAD,
+            "improvement_suggestions": [
+                {"bezugsfeld": "notes", "vorschlag": "x" * 501, "hebel": "ROI steigt."}
+            ],
+        }
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
+
+    def test_suggestion_missing_bezugsfeld_raises(self) -> None:
+        # Fehlt bezugsfeld -> Schema-Fehler (Hebel-Pflicht, V4).
+        payload = {
+            **_VALID_PAYLOAD,
+            "improvement_suggestions": [
+                {"vorschlag": "Ohne Feldbezug.", "hebel": "ROI steigt."}
+            ],
+        }
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
+
+    def test_suggestion_missing_hebel_raises(self) -> None:
+        payload = {
+            **_VALID_PAYLOAD,
+            "improvement_suggestions": [
+                {"bezugsfeld": "notes", "vorschlag": "Ohne Hebel."}
+            ],
+        }
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
+
+    def test_suggestion_unknown_bezugsfeld_raises(self) -> None:
+        payload = {
+            **_VALID_PAYLOAD,
+            "improvement_suggestions": [
+                {
+                    "bezugsfeld": "nicht_existentes_feld",
+                    "vorschlag": "Bezieht sich auf nichts.",
+                    "hebel": "ROI steigt.",
+                }
+            ],
+        }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 

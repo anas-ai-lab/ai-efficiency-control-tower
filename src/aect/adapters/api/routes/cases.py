@@ -28,6 +28,8 @@ from aect.application.models import ArchitectureSketchResult
 from aect.application.service import (
     CaseNotFoundError,
     NoProposalForSketchError,
+    NoSharpeningDraftError,
+    SharpeningNumberViolationError,
     TriageService,
 )
 from aect.application.structured_output import InvalidLLMOutputError
@@ -444,27 +446,46 @@ async def list_monitoring(
     ]
 
 
-class SharpenedCaseResponse(BaseModel):
-    """Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).
+class SharpenSuggestionResponse(BaseModel):
+    """Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
 
-    Erfolg: sharpened_title/current_state/desired_state gesetzt,
-    improvement_suggestions hat 1-10 Eintraege, raw_text ist None.
-    Graceful Degradation: die drei sharpened_*-Felder sind None,
-    improvement_suggestions ist leer, raw_text enthaelt die rohe
-    LLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,
-    kein Crash bei Format-Verstoss).
+    bezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag
+    zielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.
+    hebel: welche Bewertungsgroesse sich wie veraendert.
+    """
+
+    bezugsfeld: str
+    vorschlag: str
+    hebel: str
+
+
+class SharpenedCaseResponse(BaseModel):
+    """Original + geschaerfte Fassung eines Use Cases (V4, Draft/Accept-Flow).
+
+    Das Ergebnis ist ein Entwurf (sharpening_draft) -- es ueberschreibt nichts
+    am Case. Der Client baut daraus die Diff-Ansicht (Original feldweise neben
+    der geschaerften Fassung) und uebernimmt/verwirft via /sharpen/accept bzw.
+    /sharpen/reject. Erfindet die KI Zahlen oder verletzt sie das Schema (auch
+    nach einem Retry), antwortet die Route mit 422 -- es gibt keine
+    Teil-/Degradations-Antwort mehr.
     """
 
     case_id: str
     original_title: str
     original_current_state: str
     original_desired_state: str
-    sharpened_title: str | None
-    sharpened_current_state: str | None
-    sharpened_desired_state: str | None
-    improvement_suggestions: list[str]
-    raw_text: str | None
+    sharpened_title: str
+    sharpened_current_state: str
+    sharpened_desired_state: str
+    improvement_suggestions: list[SharpenSuggestionResponse]
     prompt_version: str
+
+
+class SharpeningActionResponse(BaseModel):
+    """Bestaetigung fuer accept/reject eines Schaerfungs-Drafts (V4)."""
+
+    case_id: str
+    status: str
 
 
 @router.post("/{case_id}/sharpen", response_model=SharpenedCaseResponse)
@@ -477,21 +498,53 @@ async def sharpen_case(
     _: str = Depends(require_api_key),
     __: None = Depends(require_token_budget),
 ) -> SharpenedCaseResponse:
-    """Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.
+    """Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: X-API-Key-Header (require_api_key).
     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
-    stuendliche Token-Budget des API-Keys (Phase G, ergaenzt die
-    Request-Rate-Limits um eine Token-MENGEN-Grenze).
+    stuendliche Token-Budget des API-Keys (Phase G).
+
+    Draft: das Ergebnis wird als sharpening_draft persistiert, ueberschreibt
+    NICHTS am Case. Uebernahme via /sharpen/accept.
+
+    Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
+    - Case fehlt -> 404.
+    - KI erfindet Zahlen (auch nach Retry) -> 422 mit Violation-Liste.
+    - KI-Antwort verletzt das Schaerfungs-Schema (auch nach Retry) -> 422.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 422: KI-Antwort erfindet Zahlen oder verletzt das Schema.
         HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
-    sharpened = await service.sharpen_case(case_id)
+    try:
+        sharpened = await service.sharpen_case(case_id)
+    except SharpeningNumberViolationError as exc:
+        # Die KI hat Zahlen erfunden, die nicht im Original stehen -- auch der
+        # Retry hat sie nicht entfernt. 422 (der LLM-Call gelang, der Inhalt ist
+        # unverwertbar), die Violation-Liste hilft dem Nutzer beim Nachjustieren.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason": "invented_numbers",
+                "message": (
+                    "Die Schaerfung enthielt Zahlen, die nicht im Original "
+                    "stehen, auch nach einem Korrektur-Versuch."
+                ),
+                "violations": exc.violations,
+            },
+        ) from exc
+    except InvalidLLMOutputError as exc:
+        # Schema-Verstoss (z. B. fehlendes bezugsfeld/hebel), auch nach Retry.
+        # str(exc) traegt nur loc+type je Fehler (H-031), nie LLM-Rohtext.
+        raise HTTPException(
+            status_code=422,
+            detail=f"KI-Antwort verletzt das Schaerfungs-Schema: {exc}",
+        ) from exc
+
     if sharpened is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -503,10 +556,74 @@ async def sharpen_case(
         sharpened_title=sharpened.sharpened_title,
         sharpened_current_state=sharpened.sharpened_current_state,
         sharpened_desired_state=sharpened.sharpened_desired_state,
-        improvement_suggestions=list(sharpened.improvement_suggestions),
-        raw_text=sharpened.raw_text,
+        improvement_suggestions=[
+            SharpenSuggestionResponse(
+                bezugsfeld=s.bezugsfeld.value, vorschlag=s.vorschlag, hebel=s.hebel
+            )
+            for s in sharpened.improvement_suggestions
+        ],
         prompt_version=sharpened.prompt_version,
     )
+
+
+@router.post("/{case_id}/sharpen/accept", response_model=SharpeningActionResponse)
+@limiter.limit("10/minute")
+async def accept_sharpening(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> SharpeningActionResponse:
+    """Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
+
+    Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
+    Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: kein offener Draft (nichts zu uebernehmen).
+    """
+    try:
+        updated = await service.accept_sharpening(case_id)
+    except NoSharpeningDraftError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Kein offener Schaerfungs-Entwurf fuer diesen Case.",
+        ) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return SharpeningActionResponse(case_id=case_id, status="accepted")
+
+
+@router.post("/{case_id}/sharpen/reject", response_model=SharpeningActionResponse)
+@limiter.limit("10/minute")
+async def reject_sharpening(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_api_key),
+) -> SharpeningActionResponse:
+    """Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
+
+    Kein LLM-Call -> kein Token-Budget noetig.
+    Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: kein offener Draft (nichts zu verwerfen).
+    """
+    try:
+        updated = await service.reject_sharpening(case_id)
+    except NoSharpeningDraftError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Kein offener Schaerfungs-Entwurf fuer diesen Case.",
+        ) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return SharpeningActionResponse(case_id=case_id, status="rejected")
 
 
 class SolutionProposalResponse(BaseModel):

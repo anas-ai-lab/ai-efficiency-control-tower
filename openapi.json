@@ -399,7 +399,7 @@
           "cases"
         ],
         "summary": "Sharpen Case",
-        "description": "Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G, ergaenzt die\nRequest-Rate-Limits um eine Token-MENGEN-Grenze).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
+        "description": "Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint\n(aect-security-checklist v2.1, Phase B: \"LLM-Endpoints strenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nDraft: das Ergebnis wird als sharpening_draft persistiert, ueberschreibt\nNICHTS am Case. Uebernahme via /sharpen/accept.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- KI erfindet Zahlen (auch nach Retry) -> 422 mit Violation-Liste.\n- KI-Antwort verletzt das Schaerfungs-Schema (auch nach Retry) -> 422.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 422: KI-Antwort erfindet Zahlen oder verletzt das Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "sharpen_case_cases__case_id__sharpen_post",
         "security": [
           {
@@ -424,6 +424,102 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SharpenedCaseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/sharpen/accept": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Accept Sharpening",
+        "description": "Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).\n\nKein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.\nAuth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu uebernehmen).",
+        "operationId": "accept_sharpening_cases__case_id__sharpen_accept_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharpeningActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/sharpen/reject": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Reject Sharpening",
+        "description": "Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.\n\nKein LLM-Call -> kein Token-Budget noetig.\nAuth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu verwerfen).",
+        "operationId": "reject_sharpening_cases__case_id__sharpen_reject_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharpeningActionResponse"
                 }
               }
             }
@@ -608,7 +704,7 @@
           "cases"
         ],
         "summary": "Generate Architecture Sketch",
-        "description": "Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche\nToken-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-\nLLM-Endpoints.\n\nOn-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- kein Loesungsvorschlag -> 409 (NoProposalForSketchError).\n- LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).\n- LLM nach Retries nicht erreichbar -> 503.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case hat keinen Loesungsvorschlag.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.\n    HTTPException 502: KI-Antwort war nicht verwertbar.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
+        "description": "Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: X-API-Key-Header (require_api_key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche\nToken-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-\nLLM-Endpoints.\n\nOn-Demand -- KEIN Pipeline-Schritt: Intake-Kosten/-Latenz bleiben unveraendert.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- Case fehlt -> 404.\n- kein Loesungsvorschlag -> 409 (NoProposalForSketchError).\n- LLM-Antwort verletzt das Graph-Schema -> 422 (InvalidLLMOutputError),\n  mit der praezisen, verletzten Schema-Regel als Begruendung. Bewusst NICHT\n  502: der LLM-Call selbst gelang, nur der Inhalt ist unverwertbar -- ein\n  502 wuerde faelschlich einen Gateway-/Infrastrukturfehler suggerieren.\n- LLM nach Retries nicht erreichbar -> 503.\n- interner Fehler HINTER dem LLM-Call (Mermaid-Builder/Persistenz) -> 500,\n  strukturiert geloggt (sketch_generation_failed), Detail generisch.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case hat keinen Loesungsvorschlag.\n    HTTPException 422: KI-Antwort verletzt das Skizzen-Schema.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.\n    HTTPException 500: interner Builder-/Persistenzfehler.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
         "operationId": "generate_architecture_sketch_cases__case_id__architecture_sketch_post",
         "security": [
           {
@@ -1709,6 +1805,30 @@
         ],
         "title": "RoutingResponse"
       },
+      "SharpenSuggestionResponse": {
+        "properties": {
+          "bezugsfeld": {
+            "type": "string",
+            "title": "Bezugsfeld"
+          },
+          "vorschlag": {
+            "type": "string",
+            "title": "Vorschlag"
+          },
+          "hebel": {
+            "type": "string",
+            "title": "Hebel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bezugsfeld",
+          "vorschlag",
+          "hebel"
+        ],
+        "title": "SharpenSuggestionResponse",
+        "description": "Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).\n\nbezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag\nzielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.\nhebel: welche Bewertungsgroesse sich wie veraendert."
+      },
       "SharpenedCaseResponse": {
         "properties": {
           "case_id": {
@@ -1728,55 +1848,23 @@
             "title": "Original Desired State"
           },
           "sharpened_title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Sharpened Title"
           },
           "sharpened_current_state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Sharpened Current State"
           },
           "sharpened_desired_state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Sharpened Desired State"
           },
           "improvement_suggestions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/SharpenSuggestionResponse"
             },
             "type": "array",
             "title": "Improvement Suggestions"
-          },
-          "raw_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Text"
           },
           "prompt_version": {
             "type": "string",
@@ -1793,11 +1881,29 @@
           "sharpened_current_state",
           "sharpened_desired_state",
           "improvement_suggestions",
-          "raw_text",
           "prompt_version"
         ],
         "title": "SharpenedCaseResponse",
-        "description": "Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).\n\nErfolg: sharpened_title/current_state/desired_state gesetzt,\nimprovement_suggestions hat 1-10 Eintraege, raw_text ist None.\nGraceful Degradation: die drei sharpened_*-Felder sind None,\nimprovement_suggestions ist leer, raw_text enthaelt die rohe\nLLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,\nkein Crash bei Format-Verstoss)."
+        "description": "Original + geschaerfte Fassung eines Use Cases (V4, Draft/Accept-Flow).\n\nDas Ergebnis ist ein Entwurf (sharpening_draft) -- es ueberschreibt nichts\nam Case. Der Client baut daraus die Diff-Ansicht (Original feldweise neben\nder geschaerften Fassung) und uebernimmt/verwirft via /sharpen/accept bzw.\n/sharpen/reject. Erfindet die KI Zahlen oder verletzt sie das Schema (auch\nnach einem Retry), antwortet die Route mit 422 -- es gibt keine\nTeil-/Degradations-Antwort mehr."
+      },
+      "SharpeningActionResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "status"
+        ],
+        "title": "SharpeningActionResponse",
+        "description": "Bestaetigung fuer accept/reject eines Schaerfungs-Drafts (V4)."
       },
       "SimilarityPairResponse": {
         "properties": {
