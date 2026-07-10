@@ -28,9 +28,19 @@ from aect.domain.types import (
 # ---------------------------------------------------------------------------
 _SIMPLE_TASK_MAX_COMPLEXITY: int = 2  # Komplexitaet <= -> Automation-Signal
 _COMPLEX_TASK_MIN_COMPLEXITY: int = 4  # Komplexitaet >= -> AI-Signal
-# Vorgaenge pro Mitarbeiter und Jahr >= -> Automation-Signal (person-basierte
-# Haeufigkeit seit V4; Re-Kalibrierung der Schwelle offen, SDR-0003).
-_HIGH_VOLUME_MIN_ANNUAL: int = 2_000
+# Vorgaenge pro Mitarbeiter und Jahr >= -> Automation-Signal: eine hohe
+# Wiederholfrequenz amortisiert den Automatisierungsaufwand. Seit dem V4-Rename
+# (SDR-0003) ist die Haeufigkeit person-basiert, die Schwelle wurde aber nicht
+# nachgezogen -- der alte Wert 2000 war fuer das organisationsweite Gesamtvolumen
+# kalibriert und ist pro Mitarbeiter praktisch nie erreichbar (~8 Vorgaenge je
+# Arbeitstag), das Signal war tot.
+# Herleitung (250): die Golden-Cases trennen hier nicht -- die Autor-Zonenlabels
+# haengen an Nutzen/Composite/Handlungsdruck, nicht an der Frequenz (bei
+# 500-600 Vorgaengen/Jahr stehen LIKELY_WIN und CALCULATED_RISK nebeneinander).
+# Daher eine nachvollziehbare Alltagsannahme statt einer Datenschwelle:
+# ~220 Arbeitstage/Jahr, ein mindestens (nahezu) taeglich wiederkehrender Vorgang
+# erreicht >= 250/Jahr; ein woechentlicher (~50/Jahr) bleibt bewusst darunter.
+_HIGH_VOLUME_MIN_ANNUAL: int = 250
 _AMBIGUOUS_DESC_MIN_LEN: int = 300  # Zeichen in desired_state >= -> AI-Signal
 
 

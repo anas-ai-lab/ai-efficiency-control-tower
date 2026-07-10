@@ -40,7 +40,9 @@ def _use_case(**overrides: object) -> UseCaseInput:
         "example_process": "Ein einzelner Vorgang dauert 30 Minuten und mehrere Schritte.",
         "time_per_case_hours_current": 0.5,
         "time_per_case_hours_with_ai": 0.0,
-        "occurrences_per_employee_per_year": 500,
+        # 200 < High-Volume-Schwelle (250) -> Default loest kein Volumen-Signal
+        # aus; Tests, die es brauchen, ueberschreiben explizit nach oben.
+        "occurrences_per_employee_per_year": 200,
         "affected_employees_count": 3,
         "employee_category": EmployeeCategory.PROFESSIONAL,
         "evidence_level": EvidenceLevel.SIMILAR_PROJECT,
@@ -100,6 +102,18 @@ class TestAutomationRecommended:
     def test_hohes_volumen_liefert_automation_signal(self) -> None:
         result = route_use_case(_use_case(occurrences_per_employee_per_year=5000))
         assert any("5000" in s for s in result.automation_signals)
+
+    @pytest.mark.unit
+    def test_volumen_knapp_unter_schwelle_kein_signal(self) -> None:
+        # 249 < Schwelle 250 (person-basiert, V4) -> kein Volumen-Signal.
+        result = route_use_case(_use_case(occurrences_per_employee_per_year=249))
+        assert not any("Volumen" in s for s in result.automation_signals)
+
+    @pytest.mark.unit
+    def test_volumen_auf_schwelle_liefert_signal(self) -> None:
+        # 250 >= Schwelle 250 (inklusiv) -> Volumen-Signal greift.
+        result = route_use_case(_use_case(occurrences_per_employee_per_year=250))
+        assert any("Volumen" in s and "250" in s for s in result.automation_signals)
 
     @pytest.mark.unit
     def test_fester_prozessschritt_liefert_automation_signal(self) -> None:
@@ -220,7 +234,7 @@ class TestBorderline:
         """Kein klares Signal -> BORDERLINE oder LOW-Konfidenz."""
         use_case = _use_case(
             implementation_approach=ImplementationApproach.API_INTEGRATION,  # Komplexitaet 3, kein Signal
-            occurrences_per_employee_per_year=500,  # kein Signal
+            occurrences_per_employee_per_year=200,  # < Schwelle 250 -> kein Volumen-Signal
             adoption_type=AdoptionType.VOLUNTARY,
             evidence_level=EvidenceLevel.SIMILAR_PROJECT,
         )
