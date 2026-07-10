@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 
 from aect.domain.models import UseCaseInput
-from aect.domain.roi import calculate_roi, load_roi_config
+from aect.domain.roi import ROIConfig, calculate_roi, load_roi_config
 from aect.domain.types import (
     AdoptionType,
     Country,
@@ -38,15 +38,15 @@ def _use_case(**overrides: object) -> UseCaseInput:
             "Nach AI-Unterstuetzung soll der Prozess automatisiert ablaufen."
         ),
         "example_process": "Ein einzelner Vorgang dauert 30 Minuten.",
-        "time_savings_hours_per_case": 0.5,
-        "frequency_per_year": 1000,
+        "time_per_case_hours_current": 0.5,
+        "time_per_case_hours_with_ai": 0.0,
+        "occurrences_per_employee_per_year": 1000,
         "affected_employees_count": 5,
         "employee_category": EmployeeCategory.PROFESSIONAL,
         "evidence_level": EvidenceLevel.TESTED_PILOTED,
-        "adoption_type": AdoptionType.MANDATORY,
-        "implementation_approach": ImplementationApproach.STANDARD_PRODUCT,
+        "adoption_type": AdoptionType.FIXED_PROCESS_STEP,
+        "implementation_approach": ImplementationApproach.DEVELOPMENT_ON_EXISTING,
         "estimated_license_cost_eur": 5000.0,
-        "implementation_complexity": 2,
         "contains_pii": False,
         "data_classification": DataClassification.NO_PERSONAL_DATA,
         "regulatory_pressure": False,
@@ -91,10 +91,24 @@ def test_calculate_roi_ch_nutzt_hoehere_ch_saetze() -> None:
 def test_calculate_roi_land_ohne_config_section_liefert_null_und_vorfilter_fail() -> (
     None
 ):
-    """Gueltiges Country-Enum ohne [hourly_rates.<land>]-Section (z. B. Country.NO,
-    nur in roi_config.local.toml gepflegt) -> Stundensatz 0 -> Potenzial 0 ->
-    Vorfilter schlaegt fehl. Dokumentiert das Fallback-Verhalten explizit."""
-    result = calculate_roi(_use_case(country=Country.NO), _CONFIG)
+    """Gueltiges Country-Enum ohne [hourly_rates.<land>]-Section -> Stundensatz 0
+    -> Potenzial 0 -> Vorfilter schlaegt fehl. Dokumentiert das Fallback-Verhalten.
+
+    Bewusst mit einer expliziten Platzhalter-Config (nur 'de'), nicht mit der
+    Default-Config: durch das V4-Config-Layering pflegt roi_config.local.toml
+    (gitignored, lokal vorhanden) alle Laender -> der Default hat lokal keinen
+    Null-Satz-Fall. Diese Config macht den Test deterministisch (lokal wie CI)."""
+    placeholder_config = ROIConfig(
+        hourly_rates={"de": {"professional": Decimal("65")}},
+        evidence_factors={"tested_piloted": 0.90},
+        adoption_factors={"fixed_process_step": 0.90},
+        min_potential_eur=Decimal("20000"),
+        min_hours_per_year=120.0,
+        min_expected_benefit_eur=Decimal("5000"),
+        impl_cost_point_min_eur=10_000.0,
+        license_cost_point_min_eur=10_000.0,
+    )
+    result = calculate_roi(_use_case(country=Country.NO), placeholder_config)
     assert result.theoretical_potential_eur == Decimal("0.00")
     assert result.passes_prefilter is False
     assert result.prefilter_fail_reason is not None

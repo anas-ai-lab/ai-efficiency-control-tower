@@ -19,13 +19,13 @@ VALID_PAYLOAD: dict = {
     "current_state": "Rechnungen werden manuell geprüft, 3 FTEs, durchschnittlich 2 Stunden pro Rechnung",
     "desired_state": "KI prüft Rechnungen vor, Mensch entscheidet nur noch bei Ausreißern und Grenzfällen",
     "example_process": "Eingehende Rechnung → PDF-Extraktion → Regelprüfung → Freigabe",
-    "time_savings_hours_per_case": 0.2,
-    "frequency_per_year": 7200,
+    "time_per_case_hours_current": 0.4,
+    "time_per_case_hours_with_ai": 0.2,
+    "occurrences_per_employee_per_year": 7200,
     "affected_employees_count": 6,
     "employee_category": "professional",
-    "adoption_type": "mandatory",
-    "implementation_approach": "vendor_solution",
-    "implementation_complexity": 3,
+    "adoption_type": "fixed_process_step",
+    "implementation_approach": "api_integration",
     "data_classification": "personal",
 }
 
@@ -93,32 +93,42 @@ class TestUseCaseInputValidierung:
             )
         assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
-    def test_negative_time_savings_werden_abgelehnt(self) -> None:
+    def test_current_time_null_wird_abgelehnt(self) -> None:
+        # time_per_case_hours_current muss > 0 sein (ein Vorgang dauert Zeit).
         with pytest.raises(ValidationError):
             UseCaseInput.model_validate(
-                {**VALID_PAYLOAD, "time_savings_hours_per_case": -1.0}
+                {**VALID_PAYLOAD, "time_per_case_hours_current": 0.0}
             )
 
-    def test_time_savings_ueber_8h_wird_abgelehnt(self) -> None:
+    def test_current_time_ueber_8h_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
             UseCaseInput.model_validate(
-                {**VALID_PAYLOAD, "time_savings_hours_per_case": 8.01}
+                {**VALID_PAYLOAD, "time_per_case_hours_current": 8.01}
             )
 
-    def test_negative_frequency_wird_abgelehnt(self) -> None:
-        with pytest.raises(ValidationError):
-            UseCaseInput.model_validate({**VALID_PAYLOAD, "frequency_per_year": -100})
-
-    def test_complexity_unter_1_wird_abgelehnt(self) -> None:
+    def test_with_ai_time_negativ_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
             UseCaseInput.model_validate(
-                {**VALID_PAYLOAD, "implementation_complexity": 0}
+                {**VALID_PAYLOAD, "time_per_case_hours_with_ai": -0.1}
             )
 
-    def test_complexity_ueber_5_wird_abgelehnt(self) -> None:
+    def test_with_ai_time_null_ist_gueltig(self) -> None:
+        # with_ai == 0 ist erlaubt (volle Automatisierung des Vorgangs).
+        model = UseCaseInput.model_validate(
+            {**VALID_PAYLOAD, "time_per_case_hours_with_ai": 0.0}
+        )
+        assert model.time_per_case_hours_with_ai == 0.0
+
+    def test_negative_occurrences_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
             UseCaseInput.model_validate(
-                {**VALID_PAYLOAD, "implementation_complexity": 6}
+                {**VALID_PAYLOAD, "occurrences_per_employee_per_year": -100}
+            )
+
+    def test_occurrences_null_wird_abgelehnt(self) -> None:
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(
+                {**VALID_PAYLOAD, "occurrences_per_employee_per_year": 0}
             )
 
     def test_ungueltige_adoption_type_wird_abgelehnt(self) -> None:

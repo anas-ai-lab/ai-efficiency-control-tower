@@ -58,13 +58,11 @@ class TestExtractNumbers:
 
 
 class TestBuildAllowlist:
-    def test_collects_numeric_case_fields(
-        self, sample_use_case: UseCaseInput
-    ) -> None:
+    def test_collects_numeric_case_fields(self, sample_use_case: UseCaseInput) -> None:
         allow = build_allowlist(sample_use_case)
-        # Zeit 0.5, Haeufigkeit 5000, MA 10, Lizenz 15000, Komplexitaet 3,
+        # Zeit_ist 0.5, Zeit_ai 0.3, Haeufigkeit/MA 5000, MA 10, Lizenz 15000,
         # Impl-Kosten 0 (Default).
-        assert {"0.5", "5000", "10", "15000", "3", "0"} <= allow
+        assert {"0.5", "0.3", "5000", "10", "15000", "0"} <= allow
 
     def test_collects_numbers_from_text_fields(
         self, sample_use_case: UseCaseInput
@@ -92,7 +90,7 @@ class TestFindViolations:
         self, sample_use_case: UseCaseInput
     ) -> None:
         # Original (sample_use_case) traegt keine dieser Zahlen im Text; die
-        # numerischen Felder sind 0.5/5000/10/15000/3/0 -- keine davon ist
+        # numerischen Felder sind 0.5/0.3/5000/10/15000/0 -- keine davon ist
         # 20/4200/1000/5. Der geschaerfte Text erfindet genau vier Zahlen.
         allow = build_allowlist(sample_use_case)
         sharpened = (

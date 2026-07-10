@@ -1,15 +1,18 @@
-"""Tests für ROI/Value-Engine (Tag 16).
+"""Tests für ROI/Value-Engine (V4-Modell, SDR-0003).
 
 Strategie:
-  - _to_annual_hours und _check_prefilter direkt testen (isoliert, kein UseCaseInput)
-  - _calculate_roi_values für End-to-End-Berechnung
+  - _check_prefilter direkt testen (isoliert, kein UseCaseInput)
+  - _calculate_roi_values für End-to-End-Berechnung (person-basierte Semantik)
+  - Kein-Zeitgewinn (Ersparnis <= 0) -> Vorfilter-Fail mit Klartext-Grund
+  - Config-Layering (roi_config.local.toml über Platzhalter)
   - Hypothesis: Invariante expected_benefit <= theoretical_potential für alle
-    Faktoren in [0.0, 1.0]
+    Faktoren in [0.0, 1.0] (bei Ersparnis >= 0)
 
 Felder-Abhängigkeit: Diese Tests haben KEINE Abhängigkeit zu UseCaseInput-Feldnamen.
 """
 
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from hypothesis import given, settings
@@ -19,7 +22,7 @@ from aect.domain.roi import (
     ROIConfig,
     _calculate_roi_values,
     _check_prefilter,
-    _to_annual_hours,
+    load_roi_config,
 )
 
 # ---------------------------------------------------------------------------
@@ -44,39 +47,9 @@ def config() -> ROIConfig:
         min_potential_eur=Decimal("20000"),
         min_hours_per_year=120.0,
         min_expected_benefit_eur=Decimal("5000"),
-        cost_tier_2_min_eur=5_000.0,
-        cost_tier_3_min_eur=25_000.0,
+        impl_cost_point_min_eur=10_000.0,
+        license_cost_point_min_eur=10_000.0,
     )
-
-
-# ---------------------------------------------------------------------------
-# _to_annual_hours
-# ---------------------------------------------------------------------------
-
-
-def test_annual_hours_weekly() -> None:
-    # 2h/Vorgang × 10 Vorgänge/Woche × 52 Wochen = 1040h
-    assert _to_annual_hours(2.0, 10.0, "weekly") == pytest.approx(1040.0)
-
-
-def test_annual_hours_monthly() -> None:
-    # 1.5h × 4 × 12 = 72h
-    assert _to_annual_hours(1.5, 4.0, "monthly") == pytest.approx(72.0)
-
-
-def test_annual_hours_daily() -> None:
-    # 0.25h × 3 × 250 = 187.5h
-    assert _to_annual_hours(0.25, 3.0, "daily") == pytest.approx(187.5)
-
-
-def test_annual_hours_annually() -> None:
-    # 8h × 1 × 1 = 8h
-    assert _to_annual_hours(8.0, 1.0, "ANNUALLY") == pytest.approx(8.0)
-
-
-def test_annual_hours_unknown_unit_raises() -> None:
-    with pytest.raises(ValueError, match="Unbekannte FrequencyUnit"):
-        _to_annual_hours(1.0, 1.0, "FORTNIGHT")
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +81,6 @@ def test_prefilter_fails_on_potential(config: ROIConfig) -> None:
 
 
 def test_prefilter_fails_on_hours(config: ROIConfig) -> None:
-    # Potenzial über Schwelle, aber Stunden zu niedrig
     passes, reason = _check_prefilter(
         theoretical_potential=Decimal("50000"),  # > 20000 → OK
         hours_per_year=80.0,  # < 120.0 → schlägt fehl
@@ -121,7 +93,6 @@ def test_prefilter_fails_on_hours(config: ROIConfig) -> None:
 
 
 def test_prefilter_fails_on_net_benefit(config: ROIConfig) -> None:
-    # Potenzial + Stunden OK, aber Netto-Nutzen zu niedrig (hohe Lizenzkosten)
     passes, reason = _check_prefilter(
         theoretical_potential=Decimal("50000"),
         hours_per_year=200.0,
@@ -147,20 +118,22 @@ def test_prefilter_order_potential_before_hours(config: ROIConfig) -> None:
 
 
 # ---------------------------------------------------------------------------
-# _calculate_roi_values — End-to-End
+# _calculate_roi_values — End-to-End (person-basierte Häufigkeit)
 # ---------------------------------------------------------------------------
 
 
 def test_theoretical_potential_calculation(config: ROIConfig) -> None:
-    """Theoretisches Potenzial = Gesamtstunden × Stundensatz."""
-    # 2h/Vorgang × 10/Woche × 52 × 5 Mitarbeiter = 5200h gesamt
-    # 5200h × 80€/h (PROFESSIONAL, DE) = 416.000€
+    """Theoretisches Potenzial = Gesamtstunden × Stundensatz.
+
+    Ersparnis 2h/Vorgang (current 2.0 - with_ai 0.0) × 520 Vorgaenge/MA/Jahr
+    × 5 Mitarbeiter = 5200h gesamt; × 80€/h (PROFESSIONAL, DE) = 416.000€.
+    """
     result = _calculate_roi_values(
         employee_country="DE",
         employee_category_value="PROFESSIONAL",
-        time_saved_per_occurrence_hours=2.0,
-        occurrences_per_period=10.0,
-        frequency_unit_value="weekly",
+        time_per_case_current_hours=2.0,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=520.0,
         employees_affected=5,
         license_cost_annual_eur=0.0,
         adoption_type_value="HIGH",
@@ -169,6 +142,7 @@ def test_theoretical_potential_calculation(config: ROIConfig) -> None:
     )
     assert result.theoretical_potential_eur == Decimal("416000.00")
     assert result.hours_per_year == pytest.approx(5200.0)
+    assert result.time_saved_per_case_hours == pytest.approx(2.0)
     assert result.passes_prefilter is True
 
 
@@ -179,9 +153,9 @@ def test_both_factors_applied_to_potential(config: ROIConfig) -> None:
     result = _calculate_roi_values(
         employee_country="DE",
         employee_category_value="PROFESSIONAL",
-        time_saved_per_occurrence_hours=2.0,
-        occurrences_per_period=10.0,
-        frequency_unit_value="weekly",
+        time_per_case_current_hours=2.0,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=520.0,
         employees_affected=5,
         license_cost_annual_eur=0.0,
         adoption_type_value="MEDIUM",
@@ -200,9 +174,9 @@ def test_license_cost_subtracted_from_expected(config: ROIConfig) -> None:
     result = _calculate_roi_values(
         employee_country="DE",
         employee_category_value="PROFESSIONAL",
-        time_saved_per_occurrence_hours=2.0,
-        occurrences_per_period=10.0,
-        frequency_unit_value="weekly",
+        time_per_case_current_hours=2.0,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=520.0,
         employees_affected=5,
         license_cost_annual_eur=50_000.0,
         adoption_type_value="HIGH",
@@ -217,9 +191,9 @@ def test_unknown_country_yields_zero_potential(config: ROIConfig) -> None:
     result = _calculate_roi_values(
         employee_country="XX",  # nicht in config
         employee_category_value="PROFESSIONAL",
-        time_saved_per_occurrence_hours=5.0,
-        occurrences_per_period=10.0,
-        frequency_unit_value="weekly",
+        time_per_case_current_hours=5.0,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=520.0,
         employees_affected=10,
         license_cost_annual_eur=0.0,
         adoption_type_value="HIGH",
@@ -235,9 +209,9 @@ def test_high_license_cost_can_make_net_negative(config: ROIConfig) -> None:
     result = _calculate_roi_values(
         employee_country="DE",
         employee_category_value="ASSOCIATE",
-        time_saved_per_occurrence_hours=0.5,
-        occurrences_per_period=2.0,
-        frequency_unit_value="monthly",
+        time_per_case_current_hours=0.5,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=24.0,
         employees_affected=3,
         license_cost_annual_eur=100_000.0,
         adoption_type_value="HIGH",
@@ -246,6 +220,182 @@ def test_high_license_cost_can_make_net_negative(config: ROIConfig) -> None:
     )
     assert result.net_expected_benefit_eur < Decimal("0")
     assert result.passes_prefilter is False
+
+
+# ---------------------------------------------------------------------------
+# Kein Zeitgewinn (Ersparnis <= 0) -> Vorfilter-Fail mit Klartext-Grund
+# ---------------------------------------------------------------------------
+
+
+def test_zero_time_delta_fails_prefilter_with_reason(config: ROIConfig) -> None:
+    """Ersparnis == 0 → Vorfilter-Fail, Klartext-Grund, kein Clamping."""
+    result = _calculate_roi_values(
+        employee_country="DE",
+        employee_category_value="PROFESSIONAL",
+        time_per_case_current_hours=1.0,
+        time_per_case_with_ai_hours=1.0,
+        occurrences_per_employee_per_year=520.0,
+        employees_affected=5,
+        license_cost_annual_eur=0.0,
+        adoption_type_value="HIGH",
+        evidence_level_value="HIGH",
+        config=config,
+    )
+    assert result.passes_prefilter is False
+    assert result.prefilter_fail_reason is not None
+    assert "Kein Zeitgewinn" in result.prefilter_fail_reason
+    assert result.time_saved_per_case_hours == pytest.approx(0.0)
+    assert result.theoretical_potential_eur <= Decimal("0")
+
+
+def test_negative_time_delta_fails_prefilter_with_reason(config: ROIConfig) -> None:
+    """Ersparnis < 0 (KI langsamer) → Vorfilter-Fail, negatives Potenzial gemeldet."""
+    result = _calculate_roi_values(
+        employee_country="DE",
+        employee_category_value="PROFESSIONAL",
+        time_per_case_current_hours=1.0,
+        time_per_case_with_ai_hours=2.0,
+        occurrences_per_employee_per_year=520.0,
+        employees_affected=5,
+        license_cost_annual_eur=0.0,
+        adoption_type_value="HIGH",
+        evidence_level_value="HIGH",
+        config=config,
+    )
+    assert result.passes_prefilter is False
+    assert result.prefilter_fail_reason is not None
+    assert "Kein Zeitgewinn" in result.prefilter_fail_reason
+    assert result.time_saved_per_case_hours == pytest.approx(-1.0)
+    assert result.theoretical_potential_eur < Decimal("0")
+
+
+def test_zero_delta_reason_names_both_times(config: ROIConfig) -> None:
+    """Der Klartext-Grund nennt beide Zeiten (mit KI und heute)."""
+    result = _calculate_roi_values(
+        employee_country="DE",
+        employee_category_value="PROFESSIONAL",
+        time_per_case_current_hours=0.4,
+        time_per_case_with_ai_hours=0.4,
+        occurrences_per_employee_per_year=520.0,
+        employees_affected=5,
+        license_cost_annual_eur=0.0,
+        adoption_type_value="HIGH",
+        evidence_level_value="HIGH",
+        config=config,
+    )
+    assert result.prefilter_fail_reason is not None
+    assert "0.4" in result.prefilter_fail_reason
+
+
+# ---------------------------------------------------------------------------
+# Config-Layering (roi_config.local.toml über Platzhalter, V4 SDR-0003 §5)
+# Die echte roi_config.local.toml wird bewusst NICHT referenziert.
+# ---------------------------------------------------------------------------
+
+_BASE_TOML = """\
+[thresholds]
+min_potential_eur        = 20000.0
+min_hours_per_year       = 120.0
+min_expected_benefit_eur = 5000.0
+
+[hourly_rates.de]
+junior       = 10.0
+professional = 20.0
+consultant   = 30.0
+senior       = 40.0
+management   = 50.0
+
+[effort_cost_points]
+impl_cost_point_min_eur    = 10000.0
+license_cost_point_min_eur = 10000.0
+
+[evidence_factors]
+pure_estimate   = 0.40
+similar_project = 0.55
+tested_piloted  = 0.90
+
+[adoption_factors]
+voluntary            = 0.50
+recommended_standard = 0.70
+fixed_process_step   = 0.90
+"""
+
+_LOCAL_TOML = """\
+[hourly_rates.de]
+junior       = 99.0
+professional = 199.0
+consultant   = 299.0
+senior       = 399.0
+management   = 499.0
+
+[hourly_rates.zz]
+junior       = 1.0
+professional = 2.0
+consultant   = 3.0
+senior       = 4.0
+management   = 5.0
+"""
+
+
+def test_layering_local_overrides_de_and_adds_country(tmp_path: Path) -> None:
+    base = tmp_path / "roi_config.toml"
+    base.write_text(_BASE_TOML, encoding="utf-8")
+    (tmp_path / "roi_config.local.toml").write_text(_LOCAL_TOML, encoding="utf-8")
+
+    cfg = load_roi_config(base)
+
+    # local überschreibt die de-Rate länderweise ...
+    assert cfg.hourly_rates["de"]["professional"] == Decimal("199.0")
+    # ... und ergänzt ein neues Land, das nur in local steht.
+    assert cfg.hourly_rates["zz"]["management"] == Decimal("5.0")
+
+
+def test_layering_without_local_uses_placeholders(tmp_path: Path) -> None:
+    base = tmp_path / "roi_config.toml"
+    base.write_text(_BASE_TOML, encoding="utf-8")
+    # KEINE local-Datei angelegt.
+
+    cfg = load_roi_config(base)
+
+    assert cfg.hourly_rates["de"]["professional"] == Decimal("20.0")
+    assert "zz" not in cfg.hourly_rates
+
+
+def test_layering_keeps_untouched_sections(tmp_path: Path) -> None:
+    """local ohne factors/thresholds lässt die Platzhalter-Werte unangetastet."""
+    base = tmp_path / "roi_config.toml"
+    base.write_text(_BASE_TOML, encoding="utf-8")
+    (tmp_path / "roi_config.local.toml").write_text(_LOCAL_TOML, encoding="utf-8")
+
+    cfg = load_roi_config(base)
+
+    assert cfg.evidence_factors["pure_estimate"] == pytest.approx(0.40)
+    assert cfg.adoption_factors["fixed_process_step"] == pytest.approx(0.90)
+
+
+# ---------------------------------------------------------------------------
+# Faktor-Werte aus der getrackten TOML (V4-Kalibrierung)
+# ---------------------------------------------------------------------------
+
+
+def test_tracked_factor_values(tmp_path: Path) -> None:
+    """Die getrackten V4-Faktoren stimmen exakt (kein Layering im tmp-Base)."""
+    base = tmp_path / "roi_config.toml"
+    base.write_text(_BASE_TOML, encoding="utf-8")
+    cfg = load_roi_config(base)
+
+    assert cfg.evidence_factors == {
+        "pure_estimate": pytest.approx(0.40),
+        "similar_project": pytest.approx(0.55),
+        "tested_piloted": pytest.approx(0.90),
+    }
+    assert cfg.adoption_factors == {
+        "voluntary": pytest.approx(0.50),
+        "recommended_standard": pytest.approx(0.70),
+        "fixed_process_step": pytest.approx(0.90),
+    }
+    assert cfg.impl_cost_point_min_eur == pytest.approx(10_000.0)
+    assert cfg.license_cost_point_min_eur == pytest.approx(10_000.0)
 
 
 # ---------------------------------------------------------------------------
@@ -268,8 +418,9 @@ def test_invariant_expected_benefit_never_exceeds_potential(
 ) -> None:
     """Invariante: expected_benefit_eur <= theoretical_potential_eur.
 
-    Gilt für alle Faktoren in [0.0, 1.0] — unabhängig von Lizenzkosten
-    (Lizenz senkt nur den Netto-Nutzen, nicht den erwarteten Brutto-Nutzen).
+    Gilt für alle Faktoren in [0.0, 1.0] bei nicht-negativer Ersparnis —
+    unabhängig von Lizenzkosten (Lizenz senkt nur den Netto-Nutzen, nicht den
+    erwarteten Brutto-Nutzen).
     """
     test_config = ROIConfig(
         hourly_rates={"DE": {"SENIOR": Decimal("100")}},
@@ -278,16 +429,16 @@ def test_invariant_expected_benefit_never_exceeds_potential(
         min_potential_eur=Decimal("0"),  # Schwellen deaktiviert für diesen Test
         min_hours_per_year=0.0,
         min_expected_benefit_eur=Decimal("-999999"),
-        cost_tier_2_min_eur=5_000.0,
-        cost_tier_3_min_eur=25_000.0,
+        impl_cost_point_min_eur=10_000.0,
+        license_cost_point_min_eur=10_000.0,
     )
 
     result = _calculate_roi_values(
         employee_country="DE",
         employee_category_value="SENIOR",
-        time_saved_per_occurrence_hours=2.0,
-        occurrences_per_period=5.0,
-        frequency_unit_value="weekly",
+        time_per_case_current_hours=2.0,
+        time_per_case_with_ai_hours=0.0,
+        occurrences_per_employee_per_year=260.0,
         employees_affected=10,
         license_cost_annual_eur=0.0,
         adoption_type_value="T",

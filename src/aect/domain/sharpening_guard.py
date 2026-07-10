@@ -171,9 +171,9 @@ def build_allowlist(use_case: UseCaseInput) -> set[str]:
     """Vereinigung aller Zahlen der Eingabe in kanonischer Form.
 
     Quellen: alle Original-Textfelder (Titel, Ist, Soll, Beispiele, Notizen,
-    Einreicher, Abteilung) plus alle numerischen Case-Felder (Zeiten,
-    Haeufigkeit, MA-Anzahl, Kosten, Komplexitaet). Verwendet das LLM eine
-    dieser Zahlen wieder, ist das korrekt (keine erfundene Zahl).
+    Einreicher, Abteilung) plus alle numerischen Case-Felder (Zeit_ist, Zeit_ai,
+    Haeufigkeit je MA, MA-Anzahl, Kosten). Verwendet das LLM eine dieser Zahlen
+    wieder, ist das korrekt (keine erfundene Zahl).
     """
     allow: set[str] = set()
 
@@ -192,11 +192,11 @@ def build_allowlist(use_case: UseCaseInput) -> set[str]:
             allow |= extract_numbers(field)
 
     numeric_fields: tuple[float | int, ...] = (
-        use_case.time_savings_hours_per_case,
-        use_case.frequency_per_year,
+        use_case.time_per_case_hours_current,
+        use_case.time_per_case_hours_with_ai,
+        use_case.occurrences_per_employee_per_year,
         use_case.affected_employees_count,
         use_case.estimated_license_cost_eur,
-        use_case.implementation_complexity,
         use_case.implementation_cost_eur,
     )
     for value in numeric_fields:

@@ -1,11 +1,12 @@
-"""ROI / Value-Engine — deterministisch, ohne LLM-Calls.
+"""ROI / Value-Engine — deterministisch, ohne LLM-Calls (V4-Modell, SDR-0003).
 
-Implementiert das v5-Bewertungsmodell:
-  Theoretisches Potenzial  = Stundenwert × Zeit_pro_Vorgang × Jahres-Multiplikator
-                             × Mitarbeiterzahl
-  Erwarteter Nutzen        = Potenzial × Nutzungsfaktor × Evidenzfaktor
-  Netto-Nutzen             = Erwarteter Nutzen − Lizenzkosten
-  Vorfilter                = 3 Schwellenwerte (Potenzial, Stunden, Netto-Nutzen)
+Person-basierte Nutzenformel (fixierte Semantik):
+  Ersparnis pro Vorgang = Zeit_ist - Zeit_ai          (darf <= 0 sein)
+  Roh-Nutzen/Jahr        = Ersparnis x Vorgaenge_pro_Mitarbeiter_und_Jahr
+                           x Mitarbeiterzahl x Stundensatz(Land, Level)
+  Erwarteter Nutzen      = Roh-Nutzen x Verbindlichkeitsfaktor x Evidenzfaktor
+  Netto-Nutzen           = Erwarteter Nutzen - jaehrliche Lizenzkosten
+  Vorfilter              = Kein-Zeitgewinn-Check, dann 3 Schwellenwerte
 
 Alle firmenspezifischen Parameter kommen per ROIConfig rein (vertraglich bedingte IP-Trennung).
 Kein Hardcoding von Stundensätzen oder Schwellen im Code.
@@ -17,29 +18,10 @@ import tomllib
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 if TYPE_CHECKING:
     from aect.domain.models import UseCaseInput
-
-# ---------------------------------------------------------------------------
-# Frequenz → Jahres-Multiplikator
-# Keys = FrequencyUnit.value aus src/aect/domain/types.py (lowercase, siehe
-# StrEnum dort: daily/weekly/monthly). "ANNUALLY" ist kein Enum-Member --
-# es ist das Sentinel, das calculate_roi() hardcoded uebergibt, wenn
-# frequency_per_year bereits ein Jahreswert ist (kein Umrechnungsfaktor
-# noetig, Multiplikator 1). Frueherer Stand hatte hier UPPERCASE-Keys fuer
-# DAILY/WEEKLY/MONTHLY (Case-Mismatch ggue. der Enum, F-002, 02.07.2026) plus
-# BIWEEKLY/QUARTERLY ohne jedes Enum-Gegenstueck -- beides tote Eintraege,
-# da der aktuelle Call-Pfad in calculate_roi() ausschliesslich "ANNUALLY"
-# uebergibt und FrequencyUnit hier nie live verwendet wird.
-# ---------------------------------------------------------------------------
-_FREQUENCY_TO_ANNUAL: Final[dict[str, int]] = {
-    "daily": 250,  # Arbeitstage pro Jahr
-    "weekly": 52,
-    "monthly": 12,
-    "ANNUALLY": 1,  # Sentinel des aktuellen calculate_roi()-Pfads, kein Enum-Member
-}
 
 _TWO_PLACES: Final[Decimal] = Decimal("0.01")
 
@@ -57,8 +39,10 @@ class ROIConfig:
     IP-Trennung: Stundensätze und Schwellen in TOML, nie im Code (vertraglich bedingte IP-Trennung).
 
     hourly_rates:     {"de": {"professional": Decimal("65"), ...}, ...}  — Keys = Country.value / EmployeeCategory.value
-    evidence_factors: {"pure_estimate": 0.50, "similar_project": 0.75, "tested_piloted": 1.00}  — Keys = EvidenceLevel.value
-    adoption_factors: {"mandatory": 1.00, "voluntary": 0.60}  — Keys = AdoptionType.value
+    evidence_factors: {"pure_estimate": 0.40, "similar_project": 0.55, "tested_piloted": 0.90}  — Keys = EvidenceLevel.value
+    adoption_factors: {"voluntary": 0.50, "recommended_standard": 0.70, "fixed_process_step": 0.90}  — Keys = AdoptionType.value
+    impl_cost_point_min_eur / license_cost_point_min_eur: Schwellen für die zwei
+        Kostenpunkte des Composite-Aufwand-Scores ([effort_cost_points]).
     """
 
     hourly_rates: dict[str, dict[str, Decimal]]
@@ -67,25 +51,35 @@ class ROIConfig:
     min_potential_eur: Decimal
     min_hours_per_year: float
     min_expected_benefit_eur: Decimal
-    # Kostenstufen-Schwellen fuer den Composite-Score (F-006): Lizenzkosten
-    # < tier_2 -> Stufe 1, < tier_3 -> Stufe 2, sonst Stufe 3.
-    cost_tier_2_min_eur: float
-    cost_tier_3_min_eur: float
+    impl_cost_point_min_eur: float
+    license_cost_point_min_eur: float
 
-    def __post_init__(self) -> None:
-        if not self.cost_tier_2_min_eur < self.cost_tier_3_min_eur:
-            msg = (
-                "cost_tiers: tier_2_min_license_cost_eur "
-                f"({self.cost_tier_2_min_eur}) muss kleiner sein als "
-                f"tier_3_min_license_cost_eur ({self.cost_tier_3_min_eur})"
-            )
-            raise ValueError(msg)
+
+def _merge_config(base: dict[str, Any], overlay: dict[str, Any]) -> None:
+    """Merged overlay in-place über base (Config-Layering, V4 SDR-0003 Abschnitt 5).
+
+    Pro Top-Level-Section: sind beide Werte dicts, werden die Keys der overlay-
+    Section in die base-Section gemischt (shallow) -- so ergänzen/überschreiben
+    hourly_rates länderweise (Country → Levels) und Faktoren/Schwellen keyweise.
+    Ansonsten ersetzt overlay den base-Wert. Fehlende Sections in overlay bleiben
+    unangetastet (Platzhalter gelten weiter).
+    """
+    for section, value in overlay.items():
+        current = base.get(section)
+        if isinstance(current, dict) and isinstance(value, dict):
+            current.update(value)
+        else:
+            base[section] = value
 
 
 def load_roi_config(path: Path | None = None) -> ROIConfig:
-    """Lädt ROIConfig aus config/roi_config.toml (Repo-Root).
+    """Lädt ROIConfig aus config/roi_config.toml (Repo-Root), mit Config-Layering.
 
     Sucht standardmäßig 3 Ebenen über diesem Modul (src/aect/domain/ → Repo-Root).
+    Existiert neben der Basis-Datei ein `roi_config.local.toml` (gitignored, echte
+    Raten je Land x Level), wird es DARÜBER gemerged: hourly_rates länderweise,
+    andere Sections optional keyweise (siehe _merge_config). Fehlt local, gelten
+    die getrackten Platzhalter — das Repo bleibt aus sich heraus lauffähig.
     Für Tests ROIConfig direkt konstruieren — kein Dateisystem-Zugriff nötig.
     """
     if path is None:
@@ -95,6 +89,12 @@ def load_roi_config(path: Path | None = None) -> ROIConfig:
 
     with path.open("rb") as f:
         raw = tomllib.load(f)
+
+    local_path = path.with_name("roi_config.local.toml")
+    if local_path.exists():
+        with local_path.open("rb") as f:
+            local_raw = tomllib.load(f)
+        _merge_config(raw, local_raw)
 
     return ROIConfig(
         hourly_rates={
@@ -108,10 +108,14 @@ def load_roi_config(path: Path | None = None) -> ROIConfig:
         min_expected_benefit_eur=Decimal(
             str(raw["thresholds"]["min_expected_benefit_eur"])
         ),
-        # KeyError bei fehlender [cost_tiers]-Section ist gewollt (lauter
+        # KeyError bei fehlender [effort_cost_points]-Section ist gewollt (lauter
         # Fehler statt stillem Fallback -- Lehre aus F-001).
-        cost_tier_2_min_eur=float(raw["cost_tiers"]["tier_2_min_license_cost_eur"]),
-        cost_tier_3_min_eur=float(raw["cost_tiers"]["tier_3_min_license_cost_eur"]),
+        impl_cost_point_min_eur=float(
+            raw["effort_cost_points"]["impl_cost_point_min_eur"]
+        ),
+        license_cost_point_min_eur=float(
+            raw["effort_cost_points"]["license_cost_point_min_eur"]
+        ),
     )
 
 
@@ -125,8 +129,10 @@ class ROIResult:
     """Unveränderliches Berechnungsergebnis.
 
     Alle monetären Werte in EUR, auf 2 Dezimalstellen gerundet.
-    Invariante (property-based getestet): expected_benefit_eur <= theoretical_potential_eur.
+    Invariante (property-based getestet für Ersparnis >= 0):
+    expected_benefit_eur <= theoretical_potential_eur.
     hours_per_year = Gesamtstunden Organisation (Einzelersparnis × Mitarbeiterzahl).
+    time_saved_per_case_hours = Zeit_ist - Zeit_ai (auch negativ möglich).
     """
 
     theoretical_potential_eur: Decimal  # Stundenwert × Gesamtstunden
@@ -136,6 +142,7 @@ class ROIResult:
     license_cost_annual_eur: Decimal  # Jährliche Lizenzkosten
     net_expected_benefit_eur: Decimal  # expected − license (kann negativ sein)
     hours_per_year: float  # Gesamtstunden Organisation pro Jahr
+    time_saved_per_case_hours: float  # Zeit_ist − Zeit_ai (auch negativ)
     passes_prefilter: bool
     prefilter_fail_reason: str | None  # None wenn passes_prefilter is True
 
@@ -145,43 +152,17 @@ class ROIResult:
 # ---------------------------------------------------------------------------
 
 
-def _to_annual_hours(
-    time_per_occurrence: float,
-    occurrences_per_period: float,
-    frequency_unit_value: str,
-) -> float:
-    """Rechnet Häufigkeit in jährliche Stunden (pro Person) um.
-
-    Args:
-        time_per_occurrence: Zeitersparnis pro Vorgang in Stunden.
-        occurrences_per_period: Vorgänge pro Periode (z. B. pro Woche).
-        frequency_unit_value: FrequencyUnit.value (daily/weekly/monthly) oder das
-            Sentinel "ANNUALLY". Der Live-Pfad (calculate_roi) uebergibt immer
-            "ANNUALLY"; die uebrigen Werte sind vestigial (Input ist per Definition
-            jaehrlich, siehe _FREQUENCY_TO_ANNUAL-Kommentar oben).
-
-    Raises:
-        ValueError: Bei unbekanntem frequency_unit_value.
-    """
-    multiplier = _FREQUENCY_TO_ANNUAL.get(frequency_unit_value)
-    if multiplier is None:
-        msg = (
-            f"Unbekannte FrequencyUnit: {frequency_unit_value!r}. "
-            f"Gültige Werte: {sorted(_FREQUENCY_TO_ANNUAL)}"
-        )
-        raise ValueError(msg)
-    return time_per_occurrence * occurrences_per_period * multiplier
-
-
 def _check_prefilter(
     theoretical_potential: Decimal,
     hours_per_year: float,
     net_expected_benefit: Decimal,
     config: ROIConfig,
 ) -> tuple[bool, str | None]:
-    """Prüft die drei Vorfilter-Bedingungen in fester Reihenfolge.
+    """Prüft die drei Vorfilter-Schwellen in fester Reihenfolge.
 
     Reihenfolge: Potenzial → Stunden → Netto-Nutzen. Erster Fail gewinnt.
+    Der Kein-Zeitgewinn-Check (Ersparnis <= 0) läuft VORHER in
+    _calculate_roi_values und hat Vorrang vor diesen Schwellen.
     Returns: (passes, fail_reason) — reason ist None wenn passes=True.
     """
     if theoretical_potential < config.min_potential_eur:
@@ -206,9 +187,9 @@ def _calculate_roi_values(
     *,
     employee_country: str,
     employee_category_value: str,
-    time_saved_per_occurrence_hours: float,
-    occurrences_per_period: float,
-    frequency_unit_value: str,
+    time_per_case_current_hours: float,
+    time_per_case_with_ai_hours: float,
+    occurrences_per_employee_per_year: float,
     employees_affected: int,
     license_cost_annual_eur: float,
     adoption_type_value: str,
@@ -220,51 +201,59 @@ def _calculate_roi_values(
     Alle Argumente keyword-only (verhindert Positionsfehler bei vielen Parametern).
     Testbar ohne UseCaseInput — Tests rufen diese Funktion direkt auf.
 
-    Unbekanntes Land oder Level → Stundensatz 0 → Potenzial 0 → Vorfilter schlägt fehl.
-    Unbekannter Faktor-Key → Faktor 0.0 → Nutzen 0 → Vorfilter schlägt fehl.
+    Ersparnis pro Vorgang = current - with_ai. Ist sie <= 0, schlägt der Vorfilter
+    mit Klartext-Grund fehl (kein stilles Clamping auf 0). Unbekanntes Land oder
+    Level → Stundensatz 0 → Potenzial 0 → Vorfilter schlägt fehl. Unbekannter
+    Faktor-Key → Faktor 0.0 → Nutzen 0 → Vorfilter schlägt fehl.
     """
+    # 0. Ersparnis pro Vorgang (darf <= 0 sein)
+    saved_per_case = time_per_case_current_hours - time_per_case_with_ai_hours
+
     # 1. Stundensatz-Lookup (fehlendes Land/Level → 0, defensives Default)
     rate: Decimal = config.hourly_rates.get(employee_country, {}).get(
         employee_category_value, Decimal("0")
     )
 
-    # 2. Jährliche Stunden pro Person
-    hours_per_person = _to_annual_hours(
-        time_per_occurrence=time_saved_per_occurrence_hours,
-        occurrences_per_period=occurrences_per_period,
-        frequency_unit_value=frequency_unit_value,
-    )
-
-    # 3. Gesamtstunden Organisation (für Potenzial und Vorfilter)
+    # 2. Jährliche Stunden pro Person und Gesamtstunden Organisation
+    hours_per_person = saved_per_case * occurrences_per_employee_per_year
     total_hours = hours_per_person * employees_affected
 
-    # 4. Theoretisches Potenzial
+    # 3. Theoretisches Potenzial (kann negativ sein, wenn saved_per_case < 0)
     potential = (Decimal(str(total_hours)) * rate).quantize(
         _TWO_PLACES, rounding=ROUND_HALF_UP
     )
 
-    # 5. Nutzungs- und Evidenzfaktor
+    # 4. Nutzungs- und Evidenzfaktor
     usage = config.adoption_factors.get(adoption_type_value, 0.0)
     evidence = config.evidence_factors.get(evidence_level_value, 0.0)
 
-    # 6. Erwarteter Nutzen (vor Lizenzkosten)
+    # 5. Erwarteter Nutzen (vor Lizenzkosten)
     expected = (potential * Decimal(str(usage)) * Decimal(str(evidence))).quantize(
         _TWO_PLACES, rounding=ROUND_HALF_UP
     )
 
-    # 7. Lizenzkosten + Netto
+    # 6. Lizenzkosten + Netto
     license_cost = Decimal(str(license_cost_annual_eur)).quantize(
         _TWO_PLACES, rounding=ROUND_HALF_UP
     )
     net = (expected - license_cost).quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
 
-    # 8. Vorfilter
-    passes, reason = _check_prefilter(
-        theoretical_potential=potential,
-        hours_per_year=total_hours,
-        net_expected_benefit=net,
-        config=config,
-    )
+    # 7. Vorfilter -- Kein-Zeitgewinn-Check zuerst (Vorrang vor den Schwellen)
+    passes: bool
+    reason: str | None
+    if saved_per_case <= 0:
+        passes = False
+        reason = (
+            f"Kein Zeitgewinn: Vorgang mit KI ({time_per_case_with_ai_hours} h) "
+            f"ist nicht schneller als heute ({time_per_case_current_hours} h)."
+        )
+    else:
+        passes, reason = _check_prefilter(
+            theoretical_potential=potential,
+            hours_per_year=total_hours,
+            net_expected_benefit=net,
+            config=config,
+        )
 
     return ROIResult(
         theoretical_potential_eur=potential,
@@ -274,6 +263,7 @@ def _calculate_roi_values(
         license_cost_annual_eur=license_cost,
         net_expected_benefit_eur=net,
         hours_per_year=total_hours,
+        time_saved_per_case_hours=saved_per_case,
         passes_prefilter=passes,
         prefilter_fail_reason=reason,
     )
@@ -292,23 +282,26 @@ def calculate_roi(
 
     Mappt UseCaseInput-Felder auf _calculate_roi_values().
 
-    frequency_per_year ist bereits ein Jahreswert → frequency_unit_value="ANNUALLY"
-    (Multiplikator 1) übergibt es unverändert an _to_annual_hours().
+    occurrences_per_employee_per_year zählt, wie oft EIN Mitarbeiter den Vorgang
+    pro Jahr ausführt (person-basiert, nicht Gesamtvolumen) — das Gesamtvolumen
+    entsteht erst durch × affected_employees_count.
 
     Das Land kommt aus input.country (Country-StrEnum, lowercase) — der Wert muss
-    als [hourly_rates.<land>]-Section in roi_config.toml existieren. Unbekanntes
-    Land → _calculate_roi_values liefert theoretical_potential=0 → Vorfilter-Fail.
+    als [hourly_rates.<land>]-Section in roi_config.toml (oder .local.toml)
+    existieren. Unbekanntes Land → theoretical_potential=0 → Vorfilter-Fail.
 
     implementation_cost_eur fliesst hier bewusst NICHT ein: einmalige Setup-Kosten
     sind kein jaehrlicher Abzug und wuerden die Jahres-ROI-Logik verfaelschen. Sie
-    werden im Composite-Aufwand-Score beruecksichtigt (pipeline._cost_tier).
+    werden im Composite-Aufwand-Score als Kostenpunkt beruecksichtigt (scoring).
     """
     return _calculate_roi_values(
         employee_country=input.country.value,
         employee_category_value=input.employee_category.value,
-        time_saved_per_occurrence_hours=input.time_savings_hours_per_case,
-        occurrences_per_period=float(input.frequency_per_year),
-        frequency_unit_value="ANNUALLY",
+        time_per_case_current_hours=input.time_per_case_hours_current,
+        time_per_case_with_ai_hours=input.time_per_case_hours_with_ai,
+        occurrences_per_employee_per_year=float(
+            input.occurrences_per_employee_per_year
+        ),
         employees_affected=input.affected_employees_count,
         license_cost_annual_eur=input.estimated_license_cost_eur,
         adoption_type_value=input.adoption_type.value,

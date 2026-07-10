@@ -24,7 +24,6 @@ from aect.domain.types import (
     DataClassification,
     EmployeeCategory,
     EvidenceLevel,
-    FrequencyUnit,
     ImplementationApproach,
     ReviewerDecision,
     TriageZone,
@@ -48,7 +47,6 @@ __all__ = [
     "FeasibilityResult",
     # filters
     "FilterResult",
-    "FrequencyUnit",
     "ImplementationApproach",
     # roi
     "ROIConfig",

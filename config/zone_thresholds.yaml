@@ -1,6 +1,10 @@
 # Zone classification thresholds for AECT triage.
 # GENERIC PLACEHOLDER values only.
 # Real, firm-specific parameters are never committed (contractual IP separation).
+#
+# V4 (SDR-0003): der Composite-Aufwand-Score hat jetzt Range 1-9 (vorher 2-10);
+# diese Zonen-Schwellen bleiben bewusst unveraendert. Eine Re-Kalibrierung nach
+# der Golden-Remessung (V4-P4) ist moeglich.
 
 zone:
   likely_win:

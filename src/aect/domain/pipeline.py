@@ -67,27 +67,6 @@ def handlungsdruck_score(use_case: UseCaseInput) -> int:
     )
 
 
-def _cost_tier(
-    license_cost_eur: float,
-    implementation_cost_eur: float,
-    config: ROIConfig,
-) -> int:
-    """Mappt Kosten EUR auf Kostenstufe 1-3 fuer compute_composite_score.
-
-    Bemessungsgrundlage ist das MAXIMUM aus jaehrlichen Lizenzkosten und
-    einmaligen Implementierungskosten gegen die [cost_tiers]-Schwellen aus
-    roi_config.toml (F-006 -- vorher hartcodierte 5.000/25.000-EUR-Baender).
-    Einmalige Impl.-Kosten waren bisher unsichtbar im Aufwand-Score; das
-    schliesst die Luecke, ohne sie (faelschlich) in den Jahres-ROI zu ziehen.
-    """
-    cost_eur = max(license_cost_eur, implementation_cost_eur)
-    if cost_eur < config.cost_tier_2_min_eur:
-        return 1
-    if cost_eur < config.cost_tier_3_min_eur:
-        return 2
-    return 3
-
-
 def evaluate_use_case(
     use_case: UseCaseInput,
     roi_config: ROIConfig,
@@ -129,12 +108,19 @@ def evaluate_use_case(
         target_situation=use_case.desired_state,
         example_process=use_case.example_process,
         time_saved_minutes_per_occurrence=Decimal(
-            str(use_case.time_savings_hours_per_case * 60)
+            str(
+                (
+                    use_case.time_per_case_hours_current
+                    - use_case.time_per_case_hours_with_ai
+                )
+                * 60
+            )
         ),
         # Keine int-Truncation (F-008): int(11/12) == 0 stufte Prozesse mit
         # 1-11 Vorgaengen/Jahr faelschlich als NOT_RECURRING ein. Semantik:
-        # wiederkehrend, sobald frequency_per_year >= 1 (Modell erzwingt > 0).
-        occurrences_per_month=use_case.frequency_per_year / 12,
+        # wiederkehrend, sobald occurrences_per_employee_per_year >= 1
+        # (Modell erzwingt > 0).
+        occurrences_per_month=use_case.occurrences_per_employee_per_year / 12,
     )
 
     # 5-6. Composite + Zone -- nur wenn Vorfilter bestanden
@@ -143,13 +129,12 @@ def evaluate_use_case(
 
     if vorfilter.passes:
         composite = compute_composite_score(
-            complexity=use_case.implementation_complexity,
-            cost=_cost_tier(
-                use_case.estimated_license_cost_eur,
-                use_case.implementation_cost_eur,
-                roi_config,
-            ),
+            approach=use_case.implementation_approach,
+            implementation_cost_eur=use_case.implementation_cost_eur,
+            license_cost_eur=use_case.estimated_license_cost_eur,
             data_classification=use_case.data_classification,
+            impl_cost_point_min_eur=roi_config.impl_cost_point_min_eur,
+            license_cost_point_min_eur=roi_config.license_cost_point_min_eur,
         )
         zone = load_zone_classifier().classify(
             expected_benefit_eur=roi.expected_benefit_eur,

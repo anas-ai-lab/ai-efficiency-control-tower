@@ -3,7 +3,7 @@
 10 parametrised use cases: LIKELY_WIN (2), CALCULATED_RISK (3),
 MARGINAL_GAIN (2), FAILS VORFILTER (3).
 
-Tag 21 Ergaenzung: _cost_tier-Baender + is_actionable alle Zweige.
+V4: person-basierte Haeufigkeit + Composite aus Umsetzungsansatz (Range 1-9).
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from aect.domain.filters import FilterResult
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import (
     TriageResult,
-    _cost_tier,
     evaluate_use_case,
     handlungsdruck_score,
 )
@@ -36,6 +35,17 @@ from aect.domain.types import (
     TriageZone,
 )
 from aect.domain.zones import ZoneResult
+
+# Komplexitaet 1-5 -> Umsetzungsansatz (V4: Komplexitaet wird aus dem Ansatz
+# abgeleitet, das freie Eingabefeld entfaellt). Die Test-Cases denken weiter in
+# Komplexitaetsstufen; dieses Mapping uebersetzt sie in den passenden Ansatz.
+_APPROACH_BY_COMPLEXITY: dict[int, ImplementationApproach] = {
+    1: ImplementationApproach.SIMPLE_INTEGRATION,
+    2: ImplementationApproach.DEVELOPMENT_ON_EXISTING,
+    3: ImplementationApproach.API_INTEGRATION,
+    4: ImplementationApproach.CUSTOM_DEVELOPMENT,
+    5: ImplementationApproach.NEW_TOOL,
+}
 
 
 @pytest.fixture(scope="module")
@@ -54,17 +64,17 @@ def _make_use_case(
     desired_state: str = "Automatisierte Extraktion relevanter Informationen.",
     example_process: str = "Eingangsbeleg pruefen, Daten extrahieren, in System uebertragen.",
     employee_category: EmployeeCategory = EmployeeCategory.PROFESSIONAL,
-    time_savings_hours_per_case: float = 2.0,
-    frequency_per_year: int = 200,
+    time_per_case_hours_current: float = 2.0,
+    time_per_case_hours_with_ai: float = 0.0,
+    occurrences_per_employee_per_year: int = 200,
     affected_employees_count: int = 1,
     estimated_license_cost_eur: float = 0.0,
     implementation_cost_eur: float = 0.0,
     evidence_level: EvidenceLevel = EvidenceLevel.PURE_ESTIMATE,
     adoption_type: AdoptionType = AdoptionType.VOLUNTARY,
-    implementation_approach: ImplementationApproach = ImplementationApproach.STANDARD_PRODUCT,
+    complexity: int = 2,
     data_classification: DataClassification = DataClassification.NO_PERSONAL_DATA,
     contains_pii: bool = False,
-    implementation_complexity: int = 2,
     regulatory_pressure: bool = False,
     competitive_pressure: bool = False,
     strategic_priority: bool = False,
@@ -78,17 +88,17 @@ def _make_use_case(
         desired_state=desired_state,
         example_process=example_process,
         employee_category=employee_category,
-        time_savings_hours_per_case=time_savings_hours_per_case,
-        frequency_per_year=frequency_per_year,
+        time_per_case_hours_current=time_per_case_hours_current,
+        time_per_case_hours_with_ai=time_per_case_hours_with_ai,
+        occurrences_per_employee_per_year=occurrences_per_employee_per_year,
         affected_employees_count=affected_employees_count,
         estimated_license_cost_eur=estimated_license_cost_eur,
         implementation_cost_eur=implementation_cost_eur,
         evidence_level=evidence_level,
         adoption_type=adoption_type,
-        implementation_approach=implementation_approach,
+        implementation_approach=_APPROACH_BY_COMPLEXITY[complexity],
         data_classification=data_classification,
         contains_pii=contains_pii,
-        implementation_complexity=implementation_complexity,
         regulatory_pressure=regulatory_pressure,
         competitive_pressure=competitive_pressure,
         strategic_priority=strategic_priority,
@@ -103,100 +113,100 @@ def _zone_str(result: TriageResult) -> str | None:
 
 # ---------------------------------------------------------------------------
 # 10 Use Cases
-# hours = time_savings_hours_per_case * frequency_per_year * affected_employees_count
+# hours = (current - with_ai) * occurrences_per_employee_per_year * affected_employees
 # ---------------------------------------------------------------------------
 
 _UC_LW_1 = _make_use_case(
     title="Rechnungsextraktion -- Buchhaltung",
-    time_savings_hours_per_case=3.0,
-    frequency_per_year=100,
+    time_per_case_hours_current=3.0,
+    occurrences_per_employee_per_year=100,
     affected_employees_count=10,  # 3 000 h/Jahr
     evidence_level=EvidenceLevel.TESTED_PILOTED,
-    adoption_type=AdoptionType.MANDATORY,
-    implementation_complexity=2,
+    adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+    complexity=2,
 )
 
 _UC_LW_2 = _make_use_case(
     title="Compliance-Reporting -- Legal",
-    time_savings_hours_per_case=4.0,
-    frequency_per_year=80,
+    time_per_case_hours_current=4.0,
+    occurrences_per_employee_per_year=80,
     affected_employees_count=8,  # 2 560 h/Jahr
     evidence_level=EvidenceLevel.TESTED_PILOTED,
-    adoption_type=AdoptionType.MANDATORY,
-    implementation_complexity=2,
+    adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+    complexity=2,
     data_classification=DataClassification.PSEUDONYMOUS,
 )
 
 _UC_CR_1 = _make_use_case(
     title="Vertragsanalyse -- Einkauf",
-    time_savings_hours_per_case=2.0,
-    frequency_per_year=100,
+    time_per_case_hours_current=2.0,
+    occurrences_per_employee_per_year=100,
     affected_employees_count=5,  # 1 000 h/Jahr
     evidence_level=EvidenceLevel.SIMILAR_PROJECT,
     adoption_type=AdoptionType.VOLUNTARY,
-    implementation_complexity=3,
+    complexity=3,
 )
 
 _UC_CR_2 = _make_use_case(
     title="Support-Ticket-Routing -- Personenbezug",
-    time_savings_hours_per_case=1.5,
-    frequency_per_year=150,
+    time_per_case_hours_current=1.5,
+    occurrences_per_employee_per_year=150,
     affected_employees_count=4,  # 900 h/Jahr
     evidence_level=EvidenceLevel.SIMILAR_PROJECT,
     adoption_type=AdoptionType.VOLUNTARY,
-    implementation_complexity=3,
+    complexity=3,
     data_classification=DataClassification.PERSONAL,
     contains_pii=True,
 )
 
 _UC_CR_3 = _make_use_case(
     title="Preisindikation -- Angebotserstellung",
-    time_savings_hours_per_case=2.5,
-    frequency_per_year=80,
+    time_per_case_hours_current=2.5,
+    occurrences_per_employee_per_year=80,
     affected_employees_count=3,  # 600 h/Jahr
     evidence_level=EvidenceLevel.SIMILAR_PROJECT,
-    adoption_type=AdoptionType.MANDATORY,
-    implementation_complexity=3,
+    adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+    complexity=3,
 )
 
 _UC_MG_1 = _make_use_case(
     title="E-Mail-Kategorisierung -- geringe Auswirkung",
-    time_savings_hours_per_case=0.5,
-    frequency_per_year=300,
+    time_per_case_hours_current=0.5,
+    occurrences_per_employee_per_year=300,
     affected_employees_count=8,  # 1 200 h/Jahr
     adoption_type=AdoptionType.VOLUNTARY,
-    implementation_complexity=4,
+    complexity=4,
 )
 
 _UC_MG_2 = _make_use_case(
     title="Statusbericht-Zusammenfassung -- sensitive Daten",
-    time_savings_hours_per_case=1.0,
-    frequency_per_year=130,
+    time_per_case_hours_current=1.0,
+    occurrences_per_employee_per_year=130,
     affected_employees_count=5,  # 650 h/Jahr
     adoption_type=AdoptionType.VOLUNTARY,
-    implementation_complexity=4,
+    complexity=4,
     data_classification=DataClassification.SENSITIVE_PERSONAL,
     contains_pii=True,
 )
 
 _UC_FAIL_1 = _make_use_case(
     title="Kleines Nischenprojekt",
-    time_savings_hours_per_case=0.5,
-    frequency_per_year=50,
+    time_per_case_hours_current=0.5,
+    occurrences_per_employee_per_year=50,
     affected_employees_count=1,  # 25 h -- unter Schwelle
 )
 
 _UC_FAIL_2 = _make_use_case(
     title="Einmaliger Report",
-    time_savings_hours_per_case=1.0,
-    frequency_per_year=80,
+    time_per_case_hours_current=1.0,
+    occurrences_per_employee_per_year=80,
     affected_employees_count=1,  # 80 h -- unter Schwelle
 )
 
 _UC_FAIL_3 = _make_use_case(
     title="Winzige Nische",
-    time_savings_hours_per_case=0.25,
-    frequency_per_year=100,
+    time_per_case_hours_current=0.25,
+    occurrences_per_employee_per_year=100,
     affected_employees_count=1,  # 25 h -- unter Schwelle
 )
 
@@ -228,8 +238,8 @@ def test_vorfilter_fails_below_threshold(
 ) -> None:
     result = evaluate_use_case(use_case, roi_config)
     hours = (
-        use_case.time_savings_hours_per_case
-        * use_case.frequency_per_year
+        (use_case.time_per_case_hours_current - use_case.time_per_case_hours_with_ai)
+        * use_case.occurrences_per_employee_per_year
         * use_case.affected_employees_count
     )
     assert not result.passed_vorfilter, (
@@ -301,52 +311,8 @@ def test_title_propagated_to_result(roi_config: ROIConfig) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Coverage-Ergaenzung Tag 21: _cost_tier + is_actionable
+# Coverage-Ergaenzung: is_actionable
 # ---------------------------------------------------------------------------
-
-
-def test_cost_tier_all_bands(roi_config: ROIConfig) -> None:
-    """_cost_tier mappt Kosten korrekt auf Kostenstufe 1-3.
-
-    Schwellen kommen seit F-006 aus roi_config.toml [cost_tiers]
-    (Platzhalter-Werte: 5.000 / 25.000 EUR). Bemessung ueber das Maximum aus
-    Lizenz- und Impl.-Kosten; hier ohne Impl.-Kosten (0.0).
-    """
-    assert _cost_tier(0.0, 0.0, roi_config) == 1
-    assert _cost_tier(4_999.99, 0.0, roi_config) == 1
-    assert _cost_tier(5_000.0, 0.0, roi_config) == 2
-    assert _cost_tier(24_999.99, 0.0, roi_config) == 2
-    assert _cost_tier(25_000.0, 0.0, roi_config) == 3
-    assert _cost_tier(100_000.0, 0.0, roi_config) == 3
-
-
-def test_cost_tier_uses_max_of_license_and_implementation_cost(
-    roi_config: ROIConfig,
-) -> None:
-    """Einmalige Impl.-Kosten treiben die Kostenstufe, auch bei Lizenz 0 --
-    Bemessung ueber das Maximum beider Kostenarten."""
-    assert _cost_tier(0.0, 25_000.0, roi_config) == 3
-    assert _cost_tier(0.0, 5_000.0, roi_config) == 2
-    # Lizenzkosten dominieren, wenn sie hoeher sind als die Impl.-Kosten.
-    assert _cost_tier(25_000.0, 0.0, roi_config) == 3
-
-
-def test_cost_tier_uses_config_thresholds(roi_config: ROIConfig) -> None:
-    """Geaenderte Config-Schwellen aendern die Kostenstufe (F-006)."""
-    custom = dataclasses.replace(
-        roi_config, cost_tier_2_min_eur=1_000.0, cost_tier_3_min_eur=2_000.0
-    )
-    assert _cost_tier(1_500.0, 0.0, custom) == 2
-    assert _cost_tier(2_500.0, 0.0, custom) == 3
-    assert _cost_tier(1_500.0, 0.0, roi_config) == 1  # Platzhalter-Schwellen
-
-
-def test_roi_config_rejects_unordered_cost_tiers(roi_config: ROIConfig) -> None:
-    """tier_2 >= tier_3 ist eine Fehlkonfiguration -> ValueError (laut, F-006)."""
-    with pytest.raises(ValueError, match="cost_tiers"):
-        dataclasses.replace(
-            roi_config, cost_tier_2_min_eur=30_000.0, cost_tier_3_min_eur=25_000.0
-        )
 
 
 def _minimal_triage(*, passed: bool, zone: TriageZone | None) -> TriageResult:
@@ -378,6 +344,7 @@ def _minimal_triage(*, passed: bool, zone: TriageZone | None) -> TriageResult:
             license_cost_annual_eur=Decimal("0.00"),
             net_expected_benefit_eur=Decimal("60000.00"),
             hours_per_year=500.0,
+            time_saved_per_case_hours=1.0,
             passes_prefilter=True,
             prefilter_fail_reason=None,
         )
@@ -452,10 +419,10 @@ def test_prefilter_uses_config_thresholds_not_module_defaults(
     (Config-Edit = stiller No-op, dokumentiert als Limitation #14).
     """
     use_case = _make_use_case(
-        time_savings_hours_per_case=2.0,
-        frequency_per_year=500,
+        time_per_case_hours_current=2.0,
+        occurrences_per_employee_per_year=500,
         affected_employees_count=5,
-        adoption_type=AdoptionType.MANDATORY,
+        adoption_type=AdoptionType.FIXED_PROCESS_STEP,
         evidence_level=EvidenceLevel.TESTED_PILOTED,
     )
     baseline = evaluate_use_case(use_case, roi_config)
@@ -487,7 +454,7 @@ def test_low_frequency_case_is_still_recurring(roi_config: ROIConfig) -> None:
     Vorgaengen/Jahr faelschlich als NOT_RECURRING ein (z. B. ein
     Quartalsabschluss-Prozess).
     """
-    use_case = _make_use_case(frequency_per_year=6)
+    use_case = _make_use_case(occurrences_per_employee_per_year=6)
     result = evaluate_use_case(use_case, roi_config)
     flag_values = [f.value for f in result.feasibility.flags]
     assert "NOT_RECURRING" not in flag_values
@@ -495,36 +462,36 @@ def test_low_frequency_case_is_still_recurring(roi_config: ROIConfig) -> None:
 
 def test_annual_case_is_still_recurring(roi_config: ROIConfig) -> None:
     """Grenzfall: genau 1 Vorgang/Jahr ist wiederkehrend (Minimum des Modells)."""
-    use_case = _make_use_case(frequency_per_year=1)
+    use_case = _make_use_case(occurrences_per_employee_per_year=1)
     result = evaluate_use_case(use_case, roi_config)
     flag_values = [f.value for f in result.feasibility.flags]
     assert "NOT_RECURRING" not in flag_values
 
 
 # ---------------------------------------------------------------------------
-# Einmalige Implementierungskosten fliessen in die Kostenstufe des Composite
-# (nicht in den Jahres-ROI). Deckt die vorher unsichtbare Setup-Kosten-Luecke.
+# Einmalige Implementierungskosten fliessen als Kostenpunkt (0-2) in den
+# Composite-Score, nicht in den Jahres-ROI. Deckt die Setup-Kosten-Luecke.
 # ---------------------------------------------------------------------------
 
 
-def test_implementation_cost_above_tier3_forces_cost_score_3(
+def test_implementation_cost_above_threshold_adds_cost_point(
     roi_config: ROIConfig,
 ) -> None:
-    """Einmalige Impl.-Kosten oberhalb der tier_3-Schwelle heben cost_score auf 3,
-    auch wenn die jaehrlichen Lizenzkosten 0 sind (Bemessung ueber das Maximum
-    aus Lizenz- und Impl.-Kosten)."""
+    """Einmalige Impl.-Kosten >= Schwelle heben den Kostenpunkt-Anteil um 1,
+    auch wenn die jaehrlichen Lizenzkosten 0 sind (Lizenz-Punkt bleibt 0)."""
     use_case = _make_use_case(
         employee_category=EmployeeCategory.PROFESSIONAL,
-        time_savings_hours_per_case=2.0,
-        frequency_per_year=200,
+        time_per_case_hours_current=2.0,
+        occurrences_per_employee_per_year=200,
         affected_employees_count=2,
-        adoption_type=AdoptionType.MANDATORY,
+        adoption_type=AdoptionType.FIXED_PROCESS_STEP,
         evidence_level=EvidenceLevel.TESTED_PILOTED,
         estimated_license_cost_eur=0.0,
-        implementation_cost_eur=roi_config.cost_tier_3_min_eur + 5_000.0,
+        implementation_cost_eur=roi_config.impl_cost_point_min_eur + 5_000.0,
     )
     result = evaluate_use_case(use_case, roi_config)
 
     assert result.passed_vorfilter is True
     assert result.composite is not None
-    assert result.composite.cost_score == 3
+    # Nur der Impl.-Kostenpunkt greift (Lizenz 0) -> cost_score == 1.
+    assert result.composite.cost_score == 1

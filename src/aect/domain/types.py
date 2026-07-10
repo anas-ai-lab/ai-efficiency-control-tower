@@ -16,49 +16,67 @@ class EvidenceLevel(StrEnum):
     """Qualität der Zeitersparnis-Schätzung.
 
     Beeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).
-    Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml.
+    Konkretes Faktor-Mapping (V4: 0.40 / 0.55 / 0.90) liegt in config/roi_config.toml.
+
+    Deutsche Labels (V4, SDR-0003 Entscheidung 3):
+      pure_estimate   -- reine Einschaetzung (Bauchgefuehl ohne Datenbasis)
+      similar_project -- eigene Erfahrung bzw. Analogieprojekt
+      tested_piloted  -- mit mehreren realen Beispielen getestet oder gemessen
     """
 
-    PURE_ESTIMATE = "pure_estimate"  # Bauchgefühl / Expertenmeinung ohne Datenbasis
-    SIMILAR_PROJECT = "similar_project"  # Analogie zu vergleichbarem Vorhaben
-    TESTED_PILOTED = "tested_piloted"  # Gemessen oder in Pilotprojekt validiert
+    PURE_ESTIMATE = "pure_estimate"  # reine Einschaetzung ohne Datenbasis
+    SIMILAR_PROJECT = "similar_project"  # eigene Erfahrung / Analogieprojekt
+    TESTED_PILOTED = "tested_piloted"  # mit realen Beispielen getestet oder gemessen
 
 
 class AdoptionType(StrEnum):
-    """Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell."""
+    """Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell.
 
-    MANDATORY = "mandatory"  # Pflichtnutzung (regulatorisch oder Prozessanweisung)
-    VOLUNTARY = "voluntary"  # Freiwillig / opt-in
+    Deutsche Labels (V4, SDR-0003 Entscheidung 3): aufsteigend nach Verbindlichkeit.
+    Faktor-Mapping (0.50 / 0.70 / 0.90) liegt in config/roi_config.toml.
+    """
+
+    VOLUNTARY = "voluntary"  # freiwillige Nutzung (opt-in)
+    RECOMMENDED_STANDARD = "recommended_standard"  # empfohlener Teamstandard
+    FIXED_PROCESS_STEP = "fixed_process_step"  # fester Prozessschritt
 
 
 class ImplementationApproach(StrEnum):
-    """Geplante Umsetzungsstrategie."""
+    """Geplanter Umsetzungsansatz — ordinal, aufsteigende Komplexitaet (V4).
 
-    STANDARD_PRODUCT = "standard_product"  # COTS / Out-of-the-box-Lösung
-    CUSTOM_BUILD = "custom_build"  # Eigenentwicklung
-    VENDOR_SOLUTION = "vendor_solution"  # Drittanbieter mit Customizing
+    Der Ansatz ersetzt das fruehere freie Komplexitaets-Eingabefeld: die
+    Komplexitaet (1-5) wird deterministisch aus dem Ansatz abgeleitet
+    (COMPLEXITY_BY_APPROACH in domain/scoring.py, SDR-0003 Entscheidung 4).
+
+    Deutsche Labels:
+      simple_integration      -- einfache Implementierung in bestehende Umgebung
+      development_on_existing -- Entwicklung auf bestehender Umgebung
+      api_integration         -- API-Anbindung in bestehende Umgebung
+      custom_development       -- eigene Entwicklung
+      new_tool                -- Einfuehrung neues Tool
+    """
+
+    SIMPLE_INTEGRATION = "simple_integration"  # einfache Implementierung, Bestand
+    DEVELOPMENT_ON_EXISTING = "development_on_existing"  # Entwicklung auf Bestand
+    API_INTEGRATION = "api_integration"  # API-Anbindung in bestehende Umgebung
+    CUSTOM_DEVELOPMENT = "custom_development"  # eigene Entwicklung
+    NEW_TOOL = "new_tool"  # Einfuehrung neues Tool
 
 
 class DataClassification(StrEnum):
     """Datenschutz-Einstufung der verarbeiteten Daten.
 
     Beeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).
-    Score-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=2, SENSITIVE_PERSONAL=2.
-    Mapping liegt in config, nicht hier.
+    Score-Mapping (V4): NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1,
+    SENSITIVE_PERSONAL=2. Pseudonymisierte Daten bleiben personenbezogen i. S. d.
+    DSGVO (Art. 4 Nr. 5), daher gleicher Score wie PERSONAL. Mapping liegt in
+    domain/scoring.py, nicht hier.
     """
 
     NO_PERSONAL_DATA = "no_personal_data"  # Rein operative / anonyme Daten
     PSEUDONYMOUS = "pseudonymous"  # Pseudonymisiert (Art. 4 Nr. 5 DSGVO)
     PERSONAL = "personal"  # Personenbezogen (Art. 4 Nr. 1 DSGVO)
     SENSITIVE_PERSONAL = "sensitive_personal"  # Besondere Kategorien (Art. 9 DSGVO)
-
-
-class FrequencyUnit(StrEnum):
-    """Bezugszeitraum für instances_per_period."""
-
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
 
 
 class EmployeeCategory(StrEnum):

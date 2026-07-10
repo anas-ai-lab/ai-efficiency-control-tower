@@ -95,15 +95,27 @@ class UseCaseInput(BaseModel):
     )
 
     # ── Quantitative Felder (required — ohne diese keine ROI-Berechnung) ─────
-    time_savings_hours_per_case: float = Field(
+    time_per_case_hours_current: float = Field(
         gt=0.0,
         le=8.0,
-        description="Geschätzte Zeitersparnis pro Vorgang in Stunden (max = 8 h)",
+        description="Zeit pro Vorgang heute (ohne AI) in Stunden (max = 8 h)",
     )
-    frequency_per_year: int = Field(
+    time_per_case_hours_with_ai: float = Field(
+        ge=0.0,
+        le=8.0,
+        description=(
+            "Zeit pro Vorgang mit AI in Stunden (>= 0). Die Ersparnis pro Vorgang "
+            "ist current - with_ai und darf <= 0 sein (eine Idee darf auch Zeit "
+            "kosten) -- der Vorfilter meldet das dann mit Klartext-Grund."
+        ),
+    )
+    occurrences_per_employee_per_year: int = Field(
         gt=0,
         le=1_000_000,
-        description="Anzahl Vorgänge pro Jahr",
+        description=(
+            "Wie oft EIN Mitarbeiter den Vorgang pro Jahr ausfuehrt (person-basiert, "
+            "nicht das Gesamtvolumen der Organisation)."
+        ),
     )
     affected_employees_count: int = Field(
         gt=0,
@@ -132,11 +144,6 @@ class UseCaseInput(BaseModel):
         ge=0.0,
         le=10_000_000.0,
         description="Geschätzte Lizenzkosten p.a. in EUR (0 = open-source oder intern gebaut)",
-    )
-    implementation_complexity: int = Field(
-        ge=1,
-        le=5,
-        description="Technische Komplexität: 1 = trivial, 3 = mittel, 5 = sehr hoch",
     )
     implementation_cost_eur: float = Field(
         default=0.0,

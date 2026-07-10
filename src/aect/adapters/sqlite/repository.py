@@ -299,6 +299,9 @@ def _roi_result_from_dict(d: dict[str, Any]) -> ROIResult:
         license_cost_annual_eur=Decimal(str(d["license_cost_annual_eur"])),
         net_expected_benefit_eur=Decimal(str(d["net_expected_benefit_eur"])),
         hours_per_year=float(d["hours_per_year"]),
+        # .get()-Fallback haelt aeltere persistierte Records ohne dieses V4-Feld
+        # lesbar (additiv, analog confidence_*): 0.0 = "unbekannt".
+        time_saved_per_case_hours=float(d.get("time_saved_per_case_hours", 0.0)),
         passes_prefilter=bool(d["passes_prefilter"]),
         prefilter_fail_reason=str(raw_reason) if raw_reason is not None else None,
     )

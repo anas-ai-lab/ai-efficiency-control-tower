@@ -16,11 +16,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from aect.domain.models import UseCaseInput
+from aect.domain.scoring import COMPLEXITY_BY_APPROACH
 from aect.domain.types import (
     AdoptionType,
     DataClassification,
     EvidenceLevel,
-    ImplementationApproach,
 )
 
 # ---------------------------------------------------------------------------
@@ -28,7 +28,9 @@ from aect.domain.types import (
 # ---------------------------------------------------------------------------
 _SIMPLE_TASK_MAX_COMPLEXITY: int = 2  # Komplexitaet <= -> Automation-Signal
 _COMPLEX_TASK_MIN_COMPLEXITY: int = 4  # Komplexitaet >= -> AI-Signal
-_HIGH_VOLUME_MIN_ANNUAL: int = 2_000  # Vorgaenge/Jahr >= -> Automation-Signal
+# Vorgaenge pro Mitarbeiter und Jahr >= -> Automation-Signal (person-basierte
+# Haeufigkeit seit V4; Re-Kalibrierung der Schwelle offen, SDR-0003).
+_HIGH_VOLUME_MIN_ANNUAL: int = 2_000
 _AMBIGUOUS_DESC_MIN_LEN: int = 300  # Zeichen in desired_state >= -> AI-Signal
 
 
@@ -77,35 +79,43 @@ class RoutingResult:
 
 
 def _collect_automation_signals(use_case: UseCaseInput) -> list[str]:
-    """Argumente fuer klassische Automatisierung."""
+    """Argumente fuer klassische Automatisierung.
+
+    Die Komplexitaet wird seit V4 aus dem Umsetzungsansatz abgeleitet
+    (COMPLEXITY_BY_APPROACH) -- ein separates Ansatz-Signal entfaellt, es waere
+    eine Doppelzaehlung derselben Groesse.
+    """
     signals: list[str] = []
-    if use_case.implementation_complexity <= _SIMPLE_TASK_MAX_COMPLEXITY:
+    complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
+    if complexity <= _SIMPLE_TASK_MAX_COMPLEXITY:
         signals.append(
-            f"Komplexitaet {use_case.implementation_complexity}"
+            f"Komplexitaet {complexity}"
             f" <= {_SIMPLE_TASK_MAX_COMPLEXITY} -- einfacher, regelbasierter Ablauf"
         )
-    if use_case.frequency_per_year >= _HIGH_VOLUME_MIN_ANNUAL:
+    if use_case.occurrences_per_employee_per_year >= _HIGH_VOLUME_MIN_ANNUAL:
         signals.append(
-            f"Volumen {use_case.frequency_per_year}/Jahr"
+            f"Volumen {use_case.occurrences_per_employee_per_year}/Jahr je MA"
             f" >= {_HIGH_VOLUME_MIN_ANNUAL} -- hoher Automatisierungs-ROI"
         )
-    if use_case.adoption_type == AdoptionType.MANDATORY:
+    if use_case.adoption_type == AdoptionType.FIXED_PROCESS_STEP:
         signals.append(
-            "Pflichtnutzung -- konsistentes Nutzungsverhalten begunstigt Automatisierung"
-        )
-    if use_case.implementation_approach == ImplementationApproach.STANDARD_PRODUCT:
-        signals.append(
-            "Standard-Produkt geplant -- Off-the-shelf-Automatisierungsloesung naheliegend"
+            "Fester Prozessschritt"
+            " -- konsistentes Nutzungsverhalten begunstigt Automatisierung"
         )
     return signals
 
 
 def _collect_ai_signals(use_case: UseCaseInput) -> list[str]:
-    """Argumente fuer AI/LLM-Einsatz."""
+    """Argumente fuer AI/LLM-Einsatz.
+
+    Die Komplexitaet wird seit V4 aus dem Umsetzungsansatz abgeleitet
+    (COMPLEXITY_BY_APPROACH) -- ein separates Ansatz-Signal entfaellt.
+    """
     signals: list[str] = []
-    if use_case.implementation_complexity >= _COMPLEX_TASK_MIN_COMPLEXITY:
+    complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
+    if complexity >= _COMPLEX_TASK_MIN_COMPLEXITY:
         signals.append(
-            f"Komplexitaet {use_case.implementation_complexity}"
+            f"Komplexitaet {complexity}"
             f" >= {_COMPLEX_TASK_MIN_COMPLEXITY} -- kontextabhaengige, ambigue Aufgabe"
         )
     if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
@@ -117,10 +127,6 @@ def _collect_ai_signals(use_case: UseCaseInput) -> list[str]:
         signals.append(
             f"Soll-Beschreibung {len(use_case.desired_state)} Zeichen"
             " -- mehrdimensionale Anforderung deutet auf AI-Bedarf hin"
-        )
-    if use_case.implementation_approach == ImplementationApproach.CUSTOM_BUILD:
-        signals.append(
-            "Eigenentwicklung geplant -- spezialisierte AI-Loesung naheliegend"
         )
     return signals
 
