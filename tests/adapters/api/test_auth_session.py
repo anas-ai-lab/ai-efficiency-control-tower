@@ -92,7 +92,7 @@ async def test_login_secure_flag_sets_secure_cookie() -> None:
 
 
 async def test_login_with_wrong_password_returns_401_no_cookie() -> None:
-    app, store = _make_session_app()
+    app, _ = _make_session_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -157,7 +157,7 @@ async def test_auth_me_reflects_session_state() -> None:
 
 
 async def test_logout_clears_session_and_cookie() -> None:
-    app, store = _make_session_app()
+    app, _ = _make_session_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

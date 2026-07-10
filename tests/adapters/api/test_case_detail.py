@@ -1,0 +1,180 @@
+"""Tests fuer den public GET /cases/{id} -- read-only Bewertungsstand (E9/SDR-0003).
+
+Der anonyme Einreicher muss den vollstaendigen gespeicherten Stand seines Case
+lesen koennen (Composite inkl. Subscores, Konfidenz, akzeptierte Schaerfung,
+Loesung, Compliance, Report) -- ohne etwas auszuloesen. Diese Tests belegen den
+public Zugriff, das 404 fuer fehlende Cases, das Durchreichen bereits
+admin-ausgeloester Ergebnisse und die Routing-Ordnung gegen similarity-pairs.
+"""
+
+from __future__ import annotations
+
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from aect.adapters.api.app import create_app
+from aect.adapters.api.dependencies import get_settings, get_triage_service
+from aect.adapters.api.settings import Settings
+from aect.adapters.in_memory.clock import SystemClock
+from aect.adapters.in_memory.id_generator import UUIDGenerator
+from aect.adapters.in_memory.llm import MockLLMAdapter
+from aect.adapters.in_memory.repository import InMemoryRepository
+from aect.adapters.in_memory.retriever import MockRetriever
+from aect.application.service import TriageService
+from aect.domain.roi import load_roi_config
+
+TEST_API_KEY = "test-api-key-aect-2026"
+
+VALID_PAYLOAD: dict = {
+    "title": "Automatische Rechnungsverarbeitung mit AI",
+    "submitter": "Maria Muster",
+    "department": "Finance",
+    "country": "de",
+    "current_state": (
+        "Aktuell werden eingehende Rechnungen manuell gescannt und die "
+        "relevanten Felder von Mitarbeitern in SAP eingetragen. Der Prozess "
+        "bindet erhebliche Kapazitaet im Finance-Team."
+    ),
+    "desired_state": (
+        "Kuenftig soll ein KI-System eingehende Rechnungen automatisch "
+        "auslesen, Pflichtfelder erkennen und direkt in SAP befuellen. Ziel "
+        "ist eine Reduktion der manuellen Bearbeitungszeit pro Vorgang."
+    ),
+    "example_process": (
+        "Eingehende Rechnung von Lieferant X wird manuell gescannt und "
+        "Betraege sowie Kostenstellen haendig abgetippt."
+    ),
+    "time_per_case_hours_current": 0.2,
+    "time_per_case_hours_with_ai": 0.0,
+    "occurrences_per_employee_per_year": 5000,
+    "affected_employees_count": 10,
+    "employee_category": "professional",
+    "adoption_type": "fixed_process_step",
+    "implementation_approach": "development_on_existing",
+    "data_classification": "no_personal_data",
+}
+
+
+def _make_app() -> FastAPI:
+    """App mit gemeinsamem Repository (Submit + Read ueber mehrere Requests)."""
+    app = create_app()
+    repository = InMemoryRepository()
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        api_key=TEST_API_KEY, chroma_host=""
+    )
+    app.dependency_overrides[get_triage_service] = lambda: TriageService(
+        repository=repository,
+        clock=SystemClock(),
+        id_generator=UUIDGenerator(),
+        roi_config=load_roi_config(),
+        llm=MockLLMAdapter(),
+        retriever=MockRetriever(),
+    )
+    return app
+
+
+async def _submit_public(client: AsyncClient) -> str:
+    """Anonyme Einreichung (kein X-API-Key) -> Case-ID."""
+    created = await client.post("/triage", json=VALID_PAYLOAD)
+    assert created.status_code == 201
+    return created.json()["id"]
+
+
+async def test_case_detail_public_returns_full_state() -> None:
+    """Anonym: GET /cases/{id} liefert Composite (inkl. Subscores), Konfidenz
+    und den zweischichtigen Report -- ohne Auth."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        response = await client.get(f"/cases/{case_id}")  # kein X-API-Key
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == case_id
+    assert "status" in body
+
+    triage = body["triage"]
+    # Composite-Score inkl. der drei Subscores (nicht nur composite_total).
+    assert triage["composite"] is not None
+    assert {
+        "complexity_score",
+        "cost_score",
+        "data_protection_score",
+        "total",
+        "effort_label",
+    } <= set(triage["composite"])
+    # Zonen-Konfidenz (ADR-0036).
+    assert triage["zone"] is not None
+    assert "confidence_score" in triage["zone"]
+    assert "confidence_label" in triage["zone"]
+
+    # Report: Entscheider- + technische Sicht vorhanden.
+    report = body["report"]
+    assert "business_summary" in report
+    assert "technical_detail" in report
+    assert "compliance_citations" in report["business_summary"]
+
+
+async def test_case_detail_untriggered_steps_are_null() -> None:
+    """Read-only, kein Trigger: nie ausgeloeste Schritte stehen auf null."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        body = (await client.get(f"/cases/{case_id}")).json()
+
+    assert body["report"]["business_summary"]["sharpened_text"] is None
+    assert body["report"]["business_summary"]["compliance_hint_text"] is None
+    assert body["report"]["technical_detail"]["proposal_text"] is None
+
+
+async def test_case_detail_missing_returns_404() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases/gibt-es-nicht")
+    assert response.status_code == 404
+
+
+async def test_case_detail_reflects_admin_triggered_sharpening() -> None:
+    """Was der Admin ausloest und akzeptiert, liest der anonyme Detail-Read:
+    nach sharpen + accept traegt report.business_summary.sharpened_text den Text."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        # Vor der Schaerfung: anonym null.
+        before = (await client.get(f"/cases/{case_id}")).json()
+        assert before["report"]["business_summary"]["sharpened_text"] is None
+
+        # Admin loest Schaerfung aus und uebernimmt sie (X-API-Key).
+        sharpen = await client.post(
+            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
+        )
+        assert sharpen.status_code == 200
+        accept = await client.post(
+            f"/cases/{case_id}/sharpen/accept", headers={"X-API-Key": TEST_API_KEY}
+        )
+        assert accept.status_code == 200
+
+        # Anonymer Detail-Read spiegelt jetzt den persistierten Stand.
+        after = (await client.get(f"/cases/{case_id}")).json()
+
+    assert after["report"]["business_summary"]["sharpened_text"] is not None
+
+
+async def test_similarity_pairs_not_shadowed_by_detail_route() -> None:
+    """Routing-Order-Guard: GET /cases/similarity-pairs bleibt die Admin-Route
+    (401 anonym) und wird NICHT als case_id='similarity-pairs' vom public
+    Detail-Read geschluckt (das waere 200/404)."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/cases/similarity-pairs")
+    assert response.status_code == 401

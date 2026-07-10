@@ -1,11 +1,14 @@
 """Cases-Endpoint -- listet eingereichte Use Cases.
 
 Security (aect-security-checklist v2.1, Phase B; V4-P-Auth):
-  Auth-Matrix: GET /cases (Liste) ist PUBLIC (Ideenliste, untere Zugriffsstufe).
+  Auth-Matrix: PUBLIC sind GET /cases (Liste/Ideenliste) und GET /cases/{id}
+  (vollstaendiger read-only Bewertungsstand -- E9/SDR-0003: der anonyme
+  Einreicher liest den gespeicherten Stand seines Case, ohne etwas auszuloesen).
   Alle uebrigen Routen dieses Moduls verlangen require_admin (Session-Cookie
   ODER X-API-Key) -- inkl. der lesenden Admin-Sichten (similarity-pairs,
-  monitoring, architecture-sketch GET).
-  Schichttrennung: CaseSummary-Schema serialisiert nur was der Client braucht.
+  monitoring, architecture-sketch GET) und aller POST-Trigger.
+  Schichttrennung: CaseSummary (Liste) serialisiert nur Uebersichtsfelder;
+  CaseDetailResponse (Detail) buendelt Triage-Ergebnis + Report read-only.
 """
 
 from __future__ import annotations
@@ -24,7 +27,8 @@ from aect.adapters.api.dependencies import (
     require_token_budget,
 )
 from aect.adapters.api.rate_limit import limiter
-from aect.application.models import ArchitectureSketchResult
+from aect.adapters.api.routes.triage import TriageResponse, _to_triage_response
+from aect.application.models import ArchitectureSketchResult, ReportResult
 from aect.application.service import (
     CaseNotFoundError,
     NoProposalForSketchError,
@@ -142,11 +146,9 @@ class SimilarityPairsResponse(BaseModel):
 
 
 # Routing-Reihenfolge (FastAPI matcht in Registrierungs-Reihenfolge): die
-# literale Route "/cases/similarity-pairs" steht bewusst VOR jeder
-# parametrisierten "/cases/{case_id}"-Route. Heute existiert zwar keine GET
-# "/cases/{case_id}"-Route, die sie schlucken koennte, aber diese Position
-# haelt die literale Route auch dann kollisionsfrei, wenn spaeter eine
-# GET-Detail-Route ergaenzt wird (Kommentar-Hinweis oben in diesem Modul).
+# literale Route "/cases/similarity-pairs" steht bewusst VOR der parametrisierten
+# GET "/cases/{case_id}"-Detailroute (unten), sonst wuerde "/similarity-pairs"
+# als case_id="similarity-pairs" dort landen.
 @router.get("/similarity-pairs", response_model=SimilarityPairsResponse)
 @limiter.limit("60/minute")
 async def list_similarity_pairs(
@@ -756,42 +758,13 @@ class ReportResponse(BaseModel):
     technical_detail: TechnicalDetailResponse
 
 
-@router.post("/{case_id}/report", response_model=ReportResponse)
-@limiter.limit("30/minute")
-async def get_report(
-    case_id: str,
-    request: Request,
-    response: Response,
-    body: ReportRequest | None = None,
-    service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_admin),
-) -> ReportResponse:
-    """Erstellt den zweischichtigen Report fuer einen bestehenden Case.
+def _to_report_response(report: ReportResult) -> ReportResponse:
+    """Mappt das Application-ReportResult auf das API-Schema.
 
-    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: require_admin (Session-Cookie ODER X-API-Key).
-    Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
-    -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
-
-    body: optional. Ohne Body (oder mit None-Feldern) werden die
-    persistierten Werte aus /sharpen bzw. /propose-solution verwendet
-    (Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten
-    Wert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/
-    compliance_citations kommen immer aus der Persistenz (ADR-0026), kein
-    Override.
-
-    Raises:
-        HTTPException 404: case_id existiert nicht.
+    Reine Serialisierung (Decimal->float via Application-Schicht, StrEnum->str)
+    -- kein Berechnungs- oder LLM-Pfad. Von POST /report (Trigger-Kompatibilitaet)
+    UND vom public GET /cases/{id} (read-only) wiederverwendet.
     """
-    sharpened_text = body.sharpened_text if body is not None else None
-    proposal_text = body.proposal_text if body is not None else None
-
-    report = service.generate_report(
-        case_id, sharpened_text=sharpened_text, proposal_text=proposal_text
-    )
-    if report is None:
-        raise HTTPException(status_code=404, detail="Case not found")
-
     return ReportResponse(
         case_id=report.case_id,
         business_summary=BusinessSummaryResponse(
@@ -832,6 +805,45 @@ async def get_report(
             proposal_text=report.technical_detail.proposal_text,
         ),
     )
+
+
+@router.post("/{case_id}/report", response_model=ReportResponse)
+@limiter.limit("30/minute")
+async def get_report(
+    case_id: str,
+    request: Request,
+    response: Response,
+    body: ReportRequest | None = None,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> ReportResponse:
+    """Erstellt den zweischichtigen Report fuer einen bestehenden Case.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
+    Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
+    -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
+
+    body: optional. Ohne Body (oder mit None-Feldern) werden die
+    persistierten Werte aus /sharpen bzw. /propose-solution verwendet
+    (Tag 42, ADR-0012). Ein gesetztes Feld ueberschreibt den persistierten
+    Wert fuer diese Antwort, ohne ihn zu aendern. compliance_hint_text/
+    compliance_citations kommen immer aus der Persistenz (ADR-0026), kein
+    Override.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    sharpened_text = body.sharpened_text if body is not None else None
+    proposal_text = body.proposal_text if body is not None else None
+
+    report = service.generate_report(
+        case_id, sharpened_text=sharpened_text, proposal_text=proposal_text
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return _to_report_response(report)
 
 
 class ComplianceHintsResponse(BaseModel):
@@ -1077,4 +1089,78 @@ async def get_architecture_sketch(
 
     return ArchitectureSketchEnvelope(
         sketch=_to_sketch_response(result) if result is not None else None
+    )
+
+
+class CaseDetailResponse(BaseModel):
+    """Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).
+
+    Public GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
+    bereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,
+    kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
+    seines eigenen Case.
+
+    triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
+    Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
+    report: der zweischichtige Report (deterministische Regel-Schicht ueber den
+    persistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte
+    Schaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und
+    technische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch
+    nicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.
+
+    Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
+    Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
+    """
+
+    id: str
+    submitted_at: datetime
+    status: str
+    triage: TriageResponse
+    report: ReportResponse
+
+
+# Routing-Reihenfolge: dieser parametrisierte GET /cases/{case_id} steht bewusst
+# NACH der literalen GET /cases/similarity-pairs (oben registriert), sonst wuerde
+# "/cases/similarity-pairs" als case_id="similarity-pairs" hier landen. Die
+# zwei-segmentigen /cases/{case_id}/... -Routen sind unabhaengig (andere
+# Pfadtiefe, kein Shadowing).
+@router.get("/{case_id}", response_model=CaseDetailResponse)
+@limiter.limit("60/minute")
+async def get_case_detail(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+) -> CaseDetailResponse:
+    """Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den
+    kompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.
+    Subscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).
+    Nur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein
+    LLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+    Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = service.get_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Kein Override -> die persistierten Werte (sharpened_content_json/
+    # proposal_text/compliance_hints_json + result) werden gelesen und
+    # zusammengesetzt. get_case lieferte den Case, daher ist report hier nicht
+    # None -- der Guard bleibt als defensiver Fail-loud stehen.
+    report = service.generate_report(case_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return CaseDetailResponse(
+        id=case.id,
+        submitted_at=case.submitted_at,
+        status=case.status.value,
+        triage=_to_triage_response(case),
+        report=_to_report_response(report),
     )
