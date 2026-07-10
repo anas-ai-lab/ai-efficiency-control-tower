@@ -5,8 +5,9 @@ from __future__ import annotations
 from httpx import ASGITransport, AsyncClient
 
 from aect.adapters.api.app import create_app
-from aect.adapters.api.dependencies import get_settings
+from aect.adapters.api.dependencies import get_retriever_port, get_settings
 from aect.adapters.api.settings import Settings
+from aect.adapters.in_memory.retriever import MockRetriever
 
 
 async def test_api_routes_get_strict_security_headers() -> None:
@@ -47,8 +48,12 @@ async def test_error_responses_carry_security_headers() -> None:
     """
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: Settings(
-        api_key="test-api-key-aect-2026"
+        api_key="test-api-key-aect-2026", chroma_host=""
     )
+    # V4-P2: resolve_retriever ist fail-loud -- get_triage_service (Dependency
+    # von /cases, wird noch VOR require_api_key aufgeloest) wuerde sonst einen
+    # echten Chroma-Build versuchen. Expliziter MockRetriever, chroma_host="".
+    app.dependency_overrides[get_retriever_port] = lambda: MockRetriever()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -66,7 +71,12 @@ async def test_unconfigured_api_key_returns_503_with_security_headers() -> None:
     ob die Umgebung ein .env hat -- deterministisch lokal wie im CI.
     """
     app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(api_key="")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        api_key="", chroma_host=""
+    )
+    # V4-P2: siehe test_error_responses_carry_security_headers -- get_triage_service
+    # wird vor require_api_key aufgeloest, MockRetriever explizit injizieren.
+    app.dependency_overrides[get_retriever_port] = lambda: MockRetriever()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

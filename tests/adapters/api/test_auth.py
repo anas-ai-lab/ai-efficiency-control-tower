@@ -11,16 +11,30 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from aect.adapters.api.app import create_app
-from aect.adapters.api.dependencies import get_settings
+from aect.adapters.api.dependencies import get_retriever_port, get_settings
 from aect.adapters.api.settings import Settings
+from aect.adapters.in_memory.retriever import MockRetriever
 
 TEST_API_KEY = "test-api-key-aect-2026"
+
+
+def _use_mock_retriever(app: FastAPI) -> None:
+    """Expliziter Mock-Retriever-Pfad (V4-P2): resolve_retriever ist fail-loud
+    und faellt nicht mehr still auf MockRetriever -- diese Auth-Tests brauchen
+    keine echte Wissensbasis, also wird MockRetriever direkt injiziert. Die
+    Settings setzen zusaetzlich chroma_host="", das haelt get_triage_service vom
+    Embedder-/Torch-Bau ab (Test-Isolation, kein Container/Modell im Auth-Test).
+    """
+    app.dependency_overrides[get_retriever_port] = lambda: MockRetriever()
 
 
 def _make_auth_app() -> FastAPI:
     """Erstellt App mit konfiguriertem Test-API-Key."""
     app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        api_key=TEST_API_KEY, chroma_host=""
+    )
+    _use_mock_retriever(app)
     return app
 
 
@@ -119,7 +133,10 @@ async def test_unconfigured_server_returns_503() -> None:
     Service nicht konfiguriert, kein Fehler im Request und kein Bug.
     """
     app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(api_key="")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        api_key="", chroma_host=""
+    )
+    _use_mock_retriever(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -183,8 +200,9 @@ def _make_rotation_app() -> FastAPI:
     """App mit zwei gleichzeitig gueltigen Keys (Rotation im Gange)."""
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: Settings(
-        api_key=TEST_API_KEY, api_key_next=NEXT_API_KEY
+        api_key=TEST_API_KEY, api_key_next=NEXT_API_KEY, chroma_host=""
     )
+    _use_mock_retriever(app)
     return app
 
 

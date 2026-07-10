@@ -58,7 +58,6 @@ from aect.adapters.in_memory.id_generator import UUIDGenerator
 from aect.adapters.in_memory.idempotency_store import InMemoryIdempotencyStore
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
-from aect.adapters.in_memory.retriever import MockRetriever
 from aect.adapters.in_memory.token_budget_store import InMemoryTokenBudgetStore
 from aect.adapters.llm.azure_openai import AzureOpenAIAdapter
 from aect.adapters.llm.resilient import ResilientLLMAdapter
@@ -137,10 +136,31 @@ def _get_chroma_collection(host: str, port: int) -> Any:
     name="aect-knowledge-base": feste, generische Collection -- kein
     firmenspezifischer Name (vertraglich bedingte IP-Trennung). Wird befuellt ueber
     scripts/seed_knowledge_base.py (ADR-0025), nicht hier.
+
+    Fail loud (V4-P2, CLAUDE.md): ein expliziter Heartbeat prueft die
+    Erreichbarkeit. Ist Chroma nicht erreichbar, wird das als ConnectionError
+    durchgereicht und als "chroma_unreachable" (Host/Port) geloggt -- NIE ein
+    stiller MockRetriever-Fallback. chromadb.HttpClient() macht bereits einen
+    Preflight (ValueError bei geschlossenem Port); heartbeat() sichert zusaetzlich
+    den Fall ab, dass der Konstruktor kuenftig nicht mehr eager verbindet.
     """
     import chromadb
 
-    client = chromadb.HttpClient(host=host, port=port)
+    try:
+        client = chromadb.HttpClient(host=host, port=port)
+        client.heartbeat()
+    except Exception as exc:
+        structlog.get_logger().error(
+            "chroma_unreachable",
+            host=host,
+            port=port,
+            error_type=type(exc).__name__,
+        )
+        raise ConnectionError(
+            f"ChromaDB unter {host}:{port} nicht erreichbar -- laeuft der "
+            f"Container (docker compose up -d) und ist er geseedet? Kein "
+            f"stiller Mock-Fallback (CLAUDE.md fail loud)."
+        ) from exc
     return client.get_or_create_collection(name="aect-knowledge-base")
 
 
@@ -210,19 +230,25 @@ def _build_real_retriever(settings: Settings) -> RetrieverPort:
     pro Prozess. Aufgerufen vom Lifespan-Startup (Warmup, AUDIT-013) und als
     Fallback in resolve_retriever().
 
-    Container-Hinweis: ist AECT_CHROMA_HOST gesetzt, der Container aber nicht
-    gestartet, schlaegt der erste echte Chroma-Call mit einem Verbindungsfehler
+    Container-Hinweis: ist der Container nicht gestartet, schlaegt der
+    Erreichbarkeits-Check in _get_chroma_collection mit einer ConnectionError
     fehl -- kein stiller Fallback.
+
+    Reihenfolge (V4-P2): der Chroma-Erreichbarkeits-Check laeuft ZUERST, BEVOR
+    die schweren rag-/torch-Imports und das Modell-Laden -- ein toter Container
+    faellt so in Millisekunden durch, ohne erst Modellgewichte zu laden.
 
     Lokale Imports (statt Modulkopf): konsistent mit dem bestehenden Muster.
     """
+    # Erreichbarkeit zuerst (fail loud), bevor torch/Modelle geladen werden:
+    collection = _get_chroma_collection(settings.chroma_host, settings.chroma_port)
+
     from aect.adapters.rag.bm25_retriever import BM25Retriever
     from aect.adapters.rag.embedder import SentenceTransformerEmbedder
     from aect.adapters.rag.hybrid_retriever import HybridRetriever
     from aect.adapters.rag.reranker import CrossEncoderReranker
     from aect.adapters.rag.retriever import ChromaRetriever
 
-    collection = _get_chroma_collection(settings.chroma_host, settings.chroma_port)
     embedder = SentenceTransformerEmbedder(_get_local_embedding_model())
     vector_retriever = ChromaRetriever(collection, embedder)
 
@@ -236,15 +262,26 @@ def _build_real_retriever(settings: Settings) -> RetrieverPort:
 
 
 def resolve_retriever(settings: Settings) -> RetrieverPort:
-    """Waehlt Mock- oder echten Retriever anhand settings.chroma_host.
+    """Baut den echten Retriever aus settings.chroma_host -- fail loud (V4-P2).
 
-    AECT_CHROMA_HOST leer (Default) -> MockRetriever -- kein Container, kein
-    Modell-Laden, kein BM25-Bau, kein Cross-Encoder in normalen Testlaeufen.
-    Gesetzt -> _build_real_retriever(). Kein app.state -- reine Settings-Logik,
-    direkt testbar und vom Lifespan-Startup wiederverwendet (AUDIT-013).
+    KEIN stiller MockRetriever-Fallback mehr (CLAUDE.md): der Default-Host ist
+    127.0.0.1 (settings.py), ein leerer AECT_CHROMA_HOST ist eine
+    Fehlkonfiguration und wirft ValueError. Ist der konfigurierte Host nicht
+    erreichbar, wirft _build_real_retriever() (via _get_chroma_collection) eine
+    ConnectionError mit "chroma_unreachable"-Log -- die Instanz faellt nie
+    stillschweigend auf das synthetische Mock-Korpus zurueck. MockRetriever ist
+    nur noch ueber einen expliziten Test-Override erreichbar (z. B.
+    app.dependency_overrides[get_retriever_port] in Tests).
+
+    Kein app.state -- reine Settings-Logik, direkt testbar und vom
+    Lifespan-Startup wiederverwendet (AUDIT-013).
     """
     if not settings.chroma_host:
-        return MockRetriever()
+        raise ValueError(
+            "AECT_CHROMA_HOST ist leer -- kein Retriever konfiguriert (Default "
+            "127.0.0.1). MockRetriever gibt es nur ueber einen expliziten "
+            "Test-Override, nicht als stillen Fallback (CLAUDE.md fail loud)."
+        )
     return _build_real_retriever(settings)
 
 
@@ -257,9 +294,10 @@ def get_retriever_port(
     Bevorzugt die im Lifespan-Startup vorgeladene Ressource
     (request.app.state.retriever, AUDIT-013) -- so zahlt der erste echte
     Request nicht den Init-Preis (Chroma-Handshake, Modell-Laden, BM25-Bau,
-    Cross-Encoder-Laden). Ist nichts vorgeladen (Mock-Modus, oder Lifespan lief
-    nicht -- z. B. unter httpx-ASGITransport in Tests), faellt er auf
-    resolve_retriever(settings) zurueck.
+    Cross-Encoder-Laden). Ist nichts vorgeladen (Lifespan lief nicht -- z. B.
+    unter httpx-ASGITransport in Tests), faellt er auf resolve_retriever(settings)
+    zurueck, das seit V4-P2 fail-loud ist (kein stiller Mock-Fallback; Tests
+    injizieren MockRetriever per app.dependency_overrides[get_retriever_port]).
     """
     preloaded: RetrieverPort | None = getattr(request.app.state, "retriever", None)
     if preloaded is not None:

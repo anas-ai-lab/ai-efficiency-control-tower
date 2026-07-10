@@ -84,15 +84,42 @@ async def test_get_llm_adapter_returns_resilient_wrapped_azure_with_credentials(
     assert isinstance(adapter._inner, AzureOpenAIAdapter)
 
 
-async def test_get_retriever_port_returns_mock_without_chroma_host() -> None:
-    """Ohne AECT_CHROMA_HOST: MockRetriever (Default, kein Netzwerk/Torch).
+async def test_resolve_retriever_empty_host_raises() -> None:
+    """Fail loud (V4-P2): ein leerer AECT_CHROMA_HOST ist eine Fehlkonfiguration
+    -- resolve_retriever wirft ValueError statt still auf MockRetriever zu fallen.
+    MockRetriever gibt es nur noch ueber einen expliziten Test-Override.
 
-    chroma_host wird explizit auf "" gesetzt, analog zum Azure-Fund Tag 45 --
-    Test-Isolation darf nicht vom Inhalt einer lokalen .env abhaengen.
+    chroma_host explizit "" (analog Azure-Fund Tag 45): Test-Isolation darf nicht
+    vom Inhalt einer lokalen .env abhaengen (Default ist seit V4-P2 127.0.0.1).
     """
-    settings = Settings(chroma_host="")
-    retriever = resolve_retriever(settings)
-    assert isinstance(retriever, MockRetriever)
+    with pytest.raises(ValueError, match="AECT_CHROMA_HOST"):
+        resolve_retriever(Settings(chroma_host=""))
+
+
+async def test_resolve_retriever_unreachable_host_raises_connectionerror() -> None:
+    """Fail loud (V4-P2): ist der konfigurierte Chroma-Host nicht erreichbar,
+    wirft resolve_retriever eine ConnectionError (kein stiller Mock-Fallback) und
+    loggt "chroma_unreachable" mit Host/Port. Port 1 ist garantiert geschlossen --
+    der chromadb-HttpClient-Preflight schlaegt sofort fehl, noch bevor torch bzw.
+    Modelle geladen werden (Erreichbarkeits-Check zuerst in _build_real_retriever).
+    """
+    import aect.adapters.api.dependencies as deps_module
+
+    # lru_cache leeren: ein evtl. gecachtes (127.0.0.1, 1) aus einem frueheren
+    # Lauf koennte den erneuten Erreichbarkeits-Check ueberspringen (Exceptions
+    # cacht lru_cache zwar nicht, ein Erfolg mit gleicher Signatur aber schon).
+    deps_module._get_chroma_collection.cache_clear()
+
+    with (
+        capture_logs() as logs,
+        pytest.raises(ConnectionError, match="nicht erreichbar"),
+    ):
+        resolve_retriever(Settings(chroma_host="127.0.0.1", chroma_port=1))
+
+    events = [log for log in logs if log["event"] == "chroma_unreachable"]
+    assert len(events) == 1
+    assert events[0]["host"] == "127.0.0.1"
+    assert events[0]["port"] == 1
 
 
 async def test_get_retriever_port_wires_cross_encoder_reranker_with_host_set(
@@ -159,21 +186,24 @@ async def test_get_retriever_port_prefers_preloaded_app_state() -> None:
     assert result is sentinel
 
 
-async def test_get_retriever_port_falls_back_without_preload() -> None:
-    """Kein app.state.retriever (Lifespan lief nicht / Mock-Modus) -> Fallback
-    auf resolve_retriever(): ohne chroma_host der MockRetriever."""
-    result = get_retriever_port(
-        request=_fake_request(retriever=None),
-        settings=Settings(chroma_host=""),
-    )
-    assert isinstance(result, MockRetriever)
+async def test_get_retriever_port_falls_back_to_resolve_without_preload() -> None:
+    """Kein app.state.retriever (Lifespan lief nicht) -> Fallback auf
+    resolve_retriever(), das seit V4-P2 fail-loud ist: ein leerer chroma_host
+    wirft ValueError statt MockRetriever zurueckzugeben."""
+    with pytest.raises(ValueError, match="AECT_CHROMA_HOST"):
+        get_retriever_port(
+            request=_fake_request(retriever=None),
+            settings=Settings(chroma_host=""),
+        )
 
 
-async def test_lifespan_mock_mode_skips_heavy_resources(
+async def test_lifespan_skips_warmup_when_chroma_host_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifespan im Mock-Modus (kein chroma_host) laedt keine Heavy-Resources --
-    app.state.retriever bleibt ungesetzt (kein Container/Torch im Testlauf)."""
+    """Leerer chroma_host -> Lifespan-Startup laedt keine Heavy-Resources,
+    app.state.retriever bleibt ungesetzt. get_retriever_port faellt dann auf
+    resolve_retriever, das mit leerem Host fail-loud wirft (V4-P2) -- der
+    Container-Betrieb setzt AECT_CHROMA_HOST (Default 127.0.0.1)."""
     import aect.adapters.api.app as app_module
 
     monkeypatch.setattr(app_module, "get_settings", lambda: Settings(chroma_host=""))

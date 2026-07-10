@@ -112,9 +112,15 @@ class Settings(BaseSettings):
     # Fallback (unveraendert).
     azure_openai_region: str = ""  # AECT_AZURE_OPENAI_REGION
 
-    # ChromaDB (Phase D, ADR-0018/0019/0025) -- leer = MockRetriever.
-    # Docker-Container muss separat laufen (docker compose up -d).
-    chroma_host: str = ""  # AECT_CHROMA_HOST, z. B. 127.0.0.1
+    # ChromaDB (Phase D, ADR-0018/0019/0025). Default 127.0.0.1 (V4-P2): ein
+    # lokal laufender, geseedeter Container wird automatisch genutzt -- kein
+    # manuelles Setzen von AECT_CHROMA_HOST noetig. KEIN stiller MockRetriever-
+    # Fallback mehr (CLAUDE.md fail loud): ist der Host nicht erreichbar, wirft
+    # resolve_retriever() eine klare Exception statt still auf das synthetische
+    # Mock-Korpus zu fallen; MockRetriever gibt es nur noch ueber einen
+    # expliziten Test-Override. Docker-Container separat starten
+    # (docker compose up -d).
+    chroma_host: str = "127.0.0.1"  # AECT_CHROMA_HOST
     chroma_port: int = 8001  # AECT_CHROMA_PORT
 
     # Wissensbasis-Verzeichnis (Phase D, ADR-0027) -- Quelle fuer den
