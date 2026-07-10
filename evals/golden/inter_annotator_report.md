@@ -3,6 +3,56 @@
 Stand: 2026-07-02. Antwort auf known_limitations #3 ("Cross-Rater-Agreement
 mit zweitem unabhaengigen Labeler messen").
 
+---
+
+## V4-P4-Remessung (Modellversion "v4-Scoring", 2026-07-10)
+
+Nach dem V4-Umbau des Bewertungsmodells (SDR-0003: approach-basierte
+Komplexitaet, person-basierte Nutzen-Semantik) wurden die Golden-Inputs
+mechanisch migriert und der Eval-Runner erneut ausgefuehrt. Die
+**Experten-Labels (`expected_zone`) blieben unveraendert** -- sie sind die
+unabhaengige Wahrheit; nur die Engine-Vorhersage aendert sich.
+
+| Autor vs. Engine (report.json, n=24 gelabelt) | Raw Agreement | Cohen's kappa |
+|---|---|---|
+| **v4-Scoring (2026-07-10)** | **14/24 = 58,3 %** | **0,25** |
+| v3 (historisch, 2026-07-02) | 9/24 = 37,5 % | 0,06 |
+
+**Warum der Sprung (+20,8 pp).** Die person-basierte Nutzenformel rechnet jetzt
+`Ersparnis x Vorgaenge_pro_Mitarbeiter x Mitarbeiterzahl` -- der Faktor
+Mitarbeiterzahl war im alten org-weiten Frequenzmodell nicht enthalten. Bei
+Cases mit vielen betroffenen Mitarbeitern hebt das den erwarteten Nutzen deutlich
+und schiebt sie in die LIKELY_WIN-Zone, was zu den ueberwiegend optimistischen
+Autor-Labels passt (12 der frueheren Mismatches waren Autor-LIKELY_WIN vs.
+Engine-CALCULATED_RISK). Gegenlaeufig fallen drei Ein-Personen-Cases
+(golden-005/006/016) jetzt knapp durch den Vorfilter (Potenzial < 20.000 EUR),
+weil bei Mitarbeiterzahl 1 keine Hochrechnung greift -- sie zaehlen als Mismatch.
+Netto steigt die Uebereinstimmung, bleibt aber weit von 100 %: die
+Hard-Threshold-Brittleness (known_limitations #2) ist unveraendert.
+
+### Migrations-Mapping (mechanisch, dokumentiert)
+
+- `time_per_case_hours_current := <alte time_savings_hours_per_case>`,
+  `time_per_case_hours_with_ai := 0` (die alte Zahl war bereits die Ersparnis).
+- **Semantik-Annahme:** die alte `frequency_per_year` (org-weite Menge) wird
+  unveraendert als `occurrences_per_employee_per_year` (person-basiert)
+  uebernommen. Das inflationiert das Volumen um `affected_employees_count` und
+  ist die Hauptursache der veraenderten Zonen -- bewusst so gewaehlt (mechanische
+  Migration ohne Neubewertung der Cases).
+- `implementation_complexity (1-5) -> implementation_approach` (haelt den
+  Composite-Komplexitaets-Score identisch): 1 simple_integration /
+  2 development_on_existing / 3 api_integration / 4 custom_development /
+  5 new_tool. Das alte 3er-Enum `implementation_approach`
+  (vendor_solution/standard_product/custom_build) wird verworfen.
+- `adoption_type`: mandatory -> fixed_process_step, voluntary -> voluntary.
+
+Die drei detaillierten Drei-Wege-Tabellen unten (Zweitannotator vs. Autor/Engine)
+stammen aus dem v3-Stand vom 2026-07-02 und wurden **nicht** neu erhoben -- das
+LLM-Zweitannotator-Protokoll (Blind-Labeling) haengt nicht am Scoring-Modell und
+bleibt als historischer Vergleich stehen.
+
+---
+
 ## Protokoll
 
 Zweitannotator ist ein **LLM (Claude, Blind-Protokoll), explizit KEIN

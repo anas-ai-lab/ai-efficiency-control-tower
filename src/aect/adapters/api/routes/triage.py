@@ -69,6 +69,9 @@ class ROIResponse(BaseModel):
     expected_benefit_eur: float
     net_expected_benefit_eur: float
     hours_per_year: float
+    # Ersparnis pro Vorgang (Zeit_ist - Zeit_ai, V4). Kann <= 0 sein (eine Idee
+    # darf auch Zeit kosten -- der Vorfilter meldet das dann mit Klartext-Grund).
+    time_saved_per_case_hours: float
     usage_factor: float
     evidence_factor: float
     license_cost_annual_eur: float
@@ -179,6 +182,7 @@ def _to_triage_response(
             expected_benefit_eur=float(r.roi.expected_benefit_eur),
             net_expected_benefit_eur=float(r.roi.net_expected_benefit_eur),
             hours_per_year=r.roi.hours_per_year,
+            time_saved_per_case_hours=r.roi.time_saved_per_case_hours,
             usage_factor=r.roi.usage_factor,
             evidence_factor=r.roi.evidence_factor,
             license_cost_annual_eur=float(r.roi.license_cost_annual_eur),

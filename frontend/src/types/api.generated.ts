@@ -270,21 +270,83 @@ export interface paths {
         put?: never;
         /**
          * Sharpen Case
-         * @description Schaerft die Use-Case-Beschreibung eines bestehenden Cases via LLM.
+         * @description Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
          *     Auth: X-API-Key-Header (require_api_key).
          *     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
          *     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
          *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
-         *     stuendliche Token-Budget des API-Keys (Phase G, ergaenzt die
-         *     Request-Rate-Limits um eine Token-MENGEN-Grenze).
+         *     stuendliche Token-Budget des API-Keys (Phase G).
+         *
+         *     Draft: das Ergebnis wird als sharpening_draft persistiert, ueberschreibt
+         *     NICHTS am Case. Uebernahme via /sharpen/accept.
+         *
+         *     Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
+         *     - Case fehlt -> 404.
+         *     - KI erfindet Zahlen (auch nach Retry) -> 422 mit Violation-Liste.
+         *     - KI-Antwort verletzt das Schaerfungs-Schema (auch nach Retry) -> 422.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 422: KI-Antwort erfindet Zahlen oder verletzt das Schema.
          *         HTTPException 429: Token-Budget des API-Keys erschoepft.
          */
         post: operations["sharpen_case_cases__case_id__sharpen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/sharpen/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Sharpening
+         * @description Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
+         *
+         *     Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
+         *     Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: kein offener Draft (nichts zu uebernehmen).
+         */
+        post: operations["accept_sharpening_cases__case_id__sharpen_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/sharpen/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Sharpening
+         * @description Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
+         *
+         *     Kein LLM-Call -> kein Token-Budget noetig.
+         *     Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: kein offener Draft (nichts zu verwerfen).
+         */
+        post: operations["reject_sharpening_cases__case_id__sharpen_reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -432,14 +494,20 @@ export interface paths {
          *     Fehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):
          *     - Case fehlt -> 404.
          *     - kein Loesungsvorschlag -> 409 (NoProposalForSketchError).
-         *     - LLM liefert kein valides Graph-Schema -> 502 (InvalidLLMOutputError).
+         *     - LLM-Antwort verletzt das Graph-Schema -> 422 (InvalidLLMOutputError),
+         *       mit der praezisen, verletzten Schema-Regel als Begruendung. Bewusst NICHT
+         *       502: der LLM-Call selbst gelang, nur der Inhalt ist unverwertbar -- ein
+         *       502 wuerde faelschlich einen Gateway-/Infrastrukturfehler suggerieren.
          *     - LLM nach Retries nicht erreichbar -> 503.
+         *     - interner Fehler HINTER dem LLM-Call (Mermaid-Builder/Persistenz) -> 500,
+         *       strukturiert geloggt (sketch_generation_failed), Detail generisch.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
          *         HTTPException 409: Case hat keinen Loesungsvorschlag.
+         *         HTTPException 422: KI-Antwort verletzt das Skizzen-Schema.
          *         HTTPException 429: Token-Budget des API-Keys erschoepft.
-         *         HTTPException 502: KI-Antwort war nicht verwertbar.
+         *         HTTPException 500: interner Builder-/Persistenzfehler.
          *         HTTPException 503: KI-Dienst nicht erreichbar.
          */
         post: operations["generate_architecture_sketch_cases__case_id__architecture_sketch_post"];
@@ -519,9 +587,12 @@ export interface components {
         /**
          * AdoptionType
          * @description Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell.
+         *
+         *     Deutsche Labels (V4, SDR-0003 Entscheidung 3): aufsteigend nach Verbindlichkeit.
+         *     Faktor-Mapping (0.50 / 0.70 / 0.90) liegt in config/roi_config.toml.
          * @enum {string}
          */
-        AdoptionType: "mandatory" | "voluntary";
+        AdoptionType: "voluntary" | "recommended_standard" | "fixed_process_step";
         /**
          * ArchitectureSketchEnvelope
          * @description Read-Antwort fuer GET architecture-sketch (P11).
@@ -701,8 +772,10 @@ export interface components {
          * @description Datenschutz-Einstufung der verarbeiteten Daten.
          *
          *     Beeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).
-         *     Score-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=2, SENSITIVE_PERSONAL=2.
-         *     Mapping liegt in config, nicht hier.
+         *     Score-Mapping (V4): NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1,
+         *     SENSITIVE_PERSONAL=2. Pseudonymisierte Daten bleiben personenbezogen i. S. d.
+         *     DSGVO (Art. 4 Nr. 5), daher gleicher Score wie PERSONAL. Mapping liegt in
+         *     domain/scoring.py, nicht hier.
          * @enum {string}
          */
         DataClassification: "no_personal_data" | "pseudonymous" | "personal" | "sensitive_personal";
@@ -756,7 +829,12 @@ export interface components {
          * @description Qualität der Zeitersparnis-Schätzung.
          *
          *     Beeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).
-         *     Konkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml.
+         *     Konkretes Faktor-Mapping (V4: 0.40 / 0.55 / 0.90) liegt in config/roi_config.toml.
+         *
+         *     Deutsche Labels (V4, SDR-0003 Entscheidung 3):
+         *       pure_estimate   -- reine Einschaetzung (Bauchgefuehl ohne Datenbasis)
+         *       similar_project -- eigene Erfahrung bzw. Analogieprojekt
+         *       tested_piloted  -- mit mehreren realen Beispielen getestet oder gemessen
          * @enum {string}
          */
         EvidenceLevel: "pure_estimate" | "similar_project" | "tested_piloted";
@@ -852,10 +930,21 @@ export interface components {
         };
         /**
          * ImplementationApproach
-         * @description Geplante Umsetzungsstrategie.
+         * @description Geplanter Umsetzungsansatz — ordinal, aufsteigende Komplexitaet (V4).
+         *
+         *     Der Ansatz ersetzt das fruehere freie Komplexitaets-Eingabefeld: die
+         *     Komplexitaet (1-5) wird deterministisch aus dem Ansatz abgeleitet
+         *     (COMPLEXITY_BY_APPROACH in domain/scoring.py, SDR-0003 Entscheidung 4).
+         *
+         *     Deutsche Labels:
+         *       simple_integration      -- einfache Implementierung in bestehende Umgebung
+         *       development_on_existing -- Entwicklung auf bestehender Umgebung
+         *       api_integration         -- API-Anbindung in bestehende Umgebung
+         *       custom_development       -- eigene Entwicklung
+         *       new_tool                -- Einfuehrung neues Tool
          * @enum {string}
          */
-        ImplementationApproach: "standard_product" | "custom_build" | "vendor_solution";
+        ImplementationApproach: "simple_integration" | "development_on_existing" | "api_integration" | "custom_development" | "new_tool";
         /**
          * MonitoringEntryResponse
          * @description Ein append-only Monitoring-Eintrag (Monitoring-ADR).
@@ -900,6 +989,8 @@ export interface components {
             net_expected_benefit_eur: number;
             /** Hours Per Year */
             hours_per_year: number;
+            /** Time Saved Per Case Hours */
+            time_saved_per_case_hours: number;
             /** Usage Factor */
             usage_factor: number;
             /** Evidence Factor */
@@ -958,15 +1049,31 @@ export interface components {
             requires_human_review: boolean;
         };
         /**
-         * SharpenedCaseResponse
-         * @description Original + geschaerfte Version eines Use Cases (ADR-0013 Teil 2).
+         * SharpenSuggestionResponse
+         * @description Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
          *
-         *     Erfolg: sharpened_title/current_state/desired_state gesetzt,
-         *     improvement_suggestions hat 1-10 Eintraege, raw_text ist None.
-         *     Graceful Degradation: die drei sharpened_*-Felder sind None,
-         *     improvement_suggestions ist leer, raw_text enthaelt die rohe
-         *     LLM-Antwort (aect-security-checklist v2.1: LLM-Output als untrusted,
-         *     kein Crash bei Format-Verstoss).
+         *     bezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag
+         *     zielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.
+         *     hebel: welche Bewertungsgroesse sich wie veraendert.
+         */
+        SharpenSuggestionResponse: {
+            /** Bezugsfeld */
+            bezugsfeld: string;
+            /** Vorschlag */
+            vorschlag: string;
+            /** Hebel */
+            hebel: string;
+        };
+        /**
+         * SharpenedCaseResponse
+         * @description Original + geschaerfte Fassung eines Use Cases (V4, Draft/Accept-Flow).
+         *
+         *     Das Ergebnis ist ein Entwurf (sharpening_draft) -- es ueberschreibt nichts
+         *     am Case. Der Client baut daraus die Diff-Ansicht (Original feldweise neben
+         *     der geschaerften Fassung) und uebernimmt/verwirft via /sharpen/accept bzw.
+         *     /sharpen/reject. Erfindet die KI Zahlen oder verletzt sie das Schema (auch
+         *     nach einem Retry), antwortet die Route mit 422 -- es gibt keine
+         *     Teil-/Degradations-Antwort mehr.
          */
         SharpenedCaseResponse: {
             /** Case Id */
@@ -978,17 +1085,25 @@ export interface components {
             /** Original Desired State */
             original_desired_state: string;
             /** Sharpened Title */
-            sharpened_title: string | null;
+            sharpened_title: string;
             /** Sharpened Current State */
-            sharpened_current_state: string | null;
+            sharpened_current_state: string;
             /** Sharpened Desired State */
-            sharpened_desired_state: string | null;
+            sharpened_desired_state: string;
             /** Improvement Suggestions */
-            improvement_suggestions: string[];
-            /** Raw Text */
-            raw_text: string | null;
+            improvement_suggestions: components["schemas"]["SharpenSuggestionResponse"][];
             /** Prompt Version */
             prompt_version: string;
+        };
+        /**
+         * SharpeningActionResponse
+         * @description Bestaetigung fuer accept/reject eines Schaerfungs-Drafts (V4).
+         */
+        SharpeningActionResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Status */
+            status: string;
         };
         /**
          * SimilarityPairResponse
@@ -1232,15 +1347,20 @@ export interface components {
              */
             desired_example_process?: string | null;
             /**
-             * Time Savings Hours Per Case
-             * @description Geschätzte Zeitersparnis pro Vorgang in Stunden (max = 8 h)
+             * Time Per Case Hours Current
+             * @description Zeit pro Vorgang heute (ohne AI) in Stunden (max = 8 h)
              */
-            time_savings_hours_per_case: number;
+            time_per_case_hours_current: number;
             /**
-             * Frequency Per Year
-             * @description Anzahl Vorgänge pro Jahr
+             * Time Per Case Hours With Ai
+             * @description Zeit pro Vorgang mit AI in Stunden (>= 0). Die Ersparnis pro Vorgang ist current - with_ai und darf <= 0 sein (eine Idee darf auch Zeit kosten) -- der Vorfilter meldet das dann mit Klartext-Grund.
              */
-            frequency_per_year: number;
+            time_per_case_hours_with_ai: number;
+            /**
+             * Occurrences Per Employee Per Year
+             * @description Wie oft EIN Mitarbeiter den Vorgang pro Jahr ausfuehrt (person-basiert, nicht das Gesamtvolumen der Organisation).
+             */
+            occurrences_per_employee_per_year: number;
             /**
              * Affected Employees Count
              * @description Anzahl Mitarbeiter, die diesen Prozess heute manuell durchführen
@@ -1263,11 +1383,6 @@ export interface components {
              * @default 0
              */
             estimated_license_cost_eur: number;
-            /**
-             * Implementation Complexity
-             * @description Technische Komplexität: 1 = trivial, 3 = mittel, 5 = sehr hoch
-             */
-            implementation_complexity: number;
             /**
              * Implementation Cost Eur
              * @description Einmalige Implementierungskosten in EUR (Setup/Integration). Fliesst in die Kostenstufe des Composite-Aufwand-Scores ein, NICHT in den jaehrlichen Netto-Nutzen des ROI (einmalige vs. wiederkehrende Kosten).
@@ -1637,6 +1752,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SharpenedCaseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_sharpening_cases__case_id__sharpen_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharpeningActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_sharpening_cases__case_id__sharpen_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharpeningActionResponse"];
                 };
             };
             /** @description Validation Error */

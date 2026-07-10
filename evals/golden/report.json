@@ -1,8 +1,8 @@
 {
   "total_cases": 25,
   "labeled_cases": 24,
-  "agreement_count": 9,
-  "agreement_rate": 0.375,
+  "agreement_count": 14,
+  "agreement_rate": 0.5833333333333334,
   "results": [
     {
       "case_id": "golden-001",
@@ -21,9 +21,9 @@
     {
       "case_id": "golden-003",
       "passed_vorfilter": true,
-      "predicted_zone": "MARGINAL_GAIN",
+      "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-004",
@@ -56,9 +56,9 @@
     {
       "case_id": "golden-008",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-009",
@@ -70,9 +70,9 @@
     {
       "case_id": "golden-010",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-011",
@@ -84,9 +84,9 @@
     {
       "case_id": "golden-012",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-013",
@@ -119,16 +119,16 @@
     {
       "case_id": "golden-017",
       "passed_vorfilter": true,
-      "predicted_zone": "MARGINAL_GAIN",
+      "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false
     },
     {
       "case_id": "golden-018",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "CALCULATED_RISK",
-      "is_match": true
+      "is_match": false
     },
     {
       "case_id": "golden-019",
@@ -154,9 +154,9 @@
     {
       "case_id": "golden-022",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-023",
@@ -168,9 +168,9 @@
     {
       "case_id": "golden-024",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-025",

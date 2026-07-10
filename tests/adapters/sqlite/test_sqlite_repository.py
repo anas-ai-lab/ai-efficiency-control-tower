@@ -69,15 +69,15 @@ def sample_use_case() -> UseCaseInput:
             "Lieferantenrechnung von XYZ GmbH: Buchhalter oeffnet PDF, "
             "extrahiert Positionen manuell und erfasst in SAP."
         ),
-        time_savings_hours_per_case=0.4,
-        frequency_per_year=3000,
+        time_per_case_hours_current=0.4,
+        time_per_case_hours_with_ai=0.0,
+        occurrences_per_employee_per_year=3000,
         affected_employees_count=5,
         employee_category=EmployeeCategory.PROFESSIONAL,
         evidence_level=EvidenceLevel.SIMILAR_PROJECT,
-        adoption_type=AdoptionType.MANDATORY,
-        implementation_approach=ImplementationApproach.VENDOR_SOLUTION,
+        adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+        implementation_approach=ImplementationApproach.API_INTEGRATION,
         estimated_license_cost_eur=12000.0,
-        implementation_complexity=3,
         contains_pii=False,
         data_classification=DataClassification.NO_PERSONAL_DATA,
     )
@@ -112,15 +112,15 @@ def vorfilter_fail_case() -> SubmittedCase:
             "und dem Mitarbeiter Zeit sparen."
         ),
         example_process="Ein Vorgang dauert 1 Minute und kommt einmal vor.",
-        time_savings_hours_per_case=0.01,  # extrem gering -> Vorfilter schlaegt fehl
-        frequency_per_year=1,
+        time_per_case_hours_current=0.01,  # extrem gering -> Vorfilter schlaegt fehl
+        time_per_case_hours_with_ai=0.0,
+        occurrences_per_employee_per_year=1,
         affected_employees_count=1,
         employee_category=EmployeeCategory.JUNIOR,
         evidence_level=EvidenceLevel.PURE_ESTIMATE,
         adoption_type=AdoptionType.VOLUNTARY,
-        implementation_approach=ImplementationApproach.STANDARD_PRODUCT,
+        implementation_approach=ImplementationApproach.SIMPLE_INTEGRATION,
         estimated_license_cost_eur=0.0,
-        implementation_complexity=1,
         contains_pii=False,
         data_classification=DataClassification.NO_PERSONAL_DATA,
     )

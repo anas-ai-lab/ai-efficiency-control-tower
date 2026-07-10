@@ -47,13 +47,13 @@ _VALID_PAYLOAD: dict = {
         "Eingehende Rechnung von Lieferant X wird manuell gescannt "
         "und Betraege sowie Kostenstellen haendig abgetippt."
     ),
-    "time_savings_hours_per_case": 0.2,
-    "frequency_per_year": 5000,
+    "time_per_case_hours_current": 0.2,
+    "time_per_case_hours_with_ai": 0.0,
+    "occurrences_per_employee_per_year": 5000,
     "affected_employees_count": 10,
     "employee_category": "professional",
-    "adoption_type": "mandatory",
-    "implementation_approach": "standard_product",
-    "implementation_complexity": 2,
+    "adoption_type": "fixed_process_step",
+    "implementation_approach": "development_on_existing",
     "data_classification": "no_personal_data",
 }
 
@@ -189,8 +189,8 @@ async def test_low_value_case_fails_vorfilter_and_has_null_zone() -> None:
     """Minimales Volumen unterschreitet Stunden-Schwelle -- zone muss None sein."""
     low_value = {
         **_VALID_PAYLOAD,
-        "frequency_per_year": 1,
-        "time_savings_hours_per_case": 0.01,
+        "occurrences_per_employee_per_year": 1,
+        "time_per_case_hours_current": 0.01,
     }
     async with AsyncClient(
         transport=ASGITransport(app=_make_triage_app()), base_url="http://test"
@@ -252,8 +252,9 @@ async def test_invalid_enum_value_returns_422() -> None:
     assert response.status_code == 422
 
 
-async def test_out_of_range_complexity_returns_422() -> None:
-    payload = {**_VALID_PAYLOAD, "implementation_complexity": 10}
+async def test_out_of_range_time_returns_422() -> None:
+    # time_per_case_hours_current hat le=8.0 -- 100 h verletzt die Obergrenze.
+    payload = {**_VALID_PAYLOAD, "time_per_case_hours_current": 100.0}
     async with AsyncClient(
         transport=ASGITransport(app=_make_triage_app()), base_url="http://test"
     ) as client:

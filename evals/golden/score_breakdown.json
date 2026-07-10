@@ -7,11 +7,11 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 52650.0,
-      "composite_total": 6,
+      "expected_benefit_eur": 35640.0,
+      "composite_total": 3,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 0,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -23,7 +23,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 52,650 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Nutzen 35,640 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 35,640 EUR >= 5,000 EUR UND Composite 3 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-002",
@@ -31,10 +31,10 @@
       "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
       "is_match": true,
-      "expected_benefit_eur": 2700000.0,
-      "composite_total": 4,
+      "expected_benefit_eur": 2235600.0,
+      "composite_total": 3,
       "composite_complexity": 2,
-      "composite_cost": 2,
+      "composite_cost": 1,
       "composite_data_protection": 0,
       "handlungsdruck_score": 2,
       "base_zone": "LIKELY_WIN",
@@ -47,22 +47,22 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Nutzen 2,700,000 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 2,235,600 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 3 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-003",
       "passed_vorfilter": true,
-      "predicted_zone": "MARGINAL_GAIN",
+      "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
-      "is_match": false,
-      "expected_benefit_eur": 255150.0,
-      "composite_total": 8,
+      "is_match": true,
+      "expected_benefit_eur": 245700.0,
+      "composite_total": 7,
       "composite_complexity": 5,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 2,
       "handlungsdruck_score": 3,
-      "base_zone": "MARGINAL_GAIN",
-      "final_zone": "MARGINAL_GAIN",
+      "base_zone": "CALCULATED_RISK",
+      "final_zone": "CALCULATED_RISK",
       "handlungsdruck_elevated": false,
       "thresholds": {
         "likely_win_min_benefit_eur": 50000.0,
@@ -71,7 +71,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 8 > CALCULATED_RISK-Obergrenze 7 -> Basis-Zone MARGINAL_GAIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
+      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4, aber Nutzen 245,700 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
     },
     {
       "case_id": "golden-004",
@@ -119,7 +119,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Vorfilter nicht bestanden (Theoretisches Potenzial, Nettonutzen). Keine Zonen-Bewertung moeglich."
+      "explanation": "Vorfilter nicht bestanden (Nettonutzen). Keine Zonen-Bewertung moeglich."
     },
     {
       "case_id": "golden-006",
@@ -151,11 +151,11 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 583200.0,
-      "composite_total": 7,
+      "expected_benefit_eur": 631800.0,
+      "composite_total": 5,
       "composite_complexity": 3,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 1,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -167,22 +167,22 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4, aber Nutzen 583,200 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4, aber Nutzen 631,800 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-008",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false,
-      "expected_benefit_eur": 468000.0,
-      "composite_total": 6,
+      "is_match": true,
+      "expected_benefit_eur": 419904.0,
+      "composite_total": 4,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 1,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 2,
-      "base_zone": "CALCULATED_RISK",
-      "final_zone": "CALCULATED_RISK",
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
       "handlungsdruck_elevated": false,
       "thresholds": {
         "likely_win_min_benefit_eur": 50000.0,
@@ -191,7 +191,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 468,000 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 419,904 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-009",
@@ -199,10 +199,10 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 29250.0,
-      "composite_total": 5,
+      "expected_benefit_eur": 21600.0,
+      "composite_total": 4,
       "composite_complexity": 4,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 0,
       "handlungsdruck_score": 2,
       "base_zone": "CALCULATED_RISK",
@@ -215,22 +215,22 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4 UND Nutzen 29,250 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 29,250 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 21,600 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 21,600 EUR >= 5,000 EUR UND Composite 4 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-010",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false,
-      "expected_benefit_eur": 675000.0,
-      "composite_total": 6,
+      "is_match": true,
+      "expected_benefit_eur": 558900.0,
+      "composite_total": 4,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 1,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 2,
-      "base_zone": "CALCULATED_RISK",
-      "final_zone": "CALCULATED_RISK",
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
       "handlungsdruck_elevated": false,
       "thresholds": {
         "likely_win_min_benefit_eur": 50000.0,
@@ -239,7 +239,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 675,000 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 558,900 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-011",
@@ -247,11 +247,11 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 35100.0,
-      "composite_total": 6,
+      "expected_benefit_eur": 25920.0,
+      "composite_total": 3,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 0,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -263,22 +263,22 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4 UND Nutzen 35,100 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 35,100 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Nutzen 25,920 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 25,920 EUR >= 5,000 EUR UND Composite 3 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-012",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false,
-      "expected_benefit_eur": 936000.0,
-      "composite_total": 6,
+      "is_match": true,
+      "expected_benefit_eur": 839808.0,
+      "composite_total": 4,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 1,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 2,
-      "base_zone": "CALCULATED_RISK",
-      "final_zone": "CALCULATED_RISK",
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
       "handlungsdruck_elevated": false,
       "thresholds": {
         "likely_win_min_benefit_eur": 50000.0,
@@ -287,7 +287,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 936,000 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 839,808 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-013",
@@ -295,10 +295,10 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
       "is_match": true,
-      "expected_benefit_eur": 146250.0,
-      "composite_total": 7,
+      "expected_benefit_eur": 108000.0,
+      "composite_total": 6,
       "composite_complexity": 4,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 2,
       "handlungsdruck_score": 2,
       "base_zone": "CALCULATED_RISK",
@@ -311,7 +311,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4, aber Nutzen 146,250 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 108,000 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-014",
@@ -319,10 +319,10 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
       "is_match": true,
-      "expected_benefit_eur": 46800.0,
-      "composite_total": 7,
+      "expected_benefit_eur": 34560.0,
+      "composite_total": 6,
       "composite_complexity": 4,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 2,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
@@ -335,7 +335,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4 UND Nutzen 46,800 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 46,800 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4 UND Nutzen 34,560 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 34,560 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-015",
@@ -343,11 +343,11 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 648000.0,
-      "composite_total": 7,
+      "expected_benefit_eur": 404800.0,
+      "composite_total": 5,
       "composite_complexity": 3,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 1,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -359,7 +359,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4, aber Nutzen 648,000 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4, aber Nutzen 404,800 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-016",
@@ -388,38 +388,14 @@
     {
       "case_id": "golden-017",
       "passed_vorfilter": true,
-      "predicted_zone": "MARGINAL_GAIN",
+      "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "LIKELY_WIN",
       "is_match": false,
-      "expected_benefit_eur": 1440000.0,
-      "composite_total": 8,
+      "expected_benefit_eur": 1684800.0,
+      "composite_total": 7,
       "composite_complexity": 5,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 2,
-      "handlungsdruck_score": 3,
-      "base_zone": "MARGINAL_GAIN",
-      "final_zone": "MARGINAL_GAIN",
-      "handlungsdruck_elevated": false,
-      "thresholds": {
-        "likely_win_min_benefit_eur": 50000.0,
-        "likely_win_max_composite": 4,
-        "calculated_risk_min_benefit_eur": 5000.0,
-        "calculated_risk_max_composite": 7,
-        "handlungsdruck_elevation_threshold": 4
-      },
-      "explanation": "Composite 8 > CALCULATED_RISK-Obergrenze 7 -> Basis-Zone MARGINAL_GAIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
-    },
-    {
-      "case_id": "golden-018",
-      "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
-      "expected_zone": "CALCULATED_RISK",
-      "is_match": true,
-      "expected_benefit_eur": 70875.0,
-      "composite_total": 5,
-      "composite_complexity": 4,
-      "composite_cost": 1,
-      "composite_data_protection": 0,
       "handlungsdruck_score": 3,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -431,7 +407,31 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4, aber Nutzen 70,875 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
+      "explanation": "Composite 7 > LIKELY_WIN-Obergrenze 4, aber Nutzen 1,684,800 EUR >= 5,000 EUR UND Composite 7 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
+    },
+    {
+      "case_id": "golden-018",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "CALCULATED_RISK",
+      "is_match": false,
+      "expected_benefit_eur": 62562.5,
+      "composite_total": 4,
+      "composite_complexity": 4,
+      "composite_cost": 0,
+      "composite_data_protection": 0,
+      "handlungsdruck_score": 3,
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Nutzen 62,562 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
     },
     {
       "case_id": "golden-019",
@@ -439,10 +439,10 @@
       "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
       "is_match": true,
-      "expected_benefit_eur": 780000.0,
-      "composite_total": 4,
+      "expected_benefit_eur": 699840.0,
+      "composite_total": 3,
       "composite_complexity": 3,
-      "composite_cost": 1,
+      "composite_cost": 0,
       "composite_data_protection": 0,
       "handlungsdruck_score": 3,
       "base_zone": "LIKELY_WIN",
@@ -455,7 +455,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Nutzen 780,000 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
+      "explanation": "Nutzen 699,840 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 3 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 3 < Schwelle 4 (fehlt 1) -> keine Hochstufung."
     },
     {
       "case_id": "golden-020",
@@ -463,11 +463,11 @@
       "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
       "is_match": true,
-      "expected_benefit_eur": 52650.0,
-      "composite_total": 6,
+      "expected_benefit_eur": 38880.0,
+      "composite_total": 3,
       "composite_complexity": 2,
-      "composite_cost": 2,
-      "composite_data_protection": 2,
+      "composite_cost": 0,
+      "composite_data_protection": 1,
       "handlungsdruck_score": 1,
       "base_zone": "CALCULATED_RISK",
       "final_zone": "CALCULATED_RISK",
@@ -479,7 +479,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 6 > LIKELY_WIN-Obergrenze 4, aber Nutzen 52,650 EUR >= 5,000 EUR UND Composite 6 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Nutzen 38,880 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 38,880 EUR >= 5,000 EUR UND Composite 3 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-021",
@@ -487,10 +487,10 @@
       "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
       "is_match": true,
-      "expected_benefit_eur": 260000.0,
-      "composite_total": 3,
+      "expected_benefit_eur": 233280.0,
+      "composite_total": 1,
       "composite_complexity": 1,
-      "composite_cost": 2,
+      "composite_cost": 0,
       "composite_data_protection": 0,
       "handlungsdruck_score": 1,
       "base_zone": "LIKELY_WIN",
@@ -503,39 +503,15 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Nutzen 260,000 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 3 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Nutzen 233,280 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 1 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
       "case_id": "golden-022",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
-      "expected_zone": "LIKELY_WIN",
-      "is_match": false,
-      "expected_benefit_eur": 438750.0,
-      "composite_total": 5,
-      "composite_complexity": 3,
-      "composite_cost": 2,
-      "composite_data_protection": 0,
-      "handlungsdruck_score": 1,
-      "base_zone": "CALCULATED_RISK",
-      "final_zone": "CALCULATED_RISK",
-      "handlungsdruck_elevated": false,
-      "thresholds": {
-        "likely_win_min_benefit_eur": 50000.0,
-        "likely_win_max_composite": 4,
-        "calculated_risk_min_benefit_eur": 5000.0,
-        "calculated_risk_max_composite": 7,
-        "handlungsdruck_elevation_threshold": 4
-      },
-      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4, aber Nutzen 438,750 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
-    },
-    {
-      "case_id": "golden-023",
-      "passed_vorfilter": true,
       "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
       "is_match": true,
-      "expected_benefit_eur": 585000.0,
+      "expected_benefit_eur": 320760.0,
       "composite_total": 4,
       "composite_complexity": 3,
       "composite_cost": 1,
@@ -551,22 +527,22 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Nutzen 585,000 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+      "explanation": "Nutzen 320,760 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
     },
     {
-      "case_id": "golden-024",
+      "case_id": "golden-023",
       "passed_vorfilter": true,
-      "predicted_zone": "CALCULATED_RISK",
+      "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
-      "is_match": false,
-      "expected_benefit_eur": 360000.0,
-      "composite_total": 5,
-      "composite_complexity": 4,
-      "composite_cost": 1,
+      "is_match": true,
+      "expected_benefit_eur": 427680.0,
+      "composite_total": 3,
+      "composite_complexity": 3,
+      "composite_cost": 0,
       "composite_data_protection": 0,
-      "handlungsdruck_score": 2,
-      "base_zone": "CALCULATED_RISK",
-      "final_zone": "CALCULATED_RISK",
+      "handlungsdruck_score": 1,
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
       "handlungsdruck_elevated": false,
       "thresholds": {
         "likely_win_min_benefit_eur": 50000.0,
@@ -575,7 +551,31 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4, aber Nutzen 360,000 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
+      "explanation": "Nutzen 427,680 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 3 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 1 < Schwelle 4 (fehlt 3) -> keine Hochstufung."
+    },
+    {
+      "case_id": "golden-024",
+      "passed_vorfilter": true,
+      "predicted_zone": "LIKELY_WIN",
+      "expected_zone": "LIKELY_WIN",
+      "is_match": true,
+      "expected_benefit_eur": 421200.0,
+      "composite_total": 4,
+      "composite_complexity": 4,
+      "composite_cost": 0,
+      "composite_data_protection": 0,
+      "handlungsdruck_score": 2,
+      "base_zone": "LIKELY_WIN",
+      "final_zone": "LIKELY_WIN",
+      "handlungsdruck_elevated": false,
+      "thresholds": {
+        "likely_win_min_benefit_eur": 50000.0,
+        "likely_win_max_composite": 4,
+        "calculated_risk_min_benefit_eur": 5000.0,
+        "calculated_risk_max_composite": 7,
+        "handlungsdruck_elevation_threshold": 4
+      },
+      "explanation": "Nutzen 421,200 EUR >= LIKELY_WIN-Schwelle 50,000 EUR UND Composite 4 <= 4 -> Basis-Zone LIKELY_WIN. Handlungsdruck 2 < Schwelle 4 (fehlt 2) -> keine Hochstufung."
     },
     {
       "case_id": "golden-025",
@@ -583,10 +583,10 @@
       "predicted_zone": "LIKELY_WIN",
       "expected_zone": "LIKELY_WIN",
       "is_match": true,
-      "expected_benefit_eur": 37440.0,
-      "composite_total": 5,
+      "expected_benefit_eur": 27648.0,
+      "composite_total": 3,
       "composite_complexity": 3,
-      "composite_cost": 2,
+      "composite_cost": 0,
       "composite_data_protection": 0,
       "handlungsdruck_score": 4,
       "base_zone": "CALCULATED_RISK",
@@ -599,7 +599,7 @@
         "calculated_risk_max_composite": 7,
         "handlungsdruck_elevation_threshold": 4
       },
-      "explanation": "Composite 5 > LIKELY_WIN-Obergrenze 4 UND Nutzen 37,440 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 37,440 EUR >= 5,000 EUR UND Composite 5 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 4 >= Schwelle 4 -> Hochstufung CALCULATED_RISK -> LIKELY_WIN."
+      "explanation": "Nutzen 27,648 EUR < LIKELY_WIN-Schwelle 50,000 EUR, aber Nutzen 27,648 EUR >= 5,000 EUR UND Composite 3 <= 7 -> Basis-Zone CALCULATED_RISK. Handlungsdruck 4 >= Schwelle 4 -> Hochstufung CALCULATED_RISK -> LIKELY_WIN."
     }
   ]
 }

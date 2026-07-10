@@ -350,6 +350,25 @@ des neuen Keys unter dem Event `api_key_authenticated` erscheint -- das zeigt, d
 Client mehr den alten Key nutzt, (4) `AECT_API_KEY_NEXT` -> `AECT_API_KEY` uebernehmen und
 den alten Wert entfernen.
 
+**Demo-Daten** (Portfolio-/Demo-Build): `scripts/seed_demo.py` legt deterministisch
+neun generische Demo-Cases an -- verteilt ueber Zonen (LIKELY_WIN / CALCULATED_RISK /
+MARGINAL_GAIN), Laender (de/at/ch), Lifecycle-Status und Datenschutzklassen. Ein Case
+hat ein negatives Zeitdelta (Vorfilter-Ablehnung sichtbar), zwei liegen exakt auf einer
+Zonengrenze. Die LLM-Felder bleiben leer (kein Azure-Call). So haben `/cases`, `/board`
+und das Monitoring sofort Inhalt.
+
+```bash
+# DB anlegen bzw. ergaenzen (Default-Pfad: aect_demo.db, gitignored)
+uv run python scripts/seed_demo.py --reset
+
+# API gegen die geseedete DB starten
+AECT_DB_PATH=aect_demo.db uv run uvicorn aect.adapters.api.app:app --no-server-header
+```
+
+Es gibt bewusst **kein Migrations-Framework** (Demo-Build): das V4-Schema ist gegenueber
+V3 inkompatibel (neue Eingabefelder). Eine alte lokale DB-Datei einfach loeschen bzw.
+`--reset` nutzen -- ein dokumentierter Reset ersetzt die Migration.
+
 ---
 
 ## Repository-Struktur

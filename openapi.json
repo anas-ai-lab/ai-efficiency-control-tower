@@ -911,11 +911,12 @@
       "AdoptionType": {
         "type": "string",
         "enum": [
-          "mandatory",
-          "voluntary"
+          "voluntary",
+          "recommended_standard",
+          "fixed_process_step"
         ],
         "title": "AdoptionType",
-        "description": "Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell."
+        "description": "Verbindlichkeit der Nutzung — beeinflusst den Nutzungsfaktor im ROI-Modell.\n\nDeutsche Labels (V4, SDR-0003 Entscheidung 3): aufsteigend nach Verbindlichkeit.\nFaktor-Mapping (0.50 / 0.70 / 0.90) liegt in config/roi_config.toml."
       },
       "ArchitectureSketchEnvelope": {
         "properties": {
@@ -1322,7 +1323,7 @@
           "sensitive_personal"
         ],
         "title": "DataClassification",
-        "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping: NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=2, SENSITIVE_PERSONAL=2.\nMapping liegt in config, nicht hier."
+        "description": "Datenschutz-Einstufung der verarbeiteten Daten.\n\nBeeinflusst den Datenschutz-Anteil im Composite-Aufwand-Score (aufsteigend).\nScore-Mapping (V4): NO_PERSONAL_DATA=0, PSEUDONYMOUS=1, PERSONAL=1,\nSENSITIVE_PERSONAL=2. Pseudonymisierte Daten bleiben personenbezogen i. S. d.\nDSGVO (Art. 4 Nr. 5), daher gleicher Score wie PERSONAL. Mapping liegt in\ndomain/scoring.py, nicht hier."
       },
       "DecisionRequest": {
         "properties": {
@@ -1419,7 +1420,7 @@
           "tested_piloted"
         ],
         "title": "EvidenceLevel",
-        "description": "Qualität der Zeitersparnis-Schätzung.\n\nBeeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).\nKonkretes Faktor-Mapping (z. B. 0.5 / 0.75 / 0.95) liegt in config/roi_config.toml."
+        "description": "Qualität der Zeitersparnis-Schätzung.\n\nBeeinflusst den Evidenzfaktor im ROI-Modell (aufsteigend nach Verlässlichkeit).\nKonkretes Faktor-Mapping (V4: 0.40 / 0.55 / 0.90) liegt in config/roi_config.toml.\n\nDeutsche Labels (V4, SDR-0003 Entscheidung 3):\n  pure_estimate   -- reine Einschaetzung (Bauchgefuehl ohne Datenbasis)\n  similar_project -- eigene Erfahrung bzw. Analogieprojekt\n  tested_piloted  -- mit mehreren realen Beispielen getestet oder gemessen"
       },
       "FeasibilityResponse": {
         "properties": {
@@ -1585,12 +1586,14 @@
       "ImplementationApproach": {
         "type": "string",
         "enum": [
-          "standard_product",
-          "custom_build",
-          "vendor_solution"
+          "simple_integration",
+          "development_on_existing",
+          "api_integration",
+          "custom_development",
+          "new_tool"
         ],
         "title": "ImplementationApproach",
-        "description": "Geplante Umsetzungsstrategie."
+        "description": "Geplanter Umsetzungsansatz — ordinal, aufsteigende Komplexitaet (V4).\n\nDer Ansatz ersetzt das fruehere freie Komplexitaets-Eingabefeld: die\nKomplexitaet (1-5) wird deterministisch aus dem Ansatz abgeleitet\n(COMPLEXITY_BY_APPROACH in domain/scoring.py, SDR-0003 Entscheidung 4).\n\nDeutsche Labels:\n  simple_integration      -- einfache Implementierung in bestehende Umgebung\n  development_on_existing -- Entwicklung auf bestehender Umgebung\n  api_integration         -- API-Anbindung in bestehende Umgebung\n  custom_development       -- eigene Entwicklung\n  new_tool                -- Einfuehrung neues Tool"
       },
       "MonitoringEntryResponse": {
         "properties": {
@@ -1662,6 +1665,10 @@
             "type": "number",
             "title": "Hours Per Year"
           },
+          "time_saved_per_case_hours": {
+            "type": "number",
+            "title": "Time Saved Per Case Hours"
+          },
           "usage_factor": {
             "type": "number",
             "title": "Usage Factor"
@@ -1696,6 +1703,7 @@
           "expected_benefit_eur",
           "net_expected_benefit_eur",
           "hours_per_year",
+          "time_saved_per_case_hours",
           "usage_factor",
           "evidence_factor",
           "license_cost_annual_eur",
@@ -2414,19 +2422,26 @@
             "title": "Desired Example Process",
             "description": "Konkretes Beispiel, wie der Vorgang im Soll-Zustand ablaufen soll"
           },
-          "time_savings_hours_per_case": {
+          "time_per_case_hours_current": {
             "type": "number",
             "maximum": 8.0,
             "exclusiveMinimum": 0.0,
-            "title": "Time Savings Hours Per Case",
-            "description": "Geschätzte Zeitersparnis pro Vorgang in Stunden (max = 8 h)"
+            "title": "Time Per Case Hours Current",
+            "description": "Zeit pro Vorgang heute (ohne AI) in Stunden (max = 8 h)"
           },
-          "frequency_per_year": {
+          "time_per_case_hours_with_ai": {
+            "type": "number",
+            "maximum": 8.0,
+            "minimum": 0.0,
+            "title": "Time Per Case Hours With Ai",
+            "description": "Zeit pro Vorgang mit AI in Stunden (>= 0). Die Ersparnis pro Vorgang ist current - with_ai und darf <= 0 sein (eine Idee darf auch Zeit kosten) -- der Vorfilter meldet das dann mit Klartext-Grund."
+          },
+          "occurrences_per_employee_per_year": {
             "type": "integer",
             "maximum": 1000000.0,
             "exclusiveMinimum": 0.0,
-            "title": "Frequency Per Year",
-            "description": "Anzahl Vorgänge pro Jahr"
+            "title": "Occurrences Per Employee Per Year",
+            "description": "Wie oft EIN Mitarbeiter den Vorgang pro Jahr ausfuehrt (person-basiert, nicht das Gesamtvolumen der Organisation)."
           },
           "affected_employees_count": {
             "type": "integer",
@@ -2459,13 +2474,6 @@
             "title": "Estimated License Cost Eur",
             "description": "Geschätzte Lizenzkosten p.a. in EUR (0 = open-source oder intern gebaut)",
             "default": 0.0
-          },
-          "implementation_complexity": {
-            "type": "integer",
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Implementation Complexity",
-            "description": "Technische Komplexität: 1 = trivial, 3 = mittel, 5 = sehr hoch"
           },
           "implementation_cost_eur": {
             "type": "number",
@@ -2527,13 +2535,13 @@
           "current_state",
           "desired_state",
           "example_process",
-          "time_savings_hours_per_case",
-          "frequency_per_year",
+          "time_per_case_hours_current",
+          "time_per_case_hours_with_ai",
+          "occurrences_per_employee_per_year",
           "affected_employees_count",
           "employee_category",
           "adoption_type",
           "implementation_approach",
-          "implementation_complexity",
           "data_classification"
         ],
         "title": "UseCaseInput",

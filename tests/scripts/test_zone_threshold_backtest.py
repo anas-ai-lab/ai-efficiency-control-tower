@@ -32,7 +32,8 @@ def _load_backtest_module():
 
 def test_baseline_reproduces_golden_report_exactly() -> None:
     """composite<=4 (aktueller Wert) MUSS die bestehenden report.json-Zahlen
-    treffen (37,5 % Agreement, kappa 0,06) -- sonst Logik-Fehler im Backtest."""
+    treffen. Nach der V4-P4-Remessung (v4-Scoring): 58,3 % Agreement (14/24),
+    kappa 0,25 (vorher 37,5 % / kappa 0,06) -- sonst Logik-Fehler im Backtest."""
     backtest = _load_backtest_module()
     roi_config = backtest.load_roi_config(backtest.ROI_CONFIG_PATH)
     base_classifier = backtest.load_zone_classifier()
@@ -52,12 +53,19 @@ def test_baseline_reproduces_golden_report_exactly() -> None:
     assert baseline["golden_agreement_count"] == report["agreement_count"]
     assert baseline["golden_labeled_cases"] == report["labeled_cases"]
     assert baseline["golden_raw_agreement_rate"] == report["agreement_rate"]
-    assert round(baseline["golden_cohens_kappa"], 2) == 0.06
+    assert round(baseline["golden_cohens_kappa"], 2) == 0.25
 
 
 def test_candidate_composite_6_changes_more_cases_than_composite_5() -> None:
-    """Breiterer LIKELY_WIN-Korridor bewegt mehr Faelle -- Monotonie-Check,
-    kein Zufallsergebnis der Kandidaten-Reihenfolge."""
+    """Breiterer LIKELY_WIN-Korridor bewegt mehr Faelle (composite<=6 > <=5) --
+    strukturell garantiert, ein weiterer Schwellenwert kann nur mehr Cases
+    umklassifizieren.
+
+    Golden-Agreement ist unter v4-Scoring dagegen NICHT monoton im Korridor:
+    das Optimum liegt bei composite<=5 (16/24 = 0,667); composite<=6 faellt
+    wieder auf 15/24 = 0,625 zurueck (ein Grenzfall kippt faelschlich nach
+    LIKELY_WIN). Der Test haelt genau diese Nicht-Monotonie fest -- vor der
+    V4-P4-Remessung war Agreement noch monoton steigend im Korridor."""
     backtest = _load_backtest_module()
     roi_config = backtest.load_roi_config(backtest.ROI_CONFIG_PATH)
     base_classifier = backtest.load_zone_classifier()
@@ -99,7 +107,12 @@ def test_candidate_composite_6_changes_more_cases_than_composite_5() -> None:
         candidate_6["cases_changed_vs_baseline"]
         > candidate_5["cases_changed_vs_baseline"]
     )
+    # Nicht-Monotonie unter v4-Scoring: composite<=5 ist das Agreement-Optimum,
+    # composite<=6 faellt wieder zurueck (siehe Docstring).
     assert (
-        candidate_6["golden_raw_agreement_rate"]
-        >= candidate_5["golden_raw_agreement_rate"]
+        candidate_5["golden_raw_agreement_rate"]
+        > candidate_6["golden_raw_agreement_rate"]
+    )
+    assert (
+        candidate_5["golden_raw_agreement_rate"] > baseline["golden_raw_agreement_rate"]
     )

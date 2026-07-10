@@ -46,13 +46,13 @@ _VALID_PAYLOAD: dict = {
         "Eingehende Rechnung von Lieferant X wird manuell gescannt "
         "und Betraege sowie Kostenstellen haendig abgetippt."
     ),
-    "time_savings_hours_per_case": 0.2,
-    "frequency_per_year": 5000,
+    "time_per_case_hours_current": 0.2,
+    "time_per_case_hours_with_ai": 0.0,
+    "occurrences_per_employee_per_year": 5000,
     "affected_employees_count": 10,
     "employee_category": "professional",
-    "adoption_type": "mandatory",
-    "implementation_approach": "standard_product",
-    "implementation_complexity": 2,
+    "adoption_type": "fixed_process_step",
+    "implementation_approach": "development_on_existing",
     "data_classification": "no_personal_data",
 }
 

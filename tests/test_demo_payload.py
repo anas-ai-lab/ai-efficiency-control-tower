@@ -19,5 +19,5 @@ def test_demo_payload_is_valid_use_case_input() -> None:
     payload = json.loads((repo_root / "scripts" / "demo_payload.json").read_text())
     uc = UseCaseInput(**payload)
     assert uc.title == "Automatische Klassifikation eingehender Kundenreklamationen"
-    assert uc.frequency_per_year == 6000
+    assert uc.occurrences_per_employee_per_year == 6000
     assert uc.data_classification.value == "personal"

@@ -47,8 +47,8 @@ def roi_config() -> ROIConfig:
 def _make_use_case(
     *,
     title: str = "Test Use Case fuer Eval-Runner",
-    time_savings_hours_per_case: float = 3.0,
-    frequency_per_year: int = 100,
+    time_per_case_hours_current: float = 3.0,
+    occurrences_per_employee_per_year: int = 100,
     affected_employees_count: int = 10,
 ) -> UseCaseInput:
     return UseCaseInput(
@@ -60,16 +60,16 @@ def _make_use_case(
         desired_state="Automatisierte Extraktion relevanter Informationen.",
         example_process="Eingangsbeleg pruefen, Daten extrahieren, in System uebertragen.",
         employee_category=EmployeeCategory.PROFESSIONAL,
-        time_savings_hours_per_case=time_savings_hours_per_case,
-        frequency_per_year=frequency_per_year,
+        time_per_case_hours_current=time_per_case_hours_current,
+        time_per_case_hours_with_ai=0.0,
+        occurrences_per_employee_per_year=occurrences_per_employee_per_year,
         affected_employees_count=affected_employees_count,
         estimated_license_cost_eur=0.0,
         evidence_level=EvidenceLevel.TESTED_PILOTED,
-        adoption_type=AdoptionType.MANDATORY,
-        implementation_approach=ImplementationApproach.STANDARD_PRODUCT,
+        adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+        implementation_approach=ImplementationApproach.DEVELOPMENT_ON_EXISTING,
         data_classification=DataClassification.NO_PERSONAL_DATA,
         contains_pii=False,
-        implementation_complexity=2,
         regulatory_pressure=False,
         competitive_pressure=False,
         strategic_priority=False,
@@ -112,8 +112,8 @@ class TestRunEval:
         tiny_case = EvalCase(
             case_id="below-threshold",
             use_case=_make_use_case(
-                time_savings_hours_per_case=0.5,
-                frequency_per_year=50,
+                time_per_case_hours_current=0.5,
+                occurrences_per_employee_per_year=50,
                 affected_employees_count=1,
             ),
         )

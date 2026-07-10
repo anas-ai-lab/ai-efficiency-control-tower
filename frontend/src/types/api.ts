@@ -27,11 +27,16 @@ export type EvidenceLevel =
   | "pure_estimate"
   | "similar_project"
   | "tested_piloted";
-export type AdoptionType = "mandatory" | "voluntary";
+export type AdoptionType =
+  | "voluntary"
+  | "recommended_standard"
+  | "fixed_process_step";
 export type ImplementationApproach =
-  | "standard_product"
-  | "custom_build"
-  | "vendor_solution";
+  | "simple_integration"
+  | "development_on_existing"
+  | "api_integration"
+  | "custom_development"
+  | "new_tool";
 export type DataClassification =
   | "no_personal_data"
   | "pseudonymous"
@@ -71,18 +76,18 @@ export interface UseCaseInput {
   desired_state: string; // 30-2000
   example_process: string; // 20-2000 (Ist-Beispiel)
   desired_example_process?: string | null; // optional, max 2000 (Soll-Beispiel)
-  // Quantitativ
-  time_savings_hours_per_case: number; // 0 < x <= 8
-  frequency_per_year: number; // integer, 0 < x <= 1000000
+  // Quantitativ (V4: person-basierte Zeit-Semantik, SDR-0003)
+  time_per_case_hours_current: number; // 0 < x <= 8 (Zeit/Vorgang heute)
+  time_per_case_hours_with_ai: number; // 0 <= x <= 8 (Zeit/Vorgang mit AI)
+  occurrences_per_employee_per_year: number; // integer, 0 < x <= 1000000 (pro MA)
   affected_employees_count: number; // integer, 0 < x <= 50000
   employee_category: EmployeeCategory;
   // Evidenz & Verbindlichkeit
   evidence_level: EvidenceLevel;
   adoption_type: AdoptionType;
-  implementation_approach: ImplementationApproach;
+  implementation_approach: ImplementationApproach; // Komplexitaet 1-5 abgeleitet
   // Kosten
   estimated_license_cost_eur: number; // 0 - 10000000 (wiederkehrend, EUR/Jahr)
-  implementation_complexity: number; // integer 1-5
   implementation_cost_eur: number; // 0 - 10000000 (einmalig), default 0
   // Datenschutz
   contains_pii: boolean;
@@ -108,6 +113,7 @@ export interface ROIResult {
   expected_benefit_eur: number;
   net_expected_benefit_eur: number;
   hours_per_year: number;
+  time_saved_per_case_hours: number; // Zeit_ist - Zeit_ai (auch <= 0 moeglich)
   usage_factor: number;
   evidence_factor: number;
   license_cost_annual_eur: number;

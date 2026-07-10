@@ -18,7 +18,8 @@ Agreement/Kappa-Formel identisch zu evals/golden/report.json bzw.
 evals/golden/inter_annotator_report.md: Raw Agreement = Treffer / gelabelte
 Faelle; Cohen's Kappa unweighted ueber die Kategorien {LIKELY_WIN,
 CALCULATED_RISK, MARGINAL_GAIN, NONE} (NONE = Vorfilter-Ablehnung, zaehlt
-als eigene Kategorie -- reproduziert exakt report.json: 37,5 % / kappa 0,06).
+als eigene Kategorie -- reproduziert exakt report.json. Nach der V4-P4-
+Remessung (v4-Scoring): 58,3 % / kappa 0,25 (vorher 37,5 % / kappa 0,06).
 Nur die 24 gelabelten Golden Cases fliessen in Agreement/Kappa ein;
 Synthetic Cases haben kein Autor-Label und zaehlen nur in Zonen-Verteilung
 und MARGINAL_GAIN-Anteil.
@@ -208,7 +209,11 @@ def _run_candidate(
         "cases_changed_vs_baseline": cases_changed,
         "golden_agreement_count": agreement_count,
         "golden_labeled_cases": labeled_cases,
-        "golden_raw_agreement_rate": round(agreement_rate, 4),
+        # Volle Praezision (kein round): muss report.json exakt reproduzieren.
+        # agreement_count / labeled_cases ist bitgleich zur Runner-Berechnung
+        # (write_report); ein round(., 4) wich bei nicht exakt darstellbaren
+        # Raten wie 14/24 vom report.json-Wert ab.
+        "golden_raw_agreement_rate": agreement_rate,
         "golden_cohens_kappa": round(kappa, 4),
         "marginal_gain_count": marginal_gain_count,
         "marginal_gain_share": round(marginal_gain_share, 4),
@@ -240,12 +245,14 @@ def _verify_baseline_reproduces_report(baseline: dict[str, object]) -> None:
             f"evals/golden/report.json ({expected_count}/{expected_labeled} = "
             f"{expected_rate})."
         )
-    expected_kappa_rounded = 0.06
+    # v4-Scoring (V4-P4-Remessung): Baseline-Kappa jetzt 0,25 (vorher 0,06);
+    # siehe evals/golden/inter_annotator_report.md.
+    expected_kappa_rounded = 0.25
     if round(baseline["golden_cohens_kappa"], 2) != expected_kappa_rounded:
         raise RuntimeError(
             "STOPP -- Logik-Fehler im Backtest-Script: Baseline-Kappa "
             f"{round(baseline['golden_cohens_kappa'], 2)} != erwartete {expected_kappa_rounded} "
-            "(vgl. docs/analysis/rule-engine-vs-human-judgment.md Abschnitt 1)."
+            "(vgl. evals/golden/inter_annotator_report.md)."
         )
 
 

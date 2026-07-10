@@ -58,16 +58,16 @@ def _make_use_case(**overrides: object) -> UseCaseInput:
             "Eingangsbeleg pruefen, Daten extrahieren, in System uebertragen."
         ),
         "employee_category": EmployeeCategory.PROFESSIONAL,
-        "time_savings_hours_per_case": 2.0,
-        "frequency_per_year": 200,
+        "time_per_case_hours_current": 2.0,
+        "time_per_case_hours_with_ai": 0.0,
+        "occurrences_per_employee_per_year": 200,
         "affected_employees_count": 10,
         "estimated_license_cost_eur": 0.0,
         "evidence_level": EvidenceLevel.TESTED_PILOTED,
-        "adoption_type": AdoptionType.MANDATORY,
-        "implementation_approach": ImplementationApproach.STANDARD_PRODUCT,
+        "adoption_type": AdoptionType.FIXED_PROCESS_STEP,
+        "implementation_approach": ImplementationApproach.DEVELOPMENT_ON_EXISTING,
         "data_classification": DataClassification.NO_PERSONAL_DATA,
         "contains_pii": False,
-        "implementation_complexity": 2,
         "regulatory_pressure": False,
         "competitive_pressure": False,
         "strategic_priority": False,
@@ -83,8 +83,8 @@ class TestBuildScoreBreakdown:
         case = EvalCase(
             case_id="tiny",
             use_case=_make_use_case(
-                time_savings_hours_per_case=0.5,
-                frequency_per_year=50,
+                time_per_case_hours_current=0.5,
+                occurrences_per_employee_per_year=50,
                 affected_employees_count=1,
             ),
         )
@@ -100,12 +100,12 @@ class TestBuildScoreBreakdown:
         case = EvalCase(
             case_id="strong",
             use_case=_make_use_case(
-                time_savings_hours_per_case=4.0,
-                frequency_per_year=200,
+                time_per_case_hours_current=4.0,
+                occurrences_per_employee_per_year=200,
                 affected_employees_count=15,
                 evidence_level=EvidenceLevel.TESTED_PILOTED,
-                adoption_type=AdoptionType.MANDATORY,
-                implementation_complexity=2,
+                adoption_type=AdoptionType.FIXED_PROCESS_STEP,
+                implementation_approach=ImplementationApproach.DEVELOPMENT_ON_EXISTING,
             ),
         )
         result = build_score_breakdown(case, roi_config, classifier)
@@ -118,12 +118,13 @@ class TestBuildScoreBreakdown:
         classifier: ZoneClassifier,
         golden_cases_by_id: dict[str, EvalCase],
     ) -> None:
-        """Regression-Anker: golden-001 weicht ab, weil Composite (6) ueber der
-        LIKELY_WIN-Obergrenze (4) liegt, obwohl der Nutzen die Schwelle reisst."""
+        """Regression-Anker (v4-Scoring): golden-001 weicht ab, weil der
+        erwartete Nutzen (~32k EUR) die LIKELY_WIN-Schwelle (50k) verfehlt --
+        Composite (3) liegt unter der Obergrenze, ist also nicht der Grund."""
         result = build_score_breakdown(
             golden_cases_by_id["golden-001"], roi_config, classifier
         )
-        assert result.composite_total == 6
+        assert result.composite_total == 3
         assert result.handlungsdruck_score == 1
         assert result.predicted_zone == TriageZone.CALCULATED_RISK
         assert result.expected_zone == TriageZone.LIKELY_WIN
@@ -135,14 +136,14 @@ class TestBuildScoreBreakdown:
         classifier: ZoneClassifier,
         golden_cases_by_id: dict[str, EvalCase],
     ) -> None:
-        """Regression-Anker: golden-003 landet in MARGINAL_GAIN, weil Composite
-        (8) auch die CALCULATED_RISK-Obergrenze (7) reisst; Handlungsdruck (3)
-        liegt knapp unter der Hochstufungs-Schwelle (4)."""
+        """Regression-Anker (v4-Scoring): golden-003 landet in CALCULATED_RISK
+        (Composite 8->7 durch new_tool-Ansatz + Art.-9-Daten, genau an der
+        CALCULATED_RISK-Obergrenze 7) und trifft damit das Experten-Label."""
         result = build_score_breakdown(
             golden_cases_by_id["golden-003"], roi_config, classifier
         )
-        assert result.composite_total == 8
+        assert result.composite_total == 7
         assert result.handlungsdruck_score == 3
-        assert result.predicted_zone == TriageZone.MARGINAL_GAIN
+        assert result.predicted_zone == TriageZone.CALCULATED_RISK
         assert result.expected_zone == TriageZone.CALCULATED_RISK
-        assert result.is_match is False
+        assert result.is_match is True

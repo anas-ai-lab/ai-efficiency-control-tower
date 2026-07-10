@@ -18,11 +18,11 @@ Verbesserungsvorschlaege (improvement_suggestions):
   - bezugsfeld: EXAKT einer dieser Feldnamen (welches Case-Feld der Vorschlag
     betrifft):
     title, current_state, desired_state, example_process,
-    desired_example_process, time_savings_hours_per_case, frequency_per_year,
+    desired_example_process, time_per_case_hours_current,
+    time_per_case_hours_with_ai, occurrences_per_employee_per_year,
     affected_employees_count, employee_category, evidence_level, adoption_type,
-    implementation_approach, implementation_complexity,
-    estimated_license_cost_eur, implementation_cost_eur, data_classification,
-    notes
+    implementation_approach, estimated_license_cost_eur,
+    implementation_cost_eur, data_classification, notes
   - vorschlag: die konkrete, umsetzbare Massnahme.
   - hebel: benenne, WELCHE Bewertungsgroesse sich dadurch WIE veraendert
     (z. B. Evidenzfaktor, Nutzungsfaktor, ROI, Aufwand-Score, Datenschutz-Score).

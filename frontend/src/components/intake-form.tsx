@@ -9,6 +9,14 @@ import { submitTriage } from "@/app/actions"
 import { TriageResponse } from "@/types/api"
 import { IDEATION_PREFILL_KEY } from "@/lib/ideation-prefill"
 import {
+  ADOPTION_TYPE_OPTIONS,
+  COUNTRY_OPTIONS,
+  DATA_CLASSIFICATION_OPTIONS,
+  EMPLOYEE_CATEGORY_OPTIONS,
+  EVIDENCE_LEVEL_OPTIONS,
+  IMPLEMENTATION_APPROACH_OPTIONS,
+} from "@/lib/labels"
+import {
   Form,
   FormField,
   FormItem,
@@ -64,8 +72,9 @@ const formSchema = z.object({
   desired_state: z.string().min(30).max(2000),
   example_process: z.string().min(20).max(2000),
   desired_example_process: z.string().max(2000).optional(),
-  time_savings_hours_per_case: z.coerce.number().positive().max(8),
-  frequency_per_year: z.coerce.number().int().positive().max(1000000),
+  time_per_case_hours_current: z.coerce.number().positive().max(8),
+  time_per_case_hours_with_ai: z.coerce.number().min(0).max(8),
+  occurrences_per_employee_per_year: z.coerce.number().int().positive().max(1000000),
   affected_employees_count: z.coerce.number().int().positive().max(50000),
   employee_category: z.enum([
     "junior",
@@ -75,14 +84,19 @@ const formSchema = z.object({
     "management",
   ]),
   evidence_level: z.enum(["pure_estimate", "similar_project", "tested_piloted"]),
-  adoption_type: z.enum(["mandatory", "voluntary"]),
+  adoption_type: z.enum([
+    "voluntary",
+    "recommended_standard",
+    "fixed_process_step",
+  ]),
   implementation_approach: z.enum([
-    "standard_product",
-    "custom_build",
-    "vendor_solution",
+    "simple_integration",
+    "development_on_existing",
+    "api_integration",
+    "custom_development",
+    "new_tool",
   ]),
   estimated_license_cost_eur: z.coerce.number().min(0).max(10000000),
-  implementation_complexity: z.coerce.number().int().min(1).max(5),
   implementation_cost_eur: z.coerce.number().min(0).max(10000000),
   contains_pii: z.boolean(),
   data_classification: z.enum([
@@ -151,11 +165,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
       desired_state: "",
       example_process: "",
       desired_example_process: "",
-      time_savings_hours_per_case: 0,
-      frequency_per_year: 0,
+      time_per_case_hours_current: 0,
+      time_per_case_hours_with_ai: 0,
+      occurrences_per_employee_per_year: 0,
       affected_employees_count: 0,
       estimated_license_cost_eur: 0,
-      implementation_complexity: 3,
       implementation_cost_eur: 0,
       contains_pii: false,
       regulatory_pressure: false,
@@ -370,18 +384,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="de">Deutschland</SelectItem>
-                        <SelectItem value="at">Österreich</SelectItem>
-                        <SelectItem value="ch">Schweiz</SelectItem>
-                        <SelectItem value="no">Norwegen</SelectItem>
-                        <SelectItem value="gb">Vereinigtes Königreich</SelectItem>
-                        <SelectItem value="es">Spanien</SelectItem>
-                        <SelectItem value="it">Italien</SelectItem>
-                        <SelectItem value="tr">Türkei</SelectItem>
-                        <SelectItem value="ro">Rumänien</SelectItem>
-                        <SelectItem value="pl">Polen</SelectItem>
-                        <SelectItem value="eg">Ägypten</SelectItem>
-                        <SelectItem value="in">Indien</SelectItem>
+                        {COUNTRY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -401,11 +408,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="junior">Junior</SelectItem>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="consultant">Consultant</SelectItem>
-                        <SelectItem value="senior">Senior</SelectItem>
-                        <SelectItem value="management">Management</SelectItem>
+                        {EMPLOYEE_CATEGORY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -416,29 +423,54 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 )}
               />
             </div>
-            <div className="grid gap-5 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="time_savings_hours_per_case"
+                name="time_per_case_hours_current"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Zeit / Fall (Std.)</FormLabel>
+                    <FormLabel>Zeit / Vorgang heute (Std.)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.1" placeholder="0,5" {...field} />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Aufwand pro Vorgang ohne AI.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="frequency_per_year"
+                name="time_per_case_hours_with_ai"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fälle / Jahr</FormLabel>
+                    <FormLabel>Zeit / Vorgang mit AI (Std.)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.1" placeholder="0,1" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Erwarteter Restaufwand nach AI-Einsatz (0 = vollständig).
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="occurrences_per_employee_per_year"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vorgänge / Mitarbeitende·r / Jahr</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="500" {...field} />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Wie oft eine Person den Vorgang jährlich ausführt (nicht
+                      das Gesamtvolumen).
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -448,39 +480,10 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                 name="affected_employees_count"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mitarbeitende</FormLabel>
+                    <FormLabel>Betroffene Mitarbeitende</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="20" {...field} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="implementation_complexity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Implementierungskomplexität</FormLabel>
-                    <Select
-                      onValueChange={(v) => field.onChange(Number(v))}
-                      defaultValue={String(field.value)}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Bitte wählen" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="1">1 – Trivial</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3 – Mittel</SelectItem>
-                        <SelectItem value="4">4</SelectItem>
-                        <SelectItem value="5">5 – Sehr hoch</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -507,9 +510,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="pure_estimate">Schätzung</SelectItem>
-                      <SelectItem value="similar_project">Analogieprojekt</SelectItem>
-                      <SelectItem value="tested_piloted">Pilotiert/Gemessen</SelectItem>
+                      {EVIDENCE_LEVEL_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -530,8 +535,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="mandatory">Pflichtnutzung</SelectItem>
-                        <SelectItem value="voluntary">Freiwillig</SelectItem>
+                        {ADOPTION_TYPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -551,9 +559,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="standard_product">Standard-Produkt</SelectItem>
-                        <SelectItem value="custom_build">Eigenentwicklung</SelectItem>
-                        <SelectItem value="vendor_solution">Drittanbieter</SelectItem>
+                        {IMPLEMENTATION_APPROACH_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -643,14 +653,11 @@ export function IntakeForm({ onSuccess }: IntakeFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="no_personal_data">
-                        Keine personenbezogenen Daten
-                      </SelectItem>
-                      <SelectItem value="pseudonymous">Pseudonymisiert</SelectItem>
-                      <SelectItem value="personal">Personenbezogen</SelectItem>
-                      <SelectItem value="sensitive_personal">
-                        Besondere Kategorien (Art. 9 DSGVO)
-                      </SelectItem>
+                      {DATA_CLASSIFICATION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
