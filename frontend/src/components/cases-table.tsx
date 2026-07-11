@@ -67,6 +67,13 @@ function compareNullable(a: number | null, b: number | null, dir: SortDir): numb
   return dir === "asc" ? cmp : -cmp;
 }
 
+// Platzhalter fuer verborgene Bewertungszellen (V4-P7): Zone/Nettonutzen sind
+// fuer Anonyme erst nach der Board-Entscheidung sichtbar. Bewusst NICHT "—" (das
+// steht fuer den echten Vorfilter-Fail), sondern ein ruhiger "wird geprueft".
+function PendingCell() {
+  return <span className="text-xs text-muted-foreground">wird geprüft</span>;
+}
+
 function ZoneBadge({ zone }: { zone: TriageZone | null }) {
   if (zone === null) {
     return <span className="text-muted-foreground">—</span>;
@@ -440,10 +447,16 @@ export function CasesTable({
                   {formatDate(c.submitted_at)}
                 </td>
                 <td className="px-4 py-3">
-                  <ZoneBadge zone={c.zone} />
+                  {c.assessment_visible ? (
+                    <ZoneBadge zone={c.zone} />
+                  ) : (
+                    <PendingCell />
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-foreground tabular-nums">
-                  {c.net_expected_benefit_eur === null ? (
+                  {!c.assessment_visible ? (
+                    <PendingCell />
+                  ) : c.net_expected_benefit_eur === null ? (
                     <span className="text-muted-foreground">—</span>
                   ) : (
                     formatEUR(c.net_expected_benefit_eur)

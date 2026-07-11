@@ -75,12 +75,16 @@ def test_generated_texts_use_german_thousands() -> None:
 
     recommendation = build_recommendation_text(result, uc)  # == empfehlung_satz
     zone_reason = result.zone.reason
-    cost_reason = build_score_breakdown(
-        uc,
-        result.composite,
-        impl_cost_point_min_eur=10_000.0,
-        license_cost_point_min_eur=10_000.0,
-    ).components[1].begruendung  # Kosten-Komponente
+    cost_reason = (
+        build_score_breakdown(
+            uc,
+            result.composite,
+            impl_cost_point_min_eur=10_000.0,
+            license_cost_point_min_eur=10_000.0,
+        )
+        .components[1]
+        .begruendung
+    )  # Kosten-Komponente
 
     for text in (recommendation, zone_reason, cost_reason):
         assert not _ENGLISH_THOUSANDS.search(text), f"englisches Format: {text}"

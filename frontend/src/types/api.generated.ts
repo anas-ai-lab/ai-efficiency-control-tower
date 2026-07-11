@@ -155,9 +155,13 @@ export interface paths {
          *
          *     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
          *     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-         *     Auth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere
-         *     Zugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur
-         *     Uebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.
+         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind
+         *     abgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und
+         *     net_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der
+         *     Board-Entscheidung (ReviewerDecision != PENDING); davor null +
+         *     assessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber
+         *     einen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss
+         *     priorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
          *     Rate Limit: 60 Requests/Minute pro Aufrufer.
          *
          *     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
@@ -902,6 +906,8 @@ export interface components {
             feasibility_score: number | null;
             /** Feasibility Definition */
             feasibility_definition: string;
+            /** Assessment Visible */
+            assessment_visible: boolean;
         };
         /**
          * ComplianceCitationResponse

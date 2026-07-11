@@ -139,3 +139,50 @@ async def test_list_cases_stays_a_bare_list() -> None:
 
     assert listed.status_code == 200
     assert isinstance(listed.json(), list)
+
+
+async def test_list_cases_hides_assessment_from_anonymous_until_decision() -> None:
+    """V4-P7 (konsistent mit GET /cases/{id}): die Ideenliste verbirgt zone +
+    net_expected_benefit_eur fuer Anonyme, solange das Board nicht entschieden
+    hat -- sonst unterliefe die Liste den Detail-Schutz. Der Admin sieht alles,
+    status bleibt fuer alle sichtbar."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # Zwei bestandene Cases anonym eingereicht, einen davon freigeben.
+        decided = await client.post("/triage", json=_PASSING_PAYLOAD)
+        decided_id = decided.json()["id"]
+        await client.post(
+            "/triage",
+            json={**_PASSING_PAYLOAD, "title": "Zweiter tragfaehiger Use Case Liste"},
+        )
+        await client.post(
+            f"/cases/{decided_id}/decision",
+            json={"decision": "approved", "note": None},
+            headers=_AUTH,
+        )
+
+        anon = (await client.get("/cases")).json()  # anonym
+        admin = (await client.get("/cases", headers=_AUTH)).json()
+
+    anon_by_id = {c["id"]: c for c in anon}
+    # Entschiedener Case: Bewertung sichtbar.
+    d = anon_by_id[decided_id]
+    assert d["assessment_visible"] is True
+    assert d["zone"] is not None
+    assert d["net_expected_benefit_eur"] is not None
+
+    # PENDING-Case: Bewertung verborgen, aber Status bleibt (Lifecycle-Transparenz).
+    pending = [c for c in anon if c["id"] != decided_id]
+    assert len(pending) == 1
+    assert pending[0]["assessment_visible"] is False
+    assert pending[0]["zone"] is None
+    assert pending[0]["net_expected_benefit_eur"] is None
+    assert pending[0]["status"] == "submitted"
+
+    # Admin sieht die Liste immer voll.
+    for c in admin:
+        assert c["assessment_visible"] is True
+        assert c["zone"] is not None
+        assert c["net_expected_benefit_eur"] is not None

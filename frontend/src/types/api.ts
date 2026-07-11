@@ -397,6 +397,10 @@ export interface CaseSummary {
   is_actionable: boolean;
   feasibility_score: number | null;
   feasibility_definition: string;
+  // V4-P7: False, wenn zone/net fuer diesen Aufrufer verborgen sind (anonym +
+  // Board-Entscheidung ausstehend) -> "wird geprueft" statt "—" (das "—" bleibt
+  // dem echten Vorfilter-Fail vorbehalten). Fuer Admins immer True.
+  assessment_visible: boolean;
 }
 
 // ---- Decision Response (/cases/{id}/decision POST) -------------------------

@@ -78,6 +78,12 @@ class CaseSummary(BaseModel):
     # ist der ueberall referenzierte Definitions-String.
     feasibility_score: int | None
     feasibility_definition: str
+    # Sichtbarkeit der Bewertung (V4-P7, konsistent mit GET /cases/{id}): False,
+    # wenn zone/net_expected_benefit_eur fuer diesen Aufrufer verborgen sind
+    # (anonym + Board-Entscheidung ausstehend). Das Frontend zeigt dann "wird
+    # geprueft" statt "—"; das "—" bleibt dem echten Vorfilter-Fail vorbehalten
+    # (zone/net auch fuer Admins None). Fuer Admins immer True.
+    assessment_visible: bool
 
 
 @router.get("", response_model=list[CaseSummary])
@@ -86,14 +92,19 @@ async def list_cases(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
+    is_admin: bool = Depends(is_admin_request),
 ) -> list[CaseSummary]:
     """Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.
 
     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-    Auth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere
-    Zugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur
-    Uebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.
+    Auth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind
+    abgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und
+    net_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der
+    Board-Entscheidung (ReviewerDecision != PENDING); davor null +
+    assessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber
+    einen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss
+    priorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
     Rate Limit: 60 Requests/Minute pro Aufrufer.
 
     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
@@ -103,6 +114,8 @@ async def list_cases(
     summaries: list[CaseSummary] = []
     for case in service.list_cases():
         r = case.result
+        # Bewertung sichtbar: Admin immer, Anonyme erst nach Board-Entscheidung.
+        visible = is_admin or case.reviewer_decision is not ReviewerDecision.PENDING
         summaries.append(
             CaseSummary(
                 id=case.id,
@@ -110,9 +123,13 @@ async def list_cases(
                 title=case.use_case.title,
                 department=case.use_case.department,
                 status=case.status.value,
-                zone=r.zone.final_zone.value if r.zone is not None else None,
+                zone=(
+                    r.zone.final_zone.value if visible and r.zone is not None else None
+                ),
                 net_expected_benefit_eur=(
-                    float(r.roi.net_expected_benefit_eur) if r.roi is not None else None
+                    float(r.roi.net_expected_benefit_eur)
+                    if visible and r.roi is not None
+                    else None
                 ),
                 composite_total=(
                     r.composite.total if r.composite is not None else None
@@ -125,6 +142,7 @@ async def list_cases(
                     else None
                 ),
                 feasibility_definition=FEASIBILITY_DEFINITION,
+                assessment_visible=visible,
             )
         )
     return summaries

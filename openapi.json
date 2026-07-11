@@ -167,7 +167,7 @@
           "cases"
         ],
         "summary": "List Cases",
-        "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere\nZugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur\nUebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.\nRate Limit: 60 Requests/Minute pro Aufrufer.\n\nMapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->\nfloat, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine\nListe (kein Envelope) -- Abwaertskompatibilitaet.",
+        "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind\nabgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und\nnet_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der\nBoard-Entscheidung (ReviewerDecision != PENDING); davor null +\nassessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber\neinen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss\npriorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).\nRate Limit: 60 Requests/Minute pro Aufrufer.\n\nMapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->\nfloat, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine\nListe (kein Envelope) -- Abwaertskompatibilitaet.",
         "operationId": "list_cases_cases_get",
         "responses": {
           "200": {
@@ -184,7 +184,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
       }
     },
     "/cases/similarity-pairs": {
@@ -1428,6 +1433,10 @@
           "feasibility_definition": {
             "type": "string",
             "title": "Feasibility Definition"
+          },
+          "assessment_visible": {
+            "type": "boolean",
+            "title": "Assessment Visible"
           }
         },
         "type": "object",
@@ -1443,7 +1452,8 @@
           "hours_per_year",
           "is_actionable",
           "feasibility_score",
-          "feasibility_definition"
+          "feasibility_definition",
+          "assessment_visible"
         ],
         "title": "CaseSummary",
         "description": "Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.\n\nGenug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den\nvollen Report je Case zu laden. zone/net_expected_benefit_eur/\ncomposite_total/hours_per_year sind None, wenn der Vorfilter nicht bestanden\nwurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone\nNone bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).\n\nFilter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines\nprivaten Portfolio-Builds braucht keine serverseitige Pagination (v3)."
