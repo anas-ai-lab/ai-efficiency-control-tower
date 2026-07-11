@@ -24,7 +24,6 @@ from decimal import Decimal
 
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import TriageResult
-from aect.domain.roi import ROIResult
 from aect.domain.routing import RoutingRecommendation
 from aect.domain.scoring import CompositeScore
 from aect.domain.types import (
@@ -262,8 +261,7 @@ def _cost_point_reason(
             f"-> +1 Kostenpunkt"
         )
     return (
-        f"{label} {cost_eur:,.0f} EUR{suffix} < {threshold_eur:,.0f} EUR "
-        f"-> kein Punkt"
+        f"{label} {cost_eur:,.0f} EUR{suffix} < {threshold_eur:,.0f} EUR -> kein Punkt"
     )
 
 
@@ -305,7 +303,9 @@ def build_confidence_reasoning(
     gruende: list[str] = []
     if is_pure_estimate:
         factor_str = f"{evidence_factor:.2f}".replace(".", ",")
-        gruende.append(f"Nutzen basiert auf reiner Einschaetzung (Faktor {factor_str}).")
+        gruende.append(
+            f"Nutzen basiert auf reiner Einschaetzung (Faktor {factor_str})."
+        )
     if near:
         gruende.append(
             _boundary_sentence(benefit_lever, composite_lever, base_zone, benefit_near)
@@ -354,13 +354,17 @@ def _zone_flip_levers(
         return abs(gap) / benefit * 100.0 if benefit > 0 else float("inf")
 
     if base_zone == TriageZone.LIKELY_WIN:
-        benefit_cands.append((pct(benefit - lw_min), "weniger", TriageZone.CALCULATED_RISK))
+        benefit_cands.append(
+            (pct(benefit - lw_min), "weniger", TriageZone.CALCULATED_RISK)
+        )
         composite_cands.append(
             (float(lw_max_c - composite + 1), "mehr", TriageZone.CALCULATED_RISK)
         )
     elif base_zone == TriageZone.CALCULATED_RISK:
         # Abstufung nach MARGINAL_GAIN (immer moeglich).
-        benefit_cands.append((pct(benefit - cr_min), "weniger", TriageZone.MARGINAL_GAIN))
+        benefit_cands.append(
+            (pct(benefit - cr_min), "weniger", TriageZone.MARGINAL_GAIN)
+        )
         composite_cands.append(
             (float(cr_max_c - composite + 1), "mehr", TriageZone.MARGINAL_GAIN)
         )
@@ -374,14 +378,18 @@ def _zone_flip_levers(
             )
     else:  # MARGINAL_GAIN -> Hochstufung nach CALCULATED_RISK
         if composite <= cr_max_c:
-            benefit_cands.append((pct(cr_min - benefit), "mehr", TriageZone.CALCULATED_RISK))
+            benefit_cands.append(
+                (pct(cr_min - benefit), "mehr", TriageZone.CALCULATED_RISK)
+            )
         if benefit >= cr_min:
             composite_cands.append(
                 (float(composite - cr_max_c), "weniger", TriageZone.CALCULATED_RISK)
             )
 
     benefit_lever = min(benefit_cands, key=lambda c: c[0]) if benefit_cands else None
-    composite_lever = min(composite_cands, key=lambda c: c[0]) if composite_cands else None
+    composite_lever = (
+        min(composite_cands, key=lambda c: c[0]) if composite_cands else None
+    )
     return benefit_lever, composite_lever
 
 
@@ -480,9 +488,7 @@ _ZU_ENTSCHEIDEN: dict[RoutingRecommendation, str] = {
     RoutingRecommendation.AUTOMATION_RECOMMENDED: (
         "Freigabe zur Umsetzung als klassische Automatisierung (ohne AI-Komponente)."
     ),
-    RoutingRecommendation.AI_RECOMMENDED: (
-        "Freigabe zur Umsetzung mit AI-Komponente."
-    ),
+    RoutingRecommendation.AI_RECOMMENDED: ("Freigabe zur Umsetzung mit AI-Komponente."),
     RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
         "Freigabe einer vertieften fachlichen und datenschutzrechtlichen Pruefung "
         "vor der Umsetzung."

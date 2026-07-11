@@ -24,8 +24,8 @@ from aect.domain.explainability import (
 from aect.domain.feasibility import FeasibilityResult
 from aect.domain.filters import FilterResult
 from aect.domain.models import UseCaseInput
-from aect.domain.roi import ROIResult
 from aect.domain.pipeline import TriageResult
+from aect.domain.roi import ROIResult
 from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore, compute_composite_score
 from aect.domain.types import (
@@ -414,8 +414,8 @@ def test_recommendation_prefilter_fail_names_reason() -> None:
         affected_employees_count=1,
         time_per_case_hours_current=0.01,
     )
-    from aect.domain.roi import load_roi_config
     from aect.domain import evaluate_use_case
+    from aect.domain.roi import load_roi_config
 
     result = evaluate_use_case(tiny, load_roi_config())
     text = build_recommendation_text(result, tiny)
@@ -424,11 +424,9 @@ def test_recommendation_prefilter_fail_names_reason() -> None:
 
 def test_recommendation_no_time_gain() -> None:
     # with_ai == current -> kein Zeitgewinn (V4-P3).
-    no_gain = _uc(
-        time_per_case_hours_current=0.2, time_per_case_hours_with_ai=0.2
-    )
-    from aect.domain.roi import load_roi_config
+    no_gain = _uc(time_per_case_hours_current=0.2, time_per_case_hours_with_ai=0.2)
     from aect.domain import evaluate_use_case
+    from aect.domain.roi import load_roi_config
 
     result = evaluate_use_case(no_gain, load_roi_config())
     text = build_recommendation_text(result, no_gain)
@@ -491,7 +489,8 @@ def test_contra_points_sensitive_data() -> None:
         ),
     )
     contra = build_contra_points(
-        result, _uc(data_classification=DataClassification.SENSITIVE_PERSONAL),
+        result,
+        _uc(data_classification=DataClassification.SENSITIVE_PERSONAL),
         confidence=None,
     )
     assert any("Art. 9 DSGVO" in c for c in contra)
