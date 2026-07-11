@@ -30,7 +30,12 @@ REPORT_PATH = REPO_ROOT / "evals" / "golden" / "score_breakdown.json"
 
 def main() -> None:
     cases = load_eval_cases(GOLDEN_CASES_PATH)
-    roi_config = load_roi_config(ROI_CONFIG_PATH)
+    # layer_local=False: score_breakdown.json ist ein committetes, oeffentliches
+    # Artefakt (in known_limitations.md #26 referenziert). Mit local.toml wuerden
+    # lokal-rate-abgeleitete expected_benefit_eur-Werte hineinlaufen -- nicht
+    # CI-reproduzierbar und gegen die IP-Trennung. Reine Platzhalter-Config,
+    # identisch zu run_golden_eval.py.
+    roi_config = load_roi_config(ROI_CONFIG_PATH, layer_local=False)
     classifier = load_zone_classifier(ZONE_CONFIG_PATH)
 
     breakdowns = [build_score_breakdown(case, roi_config, classifier) for case in cases]

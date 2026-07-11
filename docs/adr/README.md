@@ -77,6 +77,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0030](0030-eval-runner-report-format.md) | Eval-Runner-Vergleichslogik und Report-Format |
 | [0031](0031-score-breakdown-diagnostik.md) | Score-Breakdown als separate Diagnostik-Schicht |
 | [0032](0032-eval-gate-mechanik.md) | Eval-Gate E->F: pytest-Regression |
+| [ADR-008](ADR-008-config-layering-opt-out.md) | Abschaltbares Config-Layering (layer_local) fuer CI-reproduzierbare Eval-Artefakte |
 
 ## Control-Tower & Lifecycle (v3)
 

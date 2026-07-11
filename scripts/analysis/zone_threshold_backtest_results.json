@@ -7,52 +7,49 @@
       "label": "aktuell (composite<=4)",
       "likely_win_max_composite": 4,
       "zone_distribution": {
-        "CALCULATED_RISK": 23,
-        "LIKELY_WIN": 20,
-        "MARGINAL_GAIN": 2,
+        "CALCULATED_RISK": 20,
+        "LIKELY_WIN": 25,
         "NONE": 15
       },
       "cases_changed_vs_baseline": 0,
-      "golden_agreement_count": 9,
+      "golden_agreement_count": 15,
       "golden_labeled_cases": 24,
-      "golden_raw_agreement_rate": 0.375,
-      "golden_cohens_kappa": 0.0625,
-      "marginal_gain_count": 2,
-      "marginal_gain_share": 0.0333
+      "golden_raw_agreement_rate": 0.625,
+      "golden_cohens_kappa": 0.3415,
+      "marginal_gain_count": 0,
+      "marginal_gain_share": 0.0
     },
     {
       "label": "composite<=5",
       "likely_win_max_composite": 5,
       "zone_distribution": {
-        "CALCULATED_RISK": 20,
-        "LIKELY_WIN": 23,
-        "MARGINAL_GAIN": 2,
+        "CALCULATED_RISK": 12,
+        "LIKELY_WIN": 33,
         "NONE": 15
       },
-      "cases_changed_vs_baseline": 3,
-      "golden_agreement_count": 10,
+      "cases_changed_vs_baseline": 8,
+      "golden_agreement_count": 17,
       "golden_labeled_cases": 24,
-      "golden_raw_agreement_rate": 0.4167,
-      "golden_cohens_kappa": 0.0667,
-      "marginal_gain_count": 2,
-      "marginal_gain_share": 0.0333
+      "golden_raw_agreement_rate": 0.7083333333333334,
+      "golden_cohens_kappa": 0.4615,
+      "marginal_gain_count": 0,
+      "marginal_gain_share": 0.0
     },
     {
       "label": "composite<=6",
       "likely_win_max_composite": 6,
       "zone_distribution": {
+        "CALCULATED_RISK": 11,
         "LIKELY_WIN": 34,
-        "MARGINAL_GAIN": 2,
-        "NONE": 15,
-        "CALCULATED_RISK": 9
+        "NONE": 15
       },
-      "cases_changed_vs_baseline": 14,
-      "golden_agreement_count": 13,
+      "cases_changed_vs_baseline": 9,
+      "golden_agreement_count": 16,
       "golden_labeled_cases": 24,
-      "golden_raw_agreement_rate": 0.5417,
-      "golden_cohens_kappa": 0.175,
-      "marginal_gain_count": 2,
-      "marginal_gain_share": 0.0333
+      "golden_raw_agreement_rate": 0.6666666666666666,
+      "golden_cohens_kappa": 0.3684,
+      "marginal_gain_count": 0,
+      "marginal_gain_share": 0.0
     }
   ]
 }

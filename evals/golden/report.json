@@ -1,8 +1,8 @@
 {
   "total_cases": 25,
   "labeled_cases": 24,
-  "agreement_count": 14,
-  "agreement_rate": 0.5833333333333334,
+  "agreement_count": 15,
+  "agreement_rate": 0.625,
   "results": [
     {
       "case_id": "golden-001",
@@ -126,9 +126,9 @@
     {
       "case_id": "golden-018",
       "passed_vorfilter": true,
-      "predicted_zone": "LIKELY_WIN",
+      "predicted_zone": "CALCULATED_RISK",
       "expected_zone": "CALCULATED_RISK",
-      "is_match": false
+      "is_match": true
     },
     {
       "case_id": "golden-019",

@@ -15,10 +15,10 @@ unabhaengige Wahrheit; nur die Engine-Vorhersage aendert sich.
 
 | Autor vs. Engine (report.json, n=24 gelabelt) | Raw Agreement | Cohen's kappa |
 |---|---|---|
-| **v4-Scoring (2026-07-10)** | **14/24 = 58,3 %** | **0,25** |
+| **v4-Scoring (2026-07-10)** | **15/24 = 62,5 %** | **0,34** |
 | v3 (historisch, 2026-07-02) | 9/24 = 37,5 % | 0,06 |
 
-**Warum der Sprung (+20,8 pp).** Die person-basierte Nutzenformel rechnet jetzt
+**Warum der Sprung (+25,0 pp).** Die person-basierte Nutzenformel rechnet jetzt
 `Ersparnis x Vorgaenge_pro_Mitarbeiter x Mitarbeiterzahl` -- der Faktor
 Mitarbeiterzahl war im alten org-weiten Frequenzmodell nicht enthalten. Bei
 Cases mit vielen betroffenen Mitarbeitern hebt das den erwarteten Nutzen deutlich

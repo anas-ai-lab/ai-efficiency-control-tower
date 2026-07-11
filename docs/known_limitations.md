@@ -24,8 +24,8 @@ Loop ist nur im produktiven Einsatz mit abgeschlossenen Cases messbar.
 tatsaechlicher Nutzeneintritt.
 
 **Stand:** Experten-Abgleich auf 24 gelabelten Golden-Cases (golden-001..025,
-golden-004 bewusst unlabeled) — unter dem V4-Bewertungsmodell Agreement 14 von 24
-(58,3 %, Kappa 0,25; Remessung 2026-07-10, Details in #26); die v3-Basis lag bei
+golden-004 bewusst unlabeled) — unter dem V4-Bewertungsmodell Agreement 15 von 24
+(62,5 %, Kappa 0,34; Remessung 2026-07-10, Details in #26); die v3-Basis lag bei
 9 von 24 (37,5 %). Die Divergenz ist
 das Eval-Ergebnis, nicht ein zu behebender Fehler: Labels sind unabhaengige
 Experten-Ground-Truth und werden nicht an die Engine angeglichen. Detail in
@@ -74,8 +74,8 @@ Schwellen-Nachjustierung in `docs/analysis/rule-engine-vs-human-judgment.md`.
 ## 3. Expert-Agreement auf kleinem Sample
 
 **Was:** 24 von 25 Golden-Cases sind gelabelt (golden-004 bleibt bewusst
-unlabeled, Vorfilter-Grenzfall). Agreement-Rate unter dem V4-Modell: 14/24
-(58,3 %, Kappa 0,25; siehe #26). Die im Folgenden analysierte v3-Basis lag bei
+unlabeled, Vorfilter-Grenzfall). Agreement-Rate unter dem V4-Modell: 15/24
+(62,5 %, Kappa 0,34; siehe #26). Die im Folgenden analysierte v3-Basis lag bei
 9/24 (37,5 %). Das Sample wurde von urspruenglich 3 gelabelten Cases (Tag 64,
 Agreement 1/3) auf 24 erweitert.
 
@@ -486,11 +486,11 @@ keine Auto-Tuning-Schleife. Verwandt mit #2 (Hard-Threshold-Brittleness) und #26
 
 ---
 
-## 26. Golden-Agreement unter V4: 58,3 % (14/24), v3-Basis 37,5 %
+## 26. Golden-Agreement unter V4: 62,5 % (15/24), v3-Basis 37,5 %
 
 **Was:** Unter dem V4-Nutzenmodell (person-basierte Formel) stieg das Raw
-Agreement der Engine gegen die Autor-Labels auf **14/24 (58,3 %, Cohen's Kappa
-0,25)**, gemessen **2026-07-10** (V4-P4). Die v3-Basis (altes Modell) lag bei
+Agreement der Engine gegen die Autor-Labels auf **15/24 (62,5 %, Cohen's Kappa
+0,34)**, gemessen **2026-07-10** (V4-P4). Die v3-Basis (altes Modell) lag bei
 **9/24 (37,5 %, Kappa 0,06)** -- der historische Vergleichswert, auf den sich #1
 und #3 urspruenglich bezogen.
 
@@ -501,12 +501,10 @@ passt. Zugleich fallen drei Ein-Personen-Cases (golden-005/006/016) jetzt knapp
 durch den Vorfilter (Potenzial < 20k). Die Labels selbst blieben unangetastet
 (kein Anpassen der Ground Truth an das Modell, SDR-0003 Entscheidung 5).
 
-**Konsequenz:** Kappa 0,25 ist "gering" -- die Zahl misst weiter *Konsistenz* mit
+**Konsequenz:** Kappa 0,34 ist "fair" -- die Zahl misst weiter *Konsistenz* mit
 einer Rubrik, nicht *Korrektheit* (#1), auf einem 24-Case-Sample ohne
 Signifikanztest. Details und Grenzen in `evals/golden/inter_annotator_report.md`
-(V4-P4-Abschnitt), Rohdaten in `evals/golden/report.json`. Nicht verwechseln mit
-dem v3-LLM-Zweitannotator, der zufaellig ebenfalls 14/24 erreichte (Kappa 0,33
-gegen die Autor-Labels, #3) -- das ist eine andere Messung.
+(V4-P4-Abschnitt), Rohdaten in `evals/golden/report.json`.
 
 ---
 
@@ -649,7 +647,7 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 *Letzte Aktualisierung: 2026-07-11 -- V4-Release (v4.0.0): #25-#32 ergaenzt
 (Composite-Range 1-9 bei stabilen Zonen-Schwellen, Golden-Agreement-Remessung
-58,3 %, Zahlen-Validator-Grenze, Single-Admin-Auth, unverifizierte
+62,5 %, Zahlen-Validator-Grenze, Single-Admin-Auth, unverifizierte
 Nicht-DACH-Stundensaetze, decision-gekoppelte Sichtbarkeit, Routing-Volumen-
 Schwelle, strukturelle Frontend-Verifikation); #1/#3 auf die V4-Agreement-Rate
 nachgezogen. Vorstand: 2026-07-06 -- v3.1.0 + Master-Audit-H-Konsolidierung

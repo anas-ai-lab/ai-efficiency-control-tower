@@ -19,7 +19,10 @@ evals/golden/inter_annotator_report.md: Raw Agreement = Treffer / gelabelte
 Faelle; Cohen's Kappa unweighted ueber die Kategorien {LIKELY_WIN,
 CALCULATED_RISK, MARGINAL_GAIN, NONE} (NONE = Vorfilter-Ablehnung, zaehlt
 als eigene Kategorie -- reproduziert exakt report.json. Nach der V4-P4-
-Remessung (v4-Scoring): 58,3 % / kappa 0,25 (vorher 37,5 % / kappa 0,06).
+Remessung (v4-Scoring): 62,5 % / kappa 0,34 (vorher 37,5 % / kappa 0,06).
+Der Backtest laedt die ROI-Config mit layer_local=False (reine Platzhalter,
+identisch zu run_golden_eval.py), damit die Zahlen CI-reproduzierbar sind und
+nicht von der gitignored roi_config.local.toml abhaengen.
 Nur die 24 gelabelten Golden Cases fliessen in Agreement/Kappa ein;
 Synthetic Cases haben kein Autor-Label und zaehlen nur in Zonen-Verteilung
 und MARGINAL_GAIN-Anteil.
@@ -245,9 +248,9 @@ def _verify_baseline_reproduces_report(baseline: dict[str, object]) -> None:
             f"evals/golden/report.json ({expected_count}/{expected_labeled} = "
             f"{expected_rate})."
         )
-    # v4-Scoring (V4-P4-Remessung): Baseline-Kappa jetzt 0,25 (vorher 0,06);
-    # siehe evals/golden/inter_annotator_report.md.
-    expected_kappa_rounded = 0.25
+    # v4-Scoring (V4-P4-Remessung), reine Platzhalter-Config: Baseline-Kappa jetzt
+    # 0,34 (vorher 0,06); siehe evals/golden/inter_annotator_report.md.
+    expected_kappa_rounded = 0.34
     if round(baseline["golden_cohens_kappa"], 2) != expected_kappa_rounded:
         raise RuntimeError(
             "STOPP -- Logik-Fehler im Backtest-Script: Baseline-Kappa "
@@ -257,7 +260,10 @@ def _verify_baseline_reproduces_report(baseline: dict[str, object]) -> None:
 
 
 def main() -> None:
-    roi_config = load_roi_config(ROI_CONFIG_PATH)
+    # layer_local=False: reine Platzhalter-Config (siehe Modul-Docstring) --
+    # Baseline muss das committete report.json reproduzieren, das CI ohne
+    # roi_config.local.toml erzeugt.
+    roi_config = load_roi_config(ROI_CONFIG_PATH, layer_local=False)
     base_classifier = load_zone_classifier()
 
     golden_cases = [

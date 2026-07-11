@@ -72,7 +72,7 @@ def _merge_config(base: dict[str, Any], overlay: dict[str, Any]) -> None:
             base[section] = value
 
 
-def load_roi_config(path: Path | None = None) -> ROIConfig:
+def load_roi_config(path: Path | None = None, *, layer_local: bool = True) -> ROIConfig:
     """Lädt ROIConfig aus config/roi_config.toml (Repo-Root), mit Config-Layering.
 
     Sucht standardmäßig 3 Ebenen über diesem Modul (src/aect/domain/ → Repo-Root).
@@ -81,6 +81,11 @@ def load_roi_config(path: Path | None = None) -> ROIConfig:
     andere Sections optional keyweise (siehe _merge_config). Fehlt local, gelten
     die getrackten Platzhalter — das Repo bleibt aus sich heraus lauffähig.
     Für Tests ROIConfig direkt konstruieren — kein Dateisystem-Zugriff nötig.
+
+    layer_local=False erzwingt reine Platzhalter-Config (local.toml wird ignoriert,
+    auch wenn vorhanden). Nötig für committete, öffentlich CI-geprüfte Artefakte wie
+    evals/golden/report.json: deren Zahlen dürfen NICHT von der lokal vorhandenen
+    (gitignored) local.toml abhängen, sonst weichen lokaler Lauf und CI ab.
     """
     if path is None:
         # src/aect/domain/roi.py → parents[0]=domain, [1]=aect, [2]=src, [3]=repo_root
@@ -91,7 +96,7 @@ def load_roi_config(path: Path | None = None) -> ROIConfig:
         raw = tomllib.load(f)
 
     local_path = path.with_name("roi_config.local.toml")
-    if local_path.exists():
+    if layer_local and local_path.exists():
         with local_path.open("rb") as f:
             local_raw = tomllib.load(f)
         _merge_config(raw, local_raw)

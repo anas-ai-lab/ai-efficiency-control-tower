@@ -25,7 +25,11 @@ REPORT_PATH = REPO_ROOT / "evals" / "golden" / "report.json"
 
 def main() -> None:
     cases = load_eval_cases(GOLDEN_CASES_PATH)
-    roi_config = load_roi_config(ROI_CONFIG_PATH)
+    # layer_local=False: report.json ist ein committetes, CI-geprüftes Artefakt und
+    # muss deterministisch aus der getrackten Platzhalter-Config entstehen -- die
+    # gitignored roi_config.local.toml (echte Raten) wird bewusst ignoriert, sonst
+    # kippt golden-018 über die likely_win_min_benefit-Schwelle und CI weicht ab.
+    roi_config = load_roi_config(ROI_CONFIG_PATH, layer_local=False)
     results = run_eval(cases, roi_config)
     write_report(results, REPORT_PATH)
 

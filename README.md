@@ -314,8 +314,8 @@ Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
 
 | Metrik | Wert (V4-Modell) | v3-Basis (historisch) |
 |---|---|---|
-| Raw Agreement Rate (Golden Cases, n=24 gelabelt) | **14/24 (58,3 %)** | 9/24 (37,5 %) |
-| Cohen's Kappa (n=24, inkl. Vorfilter-Ablehnungen) | **0,25 ("gering")** | 0,06 (nahe Zufall) |
+| Raw Agreement Rate (Golden Cases, n=24 gelabelt) | **15/24 (62,5 %)** | 9/24 (37,5 %) |
+| Cohen's Kappa (n=24, inkl. Vorfilter-Ablehnungen) | **0,34 ("fair")** | 0,06 (nahe Zufall) |
 | Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4); Backtest-Optimum laege bei <= 5 (bewusst nicht uebernommen) | — |
 | Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen | — |
 | Test-Coverage | ~95 % (893 passed, 4 skipped) | 95 % (720 Tests) |
@@ -323,7 +323,7 @@ Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
 **Was die Eval-Zahlen bedeuten:**
 Das urspruengliche Sample (4 Cases, 3 gelabelt, Agreement 1/3) war zu klein fuer eine
 belastbare Aussage. Unter dem **V4-Nutzenmodell** (person-basierte Formel) steigt die
-Agreement-Rate gegen die Autor-Labels auf **58,3 % (14/24, Kappa 0,25)** -- gegenueber
+Agreement-Rate gegen die Autor-Labels auf **62,5 % (15/24, Kappa 0,34)** -- gegenueber
 37,5 % (9/24) unter v3. Ursache: Die person-basierte Formel (Ersparnis x Vorgaenge je MA
 x Anzahl MA) inflationiert Multi-MA-Cases -> mehr LIKELY_WIN, was besser zu den
 optimistischen Autor-Labels passt; drei Ein-Personen-Cases (golden-005/006/016) fallen
@@ -332,9 +332,7 @@ der Ground Truth an das Modell, SDR-0003). Der Zonen-Schwellen-Backtest zeigt da
 Agreement-Optimum bei `composite <= 5`; die Schwelle bleibt bewusst bei `<= 4`, um nicht
 auf ein 24-Case-Sample zu overfitten (Produktentscheidung, `known_limitations.md` #25).
 Genau diese Divergenz -- und ihre offene Dokumentation -- ist der Wert der Evaluation,
-nicht ihr Defekt. Nicht verwechseln: ein v3-LLM-Zweitannotator im Blind-Protokoll erreichte
-zufaellig ebenfalls 14/24 (Kappa 0,33 gegen die Autor-Labels) -- eine andere Messung,
-Details in `evals/golden/inter_annotator_report.md`. Vertiefte Ursachenanalyse in
+nicht ihr Defekt. Vertiefte Ursachenanalyse in
 `docs/analysis/rule-engine-vs-human-judgment.md`.
 
 Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
