@@ -12,7 +12,8 @@ import { usePathname } from "next/navigation";
 // sichtbar -- die Sicherheit erzwingt das Backend (require_admin), die Nav
 // blendet sie nur aus.
 const LINKS = [
-  { href: "/", label: "Einreichen", adminOnly: false },
+  { href: "/", label: "Start", adminOnly: false },
+  { href: "/einreichen", label: "Einreichen", adminOnly: false },
   { href: "/ideation", label: "Ideen-Assistent", adminOnly: false },
   { href: "/cases", label: "Ideenliste", adminOnly: false },
   { href: "/board", label: "Board", adminOnly: true },

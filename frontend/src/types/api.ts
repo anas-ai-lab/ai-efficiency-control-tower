@@ -1,6 +1,8 @@
 // Abgeleitet aus: domain/types.py, domain/models.py,
-// adapters/api/routes/triage.py, adapters/api/routes/cases.py
-// Aenderungen hier muessen mit den Python-Schemas synchron bleiben.
+// adapters/api/routes/triage.py, adapters/api/routes/cases.py,
+// adapters/api/routes/stats.py
+// Aenderungen hier muessen mit den Python-Schemas synchron bleiben
+// (Gegencheck: src/types/api.generated.ts aus openapi.json).
 
 export type EmployeeCategory =
   | "junior"
@@ -100,7 +102,7 @@ export interface UseCaseInput {
   notes?: string | null; // optional, max 2000
 }
 
-// ---- Triage Response (/triage POST) ----------------------------------------
+// ---- Triage Response (/triage POST, GET /cases/{id}.triage) ----------------
 
 export interface VorfilterResult {
   passes: boolean;
@@ -123,6 +125,9 @@ export interface ROIResult {
 
 export interface RoutingResult {
   recommendation: string;
+  // Empfehlung als deutscher Satz (V4-P6) -- das Enum bleibt maschinenlesbar
+  // daneben (recommendation).
+  recommendation_text: string;
   confidence: string;
   automation_signals: string[];
   ai_signals: string[];
@@ -144,6 +149,13 @@ export interface CompositeResult {
   effort_label: string;
 }
 
+// Konfidenz als Begruendung statt Zahl (V4-P6): level + deterministische
+// Gruende (Evidenzlage, Zonengrenz-Naehe mit Kipp-Hebel).
+export interface ConfidenceReasoning {
+  level: string; // "hoch" | "mittel" | "niedrig"
+  gruende: string[];
+}
+
 export interface ZoneResult {
   base_zone: TriageZone;
   final_zone: TriageZone;
@@ -152,6 +164,27 @@ export interface ZoneResult {
   // Additiver Konfidenz-Score (ADR-0036): Abstand zur naechsten Zonengrenze.
   confidence_score: number; // 0.5 - 1.0
   confidence_label: string; // "hoch" | "mittel" | "niedrig"
+  confidence_reasoning: ConfidenceReasoning; // V4-P6
+}
+
+// Eine Aufwandscore-Komponente mit deterministischer Begruendung (V4-P6).
+export interface ScoreComponent {
+  key: string;
+  label: string;
+  wert: number;
+  max: number;
+  begruendung: string;
+}
+
+// Herkunft des Aufwandscores (V4-P6): Komponenten + Gesamtzeile + Machbarkeit.
+export interface ScoreBreakdown {
+  components: ScoreComponent[];
+  total: number;
+  max_total: number;
+  effort_label: string;
+  total_line: string;
+  feasibility_score: number; // = 10 - total
+  feasibility_definition: string;
 }
 
 // L-3 Dedup (ADR-0039): Hinweis auf einen aehnlichen, bereits erfassten Case.
@@ -174,13 +207,12 @@ export interface TriageResponse {
   roi: ROIResult | null;
   composite: CompositeResult | null;
   zone: ZoneResult | null;
-  similarity_warning: SimilarityWarning | null;
+  // Score-Herkunft (V4-P6): None bei Vorfilter-Fail (kein Composite).
+  score_breakdown: ScoreBreakdown | null;
+  similarity_warning?: SimilarityWarning | null;
 }
 
 // ---- Dedup / Similarity-Pairs (/cases/similarity-pairs GET, P9) ------------
-// Aggregierte Dedup-View ueber alle Cases (ADR-0039). Gespiegelt aus
-// api.generated.ts (SimilarityPairResponse / SimilarityPairsResponse).
-// case_a/case_b sind deterministisch nach id sortiert (case_a_id < case_b_id).
 export interface SimilarityPair {
   case_a_id: string;
   case_a_title: string;
@@ -195,27 +227,47 @@ export interface SimilarityPairsResponse {
   cases_without_embedding: number; // Cases ohne Embedding, fliessen nicht ein
 }
 
-// ---- Cases Responses (/cases/... POST) -------------------------------------
+// ---- Schaerfung (/cases/{id}/sharpen POST, V4 Draft/Accept-Flow) -----------
 
+// Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4). bezugsfeld ist der
+// CaseField.value, an dem das Frontend das Formularfeld verlinkt.
+export interface SharpenSuggestion {
+  bezugsfeld: string;
+  vorschlag: string;
+  hebel: string;
+}
+
+// Draft-Ergebnis: Original + geschaerfte Fassung. Der Client baut daraus die
+// Diff-Ansicht und uebernimmt/verwirft via /sharpen/accept bzw. /reject. Alle
+// sharpened_*-Felder sind bei Erfolg gesetzt (422 statt Teilantwort im Backend).
 export interface SharpenedCaseResponse {
   case_id: string;
   original_title: string;
   original_current_state: string;
   original_desired_state: string;
-  sharpened_title: string | null;
-  sharpened_current_state: string | null;
-  sharpened_desired_state: string | null;
-  improvement_suggestions: string[];
-  raw_text: string | null;
+  sharpened_title: string;
+  sharpened_current_state: string;
+  sharpened_desired_state: string;
+  improvement_suggestions: SharpenSuggestion[];
   prompt_version: string;
 }
 
+// Bestaetigung fuer accept/reject eines Schaerfungs-Drafts (V4).
+export interface SharpeningActionResponse {
+  case_id: string;
+  status: string; // "accepted" | "rejected"
+}
+
+// ---- Loesungsvorschlag (/cases/{id}/propose-solution POST, V4-P6) ----------
+// Zweigeteilt: solution_business (technikfrei) + solution_technical.
 export interface SolutionProposalResponse {
   case_id: string;
-  proposal_text: string;
+  solution_business: string;
+  solution_technical: string;
   prompt_version: string;
 }
 
+// ---- Compliance-Hinweise (/cases/{id}/compliance-hints POST, ADR-0024) -----
 export interface ComplianceCitation {
   number: number;
   source_id: string;
@@ -230,13 +282,55 @@ export interface ComplianceHintsResponse {
   prompt_version: string;
 }
 
+// ---- Report (/cases/{id}/report POST, GET /cases/{id}.report, V4-P6) -------
+
+// Aufwand als Kennzahl im Entscheider-Report: Wert von max mit Label.
+export interface AufwandKennzahl {
+  wert: number;
+  max: number;
+  label: string;
+}
+
+// Harte Kennzahlen des Entscheider-Reports (null bei Vorfilter-Fail).
+export interface DecisionKennzahlen {
+  netto_eur: number | null;
+  stunden_pro_jahr: number | null;
+  aufwand: AufwandKennzahl | null;
+  zone_label: string | null;
+}
+
+// Ausklappbare Details des Entscheider-Reports.
+export interface DecisionDetails {
+  sharpened_text: string | null;
+  solution_business: string | null;
+  compliance_hint_text: string | null;
+}
+
+// Entscheider-Report v2 (V4-P6) -- ersetzt die alte summary_text-Zeile.
+export interface DecisionReport {
+  empfehlung_satz: string;
+  kennzahlen: DecisionKennzahlen;
+  zu_entscheiden: string;
+  contra_punkte: string[];
+  details: DecisionDetails;
+}
+
+// Technischer Report in Abschnitten statt Textwueste (V4-P6).
+export interface TechnicalReport {
+  architektur_kurzfassung: string;
+  datenlage: string;
+  risiken: string;
+  offene_technische_fragen: string;
+}
+
 export interface BusinessSummary {
   title: string;
-  zone: string | null;
+  zone: TriageZone | null;
   is_actionable: boolean;
   recommendation: string;
   expected_benefit_eur: number | null;
-  summary_text: string;
+  decision_report: DecisionReport; // V4-P6
+  solution_business: string | null; // V4-P6, null solange nicht erzeugt
   sharpened_text: string | null;
   compliance_hint_text: string | null;
   compliance_citations: ComplianceCitation[];
@@ -259,6 +353,7 @@ export interface TechnicalDetail {
   requires_human_review: boolean;
   roi_theoretical_potential_eur: number | null;
   roi_net_expected_benefit_eur: number | null;
+  technical_report: TechnicalReport; // V4-P6
   proposal_text: string | null;
 }
 
@@ -268,10 +363,23 @@ export interface ReportResponse {
   technical_detail: TechnicalDetail;
 }
 
+// ---- Case-Detail (GET /cases/{id}, public read-only, E9/SDR-0003) ----------
+// Vollstaendiger read-only Bewertungsstand: das beim Intake berechnete
+// Triage-Ergebnis + der zweischichtige Report ueber den persistierten Feldern.
+// status ist stets ein CaseStatus-Wert (Backend liefert String, hier verengt).
+export interface CaseDetailResponse {
+  id: string;
+  submitted_at: string;
+  status: CaseStatus;
+  triage: TriageResponse;
+  report: ReportResponse;
+}
+
 // Portfolio-Read (P2): erweiterte Listansicht. zone/net_expected_benefit_eur/
 // composite_total/hours_per_year sind null bei Vorfilter-Fail (gleiche
-// None-Semantik wie TriageResponse). status ist immer ein CaseStatus-Wert
-// (Backend liefert ihn als String, hier auf die Union verengt).
+// None-Semantik wie TriageResponse). feasibility_score = 10 - composite_total
+// (V4-P6, null bei Vorfilter-Fail); feasibility_definition ist der zentrale
+// Definitions-String.
 export interface CaseSummary {
   id: string;
   submitted_at: string;
@@ -283,6 +391,8 @@ export interface CaseSummary {
   composite_total: number | null;
   hours_per_year: number | null;
   is_actionable: boolean;
+  feasibility_score: number | null;
+  feasibility_definition: string;
 }
 
 // ---- Decision Response (/cases/{id}/decision POST) -------------------------
@@ -324,11 +434,6 @@ export interface MonitoringNoteRequest {
 }
 
 // ---- Architektur-Skizze (/cases/{id}/architecture-sketch, P11, ADR-0049) ---
-// On-Demand-Graph (kein Pipeline-Schritt). Das LLM emittiert nur den Graphen
-// (nodes/edges); mermaid_source erzeugt der deterministische Builder daraus
-// (D18). Gespiegelt aus api.generated.ts (ArchitectureSketchResponse /
-// ArchitectureSketchEnvelope). Das Frontend rendert mermaid_source; nodes/edges
-// werden aus Vertrags-Treue mitgefuehrt.
 export type SketchNodeKind =
   | "user"
   | "system"
@@ -364,13 +469,9 @@ export interface ArchitectureSketchEnvelope {
 }
 
 // ---- Ideation (/ideation POST, P10/P14, ADR-0048) --------------------------
-// Ephemer (D16): kein Case, keine Persistenz -- die Entwuerfe leben nur in der
-// Response. Die qualitativen Felder tragen exakt die UseCaseInput-Feldnamen
-// (title/current_state/desired_state/example_process), damit ein Entwurf ohne
-// Umbenennung ins Intake-Formular uebernommen werden kann (P14-Prefill).
-// Quantitative Angaben werden bewusst NICHT erfunden (D17); die Luecken tragen
-// die open_questions. Gespiegelt aus api.generated.ts (IdeationDraft/
-// IdeationResponse).
+// Ephemer (D16): kein Case, keine Persistenz. Die qualitativen Felder tragen
+// exakt die UseCaseInput-Feldnamen (P14-Prefill). Quantitative Angaben werden
+// bewusst NICHT erfunden (D17); die Luecken tragen die open_questions.
 export interface IdeationDraft {
   title: string;
   current_state: string;
@@ -390,4 +491,15 @@ export interface IdeationRequest {
 export interface IdeationResponse {
   drafts: IdeationDraft[];
   flagged_input: boolean;
+}
+
+// ---- Portfolio-Kennzahlen (GET /stats, public, V4-P7) ----------------------
+// Aggregierter Funnel fuer die Startseite. bewertet = Cases mit bestandenem
+// Vorfilter; umgesetzt = Status implemented; netto_nutzen_freigegeben_eur =
+// Summe Netto-Nutzen ueber approved + implemented.
+export interface StatsResponse {
+  eingereicht: number;
+  bewertet: number;
+  umgesetzt: number;
+  netto_nutzen_freigegeben_eur: number;
 }

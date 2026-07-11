@@ -15,6 +15,7 @@ import { updateCaseStatus } from "@/app/actions";
 import { formatEUR, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
 import { downloadCasesCsv } from "@/lib/csv";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -201,9 +202,14 @@ function SortableHeader({ label, active, dir, onClick, align }: SortableHeaderPr
 export function CasesTable({
   cases,
   pairs = [],
+  authenticated = false,
 }: {
   cases: CaseSummary[];
   pairs?: SimilarityPair[];
+  // V4-P-Auth: der Statuswechsel ist eine Admin-Aktion. Anonyme sehen den Status
+  // read-only als Badge, kein Select (das Backend wuerde POST /status ohnehin
+  // mit 401 ablehnen).
+  authenticated?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<CaseSummary[]>(cases);
@@ -289,7 +295,7 @@ export function CasesTable({
           Noch keine Use Cases eingereicht.
         </p>
         <Link
-          href="/"
+          href="/einreichen"
           className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
         >
           Ersten Use Case einreichen
@@ -443,24 +449,31 @@ export function CasesTable({
                     formatEUR(c.net_expected_benefit_eur)
                   )}
                 </td>
-                {/* Status-Zelle: Klick/Tastatur hier navigiert NICHT (stopPropagation) */}
+                {/* Status-Zelle: Klick/Tastatur hier navigiert NICHT (stopPropagation).
+                    Nur Admins wechseln den Status; Anonyme sehen die Badge. */}
                 <td
                   className="px-4 py-3"
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
-                  <StatusSelect
-                    value={c.status}
-                    disabled={pending[c.id] ?? false}
-                    onChange={(next) => handleStatusChange(c.id, next)}
-                  />
-                  {errors[c.id] != null && (
-                    <p
-                      role="alert"
-                      className="mt-1.5 max-w-[12rem] text-xs text-destructive"
-                    >
-                      {errors[c.id]}
-                    </p>
+                  {authenticated ? (
+                    <>
+                      <StatusSelect
+                        value={c.status}
+                        disabled={pending[c.id] ?? false}
+                        onChange={(next) => handleStatusChange(c.id, next)}
+                      />
+                      {errors[c.id] != null && (
+                        <p
+                          role="alert"
+                          className="mt-1.5 max-w-[12rem] text-xs text-destructive"
+                        >
+                          {errors[c.id]}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <StatusBadge status={c.status} />
                   )}
                 </td>
               </tr>

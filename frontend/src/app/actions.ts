@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import type {
   ArchitectureSketchEnvelope,
   ArchitectureSketchResponse,
+  CaseDetailResponse,
   CaseStatus,
   CaseSummary,
   ComplianceHintsResponse,
@@ -13,8 +14,10 @@ import type {
   MonitoringEntry,
   ReportResponse,
   SharpenedCaseResponse,
+  SharpeningActionResponse,
   SimilarityPairsResponse,
   SolutionProposalResponse,
+  StatsResponse,
   StatusUpdateResponse,
   TriageResponse,
   UseCaseInput,
@@ -196,6 +199,27 @@ export async function sharpenCase(
   );
 }
 
+// Draft/Accept-Flow (V4): accept uebernimmt den offenen Schaerfungs-Entwurf in
+// die regulaeren Felder, reject verwirft ihn. Kein LLM-Call (nur Persistenz) ->
+// RULE_TIMEOUT_MS. 409 (kein offener Draft) laeuft durch statusMessageDE.
+export async function acceptSharpening(
+  caseId: string,
+): Promise<SharpeningActionResponse> {
+  return apiFetch<SharpeningActionResponse>(
+    `/cases/${caseId}/sharpen/accept`,
+    RULE_TIMEOUT_MS,
+  );
+}
+
+export async function rejectSharpening(
+  caseId: string,
+): Promise<SharpeningActionResponse> {
+  return apiFetch<SharpeningActionResponse>(
+    `/cases/${caseId}/sharpen/reject`,
+    RULE_TIMEOUT_MS,
+  );
+}
+
 export async function proposeSolution(
   caseId: string,
 ): Promise<SolutionProposalResponse> {
@@ -259,6 +283,31 @@ export async function listCases(): Promise<CaseSummary[]> {
   // GET ohne Body. cache: "no-store" (apiFetch) haelt die Liste nach einem
   // Statuswechsel + router.refresh sofort aktuell.
   return apiFetch<CaseSummary[]>("/cases", RULE_TIMEOUT_MS, undefined, "GET");
+}
+
+// GET /stats (public, V4-P7): aggregierte Portfolio-Kennzahlen fuer die
+// Startseite. Regelbasiert (ein list_all-Durchlauf) -> RULE_TIMEOUT_MS.
+export async function getStats(): Promise<StatsResponse> {
+  return apiFetch<StatsResponse>("/stats", RULE_TIMEOUT_MS, undefined, "GET");
+}
+
+// GET /cases/{id} (public, E9/SDR-0003): vollstaendiger read-only
+// Bewertungsstand (Triage + Report). 404 -> null, damit die Detailseite eine
+// NotFound-Ansicht zeigt statt zu werfen; andere Fehler propagieren.
+export async function getCaseDetail(
+  caseId: string,
+): Promise<CaseDetailResponse | null> {
+  try {
+    return await apiFetch<CaseDetailResponse>(
+      `/cases/${caseId}`,
+      RULE_TIMEOUT_MS,
+      undefined,
+      "GET",
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 export async function listSimilarityPairs(): Promise<SimilarityPairsResponse> {

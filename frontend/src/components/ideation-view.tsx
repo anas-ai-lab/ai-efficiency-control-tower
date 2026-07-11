@@ -153,7 +153,8 @@ export function IdeationView() {
     } catch {
       // sessionStorage nicht verfuegbar -> ohne Prefill weiter (Formular leer).
     }
-    router.push("/")
+    // Handoff in den Einreichen-Wizard (liest den Prefill-Key beim Mount, D16).
+    router.push("/einreichen")
   }
 
   return (

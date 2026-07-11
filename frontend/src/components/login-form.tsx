@@ -11,12 +11,16 @@ import { Label } from "@/components/ui/label";
 // Minimaler Admin-Login (V4-P-Auth, nur funktional -- Design folgt in V4-P8).
 // Bei Erfolg setzt die login()-Server-Action das httpOnly-Session-Cookie; ein
 // router.refresh() laesst die Server-Komponenten (Nav, gated Pages) den neuen
-// Auth-Zustand neu auswerten.
-export function LoginForm() {
+// Auth-Zustand neu auswerten. next: Ruecksprungziel nach dem Login (von einer
+// Admin-Route via ?next= mitgegeben) -- nur interne Pfade werden akzeptiert
+// (Schutz vor Open-Redirect), sonst Startseite.
+export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +30,7 @@ export function LoginForm() {
     const result = await login(password);
     if (result.ok) {
       setPassword("");
-      router.push("/");
+      router.push(target);
       router.refresh();
       return;
     }

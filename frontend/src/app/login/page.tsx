@@ -6,7 +6,14 @@ export const metadata: Metadata = {
   title: "Admin-Login | AECT",
 };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  // ?next= tragen die Admin-Routen bei (Ruecksprung nach dem Login).
+  const { next } = await searchParams;
+
   return (
     <main className="mx-auto max-w-md px-5 py-16 sm:px-6">
       <p className="eyebrow">Admin</p>
@@ -18,7 +25,7 @@ export default function LoginPage() {
         Der Login schaltet die Admin-Funktionen frei (Board, Monitoring,
         Schärfen, Lösung, Compliance, Report, Statuswechsel).
       </p>
-      <LoginForm />
+      <LoginForm next={next} />
     </main>
   );
 }

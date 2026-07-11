@@ -67,6 +67,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login
+         * @description Prueft das Admin-Passwort und legt bei Erfolg eine Session an.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key) bzw. zum Setzen des
+         *     Cookies. Rate Limit: 10/Minute (Brute-Force-Bremse fuer den anonymen Pfad).
+         *
+         *     Raises:
+         *         HTTPException 503: kein AECT_ADMIN_PASSWORD_HASH konfiguriert (Login
+         *             serverseitig gar nicht eingerichtet -- kein Client-Fehler).
+         *         HTTPException 401: falsches Passwort.
+         */
+        post: operations["login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Loescht die Session (falls vorhanden) und raeumt das Cookie ab.
+         *
+         *     Idempotent und ohne Auth: ist kein/ein ungueltiges Cookie gesetzt, wird
+         *     nichts geloescht -- die Antwort ist in jedem Fall authenticated=false.
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Auth Me
+         * @description Meldet, ob der Aufrufer als Admin authentifiziert ist.
+         *
+         *     Spiegelt exakt require_admin (Session-Cookie ODER gueltiger API-Key) -- das
+         *     Frontend blendet daran seine Admin-Flaechen ein/aus. Eine abgelaufene
+         *     Session wird dabei (in authenticate_admin) verworfen.
+         */
+        get: operations["auth_me_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases": {
         parameters: {
             query?: never;
@@ -80,8 +155,10 @@ export interface paths {
          *
          *     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
          *     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-         *     Auth: X-API-Key-Header (require_api_key).
-         *     Rate Limit: 60 Requests/Minute pro API-Key.
+         *     Auth: PUBLIC (V4-P-Auth) -- die Ideenliste ist read-only fuer die untere
+         *     Zugriffsstufe sichtbar (SDR-0003). CaseSummary serialisiert bewusst nur
+         *     Uebersichtsfelder, keine Freitexte/Reports. Kein require_admin hier.
+         *     Rate Limit: 60 Requests/Minute pro Aufrufer.
          *
          *     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
          *     float, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine
@@ -108,7 +185,7 @@ export interface paths {
          * @description Gibt alle Dedup-Beziehungen zwischen persistierten Cases zurueck (P9).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases und
          *     GET /cases/{id}/monitoring.
          *
@@ -131,7 +208,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Case Detail
+         * @description Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den
+         *     kompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.
+         *     Subscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).
+         *     Nur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein
+         *     LLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+         *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        get: operations["get_case_detail_cases__case_id__get"];
         put?: never;
         post?: never;
         /**
@@ -139,7 +231,7 @@ export interface paths {
          * @description Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den
          *     LLM-Endpoints streng gehalten.
          *
@@ -169,7 +261,7 @@ export interface paths {
          * @description Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key, inkl. Rotation, Phase G/Security).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key, inkl. Key-Rotation).
          *     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
          *
          *     Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
@@ -199,7 +291,7 @@ export interface paths {
          * @description Setzt den Lifecycle-Status eines bestehenden Cases (Lifecycle-ADR).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
          *     DELETE /cases/{id}.
          *
@@ -227,7 +319,7 @@ export interface paths {
          * @description Gibt die Monitoring-Zeitleiste eines Case zurueck (chronologisch aufsteigend).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
          *
          *     Leere Liste, wenn der Case existiert aber keine Eintraege hat. 404, wenn der
@@ -243,7 +335,7 @@ export interface paths {
          * @description Haengt eine Monitoring-Notiz an die Zeitleiste eines bestehenden Cases.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
          *     /status.
          *
@@ -273,7 +365,7 @@ export interface paths {
          * @description Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- enger als list_cases (60/min), da LLM-Endpoint
          *     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
          *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
@@ -313,7 +405,7 @@ export interface paths {
          * @description Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
          *
          *     Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
-         *     Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+         *     Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
@@ -340,7 +432,7 @@ export interface paths {
          * @description Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
          *
          *     Kein LLM-Call -> kein Token-Budget noetig.
-         *     Auth: X-API-Key-Header. Rate Limit: 10/Minute (Schreib-Endpoint).
+         *     Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
@@ -364,20 +456,24 @@ export interface paths {
         put?: never;
         /**
          * Propose Solution
-         * @description Skizziert einen Loesungsansatz fuer einen bestehenden Case via LLM.
+         * @description Skizziert einen zweigeteilten Loesungsansatz fuer einen Case via LLM (V4-P6).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen
          *     (aect-security-checklist v2.1, Phase B: "LLM-Endpoints strenger").
          *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
          *     stuendliche Token-Budget des API-Keys (Phase G).
          *
-         *     Skeleton (Tag 36, Phase C): v1-Prompt nennt bewusst keine konkreten
-         *     Zielplattformen -- Stack-Grounding via RAG folgt Phase D.
+         *     Der Business-Absatz muss technikfrei sein (deterministischer Vokabular-Guard,
+         *     domain/solution_guard). Fehler-Mapping (kein Stack-Trace, OWASP LLM02):
+         *     - Case fehlt -> 404.
+         *     - Business-Absatz nutzt verbotenes Vokabular (auch nach Retry) -> 422.
+         *     - KI-Antwort verletzt das Loesungs-Schema (auch nach Retry) -> 422.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 422: KI-Antwort verletzt Schema oder Vokabular-Regel.
          *         HTTPException 429: Token-Budget des API-Keys erschoepft.
          */
         post: operations["propose_solution_cases__case_id__propose_solution_post"];
@@ -401,7 +497,7 @@ export interface paths {
          * @description Erstellt den zweischichtigen Report fuer einen bestehenden Case.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 30/Minute -- kein LLM-Call (Regel-Schicht), aber Request-Body
          *     -- zwischen list_cases (60/min, lesend) und /sharpen (10/min, LLM).
          *
@@ -436,7 +532,7 @@ export interface paths {
          * @description Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und
          *     /propose-solution (aect-security-checklist v2.1, Phase B: "LLM-Endpoints
          *     strenger").
@@ -466,7 +562,7 @@ export interface paths {
          * @description Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
          *
          *     200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt
@@ -483,7 +579,7 @@ export interface paths {
          * @description Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und /ideation.
          *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das stuendliche
          *     Token-Budget des API-Keys (Phase G), analog den uebrigen /cases/{id}/*-
@@ -531,8 +627,9 @@ export interface paths {
          * @description Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.
          *
          *     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
-         *     Auth: X-API-Key-Header (require_api_key).
-         *     Rate Limit: 30 Requests/Minute pro API-Key.
+         *     Auth: PUBLIC (V4-P-Auth) -- anonyme Einreichung ist eine Kern-Faehigkeit der
+         *     unteren Zugriffsstufe (SDR-0003). Kein require_admin hier.
+         *     Rate Limit: 30 Requests/Minute pro Aufrufer.
          *     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
          *
          *     Idempotency: siehe Modul-Docstring. Bei Replay wird response.status_code
@@ -559,7 +656,7 @@ export interface paths {
          * @description Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: X-API-Key-Header (require_api_key).
+         *     Auth: PUBLIC (V4-P-Auth) -- anonymer Ideen-Assistent, kein require_admin.
          *     Rate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.
          *
          *     Ephemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf
@@ -574,6 +671,29 @@ export interface paths {
          *         HTTPException 503: KI-Dienst nicht erreichbar.
          */
         post: operations["generate_ideation_ideation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Stats
+         * @description Gibt die aggregierten Portfolio-Kennzahlen fuer die Startseite zurueck.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: PUBLIC (V4-P-Auth). Rate Limit: 60/Minute (lesend, analog GET /cases).
+         */
+        get: operations["get_stats_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -630,8 +750,34 @@ export interface components {
             prompt_version: string;
         };
         /**
+         * AufwandKennzahlResponse
+         * @description Aufwand als Kennzahl im Entscheider-Report: Wert von max mit Label.
+         */
+        AufwandKennzahlResponse: {
+            /** Wert */
+            wert: number;
+            /** Max */
+            max: number;
+            /** Label */
+            label: string;
+        };
+        /**
+         * AuthResponse
+         * @description Einheitliche Auth-Statusantwort fuer login/logout/me.
+         */
+        AuthResponse: {
+            /** Authenticated */
+            authenticated: boolean;
+        };
+        /**
          * BusinessSummaryResponse
          * @description Entscheider-Schicht des Reports.
+         *
+         *     decision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die
+         *     frueher redundante summary_text-Zeile ersatzlos.
+         *
+         *     solution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus
+         *     propose_solution(); None, solange der Endpoint nicht lief.
          *
          *     compliance_hint_text/compliance_citations (ADR-0026): aus dem
          *     persistierten compliance_hints_json gelesen, kein Override moeglich
@@ -652,8 +798,9 @@ export interface components {
             recommendation: string;
             /** Expected Benefit Eur */
             expected_benefit_eur: number | null;
-            /** Summary Text */
-            summary_text: string;
+            decision_report: components["schemas"]["DecisionReportResponse"];
+            /** Solution Business */
+            solution_business: string | null;
             /** Sharpened Text */
             sharpened_text: string | null;
             /** Compliance Hint Text */
@@ -666,6 +813,39 @@ export interface components {
             reviewer_note: string | null;
             /** Decided At */
             decided_at: string | null;
+        };
+        /**
+         * CaseDetailResponse
+         * @description Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).
+         *
+         *     Public GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
+         *     bereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,
+         *     kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
+         *     seines eigenen Case.
+         *
+         *     triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
+         *     Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
+         *     report: der zweischichtige Report (deterministische Regel-Schicht ueber den
+         *     persistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte
+         *     Schaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und
+         *     technische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch
+         *     nicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.
+         *
+         *     Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
+         *     Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
+         */
+        CaseDetailResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Status */
+            status: string;
+            triage: components["schemas"]["TriageResponse"];
+            report: components["schemas"]["ReportResponse"];
         };
         /**
          * CaseSummary
@@ -704,6 +884,10 @@ export interface components {
             hours_per_year: number | null;
             /** Is Actionable */
             is_actionable: boolean;
+            /** Feasibility Score */
+            feasibility_score: number | null;
+            /** Feasibility Definition */
+            feasibility_definition: string;
         };
         /**
          * ComplianceCitationResponse
@@ -754,6 +938,16 @@ export interface components {
             effort_label: string;
         };
         /**
+         * ConfidenceReasoningResponse
+         * @description Konfidenz als Begruendung statt Zahl (V4-P6): level + gruende.
+         */
+        ConfidenceReasoningResponse: {
+            /** Level */
+            level: string;
+            /** Gruende */
+            gruende: string[];
+        };
+        /**
          * Country
          * @description Land der betroffenen Mitarbeiter — steuert den Stundensatz-Lookup.
          *
@@ -779,6 +973,45 @@ export interface components {
          * @enum {string}
          */
         DataClassification: "no_personal_data" | "pseudonymous" | "personal" | "sensitive_personal";
+        /**
+         * DecisionDetailsResponse
+         * @description Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
+         */
+        DecisionDetailsResponse: {
+            /** Sharpened Text */
+            sharpened_text: string | null;
+            /** Solution Business */
+            solution_business: string | null;
+            /** Compliance Hint Text */
+            compliance_hint_text: string | null;
+        };
+        /**
+         * DecisionKennzahlenResponse
+         * @description Harte Kennzahlen des Entscheider-Reports (None bei Vorfilter-Fail).
+         */
+        DecisionKennzahlenResponse: {
+            /** Netto Eur */
+            netto_eur: number | null;
+            /** Stunden Pro Jahr */
+            stunden_pro_jahr: number | null;
+            aufwand: components["schemas"]["AufwandKennzahlResponse"] | null;
+            /** Zone Label */
+            zone_label: string | null;
+        };
+        /**
+         * DecisionReportResponse
+         * @description Entscheider-Report v2 (V4-P6) -- ersetzt die alte Zusammenfassungszeile.
+         */
+        DecisionReportResponse: {
+            /** Empfehlung Satz */
+            empfehlung_satz: string;
+            kennzahlen: components["schemas"]["DecisionKennzahlenResponse"];
+            /** Zu Entscheiden */
+            zu_entscheiden: string;
+            /** Contra Punkte */
+            contra_punkte: string[];
+            details: components["schemas"]["DecisionDetailsResponse"];
+        };
         /**
          * DecisionRequest
          * @description Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,
@@ -946,6 +1179,17 @@ export interface components {
          */
         ImplementationApproach: "simple_integration" | "development_on_existing" | "api_integration" | "custom_development" | "new_tool";
         /**
+         * LoginRequest
+         * @description Login-Body -- nur das Passwort.
+         *
+         *     max_length: Token-Flooding-/DoS-Schutz (scrypt auf sehr langem Input ist
+         *     teuer), konsistent mit der Eingabe-Disziplin der uebrigen Request-Schemas.
+         */
+        LoginRequest: {
+            /** Password */
+            password: string;
+        };
+        /**
          * MonitoringEntryResponse
          * @description Ein append-only Monitoring-Eintrag (Monitoring-ADR).
          *
@@ -1037,6 +1281,8 @@ export interface components {
         RoutingResponse: {
             /** Recommendation */
             recommendation: string;
+            /** Recommendation Text */
+            recommendation_text: string;
             /** Confidence */
             confidence: string;
             /** Automation Signals */
@@ -1047,6 +1293,45 @@ export interface components {
             risk_flags: string[];
             /** Requires Human Review */
             requires_human_review: boolean;
+        };
+        /**
+         * ScoreBreakdownResponse
+         * @description Herkunft des Aufwandscores (V4-P6) -- Komponenten + Gesamtzeile + Machbarkeit.
+         *
+         *     feasibility_score = 10 - total; feasibility_definition ist der zentrale
+         *     Definitions-String (ueberall referenziert, auch in den Board-Daten).
+         */
+        ScoreBreakdownResponse: {
+            /** Components */
+            components: components["schemas"]["ScoreComponentResponse"][];
+            /** Total */
+            total: number;
+            /** Max Total */
+            max_total: number;
+            /** Effort Label */
+            effort_label: string;
+            /** Total Line */
+            total_line: string;
+            /** Feasibility Score */
+            feasibility_score: number;
+            /** Feasibility Definition */
+            feasibility_definition: string;
+        };
+        /**
+         * ScoreComponentResponse
+         * @description Eine Aufwandscore-Komponente mit deterministischer Begruendung (V4-P6).
+         */
+        ScoreComponentResponse: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Wert */
+            wert: number;
+            /** Max */
+            max: number;
+            /** Begruendung */
+            begruendung: string;
         };
         /**
          * SharpenSuggestionResponse
@@ -1195,15 +1480,39 @@ export interface components {
         };
         /**
          * SolutionProposalResponse
-         * @description Stack-passender Loesungsvorschlag fuer einen Use Case (Skeleton).
+         * @description Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).
+         *
+         *     solution_business: technikfreier Absatz fuer die Geschaeftsleitung.
+         *     solution_technical: technischer Loesungsansatz (frueher proposal_text).
          */
         SolutionProposalResponse: {
             /** Case Id */
             case_id: string;
-            /** Proposal Text */
-            proposal_text: string;
+            /** Solution Business */
+            solution_business: string;
+            /** Solution Technical */
+            solution_technical: string;
             /** Prompt Version */
             prompt_version: string;
+        };
+        /**
+         * StatsResponse
+         * @description Aggregierte Portfolio-Kennzahlen (V4-P7).
+         *
+         *     eingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).
+         *     netto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene
+         *     (APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent
+         *     mit ROIResponse (JSON-Serialisierbarkeit).
+         */
+        StatsResponse: {
+            /** Eingereicht */
+            eingereicht: number;
+            /** Bewertet */
+            bewertet: number;
+            /** Umgesetzt */
+            umgesetzt: number;
+            /** Netto Nutzen Freigegeben Eur */
+            netto_nutzen_freigegeben_eur: number;
         };
         /**
          * StatusUpdateRequest
@@ -1239,6 +1548,9 @@ export interface components {
         /**
          * TechnicalDetailResponse
          * @description Reviewer-Schicht des Reports.
+         *
+         *     technical_report (V4-P6): dieselben technischen Inhalte in Abschnitte
+         *     gegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen).
          */
         TechnicalDetailResponse: {
             /** Passed Vorfilter */
@@ -1265,8 +1577,23 @@ export interface components {
             roi_theoretical_potential_eur: number | null;
             /** Roi Net Expected Benefit Eur */
             roi_net_expected_benefit_eur: number | null;
+            technical_report: components["schemas"]["TechnicalReportResponse"];
             /** Proposal Text */
             proposal_text: string | null;
+        };
+        /**
+         * TechnicalReportResponse
+         * @description Technischer Report in Abschnitten statt Textwueste (V4-P6).
+         */
+        TechnicalReportResponse: {
+            /** Architektur Kurzfassung */
+            architektur_kurzfassung: string;
+            /** Datenlage */
+            datenlage: string;
+            /** Risiken */
+            risiken: string;
+            /** Offene Technische Fragen */
+            offene_technische_fragen: string;
         };
         /**
          * TriageResponse
@@ -1294,6 +1621,7 @@ export interface components {
             roi: components["schemas"]["ROIResponse"] | null;
             composite: components["schemas"]["CompositeScoreResponse"] | null;
             zone: components["schemas"]["ZoneResponse"] | null;
+            score_breakdown: components["schemas"]["ScoreBreakdownResponse"] | null;
             similarity_warning?: components["schemas"]["SimilarityWarning"] | null;
         };
         /**
@@ -1459,6 +1787,7 @@ export interface components {
             confidence_score: number;
             /** Confidence Label */
             confidence_label: string;
+            confidence_reasoning: components["schemas"]["ConfidenceReasoningResponse"];
         };
     };
     responses: never;
@@ -1529,6 +1858,79 @@ export interface operations {
             };
         };
     };
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    auth_me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
     list_cases_cases_get: {
         parameters: {
             query?: never;
@@ -1565,6 +1967,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimilarityPairsResponse"];
+                };
+            };
+        };
+    };
+    get_case_detail_cases__case_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2050,6 +2483,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stats_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsResponse"];
                 };
             };
         };

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { listCases, listSimilarityPairs } from "@/app/actions";
+import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesTable } from "@/components/cases-table";
 import type { CaseSummary, SimilarityPair } from "@/types/api";
 
@@ -39,6 +39,10 @@ export default async function CasesPage() {
 
   pairs = (await pairsPromise)?.pairs ?? [];
 
+  // V4-P-Auth: der Statuswechsel in der Zeile ist Admin-only (read-only Badge
+  // fuer Anonyme).
+  const authenticated = await checkAuth();
+
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
       <p className="eyebrow">Ideenliste</p>
@@ -60,7 +64,7 @@ export default async function CasesPage() {
             {loadError}
           </p>
         ) : (
-          <CasesTable cases={cases} pairs={pairs} />
+          <CasesTable cases={cases} pairs={pairs} authenticated={authenticated} />
         )}
       </div>
     </main>

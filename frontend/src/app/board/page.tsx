@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { checkAuth, listCases } from "@/app/actions";
-import { AdminGate } from "@/components/admin-gate";
 import { BoardMatrix } from "@/components/board-matrix";
 import type { CaseSummary } from "@/types/api";
 
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function BoardPage() {
-  // V4-P-Auth: Board ist ein Admin-Bereich -- ohne Anmeldung ausgeblendet.
+  // V4-P-Auth: Admin-Bereich. Unauthentifiziert -> Login mit Ruecksprung.
   if (!(await checkAuth())) {
-    return <AdminGate title="Board" />;
+    redirect("/login?next=/board");
   }
 
   let cases: CaseSummary[] = [];

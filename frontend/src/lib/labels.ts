@@ -86,6 +86,46 @@ function toOptions<T extends string>(map: LabelMap<T>): LabelOption<T>[] {
   }))
 }
 
+// Routing-Empfehlung (RoutingRecommendation.value) als deutsches Label. Das
+// Backend liefert zusaetzlich recommendation_text als ganzen Satz (V4-P6) --
+// diese Map traegt nur die kurze Badge-Beschriftung. Rohe Enum-Strings im UI
+// sind ein Fehler; jede Anzeige laeuft ueber diese Map.
+export const ROUTING_LABELS: Record<string, string> = {
+  AI_RECOMMENDED: "KI empfohlen",
+  AUTOMATION_RECOMMENDED: "Automatisierung empfohlen",
+  HUMAN_REVIEW_REQUIRED: "Menschliche Prüfung",
+  BORDERLINE: "Grenzfall",
+}
+
+// Routing-Konfidenz (routing.confidence, "HIGH" | "MEDIUM" | "LOW").
+export const CONFIDENCE_LABELS: Record<string, string> = {
+  HIGH: "Hoch",
+  MEDIUM: "Mittel",
+  LOW: "Niedrig",
+}
+
+// Bezugsfeld eines Schaerfungs-Vorschlags (CaseField.value) als deutsches
+// Label. Deckt alle CaseField-Werte ab; unbekannte Keys fallen im UI auf den
+// Rohwert zurueck.
+export const CASE_FIELD_LABELS: Record<string, string> = {
+  title: "Titel",
+  current_state: "Ist-Zustand",
+  desired_state: "Soll-Zustand",
+  example_process: "Beispiel (Ist)",
+  desired_example_process: "Beispiel (Soll)",
+  time_per_case_hours_current: "Zeit / Vorgang heute",
+  time_per_case_hours_with_ai: "Zeit / Vorgang mit AI",
+  occurrences_per_employee_per_year: "Vorgänge / Jahr",
+  affected_employees_count: "Betroffene Mitarbeiter",
+  employee_category: "Mitarbeiterlevel",
+  evidence_level: "Evidenzlevel",
+  adoption_type: "Verbindlichkeit",
+  implementation_approach: "Implementierungsansatz",
+  estimated_license_cost_eur: "Lizenzkosten",
+  implementation_cost_eur: "Implementierungskosten",
+  data_classification: "Datenschutzklasse",
+}
+
 export const COUNTRY_OPTIONS = toOptions(COUNTRY_LABELS)
 export const EMPLOYEE_CATEGORY_OPTIONS = toOptions(EMPLOYEE_CATEGORY_LABELS)
 export const EVIDENCE_LEVEL_OPTIONS = toOptions(EVIDENCE_LEVEL_LABELS)
