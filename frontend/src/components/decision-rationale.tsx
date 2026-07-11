@@ -151,8 +151,9 @@ export function CompositeBreakdown({
 }: {
   composite: CompositeResult
 }) {
-  // Segmentbreiten auf der 0-10-Skala: die gefuellte Leiste zeigt total/10,
-  // aufgeteilt nach Beitrag jeder Dimension. Der Rest bleibt sichtbar leer.
+  // Segmentbreiten auf der 0-9-Skala (Aufwand-Range 1-9, CompositeScore.total):
+  // die gefuellte Leiste zeigt total/9, aufgeteilt nach Beitrag jeder Dimension.
+  // Der Rest bleibt sichtbar leer.
   const segments = [
     {
       label: "Komplexität",
@@ -163,7 +164,7 @@ export function CompositeBreakdown({
     {
       label: "Kosten",
       score: composite.cost_score,
-      max: 3,
+      max: 2,
       color: "var(--zone-risk)",
     },
     {
@@ -179,13 +180,13 @@ export function CompositeBreakdown({
     <div>
       <p className="text-sm text-foreground/85">
         <span className="tnum">Komplexität {composite.complexity_score}/5</span>{" "}
-        · <span className="tnum">Kosten {composite.cost_score}/3</span> ·{" "}
+        · <span className="tnum">Kosten {composite.cost_score}/2</span> ·{" "}
         <span className="tnum">
           Datenschutz {composite.data_protection_score}/2
         </span>{" "}
         ={" "}
         <span className="font-medium text-foreground tnum">
-          {composite.total}/10
+          {composite.total}/9
         </span>{" "}
         ({composite.effort_label})
       </p>
@@ -193,14 +194,14 @@ export function CompositeBreakdown({
       <div
         className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted"
         role="img"
-        aria-label={`Aufwand ${composite.total} von 10: Komplexität ${composite.complexity_score}, Kosten ${composite.cost_score}, Datenschutz ${composite.data_protection_score}`}
+        aria-label={`Aufwand ${composite.total} von 9: Komplexität ${composite.complexity_score}, Kosten ${composite.cost_score}, Datenschutz ${composite.data_protection_score}`}
       >
         {segments.map((seg) => (
           <div
             key={seg.label}
             className="h-full"
             style={{
-              width: `${(seg.score / 10) * 100}%`,
+              width: `${(seg.score / 9) * 100}%`,
               backgroundColor: seg.color,
             }}
           />

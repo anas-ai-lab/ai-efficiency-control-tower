@@ -237,7 +237,7 @@ export function CaseReport({ report }: { report: ReportResponse }) {
               <div className="flex items-baseline gap-2">
                 <span className="stat-value text-2xl text-foreground">
                   {td.composite_total}
-                  <span className="text-base text-muted-foreground">/10</span>
+                  <span className="text-base text-muted-foreground">/9</span>
                 </span>
                 {td.composite_effort_label !== null && (
                   <span className="text-sm text-muted-foreground">
