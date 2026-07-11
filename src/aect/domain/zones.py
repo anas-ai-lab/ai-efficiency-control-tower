@@ -26,6 +26,7 @@ from typing import Any, ClassVar
 
 import yaml
 
+from aect.domain.formatting import format_de
 from aect.domain.types import TriageZone
 
 # Composite-Score-Wertebereich (siehe scoring.CompositeScore: Summe 1-9 seit V4,
@@ -233,7 +234,7 @@ def _build_reason(
     handlungsdruck: int,
 ) -> str:
     parts = [
-        f"Erwarteter Nutzen: {benefit:,.0f} EUR.",
+        f"Erwarteter Nutzen: {format_de(benefit, 'EUR')}.",
         f"Composite-Score: {composite}.",
         f"Basis-Zone: {base.value}.",
     ]

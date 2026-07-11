@@ -143,10 +143,10 @@ def test_complexity_component_reason(
 @pytest.mark.parametrize(
     ("license_cost", "expected_fragment"),
     [
-        (10_000.0, ">= 10,000 EUR -> +1 Kostenpunkt"),
-        (14_000.0, ">= 10,000 EUR -> +1 Kostenpunkt"),
-        (9_999.99, "< 10,000 EUR -> kein Punkt"),
-        (0.0, "< 10,000 EUR -> kein Punkt"),
+        (10_000.0, ">= 10.000 EUR -> +1 Kostenpunkt"),
+        (14_000.0, ">= 10.000 EUR -> +1 Kostenpunkt"),
+        (9_999.99, "< 10.000 EUR -> kein Punkt"),
+        (0.0, "< 10.000 EUR -> kein Punkt"),
     ],
 )
 def test_cost_component_threshold_boundary(

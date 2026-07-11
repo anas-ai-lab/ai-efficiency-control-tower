@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from aect.domain.formatting import format_de
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import TriageResult
 from aect.domain.routing import RoutingRecommendation
@@ -257,11 +258,12 @@ def _cost_point_reason(
     """Begruendung eines Kostenpunkts: Wert gegen Schwelle, +1 oder kein Punkt."""
     if cost_eur >= threshold_eur:
         return (
-            f"{label} {cost_eur:,.0f} EUR{suffix} >= {threshold_eur:,.0f} EUR "
-            f"-> +1 Kostenpunkt"
+            f"{label} {format_de(cost_eur, 'EUR')}{suffix} "
+            f">= {format_de(threshold_eur, 'EUR')} -> +1 Kostenpunkt"
         )
     return (
-        f"{label} {cost_eur:,.0f} EUR{suffix} < {threshold_eur:,.0f} EUR -> kein Punkt"
+        f"{label} {format_de(cost_eur, 'EUR')}{suffix} "
+        f"< {format_de(threshold_eur, 'EUR')} -> kein Punkt"
     )
 
 
@@ -463,8 +465,8 @@ def build_recommendation_text(result: TriageResult, use_case: UseCaseInput) -> s
     ):
         template = _RECOMMENDATION_TEMPLATES[result.routing.recommendation]
         return template.format(
-            h=f"{result.roi.hours_per_year:,.0f}",
-            netto=f"{result.roi.net_expected_benefit_eur:,.0f}",
+            h=format_de(result.roi.hours_per_year),
+            netto=format_de(result.roi.net_expected_benefit_eur),
             x=result.composite.total,
             dp=DATA_CLASSIFICATION_CLARTEXT[use_case.data_classification],
         )
