@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import {
   CartesianGrid,
   Cell,
@@ -242,111 +243,126 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               </p>
             </div>
           ) : (
-            // relative fuer die absolut positionierten Quadranten-Ecklabels.
-            <div className="relative">
-              <div className="h-[440px] w-full sm:h-[520px]">
-                {tokens !== null && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart
-                      margin={{ top: 20, right: 24, bottom: 44, left: 16 }}
-                    >
-                      <CartesianGrid stroke={tokens.border} strokeDasharray="3 3" />
-                      <XAxis
-                        type="number"
-                        dataKey="x"
-                        name="Nettonutzen"
-                        domain={xDomain}
-                        tickFormatter={(v: number) => formatEUR(v)}
-                        tick={{ fontSize: 11, fill: tokens.muted }}
-                        stroke={tokens.border}
-                        tickLine={{ stroke: tokens.border }}
-                        label={{
-                          value: "Erwarteter Nettonutzen / Jahr",
-                          position: "insideBottom",
-                          offset: -32,
-                          style: { fontSize: 12, fill: tokens.muted },
-                        }}
-                      />
-                      <YAxis
-                        type="number"
-                        dataKey="y"
-                        name="Machbarkeit"
-                        // Invertiert via reversed (eine absteigende Domain wird von
-                        // recharts wieder aufsteigend normalisiert): oben = niedriger
-                        // Aufwand-Score 2 = hohe Machbarkeit, unten = 10.
-                        reversed
-                        domain={[2, 10]}
-                        tickCount={5}
-                        tick={{ fontSize: 11, fill: tokens.muted }}
-                        stroke={tokens.border}
-                        tickLine={{ stroke: tokens.border }}
-                        label={{
-                          value: "Machbarkeit",
-                          angle: -90,
-                          position: "insideLeft",
-                          style: {
-                            fontSize: 12,
-                            fill: tokens.muted,
-                            textAnchor: "middle",
-                          },
-                        }}
-                      />
-                      <ZAxis
-                        type="number"
-                        dataKey="z"
-                        range={[60, 400]}
-                        name="Stunden/Jahr"
-                      />
-                      <Tooltip
-                        content={<MatrixTooltip />}
-                        cursor={{ strokeDasharray: "3 3", stroke: tokens.muted }}
-                      />
-                      {/* Quadranten-Hilfslinien (siehe QUADRANT_X-Kommentar). */}
-                      <ReferenceLine
-                        x={QUADRANT_X}
-                        stroke={tokens.muted}
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.5}
-                      />
-                      <ReferenceLine
-                        y={QUADRANT_Y}
-                        stroke={tokens.muted}
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.5}
-                      />
-                      <Scatter
-                        data={points}
-                        onClick={(node: unknown) => {
-                          const id = (node as { payload?: MatrixPoint })?.payload
-                            ?.id;
-                          if (id) router.push(`/cases/${id}`);
-                        }}
-                        className="cursor-pointer"
-                      >
-                        {points.map((p) => (
-                          <Cell
-                            key={p.id}
-                            fill={tokens[p.zone]}
-                            fillOpacity={0.75}
-                            stroke={tokens[p.zone]}
-                          />
-                        ))}
-                      </Scatter>
-                    </ScatterChart>
-                  </ResponsiveContainer>
-                )}
+            // Achsentitel liegen in eigenen HTML-Guttern AUSSERHALB des SVG
+            // (linke Schiene + unteres Band). Sie koennen die recharts-Tick-
+            // Labels -- die ausschliesslich im SVG-margin bzw. in der Achsen-
+            // breite gezeichnet werden -- strukturell nicht ueberlappen:
+            // disjunkte Layout-Boxen, unabhaengig von Label-Laenge/Viewport.
+            <div className="grid grid-cols-[1.25rem_1fr] gap-x-1">
+              {/* Linke Schiene: vertikaler y-Achsentitel (unter dem x-Band
+                  ausgerichtet via pb-6). */}
+              <div className="flex items-center justify-center pb-6">
+                <span
+                  className="text-xs font-medium tracking-wide whitespace-nowrap text-muted-foreground"
+                  style={{
+                    writingMode: "vertical-rl",
+                    transform: "rotate(180deg)",
+                  }}
+                >
+                  Machbarkeit
+                </span>
               </div>
 
-              {/* Quadranten-Ecklabels: dezent an den Ecken der Plotflaeche.
-                  Naeherung -- sie markieren die vier Quadranten, die die
-                  Hilfslinien aufspannen (oben = hohe Machbarkeit). */}
-              <div className="pointer-events-none absolute inset-0 hidden select-none text-[10px] font-medium tracking-wide text-muted-foreground/70 uppercase sm:block">
-                <span className="absolute top-6 left-16">Nice to have</span>
-                <span className="absolute top-6 right-8">Quick Wins</span>
-                <span className="absolute bottom-14 left-16">Vermeiden</span>
-                <span className="absolute right-8 bottom-14 text-right">
-                  Strategische Wetten
-                </span>
+              <div>
+                {/* relative traegt die absolut positionierten Quadranten-Ecklabels. */}
+                <div className="relative h-[440px] w-full sm:h-[520px]">
+                  {tokens !== null && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ScatterChart
+                        margin={{ top: 12, right: 18, bottom: 8, left: 4 }}
+                      >
+                        <CartesianGrid stroke={tokens.border} strokeDasharray="3 3" />
+                        <XAxis
+                          type="number"
+                          dataKey="x"
+                          name="Nettonutzen"
+                          domain={xDomain}
+                          height={30}
+                          tickMargin={8}
+                          tickFormatter={(v: number) => formatEUR(v)}
+                          tick={{ fontSize: 11, fill: tokens.muted }}
+                          stroke={tokens.border}
+                          tickLine={{ stroke: tokens.border }}
+                        />
+                        <YAxis
+                          type="number"
+                          dataKey="y"
+                          name="Machbarkeit"
+                          // Invertiert via reversed (eine absteigende Domain wird von
+                          // recharts wieder aufsteigend normalisiert): oben = niedriger
+                          // Aufwand-Score 2 = hohe Machbarkeit, unten = 10.
+                          reversed
+                          domain={[2, 10]}
+                          tickCount={5}
+                          width={40}
+                          tickMargin={6}
+                          tick={{ fontSize: 11, fill: tokens.muted }}
+                          stroke={tokens.border}
+                          tickLine={{ stroke: tokens.border }}
+                        />
+                        <ZAxis
+                          type="number"
+                          dataKey="z"
+                          range={[60, 400]}
+                          name="Stunden/Jahr"
+                        />
+                        <Tooltip
+                          content={<MatrixTooltip />}
+                          cursor={{ strokeDasharray: "3 3", stroke: tokens.muted }}
+                        />
+                        {/* Quadranten-Hilfslinien (siehe QUADRANT_X-Kommentar). */}
+                        <ReferenceLine
+                          x={QUADRANT_X}
+                          stroke={tokens.muted}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.5}
+                        />
+                        <ReferenceLine
+                          y={QUADRANT_Y}
+                          stroke={tokens.muted}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.5}
+                        />
+                        <Scatter
+                          data={points}
+                          onClick={(node: unknown) => {
+                            const id = (node as { payload?: MatrixPoint })?.payload
+                              ?.id;
+                            if (id) router.push(`/cases/${id}`);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          {points.map((p) => (
+                            <Cell
+                              key={p.id}
+                              fill={tokens[p.zone]}
+                              fillOpacity={0.75}
+                              stroke={tokens[p.zone]}
+                            />
+                          ))}
+                        </Scatter>
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {/* Quadranten-Ecklabels: dezent an den Ecken der Plotflaeche.
+                      Naeherung -- sie markieren die vier Quadranten, die die
+                      Hilfslinien aufspannen (oben = hohe Machbarkeit). Positionen
+                      an die Margins + YAxis-Breite (links ~44px) angepasst. */}
+                  <div className="pointer-events-none absolute inset-0 hidden select-none text-[10px] font-medium tracking-wide text-muted-foreground/70 uppercase sm:block">
+                    <span className="absolute top-2 left-14">Nice to have</span>
+                    <span className="absolute top-2 right-6">Quick Wins</span>
+                    <span className="absolute bottom-11 left-14">Vermeiden</span>
+                    <span className="absolute right-6 bottom-11 text-right">
+                      Strategische Wetten
+                    </span>
+                  </div>
+                </div>
+
+                {/* Unteres Band: x-Achsentitel. */}
+                <p className="mt-1.5 text-center text-xs font-medium tracking-wide text-muted-foreground">
+                  Erwarteter Nettonutzen / Jahr
+                </p>
               </div>
             </div>
           )}
@@ -381,9 +397,10 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
           <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none">
             <span className="flex items-center justify-between gap-2">
               Wie liest sich diese Matrix?
-              <span className="text-muted-foreground transition-transform group-open:rotate-180">
-                ▾
-              </span>
+              <ChevronDown
+                aria-hidden
+                className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+              />
             </span>
           </summary>
           <dl className="mt-4 space-y-3 leading-relaxed text-muted-foreground">

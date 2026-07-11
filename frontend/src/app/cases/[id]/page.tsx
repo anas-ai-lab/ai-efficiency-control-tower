@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Clock } from "lucide-react";
 
 import {
   checkAuth,
@@ -15,6 +16,7 @@ import { CaseResult } from "@/components/case-result";
 import { CaseStatusControl } from "@/components/case-status-control";
 import { MonitoringTimeline } from "@/components/monitoring-timeline";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
+import { RetryButton } from "@/components/retry-button";
 import { SketchView } from "@/components/sketch-view";
 import { StatusBadge, ZoneBadge } from "@/components/status-badge";
 import type {
@@ -78,14 +80,19 @@ export default async function CaseDetailPage({
     return (
       <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6">
         <p className="eyebrow">Fall-Detail</p>
-        <p
+        <div
           role="alert"
-          className="mt-4 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="mt-4 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3.5 text-sm text-destructive"
         >
-          {e instanceof Error
-            ? e.message
-            : "Der Bewertungsstand konnte nicht geladen werden."}
-        </p>
+          <p>
+            {e instanceof Error
+              ? e.message
+              : "Der Bewertungsstand konnte nicht geladen werden."}
+          </p>
+          <div className="mt-3">
+            <RetryButton />
+          </div>
+        </div>
       </main>
     );
   }
@@ -174,7 +181,13 @@ export default async function CaseDetailPage({
         </>
       ) : (
         <div className="mt-10 rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
-          <p className="text-sm font-medium text-foreground">
+          <span
+            aria-hidden
+            className="mx-auto flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
+            <Clock className="size-4.5" />
+          </span>
+          <p className="mt-3 text-sm font-medium text-foreground">
             Wird vom AI Board geprüft
           </p>
           <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">

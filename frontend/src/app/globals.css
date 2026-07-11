@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-heading: var(--font-source-serif);
   /* Der eine Akzent: ein gedecktes Tinten-Blau, nur fuer interaktive Elemente. */
   --color-ink: var(--ink);
   --color-ink-foreground: var(--ink-foreground);
@@ -181,6 +181,14 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Display-Ebene: eine zurueckhaltende Serifen-Schrift traegt NUR H1/H2 und
+     verankert die Editorial-/Governance-Anmutung. Body und H3+ bleiben Inter;
+     alle Zahlen laufen ueber .stat-value/.tnum (Mono, tabular-nums). */
+  h1,
+  h2 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.011em;
   }
   /* Tabellen-Ziffern fuer alle Mess- und Geldwerte. */
   .tnum {

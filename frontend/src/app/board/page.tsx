@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { checkAuth, listCases } from "@/app/actions";
 import { BoardMatrix } from "@/components/board-matrix";
+import { RetryButton } from "@/components/retry-button";
 import type { CaseSummary } from "@/types/api";
 
 export const metadata: Metadata = {
@@ -45,12 +46,15 @@ export default async function BoardPage() {
 
       <div className="mt-8">
         {loadError !== null ? (
-          <p
+          <div
             role="alert"
-            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3.5 text-sm text-destructive"
           >
-            {loadError}
-          </p>
+            <p>{loadError}</p>
+            <div className="mt-3">
+              <RetryButton />
+            </div>
+          </div>
         ) : (
           <BoardMatrix cases={cases} />
         )}

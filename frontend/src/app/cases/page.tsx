@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesTable } from "@/components/cases-table";
+import { RetryButton } from "@/components/retry-button";
 import type { CaseSummary, SimilarityPair } from "@/types/api";
 
 export const metadata: Metadata = {
@@ -57,12 +58,15 @@ export default async function CasesPage() {
 
       <div className="mt-8">
         {loadError !== null ? (
-          <p
+          <div
             role="alert"
-            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3.5 text-sm text-destructive"
           >
-            {loadError}
-          </p>
+            <p>{loadError}</p>
+            <div className="mt-3">
+              <RetryButton />
+            </div>
+          </div>
         ) : (
           <CasesTable cases={cases} pairs={pairs} authenticated={authenticated} />
         )}

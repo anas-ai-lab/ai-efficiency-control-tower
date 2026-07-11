@@ -1,20 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Source_Serif_4, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MainNav } from "@/components/main-nav";
 import { AuthControl } from "@/components/auth-control";
 import { checkAuth } from "@/app/actions";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Body-Schrift: Inter -- neutraler Grotesk-Workhorse (ruhig, hohe Lesbarkeit).
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
+// Display-Schrift NUR fuer H1/H2 (siehe globals.css h1,h2-Regel). Eine
+// zurueckhaltende Serife setzt die Hierarchie und gibt der Oberflaeche die
+// Editorial-/Governance-Anmutung -- kein "AI-Look", kein Marketing.
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// Mono mit tabular-nums fuer alle Zahlen und Betraege.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -40,7 +53,7 @@ export default async function RootLayout({
     <html
       lang="de"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
