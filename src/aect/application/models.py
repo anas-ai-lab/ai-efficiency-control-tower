@@ -81,12 +81,11 @@ class PortfolioStats:
     LLM, keine Persistenz-Aenderung. Semantik (bewusst als Funnel gewaehlt):
 
     eingereicht -- alle bisher eingereichten Cases (Gesamtzahl).
-    bewertet    -- Cases mit vollstaendiger AECT-Bewertung, d. h. bestandener
-                   Vorfilter (Composite/Zone vorhanden). Der Vorfilter-Fail wird
-                   zwar auch beurteilt, erhaelt aber keinen Score/keine Zone --
-                   er zaehlt hier nicht als "bewertet". Deckt sich mit dem Hero-
-                   Wording: "AECT bewertet Nutzen, Aufwand und Risiko, bevor das
-                   AI Board entscheidet".
+    bewertet    -- Cases, ueber die das AI Board entschieden hat
+                   (ReviewerDecision != PENDING, also freigegeben ODER
+                   abgelehnt). Bewusst NICHT "Vorfilter bestanden": der Vorfilter
+                   ist die maschinelle Vorbewertung, die Board-Entscheidung ist
+                   die eigentliche Bewertung im Funnel.
     umgesetzt   -- Cases im Lifecycle-Status IMPLEMENTED.
     netto_nutzen_freigegeben_eur -- Summe der Netto-Nutzen ueber alle Cases im
                    Status APPROVED oder IMPLEMENTED, deren ROI berechnet wurde

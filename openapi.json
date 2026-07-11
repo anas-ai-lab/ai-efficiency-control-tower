@@ -1302,6 +1302,9 @@
             "type": "string",
             "title": "Status"
           },
+          "eingaben": {
+            "$ref": "#/components/schemas/UseCaseInput"
+          },
           "triage": {
             "$ref": "#/components/schemas/TriageResponse"
           },
@@ -1314,11 +1317,12 @@
           "id",
           "submitted_at",
           "status",
+          "eingaben",
           "triage",
           "report"
         ],
         "title": "CaseDetailResponse",
-        "description": "Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).\n\nPublic GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin\nbereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,\nkein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand\nseines eigenen Case.\n\ntriage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.\nSubscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.\nreport: der zweischichtige Report (deterministische Regel-Schicht ueber den\npersistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte\nSchaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und\ntechnische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch\nnicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.\n\nDie Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine\nAdmin-Ansicht (GET wie POST require_admin), nicht Teil des public Read."
+        "description": "Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).\n\nPublic GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin\nbereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,\nkein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand\nseines eigenen Case.\n\neingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --\nunveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne\nsie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten\nberuht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.\ntriage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.\nSubscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.\nreport: der zweischichtige Report (deterministische Regel-Schicht ueber den\npersistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte\nSchaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und\ntechnische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch\nnicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.\n\nDie Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine\nAdmin-Ansicht (GET wie POST require_admin), nicht Teil des public Read."
       },
       "CaseSummary": {
         "properties": {

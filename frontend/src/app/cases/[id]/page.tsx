@@ -5,11 +5,11 @@ import {
   checkAuth,
   getArchitectureSketch,
   getCaseDetail,
-  listCases,
   listMonitoringEntries,
   listSimilarityPairs,
 } from "@/app/actions";
 import { CaseAdminActions } from "@/components/case-admin-actions";
+import { CaseInputs } from "@/components/case-inputs";
 import { CaseReport } from "@/components/case-report";
 import { CaseResult } from "@/components/case-result";
 import { CaseStatusControl } from "@/components/case-status-control";
@@ -20,7 +20,6 @@ import { StatusBadge, ZoneBadge } from "@/components/status-badge";
 import type {
   ArchitectureSketchResponse,
   CaseDetailResponse,
-  CaseSummary,
   MonitoringEntry,
   SimilarityPair,
 } from "@/types/api";
@@ -95,18 +94,8 @@ export default async function CaseDetailPage({
   }
 
   const authenticated = await checkAuth();
-  const { triage, report } = detail;
+  const { eingaben, triage, report } = detail;
   const bs = report.business_summary;
-
-  // Abteilung steht nicht im Detail-Response (nur Triage + Report) -- best-effort
-  // aus der Listansicht nachladen (public). Fehlschlag = ohne Abteilung, kein
-  // Blocker.
-  let summary: CaseSummary | undefined;
-  try {
-    summary = (await listCases()).find((c) => c.id === id);
-  } catch {
-    summary = undefined;
-  }
 
   // Admin-Panels nur fuer Angemeldete laden -- die Endpoints sind require_admin.
   let entries: MonitoringEntry[] = [];
@@ -143,8 +132,7 @@ export default async function CaseDetailPage({
         {triage.title}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {summary !== undefined ? `${summary.department} · ` : ""}
-        Eingereicht am {formatDate(detail.submitted_at)}
+        {eingaben.department} · Eingereicht am {formatDate(detail.submitted_at)}
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-4">
@@ -162,8 +150,13 @@ export default async function CaseDetailPage({
         </div>
       </div>
 
-      {/* --- Ergebnis (ScoreBreakdown / Konfidenz-Saetze). --- */}
+      {/* --- Erfasste Eingaben (Erklaerbarkeit: Grundlage der Bewertung). --- */}
       <div className="mt-8">
+        <CaseInputs eingaben={eingaben} />
+      </div>
+
+      {/* --- Ergebnis (ScoreBreakdown / Konfidenz-Saetze). --- */}
+      <div className="mt-10">
         <CaseResult triage={triage} />
       </div>
 

@@ -364,13 +364,16 @@ export interface ReportResponse {
 }
 
 // ---- Case-Detail (GET /cases/{id}, public read-only, E9/SDR-0003) ----------
-// Vollstaendiger read-only Bewertungsstand: das beim Intake berechnete
-// Triage-Ergebnis + der zweischichtige Report ueber den persistierten Feldern.
-// status ist stets ein CaseStatus-Wert (Backend liefert String, hier verengt).
+// Vollstaendiger read-only Bewertungsstand: die rohen Eingaben + das beim Intake
+// berechnete Triage-Ergebnis + der zweischichtige Report ueber den persistierten
+// Feldern. status ist stets ein CaseStatus-Wert (Backend liefert String, hier
+// verengt). eingaben: die unveraendert gespeicherte UseCaseInput des Case
+// (Erklaerbarkeit -- pruefbar, auf welchen Daten die Bewertung beruht).
 export interface CaseDetailResponse {
   id: string;
   submitted_at: string;
   status: CaseStatus;
+  eingaben: UseCaseInput;
   triage: TriageResponse;
   report: ReportResponse;
 }

@@ -798,7 +798,12 @@ class TriageService:
         )
         return PortfolioStats(
             eingereicht=len(cases),
-            bewertet=sum(1 for c in cases if c.result.passed_vorfilter),
+            # bewertet = das AI Board hat entschieden (ReviewerDecision != PENDING,
+            # also freigegeben ODER abgelehnt). Nicht "Vorfilter bestanden" -- der
+            # Vorfilter ist die maschinelle Vorbewertung, nicht die Board-Bewertung.
+            bewertet=sum(
+                1 for c in cases if c.reviewer_decision is not ReviewerDecision.PENDING
+            ),
             umgesetzt=sum(1 for c in cases if c.status is CaseStatus.IMPLEMENTED),
             netto_nutzen_freigegeben_eur=net_sum,
         )

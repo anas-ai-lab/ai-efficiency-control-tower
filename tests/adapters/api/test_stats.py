@@ -5,9 +5,9 @@ Methode: dependency_overrides mit EINEM gemeinsam genutzten TriageService
 und der nachfolgende GET /stats denselben Zustand sehen -- analog
 test_list_cases.py.
 
-Prueft die Funnel-Semantik: eingereicht (alle), bewertet (Vorfilter bestanden),
-umgesetzt (Status IMPLEMENTED) und die Netto-Nutzen-Summe ueber APPROVED +
-IMPLEMENTED.
+Prueft die Funnel-Semantik: eingereicht (alle), bewertet (Board-Entscheidung,
+ReviewerDecision != PENDING), umgesetzt (Status IMPLEMENTED) und die Netto-
+Nutzen-Summe ueber APPROVED + IMPLEMENTED.
 """
 
 from __future__ import annotations
@@ -58,16 +58,6 @@ _PASSING_PAYLOAD: dict = {
     "data_classification": "no_personal_data",
 }
 
-# Winziger Nutzen -> Vorfilter faellt durch (analog test_list_cases._FAILING_PAYLOAD).
-_FAILING_PAYLOAD: dict = {
-    **_PASSING_PAYLOAD,
-    "title": "Sehr kleiner Use Case ohne nennenswerten Nutzen",
-    "department": "Legal",
-    "time_per_case_hours_current": 0.01,
-    "occurrences_per_employee_per_year": 5,
-    "affected_employees_count": 1,
-}
-
 
 def _make_app() -> FastAPI:
     """App mit Test-Key und EINEM geteilten TriageService (gemeinsamer Repo)."""
@@ -103,35 +93,48 @@ async def test_stats_is_public() -> None:
 
 
 async def test_stats_funnel_and_released_net_benefit() -> None:
+    # Szenario trennt die drei Zaehler bewusst: "bewertet" folgt der
+    # Board-Entscheidung (ReviewerDecision != PENDING), "umgesetzt" dem Status.
+    #   A: /decision approved  -> decision=approved, status=approved
+    #   B: /status implemented -> decision=PENDING,  status=implemented
+    #   C: /decision rejected  -> decision=rejected, status=rejected
+    # => eingereicht=3, bewertet=2 (A,C -- B ist umgesetzt, aber unbewertet),
+    #    umgesetzt=1 (B), netto ueber status approved+implemented (A,B).
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
-        # Zwei bestandene + ein durchgefallener Case: eingereicht=3, bewertet=2.
-        approved = await client.post("/triage", json=_PASSING_PAYLOAD, headers=_AUTH)
-        assert approved.json()["passed_vorfilter"] is True
-        approved_id = approved.json()["id"]
-        approved_net = approved.json()["roi"]["net_expected_benefit_eur"]
+        a = await client.post("/triage", json=_PASSING_PAYLOAD, headers=_AUTH)
+        a_id = a.json()["id"]
+        a_net = a.json()["roi"]["net_expected_benefit_eur"]
 
-        implemented = await client.post(
+        b = await client.post(
             "/triage",
             json={**_PASSING_PAYLOAD, "title": "Zweiter tragfaehiger Use Case"},
             headers=_AUTH,
         )
-        implemented_id = implemented.json()["id"]
-        implemented_net = implemented.json()["roi"]["net_expected_benefit_eur"]
+        b_id = b.json()["id"]
+        b_net = b.json()["roi"]["net_expected_benefit_eur"]
 
-        failing = await client.post("/triage", json=_FAILING_PAYLOAD, headers=_AUTH)
-        assert failing.json()["passed_vorfilter"] is False
+        c = await client.post(
+            "/triage",
+            json={**_PASSING_PAYLOAD, "title": "Dritter tragfaehiger Use Case"},
+            headers=_AUTH,
+        )
+        c_id = c.json()["id"]
 
-        # Einen Case freigeben (APPROVED), einen umsetzen (IMPLEMENTED).
         await client.post(
-            f"/cases/{approved_id}/decision",
+            f"/cases/{a_id}/decision",
             json={"decision": "approved", "note": None},
             headers=_AUTH,
         )
         await client.post(
-            f"/cases/{implemented_id}/status",
+            f"/cases/{b_id}/status",
             json={"status": "implemented"},
+            headers=_AUTH,
+        )
+        await client.post(
+            f"/cases/{c_id}/decision",
+            json={"decision": "rejected", "note": None},
             headers=_AUTH,
         )
 
@@ -140,8 +143,9 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
     assert stats.status_code == 200
     body = stats.json()
     assert body["eingereicht"] == 3
+    # A (approved) + C (rejected) sind vom Board entschieden; B (nur implemented,
+    # ohne Decision) zaehlt NICHT als bewertet.
     assert body["bewertet"] == 2
     assert body["umgesetzt"] == 1
-    # Netto-Nutzen-Summe = freigegebener + umgesetzter Case (der durchgefallene
-    # zaehlt nicht, sein Status bleibt SUBMITTED).
-    assert body["netto_nutzen_freigegeben_eur"] == approved_net + implemented_net
+    # Netto ueber Status approved (A) + implemented (B); rejected (C) faellt raus.
+    assert body["netto_nutzen_freigegeben_eur"] == a_net + b_net

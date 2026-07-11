@@ -43,6 +43,7 @@ from aect.domain.explainability import (
     FEASIBILITY_DEFINITION,
     feasibility_from_composite,
 )
+from aect.domain.models import UseCaseInput
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -1242,6 +1243,10 @@ class CaseDetailResponse(BaseModel):
     kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
     seines eigenen Case.
 
+    eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
+    unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne
+    sie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten
+    beruht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.
     triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
     Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
     report: der zweischichtige Report (deterministische Regel-Schicht ueber den
@@ -1257,6 +1262,7 @@ class CaseDetailResponse(BaseModel):
     id: str
     submitted_at: datetime
     status: str
+    eingaben: UseCaseInput
     triage: TriageResponse
     report: ReportResponse
 
@@ -1303,6 +1309,10 @@ async def get_case_detail(
         id=case.id,
         submitted_at=case.submitted_at,
         status=case.status.value,
+        # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) -- reines
+        # Lesen, keine Projektion. Erklaerbarkeit: die Bewertung wird gegen die
+        # tatsaechlich erfassten Daten pruefbar.
+        eingaben=case.use_case,
         triage=_to_triage_response(case, service.explain_case(case)),
         report=_to_report_response(report),
     )

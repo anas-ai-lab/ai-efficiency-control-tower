@@ -133,6 +133,37 @@ async def test_case_detail_public_returns_full_state() -> None:
     assert report["technical_detail"]["technical_report"]["datenlage"]
 
 
+async def test_case_detail_public_returns_raw_inputs() -> None:
+    """Anonym: GET /cases/{id} liefert die rohen Eingaben (UseCaseInput)
+    unveraendert zurueck -- Erklaerbarkeit: pruefbar gegen die erfassten Daten."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        body = (await client.get(f"/cases/{case_id}")).json()
+
+    eingaben = body["eingaben"]
+    # Vollstaendiges UseCaseInput-Schema (Freitext, Zahlen, Enums als .value).
+    assert eingaben["title"] == VALID_PAYLOAD["title"]
+    assert eingaben["submitter"] == VALID_PAYLOAD["submitter"]
+    assert eingaben["department"] == VALID_PAYLOAD["department"]
+    assert eingaben["country"] == "de"
+    assert eingaben["current_state"] == VALID_PAYLOAD["current_state"]
+    assert eingaben["desired_state"] == VALID_PAYLOAD["desired_state"]
+    assert eingaben["time_per_case_hours_current"] == 0.2
+    assert eingaben["time_per_case_hours_with_ai"] == 0.0
+    assert eingaben["occurrences_per_employee_per_year"] == 5000
+    assert eingaben["affected_employees_count"] == 10
+    assert eingaben["employee_category"] == "professional"
+    assert eingaben["adoption_type"] == "fixed_process_step"
+    assert eingaben["implementation_approach"] == "development_on_existing"
+    assert eingaben["data_classification"] == "no_personal_data"
+    # Enum-Werte sind Strings (StrEnum.value), keine Objekte -- direkt fuer die
+    # Label-Map im Frontend nutzbar.
+    assert isinstance(eingaben["country"], str)
+
+
 async def test_case_detail_untriggered_steps_are_null() -> None:
     """Read-only, kein Trigger: nie ausgeloeste Schritte stehen auf null."""
     app = _make_app()

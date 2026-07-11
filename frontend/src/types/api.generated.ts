@@ -823,6 +823,10 @@ export interface components {
          *     kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
          *     seines eigenen Case.
          *
+         *     eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
+         *     unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne
+         *     sie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten
+         *     beruht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.
          *     triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
          *     Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
          *     report: der zweischichtige Report (deterministische Regel-Schicht ueber den
@@ -844,6 +848,7 @@ export interface components {
             submitted_at: string;
             /** Status */
             status: string;
+            eingaben: components["schemas"]["UseCaseInput"];
             triage: components["schemas"]["TriageResponse"];
             report: components["schemas"]["ReportResponse"];
         };
