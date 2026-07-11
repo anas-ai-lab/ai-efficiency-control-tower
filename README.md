@@ -208,6 +208,66 @@ ist nur durch Schema-Zwang und menschliche Pruefung gesichert (#18).
 
 ---
 
+## V4 -- Bewertungsmodell, Erklaerbarkeit, Rollen (Demo-Build)
+
+V4 ist ein klar abgegrenzter **Demo-Build fuer einen internen Vorgesetzten**
+(kein Produktivbetrieb, kein Verkauf; `docs/sdr/SDR-0003-v4-scope.md`). Er baut
+das Bewertungsmodell um, macht die Bewertung erklaerbar und fuehrt ein
+Zwei-Stufen-Rollenmodell ein -- ohne die deterministische Regel-Schicht
+aufzuweichen.
+
+**Neues Bewertungsmodell (SDR-0003).** Der Nutzen ist jetzt person-basiert und
+bewusst streng: Zeitersparnis pro Vorgang (`t_ist - t_ai`, darf <= 0 sein) x
+Vorgaenge je Mitarbeiter/Jahr x Anzahl Mitarbeiter x Stundensatz(Land, Level),
+multipliziert mit einem Verbindlichkeits- und einem Evidenzfaktor (Worst Case
+0,50 x 0,40 = 0,20 -- eine ungepruefte freiwillige Idee ist fast nichts wert),
+abzueglich Lizenzkosten. Der Aufwandscore (Range **1-9**) kommt aus dem
+Implementierungsansatz (Komplexitaet 1-5) + zwei Kostenpunkten + Datenschutz --
+kein frei eingegebener Komplexitaetswert mehr. Die Zonen-Schwellen bleiben stabil
+(`known_limitations.md` #25).
+
+**Erklaerbarkeit statt nackter Zahlen.** Jede Bewertung liefert die **Herkunft**
+des Aufwandscores je Komponente ("Aufwandscore N von 9 -> LABEL"), eine
+Machbarkeits-Projektion, eine **Konfidenz als Begruendung** (nicht nur Zahl) und
+einen deutschen Empfehlungssatz. Der Report ist zweischichtig: ein
+Entscheider-Bericht (Empfehlungssatz, Kennzahlen im dt. Zahlenformat, "zu
+entscheiden", Contra-Punkte) und ein technischer Bericht (Architektur-Kurzfassung,
+Datenlage, Risiken, offene Fragen). Der Loesungsvorschlag ist zweigeteilt:
+**business** (technikfrei, per Vokabular-Guard) und **technisch**.
+
+**Schaerfen ohne erfundene Zahlen.** Ein deterministischer Zahlen-Validator laeuft
+VOR dem LLM: eine geschaerfte Beschreibung darf keine Zahl enthalten, die nicht in
+der Eingabe steht (sonst 1 Retry, dann fail-loud 422). Die Schaerfung ist ein
+**Draft**, der erst nach explizitem Uebernehmen (Accept) persistiert wird; die
+Diff-Ansicht schaltet churn-abhaengig zwischen Inline und Nebeneinander
+(`known_limitations.md` #27).
+
+**Rollenmodell (anonym vs. Admin).**
+
+| Stufe | Kann | Umsetzung |
+|---|---|---|
+| **anonym** | Einreichen, Ideen-Assistent, Listen-/Detail-Ansicht (read-only) | kein Login |
+| **Admin** | alle Aktionen (Board-Entscheidung, Schaerfen, Loesung, Compliance, Report, Status, Monitoring, Skizze) | Session-Cookie nach scrypt-Passwort-Login |
+
+Ein **einziges** Admin-Passwort (scrypt-Hash in `AECT_ADMIN_PASSWORD_HASH`, nicht
+in `.env`), kein Multi-User, kein JWT/OAuth (`known_limitations.md` #28). Der
+API-Key bleibt fuer Skripte bestehen. Die Bewertung (Zone/ROI/Report) ist fuer
+**anonyme** Betrachter erst sichtbar, wenn das Board entschieden hat
+(`reviewer_decision != PENDING`) -- davor zeigt der Case nur die rohen Eingaben
+und "Wird vom AI Board geprueft" (`known_limitations.md` #30).
+
+**Demo-Ablauf.** Die vollstaendige, einmal durchgespielte Schrittfolge (frischer
+Start -> anonyme Einreichung -> Admin-Login -> Board-Entscheidung -> Score/
+Konfidenz -> Schaerfen+Diff -> Loesung -> Compliance -> Report -> Board ->
+Monitoring -> Logout) steht in [`docs/demo-script.md`](docs/demo-script.md).
+
+*Screenshots (Platzhalter, vor der echten Demo im Browser zu erstellen):
+`docs/screenshots/landing.png`, `docs/screenshots/triage-score.png`,
+`docs/screenshots/sharpen-diff.png`, `docs/screenshots/report.png`,
+`docs/screenshots/board.png`.*
+
+---
+
 ## Tech Stack
 
 | Schicht | Technologie |
@@ -252,31 +312,30 @@ Alle 55 ADRs (thematischer Index): [`docs/adr/README.md`](docs/adr/README.md)
 Evaluiert auf 25 Golden Cases (manuell gelabelt, Einzel-Annotator -- siehe
 `known_limitations.md` #3) + 36 synthetischen Faellen:
 
-| Metrik | Wert |
-|---|---|
-| Raw Agreement Rate (Golden Cases, n=24 gelabelt) | 9/24 (37,5 %) |
-| Cohen's Kappa (n=24, inkl. Vorfilter-Ablehnungen) | 0,06 (nahe Zufall) |
-| Cohen's Kappa (n=21, ohne Vorfilter-Ablehnungen) | 0,13 ("leicht") |
-| Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4) |
-| Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen |
-| Test-Coverage | 95 % (720 Tests, 715 passed) |
+| Metrik | Wert (V4-Modell) | v3-Basis (historisch) |
+|---|---|---|
+| Raw Agreement Rate (Golden Cases, n=24 gelabelt) | **14/24 (58,3 %)** | 9/24 (37,5 %) |
+| Cohen's Kappa (n=24, inkl. Vorfilter-Ablehnungen) | **0,25 ("gering")** | 0,06 (nahe Zufall) |
+| Identifiziertes Problem | Hard-Threshold-Brittleness + enge LIKELY_WIN-Definition (Composite <= 4); Backtest-Optimum laege bei <= 5 (bewusst nicht uebernommen) | — |
+| Synthetic Cases (n=36) | Alle ohne Crash durchgelaufen | — |
+| Test-Coverage | ~95 % (893 passed, 4 skipped) | 95 % (720 Tests) |
 
 **Was die Eval-Zahlen bedeuten:**
 Das urspruengliche Sample (4 Cases, 3 gelabelt, Agreement 1/3) war zu klein fuer eine
-belastbare Aussage. Mit 24 gelabelten Cases liegt die Agreement-Rate bei 37,5 % -- und
-genau diese Divergenz ist der Wert der Evaluation, nicht ihr Defekt. Das dominante Muster:
-Die Engine vergibt LIKELY_WIN nur bei `composite_total <= 4`, das menschliche Urteil
-"klarer High-Value-Fall" ist breiter -- viele Faelle mit Composite 5-7 landen darum als
-CALCULATED_RISK statt LIKELY_WIN. Daneben fallen drei Cases (golden-005/006/016) am
-Vorfilter durch (predicted=None), wurden vom Experten aber dennoch gelabelt -- der
-Vorfilter und das menschliche Relevanzempfinden ziehen die Grenze unterschiedlich.
-Die urspruenglich beobachteten Off-by-one-Effekte an Zonengrenzen (golden-001, golden-003)
-bleiben sichtbar; sie sind jetzt ein Spezialfall des breiteren Schwellen-Befunds.
-Ein LLM-Zweitannotator im Blind-Protokoll (kein menschlicher Experte) erreicht 14/24
-(58,3 %, Kappa 0,33) gegen die Autor-Labels und liegt zwischen konservativer Engine und
-optimistischem Autor -- Details und Grenzen in `evals/golden/inter_annotator_report.md`.
-Vertiefte Ursachenanalyse (Composite-Schwellen-Mechanik, Zweitannotator-Einordnung,
-MARGINAL_GAIN-Empfehlung) in `docs/analysis/rule-engine-vs-human-judgment.md`.
+belastbare Aussage. Unter dem **V4-Nutzenmodell** (person-basierte Formel) steigt die
+Agreement-Rate gegen die Autor-Labels auf **58,3 % (14/24, Kappa 0,25)** -- gegenueber
+37,5 % (9/24) unter v3. Ursache: Die person-basierte Formel (Ersparnis x Vorgaenge je MA
+x Anzahl MA) inflationiert Multi-MA-Cases -> mehr LIKELY_WIN, was besser zu den
+optimistischen Autor-Labels passt; drei Ein-Personen-Cases (golden-005/006/016) fallen
+jetzt knapp durch den Vorfilter. Die Labels selbst bleiben unangetastet (kein Anpassen
+der Ground Truth an das Modell, SDR-0003). Der Zonen-Schwellen-Backtest zeigt das
+Agreement-Optimum bei `composite <= 5`; die Schwelle bleibt bewusst bei `<= 4`, um nicht
+auf ein 24-Case-Sample zu overfitten (Produktentscheidung, `known_limitations.md` #25).
+Genau diese Divergenz -- und ihre offene Dokumentation -- ist der Wert der Evaluation,
+nicht ihr Defekt. Nicht verwechseln: ein v3-LLM-Zweitannotator im Blind-Protokoll erreichte
+zufaellig ebenfalls 14/24 (Kappa 0,33 gegen die Autor-Labels) -- eine andere Messung,
+Details in `evals/golden/inter_annotator_report.md`. Vertiefte Ursachenanalyse in
+`docs/analysis/rule-engine-vs-human-judgment.md`.
 
 Das ist keine Aussage ueber Systemfehler -- es ist eine Aussage ueber das Design.
 Fuzzy-Zonen mit Konfidenz-Intervallen waeren robuster. Dokumentiert als v2-Kandidat
@@ -341,6 +400,27 @@ Ohne Azure- und Chroma-Konfiguration laeuft das System vollstaendig mit Mock-Ada
 Rule Engine, ROI-Modell, Zonen-Einstufung und Triage-Report funktionieren, LLM-Schaerfung
 und RAG-Hinweise liefern Platzhalter-Antworten.
 
+**Admin-Login (V4).** Der Admin-Modus verlangt einen scrypt-Passwort-Hash in
+`AECT_ADMIN_PASSWORD_HASH` -- bewusst **nicht** in `.env`, damit kein
+Klartext-Passwort im Repo-Umfeld liegt. Hash erzeugen (interaktiv, nichts wird
+geloggt) und in die Backend-Shell exportieren:
+
+```bash
+uv run python scripts/hash_password.py
+export AECT_ADMIN_PASSWORD_HASH='scrypt$...'
+```
+
+Ohne diese Variable antwortet `/auth/login` mit 503; anonyme Flows (Einreichen,
+Ideen-Assistent, Listen-/Detail-Ansicht) laufen trotzdem.
+
+**Stundensaetze (IP-Trennung / Config-Layering).** Die getrackte
+`config/roi_config.toml` traegt nur **generische Platzhalter-Raten** fuer de/at/ch.
+Beim Laden wird -- falls vorhanden -- die gitignorierte
+`config/roi_config.local.toml` (echte Raten je Land x Level, 12 Laender)
+**darueber** gelegt. Fehlt die lokale Datei (Fresh Clone), laeuft das System mit
+den Platzhaltern -- die Methodik ist vollstaendig zeigbar, nur die echten Zahlen
+bleiben privat (`known_limitations.md` #22, #29).
+
 **API-Key-Rotation** (ohne Downtime): `AECT_API_KEY` und optional `AECT_API_KEY_NEXT`
 sind waehrend einer Rotation gleichzeitig gueltig -- `require_api_key` prueft eingehende
 Requests gegen beide. Ablauf: (1) neuen Key als `AECT_API_KEY_NEXT` setzen und den Server
@@ -361,9 +441,16 @@ und das Monitoring sofort Inhalt.
 # DB anlegen bzw. ergaenzen (Default-Pfad: aect_demo.db, gitignored)
 uv run python scripts/seed_demo.py --reset
 
-# API gegen die geseedete DB starten
-AECT_DB_PATH=aect_demo.db uv run uvicorn aect.adapters.api.app:app --no-server-header
+# API gegen die geseedete DB starten (Admin-Hash fuer den Login mitgeben)
+AECT_DB_PATH=aect_demo.db AECT_ADMIN_PASSWORD_HASH="$AECT_ADMIN_PASSWORD_HASH" \
+  uv run uvicorn aect.adapters.api.app:app --no-server-header
 ```
+
+Die vollstaendige, einmal durchgespielte Demo-Schrittfolge (frischer Start ->
+anonyme Einreichung -> Admin-Login -> Board-Entscheidung -> Score/Konfidenz ->
+Schaerfen+Diff -> Loesung -> Compliance -> Report -> Board -> Monitoring ->
+Logout) inkl. Smoke-Checkliste steht in
+[`docs/demo-script.md`](docs/demo-script.md).
 
 Es gibt bewusst **kein Migrations-Framework** (Demo-Build): das V4-Schema ist gegenueber
 V3 inkompatibel (neue Eingabefelder). Eine alte lokale DB-Datei einfach loeschen bzw.
@@ -383,7 +470,7 @@ src/aect/
     rag/         # Chunker, Embedder, BM25, ChromaDB-Retriever, Hybrid, Reranker
     sqlite/      # SQLite-Repository, Idempotency-Store
     in_memory/   # Mock-Adapter fuer Tests und Offline-Betrieb
-tests/           # 720 Tests (715 passed, 5 skipped), 95 % Coverage (pytest, hypothesis, httpx TestClient)
+tests/           # 893 passed / 4 skipped, ~95 % Coverage (pytest, hypothesis, httpx TestClient)
 evals/
   golden/        # 25 manuell gelabelte Golden Cases (JSONL)
   synthetic/     # 36 synthetisch generierte Faelle (JSONL)
@@ -393,9 +480,11 @@ config/          # TOML/YAML-Config (ROI-Faktoren, Zonen-Schwellen, Stack-Option
 scripts/         # Seeder, Eval-Runner, Diagnostics, synthetische Case-Generierung
 docs/
   adr/           # 55 Architecture Decision Records (zwei Serien: 000X und ADR-00X)
-  reviews/       # Phasen-Reviews (A-F)
+  sdr/           # Scope-/Strategie-Decisions (SDR-0003 = V4-Scope)
+  reviews/       # Phasen-Reviews (A-G)
+  demo-script.md # Demo-Schrittfolge + Smoke-Checkliste (V4)
+  known_limitations.md
   threat-model.md
-  limitations.md
   architecture.md
 ```
 

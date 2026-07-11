@@ -3,6 +3,79 @@
 Alle nennenswerten Aenderungen an AECT. Format orientiert an Keep a Changelog,
 Versionierung nach SemVer.
 
+## [4.0.0] -- 2026-07-11
+
+**V4 = Demo-Build fuer einen internen Vorgesetzten** (kein Produktivbetrieb, kein
+Verkauf; Scope in `docs/sdr/SDR-0003-v4-scope.md`). Umbau des Bewertungsmodells,
+durchgaengige Erklaerbarkeit, ein Zwei-Stufen-Rollenmodell und eine
+Frontend-Neuausrichtung. Diese Serie war ungewoehnlich gruendlich
+**selbstkorrigierend** -- die Fixes unten sind Korrekturen an frueheren V4-Commits
+derselben Serie, nicht an v3. Vorgaenger: v3.1.1 (die Tags v3.0.0/v3.1.0/v3.1.1
+sind gesetzt, ihr Detail liegt in `docs/reviews/` und den Git-Tags, nicht in
+dieser Datei nachgetragen).
+
+### BREAKING
+
+- Neues Eingabe-/Bewertungsschema (`feat(domain)!` c259bf6, `feat(api)!` 10a8be2):
+  V4 ist gegenueber V3 datenbank-inkompatibel (neue Eingabefelder). Kein
+  Migrations-Framework (Demo-Build) -- alte lokale `*.db` loeschen bzw.
+  `scripts/seed_demo.py --reset`.
+
+### Added (V4-Kernbloecke, P0-P8)
+
+- **P0 Foundation** (042a2a1): CLAUDE.md-V4-Invarianten (fail-loud, LLM-Regeln,
+  Abschlussreport-Format), SDR-0003, `roi_config.local.toml`-Scaffold (12 Laender x
+  5 Level, gitignored).
+- **Scoring-Modell neu** (c259bf6): Aufwandscore Range 1-9 aus Implementierungs-
+  ansatz + Kostenpunkte + Datenschutz; person-basierte Nutzenformel
+  (`t_ist - t_ai` darf <= 0); Verbindlichkeits-/Evidenzfaktoren; Config-Layering
+  ueber `roi_config.local.toml`.
+- **Schema-Pullthrough + Golden-Remessung** (10a8be2): V4-Modell durch API/
+  Persistenz/Frontend/Eval; Golden-Agreement 37,5 % -> **58,3 %** (14/24, Kappa
+  0,25); `scripts/seed_demo.py` (9 generische Demo-Cases).
+- **Schaerfen ohne erfundene Zahlen** (5031545): deterministischer Zahlen-Guard
+  (Regel vor LLM, fail-loud 422), Draft/Accept/Reject-Flow, Vorschlaege mit
+  Bezugsfeld/Vorschlag/Hebel.
+- **Rollenmodell + Auth** (a4543f3, f7e0e8c, a39f345): Admin-Session-Login
+  (scrypt + httpOnly-Cookie), public/admin-Route-Matrix, public `GET /cases/{id}`
+  (read-only Bewertungsstand), public `GET /stats`.
+- **Erklaerbarkeit** (143bcfa): Score-Herkunft je Komponente, Konfidenz als
+  Begruendung, Machbarkeit, decision_report v2 (Entscheider) + technical_report,
+  zweigeteilter Loesungsvorschlag (business technikfrei + technisch).
+- **Frontend-Struktur V4** (b8eabf3, 3233b4d): Landing (KPIs), 5-Schritt-Wizard,
+  Rollen-Gating, Sharpen-Diff-Review (jsdiff), Monitoring-Bereich, rohe Eingaben
+  im Case-Detail.
+- **Design-System** (cf00132): "calm enterprise"-Pass -- Source Serif 4 (H1/H2) +
+  Inter + Geist Mono, Board-Achsen in disjunkten HTML-Gutter, churn-abhaengige
+  Diff-Ansicht, Lade-Skeletons + Retry.
+
+### Fixed / Changed (selbstkorrigierende Zwischen-Fixes derselben Serie)
+
+- EU-Region-Guard: expliziter Region-Override statt Hostname-Heuristik (AUDIT-008, 32174f2).
+- EU-Region-Test von lokaler `.env`-Leakage isoliert (7e33150).
+- Skizze: schema-verletzende LLM-Ausgabe -> 422 mit Grund statt 502 (53e359e).
+- Compliance: kein stiller Mock-Fallback -- fail-loud, wenn KB nicht verfuegbar (9c42aa6).
+- Compliance: `resolve_retriever` fail-loud bei unerreichbarem Chroma; sinnvoller Default-Host (367ebf3).
+- Routing: High-Volume-Schwelle auf person-basierte Semantik rekalibriert (2000 -> 250, 811f508).
+- Zonen: Composite-Range-Konstanten 2-10 -> 1-9 (e4ad2d4).
+- Sichtbarkeit (Detail): Score/Report fuer Anonyme erst nach Board-Entscheidung (2c1d440).
+- Sichtbarkeit (Liste): Zone/Nutzen in der Ideenliste fuer unentschiedene Cases verborgen (5dfc58e).
+- Erklaerbarkeit: deutsches Tausender-Zahlenformat in generiertem Text (6b22459).
+- Board: y-Achsen-Domain 2-10 -> 1-9 (Composite-Range, 0eccef5).
+- Frontend: restliche Composite-Range-Referenzen 10 -> 9 (Composite-Restdrift, cd7805e).
+- Frontend: unbenutzte `CompositeBreakdown`-Komponente entfernt (Dead Code, ffe7f07).
+
+### Release-Artefakte
+
+- Version 3.1.1 -> **4.0.0** (`pyproject.toml`; `/health` via importlib.metadata,
+  `src/aect/__init__.py` nachgezogen).
+- `docs/demo-script.md`: Demo-Schrittfolge + Smoke-Checkliste (einmal mit echten
+  Azure-Calls + echtem Chroma-RAG durchgespielt, ohne Befund).
+- `docs/known_limitations.md`: #25-#32 (Kalibrierungs-/Demo-Grenzen); #1/#3 auf die
+  V4-Agreement-Rate nachgezogen.
+- `README.md`: V4-Sektion (Bewertungsmodell, Erklaerbarkeit, Rollen), Demo-
+  Quickstart mit `roi_config.local.toml`-Layering-Hinweis, Screenshot-Platzhalter.
+
 ## [1.2.0] -- 2026-06-27
 
 Post-v1-Vollaudit + Peak-Optimization: eine user-facing Compliance-Aenderung und

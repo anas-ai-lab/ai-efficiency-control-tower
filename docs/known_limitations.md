@@ -5,7 +5,8 @@
 > (Stand Juni 2026); #15-#17 ergaenzen die v3-Control-Tower-Module und #18-#20
 > die v3.1-Assistenz-Features (Juli 2026). #21-#24 ergaenzen die im externen
 > Master-Audit H (Juli 2026) bestaetigten ehrlichen Luecken (#24 = offener
-> Fix-Kandidat, kein Design-Limit).
+> Fix-Kandidat, kein Design-Limit). #25-#32 ergaenzen die V4-Kalibrierungs- und
+> Demo-Grenzen (Juli 2026, Demo-Build SDR-0003).
 
 ---
 
@@ -23,7 +24,9 @@ Loop ist nur im produktiven Einsatz mit abgeschlossenen Cases messbar.
 tatsaechlicher Nutzeneintritt.
 
 **Stand:** Experten-Abgleich auf 24 gelabelten Golden-Cases (golden-001..025,
-golden-004 bewusst unlabeled) — Agreement 9 von 24 (37,5 %). Die Divergenz ist
+golden-004 bewusst unlabeled) — unter dem V4-Bewertungsmodell Agreement 14 von 24
+(58,3 %, Kappa 0,25; Remessung 2026-07-10, Details in #26); die v3-Basis lag bei
+9 von 24 (37,5 %). Die Divergenz ist
 das Eval-Ergebnis, nicht ein zu behebender Fehler: Labels sind unabhaengige
 Experten-Ground-Truth und werden nicht an die Engine angeglichen. Detail in
 `evals/golden/report.json`, Begruendung je Case in `evals/golden/score_breakdown.json`.
@@ -71,9 +74,10 @@ Schwellen-Nachjustierung in `docs/analysis/rule-engine-vs-human-judgment.md`.
 ## 3. Expert-Agreement auf kleinem Sample
 
 **Was:** 24 von 25 Golden-Cases sind gelabelt (golden-004 bleibt bewusst
-unlabeled, Vorfilter-Grenzfall). Agreement-Rate: 9/24 (37,5 %). Das Sample
-wurde von urspruenglich 3 gelabelten Cases (Tag 64, Agreement 1/3) auf 24
-erweitert.
+unlabeled, Vorfilter-Grenzfall). Agreement-Rate unter dem V4-Modell: 14/24
+(58,3 %, Kappa 0,25; siehe #26). Die im Folgenden analysierte v3-Basis lag bei
+9/24 (37,5 %). Das Sample wurde von urspruenglich 3 gelabelten Cases (Tag 64,
+Agreement 1/3) auf 24 erweitert.
 
 **Konsequenz:** Bei n=24 ist die Rate aussagekraeftiger als bei n=3, aber
 weiterhin kein Signifikanztest. Wichtiger als die Zahl ist das Muster: Die
@@ -459,6 +463,174 @@ gemacht ist.
 
 ---
 
+## 25. Composite-Range 1-9 mit unveraenderten Zonen-Schwellen (Kalibrierungsstand)
+
+**Was:** V4 rechnet den Aufwandscore neu (Range **1-9**: Komplexitaet 1-5 aus dem
+Implementierungsansatz + Kostenpunkte 0-2 + Datenschutz 0-2, SDR-0003 Entscheidung
+4). Die Zonen-Schwellen in `config/zone_thresholds.yaml` blieben dabei bewusst
+**unveraendert** (SDR-0003 Entscheidung 5) -- LIKELY_WIN feuert weiter bei
+`composite_total <= 4`.
+
+**Backtest-Befund:** Der Zonen-Schwellen-Backtest
+(`scripts/analysis/zone_threshold_backtest.py`) misst das Golden-Agreement fuer
+verschiedene LIKELY_WIN-Composite-Schwellen und findet das Optimum bei
+`composite <= 5`, nicht beim aktuell gesetzten `<= 4` (Peak `composite<=5` = 0,667,
+danach nicht-monoton: `composite<=6` faellt wieder auf 0,625).
+
+**Konsequenz / Entscheidung:** Das Backtest-Optimum wird **bewusst NICHT
+automatisch uebernommen** -- Produktentscheidung. Eine Schwelle an ein
+24-Case-Sample zu fitten waere Overfitting auf ein kleines Set ohne
+Signifikanztest (#3); stabile Schwellen halten die Zonen-Semantik ueber die
+Versionen vergleichbar. Der Backtest ist ein dokumentierter Kalibrierungs-Hinweis,
+keine Auto-Tuning-Schleife. Verwandt mit #2 (Hard-Threshold-Brittleness) und #26.
+
+---
+
+## 26. Golden-Agreement unter V4: 58,3 % (14/24), v3-Basis 37,5 %
+
+**Was:** Unter dem V4-Nutzenmodell (person-basierte Formel) stieg das Raw
+Agreement der Engine gegen die Autor-Labels auf **14/24 (58,3 %, Cohen's Kappa
+0,25)**, gemessen **2026-07-10** (V4-P4). Die v3-Basis (altes Modell) lag bei
+**9/24 (37,5 %, Kappa 0,06)** -- der historische Vergleichswert, auf den sich #1
+und #3 urspruenglich bezogen.
+
+**Warum die Verschiebung:** Die person-basierte Formel (Zeitersparnis x Vorgaenge
+je MA x Anzahl MA x Stundensatz) inflationiert Cases mit vielen betroffenen
+Mitarbeitern -> mehr LIKELY_WIN, was besser zu den optimistischen Autor-Labels
+passt. Zugleich fallen drei Ein-Personen-Cases (golden-005/006/016) jetzt knapp
+durch den Vorfilter (Potenzial < 20k). Die Labels selbst blieben unangetastet
+(kein Anpassen der Ground Truth an das Modell, SDR-0003 Entscheidung 5).
+
+**Konsequenz:** Kappa 0,25 ist "gering" -- die Zahl misst weiter *Konsistenz* mit
+einer Rubrik, nicht *Korrektheit* (#1), auf einem 24-Case-Sample ohne
+Signifikanztest. Details und Grenzen in `evals/golden/inter_annotator_report.md`
+(V4-P4-Abschnitt), Rohdaten in `evals/golden/report.json`. Nicht verwechseln mit
+dem v3-LLM-Zweitannotator, der zufaellig ebenfalls 14/24 erreichte (Kappa 0,33
+gegen die Autor-Labels, #3) -- das ist eine andere Messung.
+
+---
+
+## 27. Zahlen-Validator: Ziffern + einfache Zahlwoerter, keine komplexen Faelle
+
+**Was:** Der Schaerfungs-Guard (`domain/sharpening_guard.py`, SDR-0003 Entscheidung
+6) verhindert deterministisch (Regel VOR dem LLM), dass eine geschaerfte
+Beschreibung Zahlen enthaelt, die nicht aus der Eingabe stammen. `extract_numbers`
+erkennt Ziffern (dt. Formate: `4.200` -> 4200, `1.000,50` -> 1000.5) und einfache
+ausgeschriebene Zahlwoerter (`eins` .. `tausend`).
+
+**Grenze:** Komplexe zusammengesetzte Zahlwoerter ("zweihundertfuenfzigtausend"),
+Einheiten-Umrechnungen (Stunden <-> Minuten, Prozent <-> Faktor) und implizite
+Rechnungen werden **nicht** erkannt. Aufzaehlungsmarker (`1.`/`2)`/`3:`) und
+Jahreszahlen sind bewusst ausgenommen. Der Guard laeuft nur ueber
+`sharpened_title` / `current_state` / `desired_state`, **nicht** ueber die
+Vorschlags-`hebel` (die duerfen Faktoren beziffern, z. B. "Evidenzfaktor 0,40 ->
+0,90").
+
+**Konsequenz:** Eine erfundene Zahl in einem nicht abgedeckten Format kann
+durchrutschen. Der Guard ist eine deterministische erste Verteidigung, keine
+vollstaendige numerische Faktenpruefung -- der eigentliche Schutz bleibt die
+menschliche Pruefung des Drafts vor dem Accept (Draft/Accept-Flow). Verwandt mit
+#8 (LLM-Output: Graceful Degradation, keine Qualitaetspruefung).
+
+---
+
+## 28. Auth ist ein Single-Admin-Demo-Modell
+
+**Was:** V4 fuehrt zwei Zugriffsstufen ein (anonym / Admin) ueber ein **einziges**
+Admin-Passwort (scrypt-Hash in `AECT_ADMIN_PASSWORD_HASH`) + Session-Cookie
+(SDR-0003 Entscheidung 7). Kein Multi-User, keine Nutzerverwaltung, keine Rollen
+jenseits anonym/Admin, kein JWT/OAuth, keine Passwort-Zuruecksetzung, kein
+Login-Audit je Person.
+
+**Konsequenz:** "Admin" ist eine Betriebs**stufe**, keine Identitaet -- alle
+Admin-Aktionen sind ununterscheidbar (ein geteilter `session`-Token-Budget-Bucket,
+V4-P-Auth). Der `/login` ist zwar rate-limitiert (10/Minute), aber es gibt keinen
+Account-Lockout und keine Zwei-Faktor-Stufe. Fuer den Demo-Build (ein
+Vorfuehrender) ist das ausreichend und bewusst minimal; Mehrbenutzer-Betrieb
+braeuchte ein echtes Identity-Modell. Hebt die "API-Key only"-Grenze aus SDR-0002
+Paragraph 12a kontrolliert auf (weiterhin kein Multi-User).
+
+---
+
+## 29. Stundensaetze NO/GB/ES/IT/RO/IN sind unverifizierte Schaetzwerte
+
+**Was:** Die gitignorierte `config/roi_config.local.toml` traegt Stundensaetze fuer
+12 Laender x 5 Level (Config-Layering ueber die getrackte Platzhalter-Config). Fuer
+`de/at/ch` sind die Werte belastbarer; die Saetze fuer `no/gb/es/it/ro/in` sind
+**lokale Schaetzwerte** ("vor Demo pruefen"), nicht gegen eine externe Quelle
+verifiziert.
+
+**Konsequenz:** ROI-Zahlen fuer Cases in diesen Laendern sind
+groessenordnungs-, nicht punktgenau -- ein systematischer Fehler in einem Satz
+wirkt linear auf Roh-Nutzen und Netto-Nutzen durch. Verstaerkt #22: im getrackten
+`config/roi_config.toml` sind ohnehin nur `de/at/ch` konfiguriert, die uebrigen
+neun Laender fehlen im Fresh Clone ganz (dort Stundensatz 0 -> Vorfilter-Fail).
+
+---
+
+## 30. Anonyme Sichtbarkeit von Score/Report an ReviewerDecision != PENDING gekoppelt
+
+**Was:** `GET /cases` (Liste) und `GET /cases/{id}` (Detail) geben Zone, ROI und
+Report fuer **anonyme** Aufrufer erst frei, wenn das Board entschieden hat
+(`reviewer_decision != PENDING`); Admins sehen immer alles. Davor sind nur die
+rohen Eingaben sichtbar, die Ansicht zeigt "Wird vom AI Board geprueft".
+
+**Warum:** bewusste **Korrektur einer Zwischenversion** (V4-P7, Commits
+`2c1d440` + `5dfc58e`), in der die Bewertung sofort anonym sichtbar war. Das
+Rollenmodell aus SDR-0003 (Entscheidung 7) will, dass der Einreicher die Bewertung
+nicht vor dem Board sieht -- die Sichtbarkeit ist an die **Entscheidung**
+gekoppelt, nicht an den Lifecycle-Status.
+
+**Konsequenz:** Ein eingereichter, aber unentschiedener Case leakt anonym keinen
+Score. Ein Vorfilter-Fail (`predicted=None`) ist davon zu unterscheiden --
+`CaseSummary.assessment_visible` trennt "wird geprueft" (pending) von "—"
+(Vorfilter). Kehrseite: solange niemand mit Admin-Rechten entscheidet, bleibt ein
+valider Case fuer Anonyme dauerhaft ohne sichtbare Bewertung (gewollt im
+Demo-Build, waere im Self-Service-Betrieb eine UX-Frage).
+
+---
+
+## 31. `_HIGH_VOLUME_MIN_ANNUAL = 250`/Jahr ist eine Alltagsannahme
+
+**Was:** Das AI-vs-Automation-Routing (`domain/routing.py`) wertet ein hohes
+Vorgangsvolumen als Automatisierungs-Signal, ab `_HIGH_VOLUME_MIN_ANNUAL = 250`
+Vorgaengen je Mitarbeiter/Jahr. Der Wert wurde bei der V4-Umstellung auf
+person-basierte Semantik neu gesetzt (vorher 2000, kalibriert fuer das
+Gesamtvolumen der Organisation).
+
+**Grenze:** 250 ist eine plausible **Alltagsannahme** (~ein Vorgang je
+Arbeitstag), **nicht** aus den Golden-Cases abgeleitet -- dort ist das
+Volumen-Signal nicht trennscharf genug fuer eine datengetriebene Schwelle.
+
+**Konsequenz:** Ein Case knapp ueber/unter 250 gewinnt oder verliert das
+Volumen-Signal, ohne dass die Grenze empirisch fundiert ist -- dieselbe
+Hard-Threshold-Natur wie bei den Zonen (#2), nur auf der Routing-Achse. Der Wert
+ist eine bewusste, dokumentierte Setzung, kein gemessenes Optimum.
+
+---
+
+## 32. Board-Ecklabels und Diff-Split nur strukturell verifiziert (kein Browser-Tool)
+
+**Was:** Zwei rein visuelle V4-Frontend-Punkte sind **strukturell**, aber nicht
+per Screenshot verifiziert: die Board-Ecklabel-Positionen (`board-matrix.tsx`,
+Pixel-Naeherungen relativ zu den Quadranten) und die churn-abhaengige
+Diff-Split-Ansicht (`sharpening-review.tsx`, Umschaltschwelle churn 0,5). Die
+Build-Umgebung hat kein Browser-Tool (Playwright/Puppeteer).
+
+**Verifikationsstand:** Board-Achsen-Ueberlappung per Layout-Argument
+ausgeschlossen (Achsentitel in eigenen HTML-Gutter-Boxen, disjunkt zu den
+Tick-Labels); y-Achsen-Domain gegen den 1-9-Composite gerechnet; die
+churn-Umschaltung (inline < 0,5 < split) per Skript belegt. **Nicht** verifiziert:
+die pixelgenaue Ecklabel-Position und die visuelle Lesbarkeit des Splits bei
+einem echten starken Rewrite.
+
+**Konsequenz:** Kein Funktions-, sondern ein **Verifikations-Vorbehalt** -- diese
+beiden Punkte vor der echten Demo einmal im Browser gegenpruefen
+(`docs/demo-script.md` Abschnitt 3.3). Verwandt mit #17 (die Quadranten-Linien
+sind Lese-Hilfe, keine Schwellen).
+
+---
+
 ## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
 
 **Was (historisch):** Die Vorfilter-Schwellen existierten doppelt: als
@@ -475,8 +647,13 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: 2026-07-06 -- v3.1.0 + Master-Audit-H-Konsolidierung
-(#21-#24 ergaenzt aus H-009/H-011/H-017/H-018/H-030/H-038, siehe
+*Letzte Aktualisierung: 2026-07-11 -- V4-Release (v4.0.0): #25-#32 ergaenzt
+(Composite-Range 1-9 bei stabilen Zonen-Schwellen, Golden-Agreement-Remessung
+58,3 %, Zahlen-Validator-Grenze, Single-Admin-Auth, unverifizierte
+Nicht-DACH-Stundensaetze, decision-gekoppelte Sichtbarkeit, Routing-Volumen-
+Schwelle, strukturelle Frontend-Verifikation); #1/#3 auf die V4-Agreement-Rate
+nachgezogen. Vorstand: 2026-07-06 -- v3.1.0 + Master-Audit-H-Konsolidierung
+(#21-#24 aus H-009/H-011/H-017/H-018/H-030/H-038, siehe
 `docs/reviews/master-audit-h-summary.md`). Phase-G-Triage der urspruenglichen 14
 Punkte (bewusstes Design / v1-Grenze + v2-Roadmap) in
 `docs/reviews/phase-g-review.md` SS3.*
