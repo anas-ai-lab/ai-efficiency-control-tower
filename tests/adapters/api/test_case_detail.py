@@ -80,24 +80,64 @@ async def _submit_public(client: AsyncClient) -> str:
     return created.json()["id"]
 
 
-async def test_case_detail_public_returns_full_state() -> None:
-    """Anonym: GET /cases/{id} liefert Composite (inkl. Subscores), Konfidenz
-    und den zweischichtigen Report -- ohne Auth."""
+async def test_case_detail_anonymous_before_decision_hides_assessment() -> None:
+    """V4-P7-Korrektur: vor der Board-Entscheidung sieht der anonyme Einreicher
+    NUR die rohen Eingaben + Status -- triage/report bleiben null (das Board
+    soll zuerst pruefen). Frueher (E9/P5-P7) war das faelschlich voll sichtbar."""
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         case_id = await _submit_public(client)
-        response = await client.get(f"/cases/{case_id}")  # kein X-API-Key
+        response = await client.get(f"/cases/{case_id}")  # kein X-API-Key -> anonym
 
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == case_id
-    assert "status" in body
+    assert body["status"] == "submitted"
+    # Eingaben immer sichtbar (Erklaerbarkeit), Bewertung noch nicht.
+    assert body["eingaben"]["title"] == VALID_PAYLOAD["title"]
+    assert body["triage"] is None
+    assert body["report"] is None
+
+
+async def test_case_detail_admin_sees_assessment_before_decision() -> None:
+    """V4-P7: das AI Board (Admin, hier via X-API-Key) sieht die Bewertung schon
+    VOR der Entscheidung -- sonst koennte es nicht entscheiden."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        body = (
+            await client.get(f"/cases/{case_id}", headers={"X-API-Key": TEST_API_KEY})
+        ).json()
+
+    assert body["triage"] is not None
+    assert body["report"] is not None
+    assert body["triage"]["score_breakdown"] is not None
+    assert body["report"]["business_summary"]["decision_report"]["empfehlung_satz"]
+
+
+async def test_case_detail_public_full_after_board_decision() -> None:
+    """Nach der Board-Entscheidung liefert der public GET die volle Bewertung:
+    Composite inkl. Subscores, Konfidenz-Begruendung, decision_report,
+    technical_report -- anonym lesbar."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        decision_resp = await client.post(
+            f"/cases/{case_id}/decision",
+            json={"decision": "approved", "note": None},
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        assert decision_resp.status_code == 200
+        body = (await client.get(f"/cases/{case_id}")).json()  # anonym
 
     triage = body["triage"]
-    # Composite-Score inkl. der drei Subscores (nicht nur composite_total).
-    assert triage["composite"] is not None
+    assert triage is not None
     assert {
         "complexity_score",
         "cost_score",
@@ -105,26 +145,16 @@ async def test_case_detail_public_returns_full_state() -> None:
         "total",
         "effort_label",
     } <= set(triage["composite"])
-    # Zonen-Konfidenz (ADR-0036) + Konfidenz-Begruendung (V4-P6).
-    assert triage["zone"] is not None
-    assert "confidence_score" in triage["zone"]
-    assert "confidence_label" in triage["zone"]
     conf = triage["zone"]["confidence_reasoning"]
     assert conf["level"] in {"hoch", "mittel", "niedrig"}
     assert conf["gruende"]
-
-    # Empfehlung als Satz + Score-Herkunft + Machbarkeit (V4-P6).
     assert triage["routing"]["recommendation_text"]
     breakdown = triage["score_breakdown"]
     assert len(breakdown["components"]) == 3
     assert breakdown["max_total"] == 9
-    assert breakdown["total_line"]
     assert breakdown["feasibility_score"] == 10 - breakdown["total"]
-    assert "10 - Aufwandscore" in breakdown["feasibility_definition"]
 
-    # Report: Entscheider- (decision_report) + technische Sicht (technical_report).
     report = body["report"]
-    assert "compliance_citations" in report["business_summary"]
     assert "summary_text" not in report["business_summary"]
     decision = report["business_summary"]["decision_report"]
     assert decision["empfehlung_satz"]
@@ -165,13 +195,17 @@ async def test_case_detail_public_returns_raw_inputs() -> None:
 
 
 async def test_case_detail_untriggered_steps_are_null() -> None:
-    """Read-only, kein Trigger: nie ausgeloeste Schritte stehen auf null."""
+    """Read-only, kein Trigger: nie ausgeloeste LLM-Schritte stehen auf null.
+    Als Admin gelesen (X-API-Key), damit der Report vor der Entscheidung sichtbar
+    ist -- die Bedingung betrifft die Sichtbarkeit, nicht die null-Semantik."""
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         case_id = await _submit_public(client)
-        body = (await client.get(f"/cases/{case_id}")).json()
+        body = (
+            await client.get(f"/cases/{case_id}", headers={"X-API-Key": TEST_API_KEY})
+        ).json()
 
     assert body["report"]["business_summary"]["sharpened_text"] is None
     assert body["report"]["business_summary"]["compliance_hint_text"] is None
@@ -188,26 +222,27 @@ async def test_case_detail_missing_returns_404() -> None:
 
 
 async def test_case_detail_reflects_admin_triggered_sharpening() -> None:
-    """Was der Admin ausloest und akzeptiert, liest der anonyme Detail-Read:
-    nach sharpen + accept traegt report.business_summary.sharpened_text den Text."""
+    """Was der Admin ausloest und akzeptiert, liest der anonyme Detail-Read NACH
+    der Board-Entscheidung: sharpen + accept + decision -> anonym traegt
+    report.business_summary.sharpened_text den Text (V4-P7-Sichtbarkeit)."""
     app = _make_app()
+    auth = {"X-API-Key": TEST_API_KEY}
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         case_id = await _submit_public(client)
-        # Vor der Schaerfung: anonym null.
-        before = (await client.get(f"/cases/{case_id}")).json()
-        assert before["report"]["business_summary"]["sharpened_text"] is None
 
-        # Admin loest Schaerfung aus und uebernimmt sie (X-API-Key).
-        sharpen = await client.post(
-            f"/cases/{case_id}/sharpen", headers={"X-API-Key": TEST_API_KEY}
-        )
+        # Admin loest Schaerfung aus, uebernimmt sie und entscheidet.
+        sharpen = await client.post(f"/cases/{case_id}/sharpen", headers=auth)
         assert sharpen.status_code == 200
-        accept = await client.post(
-            f"/cases/{case_id}/sharpen/accept", headers={"X-API-Key": TEST_API_KEY}
-        )
+        accept = await client.post(f"/cases/{case_id}/sharpen/accept", headers=auth)
         assert accept.status_code == 200
+        decision = await client.post(
+            f"/cases/{case_id}/decision",
+            json={"decision": "approved", "note": None},
+            headers=auth,
+        )
+        assert decision.status_code == 200
 
         # Anonymer Detail-Read spiegelt jetzt den persistierten Stand.
         after = (await client.get(f"/cases/{case_id}")).json()

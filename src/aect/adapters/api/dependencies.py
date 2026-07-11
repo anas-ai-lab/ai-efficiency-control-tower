@@ -527,6 +527,24 @@ async def require_admin(
     )
 
 
+async def is_admin_request(
+    request: Request,
+    api_key: str | None = Depends(_api_key_header),
+    settings: Settings = Depends(get_settings),  # noqa: B008
+    session_store: SessionStorePort = Depends(get_session_store),  # noqa: B008
+) -> bool:
+    """Nicht-werfende Variante von require_admin (V4-P7-Sichtbarkeit).
+
+    True, wenn der Aufrufer eine gueltige Admin-Session ODER einen gueltigen
+    API-Key traegt, sonst False -- ohne 401/503. Fuer Endpoints, die PUBLIC
+    erreichbar bleiben, ihren Inhalt aber fuer Admins erweitern: GET /cases/{id}
+    zeigt dem AI Board (Admin) die Bewertung schon vor der Entscheidung, dem
+    anonymen Einreicher erst danach. Reine Erkennung -- kein Zugriffsschutz;
+    schuetzende Routen nutzen weiterhin require_admin.
+    """
+    return authenticate_admin(request, api_key, settings, session_store) is not None
+
+
 def get_triage_service(
     settings: Settings = Depends(get_settings),  # noqa: B008
     llm: LLMPort = Depends(get_llm_adapter),  # noqa: B008

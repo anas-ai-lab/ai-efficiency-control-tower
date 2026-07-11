@@ -23,6 +23,7 @@ from starlette.responses import Response
 
 from aect.adapters.api.dependencies import (
     get_triage_service,
+    is_admin_request,
     require_admin,
     require_token_budget,
 )
@@ -1244,16 +1245,21 @@ class CaseDetailResponse(BaseModel):
     seines eigenen Case.
 
     eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
-    unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne
-    sie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten
-    beruht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.
-    triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
-    Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
-    report: der zweischichtige Report (deterministische Regel-Schicht ueber den
-    persistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte
-    Schaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und
-    technische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch
-    nicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.
+    unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Immer
+    vorhanden (auch vor der Board-Entscheidung). Dieselbe Schema-Klasse wie der
+    POST /triage-Body.
+
+    triage/report: BEDINGT sichtbar (V4-P7-Korrektur). Das AI Board soll den
+    Fall zuerst pruefen -- der anonyme Einreicher sieht die Bewertung
+    (Score-Herkunft, Konfidenz, decision_report, technical_report) erst NACH der
+    Board-Entscheidung (ReviewerDecision != PENDING). Davor sind triage UND
+    report null (dieselbe "nicht ausgeloest -> null"-Konvention wie
+    sharpened_text/solution/compliance). Ein authentifizierter Admin sieht die
+    Bewertung immer -- sonst koennte das Board nicht entscheiden. Der aktuelle
+    Zustand ist an `status` ablesbar (submitted/in_review -> "wird geprueft").
+    - triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,
+      Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).
+    - report: der zweischichtige Report (Entscheider- + technische Sicht).
 
     Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
     Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
@@ -1263,8 +1269,8 @@ class CaseDetailResponse(BaseModel):
     submitted_at: datetime
     status: str
     eingaben: UseCaseInput
-    triage: TriageResponse
-    report: ReportResponse
+    triage: TriageResponse | None
+    report: ReportResponse | None
 
 
 # Routing-Reihenfolge: dieser parametrisierte GET /cases/{case_id} steht bewusst
@@ -1279,15 +1285,20 @@ async def get_case_detail(
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
+    is_admin: bool = Depends(is_admin_request),
 ) -> CaseDetailResponse:
-    """Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.
+    """Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den
-    kompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.
-    Subscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).
-    Nur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein
-    LLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+    Auth: PUBLIC im Zugriff (kein require_admin) -- aber der INHALT ist
+    abgestuft (V4-P7-Korrektur, E9/SDR-0003): eingaben (rohe Felder) sind immer
+    sichtbar; triage + report (Score-Herkunft, Konfidenz, decision_report,
+    technical_report) liefert die Response nur, wenn der Fall vom AI Board
+    entschieden wurde (ReviewerDecision != PENDING) ODER der Aufrufer selbst ein
+    Admin ist (Session/Key). So sieht der anonyme Einreicher vor der Entscheidung
+    nur den Status ("wird geprueft"), das Board aber jederzeit die Bewertung --
+    sonst koennte es nicht entscheiden. Kein Trigger, kein LLM-Call
+    (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
 
     Raises:
@@ -1297,22 +1308,33 @@ async def get_case_detail(
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Kein Override -> die persistierten Werte (sharpened_content_json/
-    # proposal_text/compliance_hints_json + result) werden gelesen und
-    # zusammengesetzt. get_case lieferte den Case, daher ist report hier nicht
-    # None -- der Guard bleibt als defensiver Fail-loud stehen.
-    report = service.generate_report(case_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+    # Sichtbarkeit der Bewertung: Admin sieht sie immer, der anonyme Einreicher
+    # erst nach der Board-Entscheidung. Davor bleiben triage/report null.
+    bewertung_sichtbar = (
+        is_admin or case.reviewer_decision is not ReviewerDecision.PENDING
+    )
+
+    triage: TriageResponse | None = None
+    report: ReportResponse | None = None
+    if bewertung_sichtbar:
+        # Kein Override -> die persistierten Werte (sharpened_content_json/
+        # proposal_text/compliance_hints_json + result) werden gelesen und
+        # zusammengesetzt. get_case lieferte den Case, daher ist report hier nicht
+        # None -- der Guard bleibt als defensiver Fail-loud stehen.
+        report_result = service.generate_report(case_id)
+        if report_result is None:
+            raise HTTPException(status_code=404, detail="Case not found")
+        triage = _to_triage_response(case, service.explain_case(case))
+        report = _to_report_response(report_result)
 
     return CaseDetailResponse(
         id=case.id,
         submitted_at=case.submitted_at,
         status=case.status.value,
         # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) -- reines
-        # Lesen, keine Projektion. Erklaerbarkeit: die Bewertung wird gegen die
-        # tatsaechlich erfassten Daten pruefbar.
+        # Lesen, keine Projektion. Erklaerbarkeit: pruefbar gegen die erfassten
+        # Daten, auch vor der Board-Entscheidung.
         eingaben=case.use_case,
-        triage=_to_triage_response(case, service.explain_case(case)),
-        report=_to_report_response(report),
+        triage=triage,
+        report=report,
     )

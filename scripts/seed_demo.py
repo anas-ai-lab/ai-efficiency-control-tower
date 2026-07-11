@@ -48,6 +48,7 @@ from aect.domain import (
     EmployeeCategory,
     EvidenceLevel,
     ImplementationApproach,
+    ReviewerDecision,
     UseCaseInput,
     evaluate_use_case,
     load_roi_config,
@@ -396,10 +397,21 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
         repository.save(case)
 
         status: CaseStatus = spec["status"]
+        decided_at = submitted_at + timedelta(days=1)
         if status is not CaseStatus.SUBMITTED:
             # +1 Tag als Zeitstempel des Statuswechsels (deterministisch).
-            repository.update_status(
-                spec["id"], status, submitted_at + timedelta(days=1)
+            repository.update_status(spec["id"], status, decided_at)
+
+        # Board-Entscheidung fuer entschiedene Status setzen (V4-P7): ohne eine
+        # echte ReviewerDecision zaehlt der Case weder als "bewertet" (compute_
+        # stats) noch gibt GET /cases/{id} die Bewertung fuer Anonyme frei. Ein
+        # freigegebener/umgesetzter/integrierter Demo-Case impliziert ein Board-
+        # "Ja", ein abgelehnter ein "Nein"; in_review/submitted/already_exists
+        # bleiben bewusst PENDING (noch nicht entschieden).
+        decision = _DECISION_BY_STATUS.get(status)
+        if decision is not None:
+            repository.record_decision(
+                spec["id"], decision, "Demo-Entscheidung des AI Board", decided_at
             )
 
         zone = (
@@ -409,6 +421,18 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
         )
         summary.append((spec["id"], zone, status.value))
     return summary
+
+
+# Board-Entscheidung je Lifecycle-Status (V4-P7): entschiedene Status tragen eine
+# echte ReviewerDecision, damit sie als "bewertet" zaehlen und ihre Bewertung
+# fuer Anonyme freigegeben ist. Nicht gelistete Status (submitted, in_review,
+# already_exists) bleiben PENDING.
+_DECISION_BY_STATUS: dict[CaseStatus, ReviewerDecision] = {
+    CaseStatus.APPROVED: ReviewerDecision.APPROVED,
+    CaseStatus.IMPLEMENTED: ReviewerDecision.APPROVED,
+    CaseStatus.INTEGRATED: ReviewerDecision.APPROVED,
+    CaseStatus.REJECTED: ReviewerDecision.REJECTED,
+}
 
 
 def main() -> None:

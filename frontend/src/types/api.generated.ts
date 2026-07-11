@@ -210,14 +210,18 @@ export interface paths {
         };
         /**
          * Get Case Detail
-         * @description Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.
+         * @description Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den
-         *     kompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.
-         *     Subscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).
-         *     Nur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein
-         *     LLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber der INHALT ist
+         *     abgestuft (V4-P7-Korrektur, E9/SDR-0003): eingaben (rohe Felder) sind immer
+         *     sichtbar; triage + report (Score-Herkunft, Konfidenz, decision_report,
+         *     technical_report) liefert die Response nur, wenn der Fall vom AI Board
+         *     entschieden wurde (ReviewerDecision != PENDING) ODER der Aufrufer selbst ein
+         *     Admin ist (Session/Key). So sieht der anonyme Einreicher vor der Entscheidung
+         *     nur den Status ("wird geprueft"), das Board aber jederzeit die Bewertung --
+         *     sonst koennte es nicht entscheiden. Kein Trigger, kein LLM-Call
+         *     (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
          *
          *     Raises:
@@ -824,16 +828,21 @@ export interface components {
          *     seines eigenen Case.
          *
          *     eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
-         *     unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne
-         *     sie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten
-         *     beruht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.
-         *     triage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.
-         *     Subscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.
-         *     report: der zweischichtige Report (deterministische Regel-Schicht ueber den
-         *     persistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte
-         *     Schaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und
-         *     technische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch
-         *     nicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.
+         *     unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Immer
+         *     vorhanden (auch vor der Board-Entscheidung). Dieselbe Schema-Klasse wie der
+         *     POST /triage-Body.
+         *
+         *     triage/report: BEDINGT sichtbar (V4-P7-Korrektur). Das AI Board soll den
+         *     Fall zuerst pruefen -- der anonyme Einreicher sieht die Bewertung
+         *     (Score-Herkunft, Konfidenz, decision_report, technical_report) erst NACH der
+         *     Board-Entscheidung (ReviewerDecision != PENDING). Davor sind triage UND
+         *     report null (dieselbe "nicht ausgeloest -> null"-Konvention wie
+         *     sharpened_text/solution/compliance). Ein authentifizierter Admin sieht die
+         *     Bewertung immer -- sonst koennte das Board nicht entscheiden. Der aktuelle
+         *     Zustand ist an `status` ablesbar (submitted/in_review -> "wird geprueft").
+         *     - triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,
+         *       Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).
+         *     - report: der zweischichtige Report (Entscheider- + technische Sicht).
          *
          *     Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
          *     Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
@@ -849,8 +858,8 @@ export interface components {
             /** Status */
             status: string;
             eingaben: components["schemas"]["UseCaseInput"];
-            triage: components["schemas"]["TriageResponse"];
-            report: components["schemas"]["ReportResponse"];
+            triage: components["schemas"]["TriageResponse"] | null;
+            report: components["schemas"]["ReportResponse"] | null;
         };
         /**
          * CaseSummary

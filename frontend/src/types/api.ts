@@ -364,18 +364,19 @@ export interface ReportResponse {
 }
 
 // ---- Case-Detail (GET /cases/{id}, public read-only, E9/SDR-0003) ----------
-// Vollstaendiger read-only Bewertungsstand: die rohen Eingaben + das beim Intake
-// berechnete Triage-Ergebnis + der zweischichtige Report ueber den persistierten
-// Feldern. status ist stets ein CaseStatus-Wert (Backend liefert String, hier
-// verengt). eingaben: die unveraendert gespeicherte UseCaseInput des Case
-// (Erklaerbarkeit -- pruefbar, auf welchen Daten die Bewertung beruht).
+// Read-only Bewertungsstand mit ABGESTUFTER Sichtbarkeit (V4-P7-Korrektur):
+// eingaben (rohe Felder) sind immer da; triage + report liefert das Backend nur
+// nach der Board-Entscheidung (ReviewerDecision != PENDING) -- oder wenn der
+// Aufrufer selbst Admin ist. Davor sind beide null ("wird vom AI Board
+// geprueft"). status ist stets ein CaseStatus-Wert (Backend liefert String,
+// hier verengt).
 export interface CaseDetailResponse {
   id: string;
   submitted_at: string;
   status: CaseStatus;
   eingaben: UseCaseInput;
-  triage: TriageResponse;
-  report: ReportResponse;
+  triage: TriageResponse | null;
+  report: ReportResponse | null;
 }
 
 // Portfolio-Read (P2): erweiterte Listansicht. zone/net_expected_benefit_eur/

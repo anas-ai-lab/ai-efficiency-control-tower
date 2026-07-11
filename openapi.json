@@ -259,8 +259,13 @@
           "cases"
         ],
         "summary": "Get Case Detail",
-        "description": "Gibt den vollstaendigen, read-only Bewertungsstand eines Case zurueck.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC (V4-P-Auth, E9/SDR-0003) -- der anonyme Einreicher muss den\nkompletten gespeicherten Stand seines Case lesen koennen (Composite inkl.\nSubscores, Konfidenz, akzeptierte Schaerfung, Loesung, Compliance, Report).\nNur LESEN dessen, was der Admin bereits ausgeloest hat: kein Trigger, kein\nLLM-Call (generate_report ist reine Regel-Schicht ueber persistierten Feldern).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC im Zugriff (kein require_admin) -- aber der INHALT ist\nabgestuft (V4-P7-Korrektur, E9/SDR-0003): eingaben (rohe Felder) sind immer\nsichtbar; triage + report (Score-Herkunft, Konfidenz, decision_report,\ntechnical_report) liefert die Response nur, wenn der Fall vom AI Board\nentschieden wurde (ReviewerDecision != PENDING) ODER der Aufrufer selbst ein\nAdmin ist (Session/Key). So sieht der anonyme Einreicher vor der Entscheidung\nnur den Status (\"wird geprueft\"), das Board aber jederzeit die Bewertung --\nsonst koennte es nicht entscheiden. Kein Trigger, kein LLM-Call\n(generate_report ist reine Regel-Schicht ueber persistierten Feldern).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "get_case_detail_cases__case_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "case_id",
@@ -1306,10 +1311,24 @@
             "$ref": "#/components/schemas/UseCaseInput"
           },
           "triage": {
-            "$ref": "#/components/schemas/TriageResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriageResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "report": {
-            "$ref": "#/components/schemas/ReportResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1322,7 +1341,7 @@
           "report"
         ],
         "title": "CaseDetailResponse",
-        "description": "Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).\n\nPublic GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin\nbereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,\nkein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand\nseines eigenen Case.\n\neingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --\nunveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Ohne\nsie liesse sich nicht pruefen, ob die Bewertung auf den richtigen Daten\nberuht (Erklaerbarkeit). Dieselbe Schema-Klasse wie der POST /triage-Body.\ntriage: das beim Intake berechnete Ergebnis -- Composite-Score inkl.\nSubscores, Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter.\nreport: der zweischichtige Report (deterministische Regel-Schicht ueber den\npersistierten Feldern) -- Entscheider-Sicht (gerenderte akzeptierte\nSchaerfung, Compliance-Hinweise + Quellen, Empfehlung, Entscheidung) und\ntechnische Sicht (Loesungsvorschlag, Composite, ROI, Signale). Fuer noch\nnicht ausgeloeste Schritte stehen die jeweiligen Felder auf null.\n\nDie Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine\nAdmin-Ansicht (GET wie POST require_admin), nicht Teil des public Read."
+        "description": "Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).\n\nPublic GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin\nbereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,\nkein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand\nseines eigenen Case.\n\neingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --\nunveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Immer\nvorhanden (auch vor der Board-Entscheidung). Dieselbe Schema-Klasse wie der\nPOST /triage-Body.\n\ntriage/report: BEDINGT sichtbar (V4-P7-Korrektur). Das AI Board soll den\nFall zuerst pruefen -- der anonyme Einreicher sieht die Bewertung\n(Score-Herkunft, Konfidenz, decision_report, technical_report) erst NACH der\nBoard-Entscheidung (ReviewerDecision != PENDING). Davor sind triage UND\nreport null (dieselbe \"nicht ausgeloest -> null\"-Konvention wie\nsharpened_text/solution/compliance). Ein authentifizierter Admin sieht die\nBewertung immer -- sonst koennte das Board nicht entscheiden. Der aktuelle\nZustand ist an `status` ablesbar (submitted/in_review -> \"wird geprueft\").\n- triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,\n  Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).\n- report: der zweischichtige Report (Entscheider- + technische Sicht).\n\nDie Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine\nAdmin-Ansicht (GET wie POST require_admin), nicht Teil des public Read."
       },
       "CaseSummary": {
         "properties": {

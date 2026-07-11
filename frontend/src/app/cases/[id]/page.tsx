@@ -94,8 +94,11 @@ export default async function CaseDetailPage({
   }
 
   const authenticated = await checkAuth();
+  // Bewertung ist bedingt sichtbar (V4-P7): das Backend liefert triage/report
+  // erst nach der Board-Entscheidung -- oder fuer Admins. Davor beide null ->
+  // ruhiger Zwischenzustand statt Score/Report. Die Null-Checks stehen inline
+  // im JSX (TS-Narrowing).
   const { eingaben, triage, report } = detail;
-  const bs = report.business_summary;
 
   // Admin-Panels nur fuer Angemeldete laden -- die Endpoints sind require_admin.
   let entries: MonitoringEntry[] = [];
@@ -129,17 +132,20 @@ export default async function CaseDetailPage({
       {/* --- Kopf --- */}
       <p className="eyebrow">Fall-Detail</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        {triage.title}
+        {eingaben.title}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {eingaben.department} · Eingereicht am {formatDate(detail.submitted_at)}
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="eyebrow">Zone</span>
-          <ZoneBadge zone={triage.zone?.final_zone ?? null} />
-        </div>
+        {/* Zone erst nach Freigabe der Bewertung (V4-P7). */}
+        {triage !== null && (
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Zone</span>
+            <ZoneBadge zone={triage.zone?.final_zone ?? null} />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <span className="eyebrow">Status</span>
           {authenticated ? (
@@ -155,26 +161,41 @@ export default async function CaseDetailPage({
         <CaseInputs eingaben={eingaben} />
       </div>
 
-      {/* --- Ergebnis (ScoreBreakdown / Konfidenz-Saetze). --- */}
-      <div className="mt-10">
-        <CaseResult triage={triage} />
-      </div>
-
-      {/* --- Report (Entscheider / Technisch, Loesung, Compliance). --- */}
-      <div className="mt-10">
-        <p className="eyebrow mb-3">Report</p>
-        <CaseReport report={report} />
-      </div>
+      {/* --- Bewertung: erst nach Board-Entscheidung sichtbar (V4-P7). --- */}
+      {triage !== null && report !== null ? (
+        <>
+          <div className="mt-10">
+            <CaseResult triage={triage} />
+          </div>
+          <div className="mt-10">
+            <p className="eyebrow mb-3">Report</p>
+            <CaseReport report={report} />
+          </div>
+        </>
+      ) : (
+        <div className="mt-10 rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">
+            Wird vom AI Board geprüft
+          </p>
+          <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+            Eingereicht am {formatDate(detail.submitted_at)}. Die Bewertung
+            (Nutzen, Aufwand, Risiko) wird sichtbar, sobald das AI Board über den
+            Use Case entschieden hat.
+          </p>
+        </div>
+      )}
 
       {authenticated ? (
         <>
-          <CaseAdminActions
-            caseId={detail.id}
-            reviewerDecision={bs.reviewer_decision}
-            reviewerNote={bs.reviewer_note}
-            hasSolution={bs.solution_business !== null}
-            hasCompliance={bs.compliance_hint_text !== null}
-          />
+          {report !== null && (
+            <CaseAdminActions
+              caseId={detail.id}
+              reviewerDecision={report.business_summary.reviewer_decision}
+              reviewerNote={report.business_summary.reviewer_note}
+              hasSolution={report.business_summary.solution_business !== null}
+              hasCompliance={report.business_summary.compliance_hint_text !== null}
+            />
+          )}
 
           <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
           <SketchView caseId={detail.id} initialSketch={initialSketch} />
