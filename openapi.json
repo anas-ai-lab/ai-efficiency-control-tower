@@ -1021,6 +1021,28 @@
           }
         }
       }
+    },
+    "/stats": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Get Stats",
+        "description": "Gibt die aggregierten Portfolio-Kennzahlen fuer die Startseite zurueck.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC (V4-P-Auth). Rate Limit: 60/Minute (lesend, analog GET /cases).",
+        "operationId": "get_stats_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2565,6 +2587,36 @@
         ],
         "title": "SolutionProposalResponse",
         "description": "Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).\n\nsolution_business: technikfreier Absatz fuer die Geschaeftsleitung.\nsolution_technical: technischer Loesungsansatz (frueher proposal_text)."
+      },
+      "StatsResponse": {
+        "properties": {
+          "eingereicht": {
+            "type": "integer",
+            "title": "Eingereicht"
+          },
+          "bewertet": {
+            "type": "integer",
+            "title": "Bewertet"
+          },
+          "umgesetzt": {
+            "type": "integer",
+            "title": "Umgesetzt"
+          },
+          "netto_nutzen_freigegeben_eur": {
+            "type": "number",
+            "title": "Netto Nutzen Freigegeben Eur"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "eingereicht",
+          "bewertet",
+          "umgesetzt",
+          "netto_nutzen_freigegeben_eur"
+        ],
+        "title": "StatsResponse",
+        "description": "Aggregierte Portfolio-Kennzahlen (V4-P7).\n\neingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).\nnetto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene\n(APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent\nmit ROIResponse (JSON-Serialisierbarkeit)."
       },
       "StatusUpdateRequest": {
         "properties": {

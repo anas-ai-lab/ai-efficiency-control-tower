@@ -11,6 +11,7 @@ import math
 import re
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -27,6 +28,7 @@ from aect.application.models import (
     DecisionKennzahlen,
     DecisionReport,
     MonitoringEntry,
+    PortfolioStats,
     ReportResult,
     SharpenedUseCase,
     SimilarityPair,
@@ -776,6 +778,30 @@ class TriageService:
     def list_cases(self) -> list[SubmittedCase]:
         """Alle bisher eingereichten Cases."""
         return self._repository.list_all()
+
+    def compute_stats(self) -> PortfolioStats:
+        """Aggregiert die Portfolio-Kennzahlen fuer die Startseite (V4-P7).
+
+        Ein einziger list_all()-Durchlauf, rein lesend -- kein LLM, keine
+        Persistenz-Aenderung. Semantik: siehe PortfolioStats-Docstring
+        (Funnel eingereicht -> bewertet -> umgesetzt + freigegebener Netto-Nutzen).
+        """
+        cases = self._repository.list_all()
+        released_statuses = {CaseStatus.APPROVED, CaseStatus.IMPLEMENTED}
+        net_sum = sum(
+            (
+                c.result.roi.net_expected_benefit_eur
+                for c in cases
+                if c.status in released_statuses and c.result.roi is not None
+            ),
+            Decimal("0"),
+        )
+        return PortfolioStats(
+            eingereicht=len(cases),
+            bewertet=sum(1 for c in cases if c.result.passed_vorfilter),
+            umgesetzt=sum(1 for c in cases if c.status is CaseStatus.IMPLEMENTED),
+            netto_nutzen_freigegeben_eur=net_sum,
+        )
 
     async def delete_case(self, case_id: str) -> None:
         """Loescht einen Case kaskadiert: Repository + Vektor-Store + Audit-Log.

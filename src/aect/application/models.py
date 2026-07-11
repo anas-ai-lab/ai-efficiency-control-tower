@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
 
@@ -70,6 +71,33 @@ class SimilarityPairsResult(BaseModel):
 
     pairs: list[SimilarityPair]
     cases_without_embedding: int
+
+
+@dataclass(frozen=True)
+class PortfolioStats:
+    """Aggregierte Portfolio-Kennzahlen fuer die oeffentliche Startseite (V4-P7).
+
+    Ein einziger Aggregations-Durchlauf ueber alle persistierten Cases -- kein
+    LLM, keine Persistenz-Aenderung. Semantik (bewusst als Funnel gewaehlt):
+
+    eingereicht -- alle bisher eingereichten Cases (Gesamtzahl).
+    bewertet    -- Cases mit vollstaendiger AECT-Bewertung, d. h. bestandener
+                   Vorfilter (Composite/Zone vorhanden). Der Vorfilter-Fail wird
+                   zwar auch beurteilt, erhaelt aber keinen Score/keine Zone --
+                   er zaehlt hier nicht als "bewertet". Deckt sich mit dem Hero-
+                   Wording: "AECT bewertet Nutzen, Aufwand und Risiko, bevor das
+                   AI Board entscheidet".
+    umgesetzt   -- Cases im Lifecycle-Status IMPLEMENTED.
+    netto_nutzen_freigegeben_eur -- Summe der Netto-Nutzen ueber alle Cases im
+                   Status APPROVED oder IMPLEMENTED, deren ROI berechnet wurde
+                   (Vorfilter bestanden). Decimal -- die Adapter-Schicht
+                   serialisiert zu float (JSON), konsistent mit ROIResponse.
+    """
+
+    eingereicht: int
+    bewertet: int
+    umgesetzt: int
+    netto_nutzen_freigegeben_eur: Decimal
 
 
 @dataclass
