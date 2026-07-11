@@ -47,10 +47,10 @@ type StatusFilter = CaseStatus | "all";
 // Quadranten-Trennwerte. WICHTIG: 50.000 EUR ist ein STATISCHER Naeherungswert,
 // optisch angelehnt an die LIKELY_WIN-Schwelle in zone_thresholds.yaml, aber
 // NICHT aus der Config gelesen -- das Backend exponiert die Schwellen nicht.
-// Das ist eine reine Lese-Hilfslinie, KEINE Geschaeftsregel. y = 6 ist die
-// Mitte der Composite-Skala (Aufwand-Score 2-10).
+// Das ist eine reine Lese-Hilfslinie, KEINE Geschaeftsregel. y = 5 ist die
+// Mitte der Composite-Skala (Aufwand-Score 1-9, zones.py _COMPOSITE_MIN/MAX).
 const QUADRANT_X = 50_000;
-const QUADRANT_Y = 6;
+const QUADRANT_Y = 5;
 
 // Punkt fuer die Matrix. Nur Cases mit vollstaendiger Bewertung landen hier
 // (zone != null impliziert net/composite/hours != null -- gleiche None-Semantik
@@ -62,7 +62,7 @@ interface MatrixPoint {
   status: CaseStatus;
   zone: TriageZone;
   x: number; // net_expected_benefit_eur
-  y: number; // composite_total (Aufwand-Score 2-10)
+  y: number; // composite_total (Aufwand-Score 1-9)
   z: number; // hours_per_year (Blasengroesse)
 }
 
@@ -158,7 +158,7 @@ function MatrixTooltip({
         </dd>
         <dt className="text-muted-foreground">Aufwand</dt>
         <dd className="text-right font-mono text-popover-foreground">
-          {formatScore(p.y)} / 10
+          {formatScore(p.y)} / 9
         </dd>
         <dt className="text-muted-foreground">Stunden/Jahr</dt>
         <dd className="text-right font-mono text-popover-foreground">
@@ -290,9 +290,9 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                           name="Machbarkeit"
                           // Invertiert via reversed (eine absteigende Domain wird von
                           // recharts wieder aufsteigend normalisiert): oben = niedriger
-                          // Aufwand-Score 2 = hohe Machbarkeit, unten = 10.
+                          // Aufwand-Score 1 = hohe Machbarkeit, unten = 9.
                           reversed
-                          domain={[2, 10]}
+                          domain={[1, 9]}
                           tickCount={5}
                           width={40}
                           tickMargin={6}
@@ -369,7 +369,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
 
           {/* Achsen-Untertitel + Blasen-Legende */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <span>Aufwand-Score 2–10, invertiert</span>
+            <span>Aufwand-Score 1–9, invertiert</span>
             <span>Blasengroesse = eingesparte Stunden/Jahr</span>
           </div>
 
@@ -414,7 +414,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
             <div>
               <dt className="font-medium text-foreground">y-Achse</dt>
               <dd>
-                Machbarkeit — der Aufwand-Score (Komplexitaet 1–5 + Kosten 1–3 +
+                Machbarkeit — der Aufwand-Score (Komplexitaet 1–5 + Kosten 0–2 +
                 Datenschutz 0–2) invertiert: je hoeher der Punkt, desto geringer
                 der Umsetzungsaufwand.
               </dd>
