@@ -64,7 +64,7 @@ export default async function RootLayout({
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <Link
                 href="/"
-                className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]"
+                className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]"
               >
                 <span
                   aria-hidden

@@ -52,6 +52,25 @@
 }
 
 :root {
+  /* === AECT Brand Tokens -- einzige Stelle fuer den Farb-Swap === */
+  /* Referenzwerte aus dem Marken-Bild (Hex, wie ein Corporate-Guide sie
+     liefert). WCAG-AA (>= 4.5:1 fuer Text) gegen die helle Flaeche geprueft.
+     Beim Swap NUR diese Light-Werte plus den .dark-Spiegel weiter unten
+     tauschen; alle Seiten konsumieren ausschliesslich die semantischen
+     Tokens, die hierauf verweisen. */
+  --brand-primary: #1b1b9e; /* Navy  -- Links, aktive Nav/Steps, Gradient-Start */
+  --brand-accent: #2b2bf0; /* Blau  -- Fokusringe, Hover-Border, Gradient-Ende */
+  --brand-soft: #c9cef5; /* Lavendel -- ruhige Akzentflaeche (kein Text-Traeger) */
+  --brand-positive: #57be77; /* Gruen -- positive Semantik / Zone "Vielversprechend" */
+  --gradient-hero: linear-gradient(
+    135deg,
+    var(--brand-primary),
+    var(--brand-accent)
+  );
+  /* Text auf der Gradient-Flaeche: in beiden Themes hell (Gradient bleibt
+     dunkelblau). Separat, weil --ink-foreground pro Theme kippt. */
+  --gradient-hero-fg: oklch(0.99 0.008 265);
+
   /* Naehe an Weiss, mit minimal kuehlem Unterton -- nicht klinisch reinweiss. */
   --background: oklch(0.992 0.001 250);
   --foreground: oklch(0.205 0.012 255);
@@ -71,7 +90,8 @@
   --destructive: oklch(0.55 0.16 27);
   --border: oklch(0.917 0.003 256);
   --input: oklch(0.91 0.004 256);
-  --ring: oklch(0.5 0.085 256);
+  /* Fokusring systemweit = Marken-Blau. */
+  --ring: var(--brand-accent);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -87,14 +107,17 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* --- Der eine Akzent: Tinten-Blau --- */
-  --ink: oklch(0.5 0.095 256);
+  /* --- Interaktions-Tinte = Marken-Navy (Links, aktive Nav/Steps, Status). --- */
+  --ink: var(--brand-primary);
   --ink-foreground: oklch(0.985 0 0);
-  --ink-hover: oklch(0.44 0.1 256);
-  --ink-subtle: oklch(0.955 0.012 256);
+  --ink-hover: color-mix(in oklch, var(--brand-primary), black 12%);
+  --ink-subtle: color-mix(in oklch, var(--brand-soft), var(--card) 62%);
 
-  /* --- Zonen-Semantik (redaktionell entsaettigt, keine Alarmfarben) --- */
-  --zone-win: oklch(0.55 0.085 155);
+  /* --- Zonen-Semantik (redaktionell entsaettigt, keine Alarmfarben). Zonen-Gruen
+     auf --brand-positive harmonisiert -- LITERAL gehalten (nicht via var()), weil
+     board-matrix diesen Token via getComputedStyle liest und var() dort NICHT als
+     SVG-fill aufgeloest wird. Beim Swap synchron zu --brand-positive halten. --- */
+  --zone-win: #57be77; /* = --brand-positive */
   --zone-win-fg: oklch(0.4 0.07 158);
   --zone-win-surface: oklch(0.975 0.018 158);
   --zone-win-border: oklch(0.88 0.04 158);
@@ -114,6 +137,19 @@
 }
 
 .dark {
+  /* === AECT Brand Tokens (Dark-Spiegel) === */
+  /* Lavendel/Gruen entsaettigt, keine Volltonflaechen. WCAG-AA gegen die dunkle
+     Flaeche geprueft. Beim Swap gemeinsam mit dem Light-Block oben pflegen. */
+  --brand-primary: #9aa2f2; /* helles Periwinkle -- Links/aktive Marken auf Dunkel */
+  --brand-accent: #8b93f5; /* Fokus/Hover-Akzent auf Dunkel */
+  --brand-soft: oklch(0.3 0.045 265); /* gedaempfte dunkle Flaeche, kein Vollton */
+  --brand-positive: #6fd08c; /* entsaettigtes Gruen fuer Dunkel */
+  --gradient-hero: linear-gradient(
+    135deg,
+    #23237a,
+    #3a3ad6
+  ); /* tiefe Toene, dezent -- nicht die aufgehellten Marken-Tokens */
+
   --background: oklch(0.165 0.008 260);
   --foreground: oklch(0.96 0.003 250);
   --card: oklch(0.205 0.009 262);
@@ -131,7 +167,7 @@
   --destructive: oklch(0.66 0.17 25);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.62 0.11 256);
+  --ring: var(--brand-accent);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -146,12 +182,12 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 
-  --ink: oklch(0.7 0.11 256);
+  --ink: var(--brand-primary);
   --ink-foreground: oklch(0.17 0.01 260);
-  --ink-hover: oklch(0.76 0.11 256);
-  --ink-subtle: oklch(0.28 0.04 256);
+  --ink-hover: color-mix(in oklch, var(--brand-primary), white 14%);
+  --ink-subtle: var(--brand-soft);
 
-  --zone-win: oklch(0.68 0.12 158);
+  --zone-win: #6fd08c; /* = --brand-positive (Dark), literal fuer getComputedStyle */
   --zone-win-fg: oklch(0.82 0.1 158);
   --zone-win-surface: oklch(0.27 0.04 160);
   --zone-win-border: oklch(0.4 0.06 160);
@@ -280,5 +316,42 @@
     background: var(--ink);
     border-radius: inherit;
     animation: progress-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+/* --- Theme-Wechsel Light <-> Dark ------------------------------------------
+   Der Toggle (components/theme-toggle.tsx) animiert NUR den Wechselmoment; die
+   Theme-Mechanik (.dark-Klasse + localStorage) bleibt unveraendert.
+   Chromium: kreisfoermiger clip-path-Reveal aus der Klickposition ueber die
+   View Transitions API. Firefox/aeltere Safari: weicher Fade der Basisflaechen.
+   Beides hinter prefers-reduced-motion gegatet -> dort direkter Wechsel. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Alte Ansicht bleibt stehen; die neue (Ziel-Theme) wird per Kreis darueber
+     aufgedeckt -- daher die Default-Cross-Fades abschalten. */
+  ::view-transition-old(root) {
+    animation: none;
+  }
+  ::view-transition-new(root) {
+    animation: theme-reveal 0.5s ease-in-out;
+  }
+
+  @keyframes theme-reveal {
+    from {
+      clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%));
+    }
+    to {
+      clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+    }
+  }
+
+  /* Fallback: Klasse wird nur fuer die Dauer des Wechsels (~320ms) gesetzt --
+     kein Flackern, kein Layout-Shift, SVG/Chart ausgenommen. */
+  .theme-transition,
+  .theme-transition *:not(svg):not(path) {
+    transition:
+      background-color 0.3s ease,
+      border-color 0.3s ease,
+      color 0.3s ease,
+      fill 0.3s ease;
   }
 }

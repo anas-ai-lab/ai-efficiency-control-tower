@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import type { StatsResponse } from "@/types/api";
-import { formatEUR, formatNumber } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 
 // Startseite (V4-P7). Reine Praesentationsschicht -- Server-Komponente, bekommt
 // Kennzahlen + Auth-Zustand als Props. Bewusst so geschnitten, dass der
@@ -22,6 +22,8 @@ interface Kpi {
   hint: string;
 }
 
+// Netto-Nutzen bewusst NICHT auf der Startseite (S2): der Wert bleibt in
+// Ideenliste und Board, hier nur die Mengen-Kennzahlen.
 function statsToKpis(stats: StatsResponse | null): Kpi[] {
   const dash = "—";
   return [
@@ -40,11 +42,6 @@ function statsToKpis(stats: StatsResponse | null): Kpi[] {
       value: stats ? formatNumber(stats.umgesetzt) : dash,
       hint: "produktiv im Einsatz",
     },
-    {
-      label: "Netto-Nutzen freigegeben",
-      value: stats ? formatEUR(stats.netto_nutzen_freigegeben_eur) : dash,
-      hint: "freigegeben + umgesetzt, p.a.",
-    },
   ];
 }
 
@@ -53,6 +50,10 @@ interface NavCard {
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  // Icon-Farbakzent aus der Marken-Palette (Tailwind text-*-Klasse auf einen
+  // Token). Kontrast auf --ink-subtle in Light UND Dark geprueft; Gruen laeuft
+  // ueber --zone-win-fg (dunkel genug), nicht ueber das helle --brand-positive.
+  accent: string;
 }
 
 const PUBLIC_CARDS: NavCard[] = [
@@ -61,6 +62,7 @@ const PUBLIC_CARDS: NavCard[] = [
     title: "Einreichen",
     description: "Beschreibe deinen Use Case in wenigen Schritten.",
     icon: ClipboardList,
+    accent: "text-[var(--brand-primary)]",
   },
   {
     href: "/ideation",
@@ -68,12 +70,14 @@ const PUBLIC_CARDS: NavCard[] = [
     description:
       "Noch keine fertige Idee? Beschreibe dein Problem — der Assistent macht Entwürfe.",
     icon: Lightbulb,
+    accent: "text-[var(--brand-accent)]",
   },
   {
     href: "/cases",
     title: "Ideenliste",
     description: "Alle eingereichten Ideen und ihr Status — transparent für alle.",
     icon: ListChecks,
+    accent: "text-[var(--zone-win-fg)]",
   },
 ];
 
@@ -84,6 +88,7 @@ const ADMIN_CARDS: NavCard[] = [
     description:
       "Portfolio-Matrix: Nutzen gegen Machbarkeit, jeder Case ein Punkt.",
     icon: LayoutGrid,
+    accent: "text-[var(--brand-accent)]",
   },
   {
     href: "/monitoring",
@@ -91,6 +96,7 @@ const ADMIN_CARDS: NavCard[] = [
     description:
       "Freigegebene und umgesetzte Use Cases pflegen — Status und Verlaufsnotizen.",
     icon: Activity,
+    accent: "text-[var(--brand-primary)]",
   },
 ];
 
@@ -99,17 +105,20 @@ function Card({ card }: { card: NavCard }) {
   return (
     <Link
       href={card.href}
-      className="group flex flex-col rounded-2xl border border-border bg-card p-5 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/40"
+      // Hover (S2): Karte hebt 4px, Border -> --brand-accent, Schatten sm -> lg,
+      // 200ms ease-out. Transform nur motion-safe -> reduced-motion zeigt reinen
+      // Farbwechsel. Tastatur-Fokus gleichwertig: Ring in --brand-accent.
+      className="group flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm outline-none transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:border-[var(--brand-accent)] focus-visible:border-[var(--brand-accent)] focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-lg"
     >
       <span
         aria-hidden
-        className="flex size-9 items-center justify-center rounded-lg bg-[var(--ink-subtle)] text-[var(--ink)]"
+        className={`flex size-9 items-center justify-center rounded-lg bg-[var(--ink-subtle)] ${card.accent}`}
       >
         <Icon className="size-4.5" />
       </span>
       <span className="mt-4 flex items-center gap-1.5 text-[0.95rem] font-semibold tracking-tight text-foreground">
         {card.title}
-        <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        <ArrowRight className="size-3.5 text-muted-foreground transition-transform motion-safe:group-hover:translate-x-0.5" />
       </span>
       <span className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         {card.description}
@@ -130,21 +139,38 @@ export function Landing({
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-14 sm:px-6 sm:py-16">
-      {/* Hero: ruhig, praezise, kein Marketing. */}
-      <section className="max-w-3xl">
-        <p className="eyebrow">AI Efficiency Control Tower</p>
-        <h1 className="mt-3 text-pretty text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
-          Von der Idee zur belastbaren Entscheidung.
-        </h1>
-        <p className="mt-4 max-w-prose text-base leading-relaxed text-muted-foreground">
-          Reiche deine AI-Idee ein — AECT bewertet Nutzen, Aufwand und Risiko,
-          bevor das AI Board entscheidet.
-        </p>
+      {/* Hero: ruhig, praezise, kein Marketing. Der Gradient laeuft nur auf einer
+          begrenzten, dekorativen Akzentflaeche (rechts, ab sm) -- kein
+          Full-Screen-Farbrausch. */}
+      <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="max-w-2xl">
+          <p className="eyebrow">AI Efficiency Control Tower</p>
+          <h1 className="mt-3 text-pretty text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
+            Von der Idee zur belastbaren Entscheidung.
+          </h1>
+          <p className="mt-4 max-w-prose text-base leading-relaxed text-muted-foreground">
+            Reiche deine AI-Idee ein — AECT bewertet Nutzen, Aufwand und Risiko,
+            bevor das AI Board entscheidet.
+          </p>
+        </div>
+
+        {/* Gradient-Akzentflaeche: dekorativ (aria-hidden), traegt nur das
+            Monogramm. Feste, kleine Kachel -> deutlich unter 30% Viewport; auf
+            Mobile ausgeblendet, damit die Seite ruhig startet. */}
+        <div
+          aria-hidden
+          className="relative hidden h-40 w-56 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border/40 shadow-sm [background-image:var(--gradient-hero)] sm:flex"
+        >
+          <span className="stat-value select-none text-[3.25rem] font-semibold tracking-tight text-[var(--gradient-hero-fg)]">
+            AE
+          </span>
+        </div>
       </section>
 
-      {/* KPI-Leiste aus GET /stats. */}
+      {/* KPI-Leiste aus GET /stats (drei Mengen-Kennzahlen; Netto-Nutzen bewusst
+          nicht mehr hier). */}
       <section className="mt-10">
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-4">
+        <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-3">
           {kpis.map((kpi) => (
             <div key={kpi.label} className="bg-card px-5 py-5">
               <dt className="eyebrow">{kpi.label}</dt>
