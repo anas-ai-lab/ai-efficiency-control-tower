@@ -72,3 +72,5 @@ mutants/
 # Graphify-Knowledge-Graph (generiert via `graphify update .`, enthaelt
 # absolute lokale Pfade -- Session-Arbeitsmittel, kein Repo-Inhalt)
 graphify-out/
+*.db-shm
+*.db-wal
