@@ -315,6 +315,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/implementation-approach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Implementation Approach
+         * @description Traegt den Implementierungsansatz nach und bewertet den Case neu (ADR-0050).
+         *
+         *     Ein ohne Ansatz eingereichter Case steht im Vor-Bewertungs-Zustand
+         *     (evaluation_pending). Dieser Endpoint setzt den Ansatz auf den rohen Eingaben
+         *     und ruft die Regel-Pipeline EINMAL vollstaendig neu auf -- kein Teil-Patch,
+         *     damit Composite/Zone/Routing aus einem konsistenten Lauf stammen und
+         *     identisch zu einem Case sind, der den Ansatz von Anfang an hatte. Auch als
+         *     Korrektur eines bereits gesetzten Ansatzes zulaessig.
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key). Rate Limit: 10/Minute --
+         *     schreibender Zugriff, analog POST /status. Kein LLM-Call.
+         *
+         *     Returns:
+         *         Das vollstaendige, neu berechnete Triage-Ergebnis (TriageResponse).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["set_implementation_approach_cases__case_id__implementation_approach_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/monitoring": {
         parameters: {
             query?: never;
@@ -861,6 +898,8 @@ export interface components {
             submitted_at: string;
             /** Status */
             status: string;
+            /** Evaluation Pending */
+            evaluation_pending: boolean;
             eingaben: components["schemas"]["UseCaseInput"];
             triage: components["schemas"]["TriageResponse"] | null;
             report: components["schemas"]["ReportResponse"] | null;
@@ -902,6 +941,8 @@ export interface components {
             hours_per_year: number | null;
             /** Is Actionable */
             is_actionable: boolean;
+            /** Evaluation Pending */
+            evaluation_pending: boolean;
             /** Feasibility Score */
             feasibility_score: number | null;
             /** Feasibility Definition */
@@ -1354,6 +1395,17 @@ export interface components {
             begruendung: string;
         };
         /**
+         * SetImplementationApproachRequest
+         * @description Nachgetragener Umsetzungsansatz fuer einen Case (V4.1, ADR-0050).
+         *
+         *     implementation_approach: einer der ImplementationApproach-Enum-Werte
+         *     (Pflicht -- hier gibt es keinen "kein Ansatz"-Fall, das Nachtragen setzt
+         *     ihn bewusst). extra="forbid" konsistent mit den uebrigen Request-Schemas.
+         */
+        SetImplementationApproachRequest: {
+            implementation_approach: components["schemas"]["ImplementationApproach"];
+        };
+        /**
          * SharpenSuggestionResponse
          * @description Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
          *
@@ -1620,6 +1672,13 @@ export interface components {
          * @description Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.
          *
          *     roi, composite und zone sind None wenn passed_vorfilter False ist.
+         *
+         *     evaluation_pending (V4.1, ADR-0050): der Case wurde ohne
+         *     implementation_approach eingereicht -- er ist noch nicht bewertet. Dann sind
+         *     vorfilter/routing/feasibility/roi/composite/zone/score_breakdown ALLE None
+         *     und passed_vorfilter/is_actionable False. Die UI behandelt das wie den
+         *     Vorfilter-Fail-Zustand ("noch nicht bewertet"). Ein Admin traegt den Ansatz
+         *     ueber POST /cases/{id}/implementation-approach nach.
          */
         TriageResponse: {
             /** Id */
@@ -1631,13 +1690,18 @@ export interface components {
             submitted_at: string;
             /** Title */
             title: string;
+            /**
+             * Evaluation Pending
+             * @default false
+             */
+            evaluation_pending: boolean;
             /** Passed Vorfilter */
             passed_vorfilter: boolean;
             /** Is Actionable */
             is_actionable: boolean;
-            vorfilter: components["schemas"]["VorfilterResponse"];
-            routing: components["schemas"]["RoutingResponse"];
-            feasibility: components["schemas"]["FeasibilityResponse"];
+            vorfilter: components["schemas"]["VorfilterResponse"] | null;
+            routing: components["schemas"]["RoutingResponse"] | null;
+            feasibility: components["schemas"]["FeasibilityResponse"] | null;
             roi: components["schemas"]["ROIResponse"] | null;
             composite: components["schemas"]["CompositeScoreResponse"] | null;
             zone: components["schemas"]["ZoneResponse"] | null;
@@ -1716,15 +1780,12 @@ export interface components {
             affected_employees_count: number;
             /** @description Grobe Seniorität der betroffenen Mitarbeiter (→ Stundensatz aus Config) */
             employee_category: components["schemas"]["EmployeeCategory"];
-            /**
-             * @description Qualität der Grundlage für die Zeitersparnis-Schätzung
-             * @default pure_estimate
-             */
+            /** @description Qualität der Grundlage für die Zeitersparnis-Schätzung. Pflichtfeld (V4.1): kein Default mehr -- die Evidenzlage bestimmt den Evidenzfaktor im ROI direkt und muss bewusst gesetzt werden. */
             evidence_level: components["schemas"]["EvidenceLevel"];
             /** @description Pflicht- oder Freiwillignutzung (beeinflusst Nutzungsfaktor) */
             adoption_type: components["schemas"]["AdoptionType"];
-            /** @description Geplante Umsetzungsstrategie */
-            implementation_approach: components["schemas"]["ImplementationApproach"];
+            /** @description Geplante Umsetzungsstrategie. Optional (V4.1, ADR-0050): ohne Angabe bleibt der Case im Zustand 'Bewertung ausstehend' -- die Regel-Pipeline (Composite/Zone/Routing) laeuft NICHT, weil die Komplexitaet aus dem Ansatz abgeleitet wird. Ein Admin traegt den Ansatz nach; das loest eine vollstaendige Neubewertung aus. */
+            implementation_approach?: components["schemas"]["ImplementationApproach"] | null;
             /**
              * Estimated License Cost Eur
              * @description Geschätzte Lizenzkosten p.a. in EUR (0 = open-source oder intern gebaut)
@@ -2108,6 +2169,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_implementation_approach_cases__case_id__implementation_approach_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetImplementationApproachRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageResponse"];
                 };
             };
             /** @description Validation Error */

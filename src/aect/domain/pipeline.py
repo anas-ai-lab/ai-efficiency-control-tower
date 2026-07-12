@@ -29,24 +29,58 @@ class TriageResult:
     """Immutable snapshot aller Phase-A-Evaluierungen fuer einen Use Case.
 
     roi, composite, zone sind None wenn passed_vorfilter False ist.
-    routing und feasibility sind immer befuellt.
+
+    evaluation_pending (V4.1, ADR-0050): der Case wurde OHNE
+    implementation_approach eingereicht -- die Regel-Pipeline lief NICHT (die
+    Komplexitaet leitet sich aus dem Ansatz ab, ohne ihn gibt es kein
+    Composite/Zone/Routing). Ein bewusster Vor-Bewertungs-Zustand, KEIN
+    Fallback-Wert: dann sind vorfilter/routing/feasibility/roi/composite/zone
+    ALLE None und passed_vorfilter False. Die API/UI behandeln ihn wie den
+    Vorfilter-Fail-Zustand (kein Crash, "noch nicht bewertet"). Ein Admin
+    traegt den Ansatz nach -> vollstaendige Neubewertung, evaluation_pending
+    wird False. Im Regelfall (Ansatz gesetzt) ist evaluation_pending False und
+    routing/feasibility sind wie bisher befuellt.
     """
 
     title: str
     passed_vorfilter: bool
-    vorfilter: FilterResult
-    routing: RoutingResult
-    feasibility: FeasibilityResult
+    vorfilter: FilterResult | None
+    routing: RoutingResult | None
+    feasibility: FeasibilityResult | None
     roi: ROIResult | None
     composite: CompositeScore | None
     zone: ZoneResult | None
+    evaluation_pending: bool = False
 
     @property
     def is_actionable(self) -> bool:
-        """True iff Vorfilter bestanden und final_zone in {LIKELY_WIN, CALCULATED_RISK}."""
-        if not self.passed_vorfilter or self.zone is None:
+        """True iff Vorfilter bestanden und final_zone in {LIKELY_WIN, CALCULATED_RISK}.
+
+        evaluation_pending -> immer False: ein noch nicht bewerteter Case ist
+        nie umsetzungsreif.
+        """
+        if self.evaluation_pending or not self.passed_vorfilter or self.zone is None:
             return False
         return self.zone.final_zone.value in {"LIKELY_WIN", "CALCULATED_RISK"}
+
+    @classmethod
+    def pending(cls, title: str) -> TriageResult:
+        """Vor-Bewertungs-Zustand fuer einen Case ohne implementation_approach.
+
+        Alle evaluativen Schichten None, passed_vorfilter False,
+        evaluation_pending True (ADR-0050). Kein Regel-/LLM-Aufruf.
+        """
+        return cls(
+            title=title,
+            passed_vorfilter=False,
+            vorfilter=None,
+            routing=None,
+            feasibility=None,
+            roi=None,
+            composite=None,
+            zone=None,
+            evaluation_pending=True,
+        )
 
 
 _feasibility_checker = FeasibilityChecker()
@@ -80,8 +114,16 @@ def evaluate_use_case(
 
     Returns:
         TriageResult -- vollstaendig immutabel. roi/composite/zone sind None
-        wenn passed_vorfilter False ist.
+        wenn passed_vorfilter False ist. Ohne implementation_approach wird gar
+        nicht bewertet (evaluation_pending, ADR-0050).
     """
+    # 0. Kein Umsetzungsansatz -> Vor-Bewertungs-Zustand (ADR-0050). Die
+    # Komplexitaet (und damit Composite/Zone/Routing) leitet sich aus dem
+    # Ansatz ab; ohne ihn gibt es nichts zu bewerten. Bewusst KEIN Default-
+    # Ansatz (fail loud statt stiller Fallback) -- ein Admin traegt ihn nach.
+    if use_case.implementation_approach is None:
+        return TriageResult.pending(use_case.title)
+
     # 1. ROI -- muss zuerst laufen; Vorfilter braucht die berechneten Werte.
     # Das Land kommt aus use_case.country (kein separater Parameter mehr).
     roi = calculate_roi(use_case, roi_config)

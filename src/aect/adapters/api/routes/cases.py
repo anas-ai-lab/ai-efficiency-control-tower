@@ -29,7 +29,11 @@ from aect.adapters.api.dependencies import (
 )
 from aect.adapters.api.rate_limit import limiter
 from aect.adapters.api.routes.triage import TriageResponse, _to_triage_response
-from aect.application.models import ArchitectureSketchResult, ReportResult
+from aect.application.models import (
+    ArchitectureSketchResult,
+    ReportResult,
+    SubmittedCase,
+)
 from aect.application.service import (
     CaseNotFoundError,
     NoProposalForSketchError,
@@ -39,7 +43,7 @@ from aect.application.service import (
     TriageService,
 )
 from aect.application.structured_output import InvalidLLMOutputError
-from aect.domain import CaseStatus, ReviewerDecision
+from aect.domain import CaseStatus, ImplementationApproach, ReviewerDecision
 from aect.domain.explainability import (
     FEASIBILITY_DEFINITION,
     feasibility_from_composite,
@@ -47,6 +51,26 @@ from aect.domain.explainability import (
 from aect.domain.models import UseCaseInput
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+
+
+def _guard_not_pending(case: SubmittedCase | None) -> None:
+    """Wirft 409, wenn der Case im Vor-Bewertungs-Zustand ist (ADR-0050).
+
+    Bewertungsabhaengige Endpoints (Report, Compliance) haben nichts zu
+    berechnen, solange der Implementierungsansatz fehlt -- ihre Bausteine
+    greifen auf result.routing/vorfilter/feasibility zu, die dann None sind.
+    Statt eines 5xx ein klarer 409 mit Handlungsanweisung. case is None (Case
+    existiert nicht) faellt bewusst durch -- der jeweilige Endpoint mapped das
+    ueber sein bestehendes None-Ergebnis auf 404.
+    """
+    if case is not None and case.result.evaluation_pending:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bewertung ausstehend: bitte zuerst den Implementierungsansatz "
+                "ergaenzen."
+            ),
+        )
 
 
 class CaseSummary(BaseModel):
@@ -72,6 +96,11 @@ class CaseSummary(BaseModel):
     composite_total: int | None
     hours_per_year: float | None
     is_actionable: bool
+    # Vor-Bewertungs-Zustand (V4.1, ADR-0050): der Case wurde ohne
+    # implementation_approach eingereicht und ist noch nicht bewertet. Alle
+    # Bewertungsfelder oben sind dann None. Die Liste zeigt "Bewertung ausstehend"
+    # statt "wird geprueft"/"—".
+    evaluation_pending: bool
     # Machbarkeit = 10 - Aufwandscore (V4-P6, Board-Daten): zentral definiert in
     # domain/explainability, damit die Board-Matrix den Wert nicht selbst
     # ausrechnet. None bei Vorfilter-Fail (kein Composite). feasibility_definition
@@ -136,6 +165,7 @@ async def list_cases(
                 ),
                 hours_per_year=r.roi.hours_per_year if r.roi is not None else None,
                 is_actionable=r.is_actionable,
+                evaluation_pending=r.evaluation_pending,
                 feasibility_score=(
                     feasibility_from_composite(r.composite.total)
                     if r.composite is not None
@@ -378,6 +408,57 @@ async def update_status(
         status=case.status.value,
         updated_at=case.status_updated_at,
     )
+
+
+class SetImplementationApproachRequest(BaseModel):
+    """Nachgetragener Umsetzungsansatz fuer einen Case (V4.1, ADR-0050).
+
+    implementation_approach: einer der ImplementationApproach-Enum-Werte
+    (Pflicht -- hier gibt es keinen "kein Ansatz"-Fall, das Nachtragen setzt
+    ihn bewusst). extra="forbid" konsistent mit den uebrigen Request-Schemas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    implementation_approach: ImplementationApproach
+
+
+@router.post("/{case_id}/implementation-approach", response_model=TriageResponse)
+@limiter.limit("10/minute")
+async def set_implementation_approach(
+    case_id: str,
+    body: SetImplementationApproachRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> TriageResponse:
+    """Traegt den Implementierungsansatz nach und bewertet den Case neu (ADR-0050).
+
+    Ein ohne Ansatz eingereichter Case steht im Vor-Bewertungs-Zustand
+    (evaluation_pending). Dieser Endpoint setzt den Ansatz auf den rohen Eingaben
+    und ruft die Regel-Pipeline EINMAL vollstaendig neu auf -- kein Teil-Patch,
+    damit Composite/Zone/Routing aus einem konsistenten Lauf stammen und
+    identisch zu einem Case sind, der den Ansatz von Anfang an hatte. Auch als
+    Korrektur eines bereits gesetzten Ansatzes zulaessig.
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key). Rate Limit: 10/Minute --
+    schreibender Zugriff, analog POST /status. Kein LLM-Call.
+
+    Returns:
+        Das vollstaendige, neu berechnete Triage-Ergebnis (TriageResponse).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = await service.set_implementation_approach(
+        case_id, body.implementation_approach
+    )
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return _to_triage_response(case, service.explain_case(case))
 
 
 class MonitoringNoteRequest(BaseModel):
@@ -999,6 +1080,10 @@ async def get_report(
     sharpened_text = body.sharpened_text if body is not None else None
     proposal_text = body.proposal_text if body is not None else None
 
+    # Vor-Bewertungs-Zustand (ADR-0050): ohne Umsetzungsansatz gibt es keinen
+    # Report -- 409 statt eines AttributeError auf den None-Schichten.
+    _guard_not_pending(service.get_case(case_id))
+
     report = service.generate_report(
         case_id, sharpened_text=sharpened_text, proposal_text=proposal_text
     )
@@ -1047,6 +1132,10 @@ async def compliance_hints(
         HTTPException 404: case_id existiert nicht.
         HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
+    # Vor-Bewertungs-Zustand (ADR-0050): der DSFA-Trigger liest
+    # result.routing.risk_flags -- ohne Bewertung 409 statt AttributeError.
+    _guard_not_pending(service.get_case(case_id))
+
     result = await service.generate_compliance_hints(case_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -1286,6 +1375,12 @@ class CaseDetailResponse(BaseModel):
     id: str
     submitted_at: datetime
     status: str
+    # Vor-Bewertungs-Zustand (V4.1, ADR-0050): der Case wurde ohne
+    # implementation_approach eingereicht -- triage/report sind dann immer null
+    # (auch fuer Admins, es gibt nichts zu zeigen), unabhaengig von der Board-
+    # Entscheidung. Ein Admin traegt den Ansatz ueber
+    # POST /cases/{id}/implementation-approach nach.
+    evaluation_pending: bool
     eingaben: UseCaseInput
     triage: TriageResponse | None
     report: ReportResponse | None
@@ -1326,9 +1421,15 @@ async def get_case_detail(
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
+    # Vor-Bewertungs-Zustand (ADR-0050): kein Umsetzungsansatz -> es gibt keine
+    # Bewertung. triage/report bleiben null (auch fuer Admins), evaluation_pending
+    # macht den Zustand explizit. Kein Aufruf von generate_report/explain_case
+    # (die auf die None-Schichten zugreifen wuerden).
+    is_pending = case.result.evaluation_pending
+
     # Sichtbarkeit der Bewertung: Admin sieht sie immer, der anonyme Einreicher
     # erst nach der Board-Entscheidung. Davor bleiben triage/report null.
-    bewertung_sichtbar = (
+    bewertung_sichtbar = not is_pending and (
         is_admin or case.reviewer_decision is not ReviewerDecision.PENDING
     )
 
@@ -1349,6 +1450,7 @@ async def get_case_detail(
         id=case.id,
         submitted_at=case.submitted_at,
         status=case.status.value,
+        evaluation_pending=is_pending,
         # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) -- reines
         # Lesen, keine Projektion. Erklaerbarkeit: pruefbar gegen die erfassten
         # Daten, auch vor der Board-Entscheidung.

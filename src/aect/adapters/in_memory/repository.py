@@ -7,6 +7,8 @@ from datetime import datetime
 
 from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.application.ports.repository import CaseUpdateField
+from aect.domain.models import UseCaseInput
+from aect.domain.pipeline import TriageResult
 from aect.domain.types import CaseStatus, ReviewerDecision
 
 
@@ -85,6 +87,19 @@ class InMemoryRepository:
         case.status = status
         case.status_updated_at = updated_at
 
+    def reevaluate(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
+    ) -> None:
+        """Ersetzt Eingaben + Bewertung eines Case aus einem Lauf (ADR-0050).
+
+        No-op bei unbekannter case_id (analog delete/update_field). SubmittedCase
+        ist mutabel -- direktes Setzen genuegt, kein save() der ganzen Zeile."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.use_case = use_case
+        case.result = result
+
     def add_monitoring_entry(self, entry: MonitoringEntry) -> None:
         """Haengt einen Monitoring-Eintrag an (append-only, Monitoring-ADR)."""
         self._monitoring.append(entry)
@@ -130,6 +145,11 @@ class InMemoryRepository:
         self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None:
         self.update_status(case_id, status, updated_at)
+
+    async def reevaluate_async(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
+    ) -> None:
+        self.reevaluate(case_id, use_case, result)
 
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
         self.add_monitoring_entry(entry)

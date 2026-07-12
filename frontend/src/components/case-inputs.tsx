@@ -5,9 +5,9 @@ import {
   DATA_CLASSIFICATION_LABELS,
   EMPLOYEE_CATEGORY_LABELS,
   EVIDENCE_LEVEL_LABELS,
-  IMPLEMENTATION_APPROACH_LABELS,
 } from "@/lib/labels"
 import { formatEUR } from "@/lib/formatters"
+import { ImplementationApproachEditor } from "@/components/implementation-approach-editor"
 
 // Rohe Eingaben des Einreichers (UseCaseInput) read-only auf der Fall-
 // Detailseite. Erklaerbarkeit: sichtbar machen, auf welchen Daten die Bewertung
@@ -49,7 +49,15 @@ function druckLabel(e: UseCaseInput): string {
   return parts.length > 0 ? parts.join(", ") : "keiner"
 }
 
-export function CaseInputs({ eingaben: e }: { eingaben: UseCaseInput }) {
+export function CaseInputs({
+  eingaben: e,
+  caseId,
+  isAdmin = false,
+}: {
+  eingaben: UseCaseInput
+  caseId: string
+  isAdmin?: boolean
+}) {
   return (
     <section>
       <p className="eyebrow mb-3">Erfasste Eingaben</p>
@@ -77,7 +85,7 @@ export function CaseInputs({ eingaben: e }: { eingaben: UseCaseInput }) {
           />
         </Group>
 
-        <Group title="Zeit & Menge">
+        <Group title="Zeit & Häufigkeit">
           <Row
             label="Zeit / Vorgang heute"
             value={`${e.time_per_case_hours_current} Std.`}
@@ -97,9 +105,10 @@ export function CaseInputs({ eingaben: e }: { eingaben: UseCaseInput }) {
         </Group>
 
         <Group title="Umsetzung">
-          <Row
-            label="Implementierungsansatz"
-            value={IMPLEMENTATION_APPROACH_LABELS[e.implementation_approach]}
+          <ImplementationApproachEditor
+            caseId={caseId}
+            approach={e.implementation_approach}
+            isAdmin={isAdmin}
           />
           <Row
             label="Implementierungskosten"

@@ -96,6 +96,9 @@ def _collect_automation_signals(use_case: UseCaseInput) -> list[str]:
     eine Doppelzaehlung derselben Groesse.
     """
     signals: list[str] = []
+    # route_use_case laeuft nur fuer bewertete Cases: evaluate_use_case faengt
+    # den fehlenden Ansatz vorher als Vor-Bewertungs-Zustand ab (ADR-0050).
+    assert use_case.implementation_approach is not None
     complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
     if complexity <= _SIMPLE_TASK_MAX_COMPLEXITY:
         signals.append(
@@ -122,6 +125,8 @@ def _collect_ai_signals(use_case: UseCaseInput) -> list[str]:
     (COMPLEXITY_BY_APPROACH) -- ein separates Ansatz-Signal entfaellt.
     """
     signals: list[str] = []
+    # route_use_case laeuft nur fuer bewertete Cases (ADR-0050, siehe oben).
+    assert use_case.implementation_approach is not None
     complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
     if complexity >= _COMPLEX_TASK_MIN_COMPLEXITY:
         signals.append(

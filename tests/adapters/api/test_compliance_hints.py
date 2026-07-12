@@ -74,6 +74,7 @@ _VALID_PAYLOAD: dict = {
     "affected_employees_count": 10,
     "employee_category": "professional",
     "adoption_type": "fixed_process_step",
+    "evidence_level": "pure_estimate",
     "implementation_approach": "development_on_existing",
     "data_classification": "no_personal_data",
 }

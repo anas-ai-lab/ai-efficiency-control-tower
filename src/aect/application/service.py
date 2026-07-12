@@ -67,6 +67,7 @@ from aect.application.tools import (
 from aect.domain import (
     CaseStatus,
     EvidenceLevel,
+    ImplementationApproach,
     ReviewerDecision,
     ROIConfig,
     TriageExplanation,
@@ -352,7 +353,12 @@ def _build_decision_report(
 def _build_technical_report(
     result: TriageResult, use_case: UseCaseInput, solution_technical: str | None
 ) -> TechnicalReport:
-    """Baut den technischen Report in Abschnitten (V4-P6, Abschnitte statt Textwueste)."""
+    """Baut den technischen Report in Abschnitten (V4-P6, Abschnitte statt Textwueste).
+
+    Wird nur fuer bewertete Cases aufgerufen (generate_report ist gegen den
+    Vor-Bewertungs-Zustand gegated, ADR-0050) -- result.routing ist befuellt.
+    """
+    assert result.routing is not None
     architektur = (
         solution_technical
         if solution_technical
@@ -407,6 +413,9 @@ def _build_business_summary(
     (domain/pipeline.py) -- in diesem Fall auch result.roi None. Die frueher
     redundante summary_text-Zeile entfaellt zugunsten von decision_report (V4-P6).
     """
+    # Nur fuer bewertete Cases aufgerufen (generate_report gated gegen den
+    # Vor-Bewertungs-Zustand, ADR-0050) -- routing befuellt.
+    assert result.routing is not None
     zone_value: str | None = (
         result.zone.final_zone.value if result.zone is not None else None
     )
@@ -445,7 +454,13 @@ def _build_technical_detail(
     composite/roi sind None wenn passed_vorfilter False ist (siehe
     domain/pipeline.py) -- entsprechende Felder werden dann None. proposal_text
     ist die technische Loesungsfassung (solution_technical).
+
+    Nur fuer bewertete Cases aufgerufen (generate_report gated gegen den
+    Vor-Bewertungs-Zustand, ADR-0050) -- vorfilter/feasibility/routing befuellt.
     """
+    assert result.vorfilter is not None
+    assert result.feasibility is not None
+    assert result.routing is not None
     return TechnicalDetail(
         passed_vorfilter=result.passed_vorfilter,
         vorfilter_failed_criteria=list(result.vorfilter.failed_criteria),
@@ -770,6 +785,39 @@ class TriageService:
             license_cost_point_min_eur=self._roi_config.license_cost_point_min_eur,
             classifier=self._get_zone_classifier(),
         )
+
+    async def set_implementation_approach(
+        self, case_id: str, approach: ImplementationApproach
+    ) -> SubmittedCase | None:
+        """Traegt den Implementierungsansatz nach und bewertet den Case neu (ADR-0050).
+
+        Ein ohne Ansatz eingereichter Case steht im Zustand 'Bewertung ausstehend'
+        (result.evaluation_pending). Diese Methode setzt den Ansatz auf den rohen
+        Eingaben (UseCaseInput ist frozen -> model_copy) und ruft
+        evaluate_use_case() EINMAL vollstaendig neu auf -- kein Teil-Patch, damit
+        Composite/Zone/Routing aus einem konsistenten Lauf stammen und identisch zu
+        einem Case sind, der den Ansatz von Anfang an hatte. Eingaben + Bewertung
+        werden atomar persistiert (reevaluate, F-011-Muster). Auch als Korrektur
+        eines bereits gesetzten Ansatzes zulaessig (Ueberschreiben, analog
+        record_decision).
+
+        Returns:
+            Der neu bewertete Case, oder None wenn case_id nicht existiert (Route
+            mapped das auf 404).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        new_use_case = case.use_case.model_copy(
+            update={"implementation_approach": approach}
+        )
+        new_result = evaluate_use_case(new_use_case, self._roi_config)
+        await self._repository.reevaluate_async(case_id, new_use_case, new_result)
+        # Den geladenen Case in Sync bringen: bei SQLite ist er eine frische Kopie
+        # (DB via reevaluate_async aktualisiert), bei InMemory dasselbe Objekt.
+        case.use_case = new_use_case
+        case.result = new_result
+        return case
 
     def get_case(self, case_id: str) -> SubmittedCase | None:
         """Gibt einen gespeicherten Case zurueck oder None wenn nicht gefunden."""
@@ -1519,6 +1567,9 @@ class TriageService:
         case = await self._repository.get_async(case_id)
         if case is None:
             return None
+        # Der Route-Guard (_guard_not_pending) faengt den Vor-Bewertungs-Zustand
+        # vorher mit 409 ab (ADR-0050) -- routing ist hier befuellt.
+        assert case.result.routing is not None
 
         queries = [_TRANSPARENCY_QUERY]
         if case.result.routing.risk_flags:

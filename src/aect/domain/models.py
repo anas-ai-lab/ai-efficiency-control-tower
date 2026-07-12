@@ -128,14 +128,24 @@ class UseCaseInput(BaseModel):
 
     # ── Evidenz & Verbindlichkeit ─────────────────────────────────────────────
     evidence_level: EvidenceLevel = Field(
-        default=EvidenceLevel.PURE_ESTIMATE,
-        description="Qualität der Grundlage für die Zeitersparnis-Schätzung",
+        description=(
+            "Qualität der Grundlage für die Zeitersparnis-Schätzung. Pflichtfeld "
+            "(V4.1): kein Default mehr -- die Evidenzlage bestimmt den "
+            "Evidenzfaktor im ROI direkt und muss bewusst gesetzt werden."
+        ),
     )
     adoption_type: AdoptionType = Field(
         description="Pflicht- oder Freiwillignutzung (beeinflusst Nutzungsfaktor)",
     )
-    implementation_approach: ImplementationApproach = Field(
-        description="Geplante Umsetzungsstrategie",
+    implementation_approach: ImplementationApproach | None = Field(
+        default=None,
+        description=(
+            "Geplante Umsetzungsstrategie. Optional (V4.1, ADR-0050): ohne Angabe "
+            "bleibt der Case im Zustand 'Bewertung ausstehend' -- die Regel-Pipeline "
+            "(Composite/Zone/Routing) laeuft NICHT, weil die Komplexitaet aus dem "
+            "Ansatz abgeleitet wird. Ein Admin traegt den Ansatz nach; das loest "
+            "eine vollstaendige Neubewertung aus."
+        ),
     )
 
     # ── Kosten ────────────────────────────────────────────────────────────────

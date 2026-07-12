@@ -169,6 +169,9 @@ def build_score_breakdown(
     is_match = None if case.expected_zone is None else predicted == case.expected_zone
 
     if not triage.passed_vorfilter:
+        # Eval laeuft nur auf Golden-Cases mit Ansatz -> nie Vor-Bewertungs-
+        # Zustand; vorfilter ist hier befuellt (ADR-0050).
+        assert triage.vorfilter is not None
         return ScoreBreakdown(
             case_id=case.case_id,
             passed_vorfilter=False,

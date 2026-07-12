@@ -165,11 +165,28 @@ export default async function CaseDetailPage({
 
       {/* --- Erfasste Eingaben (Erklaerbarkeit: Grundlage der Bewertung). --- */}
       <div className="mt-8">
-        <CaseInputs eingaben={eingaben} />
+        <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
       </div>
 
-      {/* --- Bewertung: erst nach Board-Entscheidung sichtbar (V4-P7). --- */}
-      {triage !== null && report !== null ? (
+      {/* --- Bewertung: Vor-Bewertungs-Zustand > Bewertung > "wird geprueft". --- */}
+      {detail.evaluation_pending ? (
+        <div className="mt-10 rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
+          <span
+            aria-hidden
+            className="mx-auto flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
+            <Clock className="size-4.5" />
+          </span>
+          <p className="mt-3 text-sm font-medium text-foreground">
+            Bewertung ausstehend
+          </p>
+          <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+            Für diesen Fall wurde noch kein Implementierungsansatz gewählt. Sobald
+            ein Admin ihn oben ergänzt, wird der Fall vollständig bewertet (Nutzen,
+            Aufwand, Risiko).
+          </p>
+        </div>
+      ) : triage !== null && report !== null ? (
         <>
           <div className="mt-10">
             <CaseResult triage={triage} />
@@ -198,7 +215,7 @@ export default async function CaseDetailPage({
         </div>
       )}
 
-      {authenticated ? (
+      {authenticated && (
         <>
           {report !== null && (
             <CaseAdminActions
@@ -226,18 +243,6 @@ export default async function CaseDetailPage({
             )}
           </div>
         </>
-      ) : (
-        <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-3.5 text-sm text-muted-foreground">
-          Bearbeitung (Schärfen, Lösung, Compliance, Entscheidung, Statuswechsel)
-          sowie Ähnlichkeit, Architektur-Skizze und Monitoring sind angemeldeten
-          Admins vorbehalten.{" "}
-          <Link
-            href="/login"
-            className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
-          >
-            Admin-Login
-          </Link>
-        </p>
       )}
     </main>
   );

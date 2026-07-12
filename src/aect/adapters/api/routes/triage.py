@@ -160,16 +160,24 @@ class TriageResponse(BaseModel):
     """Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.
 
     roi, composite und zone sind None wenn passed_vorfilter False ist.
+
+    evaluation_pending (V4.1, ADR-0050): der Case wurde ohne
+    implementation_approach eingereicht -- er ist noch nicht bewertet. Dann sind
+    vorfilter/routing/feasibility/roi/composite/zone/score_breakdown ALLE None
+    und passed_vorfilter/is_actionable False. Die UI behandelt das wie den
+    Vorfilter-Fail-Zustand ("noch nicht bewertet"). Ein Admin traegt den Ansatz
+    ueber POST /cases/{id}/implementation-approach nach.
     """
 
     id: str
     submitted_at: datetime
     title: str
+    evaluation_pending: bool = False
     passed_vorfilter: bool
     is_actionable: bool
-    vorfilter: VorfilterResponse
-    routing: RoutingResponse
-    feasibility: FeasibilityResponse
+    vorfilter: VorfilterResponse | None
+    routing: RoutingResponse | None
+    feasibility: FeasibilityResponse | None
     roi: ROIResponse | None
     composite: CompositeScoreResponse | None
     zone: ZoneResponse | None
@@ -229,6 +237,32 @@ def _to_triage_response(
     Erst-Intake gesetzt, nicht beim Idempotency-Replay.
     """
     r = case.result
+    # Vor-Bewertungs-Zustand (ADR-0050): kein Umsetzungsansatz -> keine Regel-
+    # Pipeline. Alle evaluativen Schichten None -- die UI zeigt "noch nicht
+    # bewertet" (wie Vorfilter-Fail). Kein Zugriff auf r.vorfilter/r.routing/
+    # r.feasibility (die hier None sind).
+    if r.evaluation_pending:
+        return TriageResponse(
+            id=case.id,
+            submitted_at=case.submitted_at,
+            title=r.title,
+            evaluation_pending=True,
+            passed_vorfilter=False,
+            is_actionable=False,
+            vorfilter=None,
+            routing=None,
+            feasibility=None,
+            roi=None,
+            composite=None,
+            zone=None,
+            score_breakdown=None,
+            similarity_warning=similarity_warning,
+        )
+    # Nicht-pending: die drei Schichten sind garantiert befuellt (evaluate_use_case
+    # setzt sie immer, sobald ein Ansatz vorliegt) -- Invariante fuer mypy.
+    assert r.vorfilter is not None
+    assert r.routing is not None
+    assert r.feasibility is not None
     confidence = explanation.confidence
     return TriageResponse(
         id=case.id,

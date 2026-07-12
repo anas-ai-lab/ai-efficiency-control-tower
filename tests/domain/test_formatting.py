@@ -61,6 +61,7 @@ _HIGH_VOLUME: dict = {
     "affected_employees_count": 10,
     "employee_category": "professional",
     "adoption_type": "fixed_process_step",
+    "evidence_level": "pure_estimate",
     "implementation_approach": "development_on_existing",
     "estimated_license_cost_eur": 12000.0,
     "implementation_cost_eur": 15000.0,

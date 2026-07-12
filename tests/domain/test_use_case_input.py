@@ -24,6 +24,7 @@ VALID_PAYLOAD: dict = {
     "occurrences_per_employee_per_year": 7200,
     "affected_employees_count": 6,
     "employee_category": "professional",
+    "evidence_level": "pure_estimate",
     "adoption_type": "fixed_process_step",
     "implementation_approach": "api_integration",
     "data_classification": "personal",
@@ -37,6 +38,8 @@ class TestUseCaseInputValideEingaben:
         model = UseCaseInput.model_validate(VALID_PAYLOAD)
         assert model.title == "Automatische Rechnungsprüfung im AP-Prozess"
         assert model.contains_pii is False
+        # evidence_level ist seit V4.1 Pflicht (kein Default) -- der Wert kommt
+        # explizit aus VALID_PAYLOAD (ADR-0050).
         assert model.evidence_level is EvidenceLevel.PURE_ESTIMATE
         assert model.estimated_license_cost_eur == 0.0
 
@@ -134,6 +137,32 @@ class TestUseCaseInputValidierung:
     def test_ungueltige_adoption_type_wird_abgelehnt(self) -> None:
         with pytest.raises(ValidationError):
             UseCaseInput.model_validate({**VALID_PAYLOAD, "adoption_type": "optional"})
+
+    # -- Governance-Pflichtfelder ohne Default (V4.1, ADR-0050) --------------
+
+    def test_evidence_level_ist_pflicht(self) -> None:
+        payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "evidence_level"}
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(payload)
+
+    def test_data_classification_ist_pflicht(self) -> None:
+        payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "data_classification"}
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(payload)
+
+    def test_adoption_type_ist_pflicht(self) -> None:
+        payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "adoption_type"}
+        with pytest.raises(ValidationError):
+            UseCaseInput.model_validate(payload)
+
+    def test_implementation_approach_ist_optional(self) -> None:
+        # V4.1 (ADR-0050): ohne Ansatz ist der Input gueltig (None) -- der Case
+        # landet dann im Vor-Bewertungs-Zustand.
+        payload = {
+            k: v for k, v in VALID_PAYLOAD.items() if k != "implementation_approach"
+        }
+        model = UseCaseInput.model_validate(payload)
+        assert model.implementation_approach is None
 
 
 class TestUseCaseInputImmutability:

@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from aect.application.models import MonitoringEntry, SubmittedCase
+from aect.domain.models import UseCaseInput
+from aect.domain.pipeline import TriageResult
 from aect.domain.types import CaseStatus, ReviewerDecision
 
 # Nachtraeglich befuellbare Einzelfelder eines SubmittedCase (F-011).
@@ -53,6 +55,14 @@ class RepositoryPort(Protocol):
     save() der ganzen Zeile, kein Lost-Update gegenueber parallelen LLM-Feld-
     Schreibvorgaengen. No-op, wenn case_id nicht existiert.
 
+    reevaluate / reevaluate_async (ADR-0050): schreibt use_case_json UND
+    result_json einer Zeile atomar in einem dedizierten UPDATE -- analog
+    record_decision/update_status (F-011-Muster), kein save()/INSERT OR REPLACE
+    der ganzen Zeile (das wuerde die LLM-Spalten ueberschreiben). Zweck: einen
+    nachgetragenen Implementierungsansatz + die daraus folgende vollstaendige
+    Neubewertung konsistent (beide aus demselben Lauf) persistieren. No-op,
+    wenn case_id nicht existiert.
+
     add_monitoring_entry / list_monitoring_entries (Monitoring-ADR): eigene
     append-only Tabelle statt einer JSON-Spalte am Case -- kein Lost-Update
     (jeder Eintrag ist ein eigener INSERT, F-011-Lehre). add ist INSERT-only,
@@ -79,6 +89,9 @@ class RepositoryPort(Protocol):
     def update_status(
         self, case_id: str, status: CaseStatus, updated_at: datetime
     ) -> None: ...
+    def reevaluate(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
+    ) -> None: ...
     def add_monitoring_entry(self, entry: MonitoringEntry) -> None: ...
     def list_monitoring_entries(self, case_id: str) -> list[MonitoringEntry]: ...
 
@@ -98,6 +111,9 @@ class RepositoryPort(Protocol):
     ) -> None: ...
     async def update_status_async(
         self, case_id: str, status: CaseStatus, updated_at: datetime
+    ) -> None: ...
+    async def reevaluate_async(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None: ...
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None: ...
     async def list_monitoring_entries_async(

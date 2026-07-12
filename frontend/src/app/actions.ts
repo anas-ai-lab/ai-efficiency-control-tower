@@ -11,6 +11,7 @@ import type {
   ComplianceHintsResponse,
   DecisionResponse,
   IdeationResponse,
+  ImplementationApproach,
   MonitoringEntry,
   ReportResponse,
   SharpenedCaseResponse,
@@ -333,6 +334,20 @@ export async function updateCaseStatus(
     `/cases/${caseId}/status`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ status }),
+  );
+}
+
+// Traegt den Implementierungsansatz eines Vor-Bewertungs-Case nach und loest
+// die vollstaendige Neubewertung aus (V4.1, ADR-0050). Admin-only (Session);
+// die Response ist das neu berechnete Triage-Ergebnis.
+export async function setImplementationApproach(
+  caseId: string,
+  approach: ImplementationApproach,
+): Promise<TriageResponse> {
+  return apiFetch<TriageResponse>(
+    `/cases/${caseId}/implementation-approach`,
+    RULE_TIMEOUT_MS,
+    JSON.stringify({ implementation_approach: approach }),
   );
 }
 

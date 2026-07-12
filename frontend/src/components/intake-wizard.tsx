@@ -65,23 +65,32 @@ const formSchema = z.object({
   employee_category: z.enum([
     "junior", "professional", "consultant", "senior", "management",
   ]),
-  evidence_level: z.enum(["pure_estimate", "similar_project", "tested_piloted"]),
-  adoption_type: z.enum([
-    "voluntary", "recommended_standard", "fixed_process_step",
-  ]),
-  implementation_approach: z.enum([
-    "simple_integration",
-    "development_on_existing",
-    "api_integration",
-    "custom_development",
-    "new_tool",
-  ]),
+  evidence_level: z.enum(
+    ["pure_estimate", "similar_project", "tested_piloted"],
+    { error: "Bitte das Evidenzlevel auswählen." },
+  ),
+  adoption_type: z.enum(
+    ["voluntary", "recommended_standard", "fixed_process_step"],
+    { error: "Bitte die Verbindlichkeit der Nutzung auswählen." },
+  ),
+  // Optional (V4.1, ADR-0050): ohne Ansatz landet der Case im Zustand
+  // "Bewertung ausstehend"; ein Admin ergänzt ihn später.
+  implementation_approach: z
+    .enum([
+      "simple_integration",
+      "development_on_existing",
+      "api_integration",
+      "custom_development",
+      "new_tool",
+    ])
+    .optional(),
   estimated_license_cost_eur: z.coerce.number().min(0).max(10000000),
   implementation_cost_eur: z.coerce.number().min(0).max(10000000),
   contains_pii: z.boolean(),
-  data_classification: z.enum([
-    "no_personal_data", "pseudonymous", "personal", "sensitive_personal",
-  ]),
+  data_classification: z.enum(
+    ["no_personal_data", "pseudonymous", "personal", "sensitive_personal"],
+    { error: "Bitte die Datenschutzklasse auswählen." },
+  ),
   regulatory_pressure: z.boolean(),
   competitive_pressure: z.boolean(),
   strategic_priority: z.boolean(),
@@ -123,13 +132,15 @@ const ADOPTION_HELP: Record<string, string> = {
 
 const STEPS = [
   { key: "idee", label: "Idee" },
-  { key: "menge", label: "Zeit & Menge" },
+  { key: "menge", label: "Zeit & Häufigkeit" },
   { key: "umsetzung", label: "Umsetzung" },
   { key: "daten", label: "Daten & Verbindlichkeit" },
   { key: "pruefen", label: "Prüfen & Absenden" },
 ] as const
 
 // Welche Felder jeder Schritt validiert, bevor "Weiter" freigibt.
+// implementation_approach ist NICHT dabei (V4.1, ADR-0050): optional, blockiert
+// den Schritt nicht.
 const STEP_FIELDS: Path<FormValues>[][] = [
   ["title", "submitter", "department", "current_state", "desired_state", "example_process"],
   [
@@ -140,7 +151,7 @@ const STEP_FIELDS: Path<FormValues>[][] = [
     "occurrences_per_employee_per_year",
     "affected_employees_count",
   ],
-  ["implementation_approach", "implementation_cost_eur", "estimated_license_cost_eur"],
+  ["implementation_cost_eur", "estimated_license_cost_eur"],
   ["data_classification", "adoption_type", "evidence_level"],
   [],
 ]
@@ -167,6 +178,7 @@ function SelectField({
   placeholder,
   options,
   help,
+  note,
 }: {
   form: ReturnType<typeof useForm<FormValues>>
   name: Path<FormValues>
@@ -174,6 +186,9 @@ function SelectField({
   placeholder: string
   options: { value: string; label: string }[]
   help?: Record<string, string>
+  // Statische Zeile unter dem Label -- z. B. "Pflichtfeld" oder der
+  // Optional-Hinweis beim Implementierungsansatz (V4.1, ADR-0050).
+  note?: string
 }) {
   return (
     <FormField
@@ -184,6 +199,7 @@ function SelectField({
         return (
           <FormItem>
             <FormLabel>{label}</FormLabel>
+            {note && <HelpText>{note}</HelpText>}
             <Select value={selected || undefined} onValueChange={field.onChange}>
               <FormControl>
                 <SelectTrigger className="w-full">
@@ -291,7 +307,13 @@ export function IntakeWizard() {
     setSubmitError(null)
     startTransition(async () => {
       try {
-        const result = await submitTriage(data)
+        // implementation_approach ist optional (V4.1, ADR-0050): fehlt die
+        // Auswahl, geht null ans Backend -> Case landet im Zustand "Bewertung
+        // ausstehend".
+        const result = await submitTriage({
+          ...data,
+          implementation_approach: data.implementation_approach ?? null,
+        })
         setSubmitted(result)
       } catch (e) {
         setSubmitError(e instanceof Error ? e.message : "Unbekannter Fehler")
@@ -425,7 +447,10 @@ export function IntakeWizard() {
                     <FormControl>
                       <Textarea placeholder="Ein konkreter, typischer Durchlauf heute" rows={3} {...field} />
                     </FormControl>
-                    <HelpText>Ein konkreter Durchlauf macht die Bewertung belastbarer.</HelpText>
+                    <HelpText>
+                      Beschreibe, wie dieser Prozess oder diese Aufgabe heute
+                      tatsächlich abläuft — Schritt für Schritt.
+                    </HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -451,7 +476,7 @@ export function IntakeWizard() {
             </>
           )}
 
-          {/* --- Schritt 2: Zeit & Menge --- */}
+          {/* --- Schritt 2: Zeit & Häufigkeit --- */}
           {step === 1 && (
             <>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -553,6 +578,7 @@ export function IntakeWizard() {
                 placeholder="Bitte wählen"
                 options={IMPLEMENTATION_APPROACH_OPTIONS}
                 help={APPROACH_HELP}
+                note="Optional — kann später vom Admin ergänzt werden."
               />
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
@@ -597,6 +623,7 @@ export function IntakeWizard() {
                 placeholder="Bitte wählen"
                 options={DATA_CLASSIFICATION_OPTIONS}
                 help={DATA_HELP}
+                note="Pflichtfeld"
               />
               <FormField
                 control={form.control}
@@ -611,6 +638,11 @@ export function IntakeWizard() {
                         Enthält personenbezogene Daten (PII)
                       </span>
                     </label>
+                    <HelpText>
+                      Löst zusammen mit regulatorischem Druck die Empfehlung zu
+                      DSFA und menschlicher Prüfung aus. Die Datenschutzklasse
+                      oben steuert stattdessen den Aufwands-Score.
+                    </HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -622,6 +654,7 @@ export function IntakeWizard() {
                 placeholder="Bitte wählen"
                 options={ADOPTION_TYPE_OPTIONS}
                 help={ADOPTION_HELP}
+                note="Pflichtfeld"
               />
               <SelectField
                 form={form}
@@ -630,6 +663,7 @@ export function IntakeWizard() {
                 placeholder="Bitte wählen"
                 options={EVIDENCE_LEVEL_OPTIONS}
                 help={EVIDENCE_HELP}
+                note="Pflichtfeld"
               />
 
               <fieldset className="space-y-3 border-t border-border pt-5">

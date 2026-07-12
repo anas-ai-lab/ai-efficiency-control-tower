@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 import { login } from "@/app/actions";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ import { Label } from "@/components/ui/label";
 export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
+  // Sichtbarkeits-Toggle: bewusst nur lokaler UI-State, wird nie persistiert.
+  const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,15 +45,31 @@ export function LoginForm({ next }: { next?: string }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="admin-password">Admin-Passwort</Label>
-        <Input
-          id="admin-password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={pending}
-          autoFocus
-        />
+        <div className="relative">
+          <Input
+            id="admin-password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={pending}
+            autoFocus
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showPassword ? (
+              <EyeOff className="size-4" aria-hidden />
+            ) : (
+              <Eye className="size-4" aria-hidden />
+            )}
+          </button>
+        </div>
       </div>
       {error !== null && (
         <p

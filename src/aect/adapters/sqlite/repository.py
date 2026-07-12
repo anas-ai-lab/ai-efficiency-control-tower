@@ -199,6 +199,16 @@ _UPDATE_STATUS_SQL = (
     "UPDATE submitted_cases SET status = ?, status_updated_at = ? WHERE id = ?"
 )
 
+# reevaluate (ADR-0050): dediziertes UPDATE beider zusammengehoeriger Blob-
+# Spalten (use_case_json + result_json) in einem Statement, analog
+# _RECORD_DECISION_SQL/_UPDATE_STATUS_SQL (F-011). Kein INSERT OR REPLACE der
+# ganzen Zeile -- das wuerde die LLM-Spalten (sharpened/proposal/...) mit-
+# ueberschreiben. Zweck: nachgetragener Implementierungsansatz + Neubewertung
+# konsistent aus EINEM Lauf.
+_REEVALUATE_SQL = (
+    "UPDATE submitted_cases SET use_case_json = ?, result_json = ? WHERE id = ?"
+)
+
 # monitoring_entries (Monitoring-ADR): eigene append-only Tabelle. Kein
 # Fremdschluessel-Constraint -- SQLite erzwingt FKs nur mit PRAGMA foreign_keys
 # (pro Verbindung), und die Loesch-Kaskade wird ohnehin explizit in delete()
@@ -334,22 +344,39 @@ def _zone_result_from_dict(d: dict[str, Any]) -> ZoneResult:
 
 
 def _deserialize_result(json_str: str) -> TriageResult:
-    """JSON-String -> TriageResult (jede Schicht explizit rekonstruiert)."""
+    """JSON-String -> TriageResult (jede Schicht explizit rekonstruiert).
+
+    vorfilter/routing/feasibility sind None fuer den Vor-Bewertungs-Zustand
+    (evaluation_pending, ADR-0050). evaluation_pending via .get()-Fallback
+    False -- aeltere persistierte Records ohne dieses Feld sind bewertet.
+    """
     d: dict[str, Any] = json.loads(json_str)
+    vorfilter_raw: Any = d.get("vorfilter")
+    routing_raw: Any = d.get("routing")
+    feas_raw: Any = d.get("feasibility")
     roi_raw: Any = d["roi"]
     comp_raw: Any = d["composite"]
     zone_raw: Any = d["zone"]
     return TriageResult(
         title=str(d["title"]),
         passed_vorfilter=bool(d["passed_vorfilter"]),
-        vorfilter=_filter_result_from_dict(d["vorfilter"]),
-        routing=_routing_result_from_dict(d["routing"]),
-        feasibility=_feasibility_result_from_dict(d["feasibility"]),
+        vorfilter=(
+            _filter_result_from_dict(vorfilter_raw)
+            if vorfilter_raw is not None
+            else None
+        ),
+        routing=(
+            _routing_result_from_dict(routing_raw) if routing_raw is not None else None
+        ),
+        feasibility=(
+            _feasibility_result_from_dict(feas_raw) if feas_raw is not None else None
+        ),
         roi=_roi_result_from_dict(roi_raw) if roi_raw is not None else None,
         composite=_composite_score_from_dict(comp_raw)
         if comp_raw is not None
         else None,
         zone=_zone_result_from_dict(zone_raw) if zone_raw is not None else None,
+        evaluation_pending=bool(d.get("evaluation_pending", False)),
     )
 
 
@@ -617,6 +644,27 @@ class SQLiteRepository:
                 _UPDATE_STATUS_SQL, (status.value, updated_at.isoformat(), case_id)
             )
 
+    def reevaluate(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
+    ) -> None:
+        """Ersetzt Eingaben + Bewertung eines Case aus einem Lauf (ADR-0050).
+
+        Dediziertes UPDATE beider Blob-Spalten (use_case_json + result_json) in
+        einem Statement -- kein INSERT OR REPLACE der ganzen Zeile
+        (F-011-Lost-Update-Muster, analog record_decision/update_status), damit
+        die LLM-Spalten nicht mit-ueberschrieben werden. No-op bei unbekannter
+        case_id (analog delete/update_field).
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(
+                _REEVALUATE_SQL,
+                (
+                    use_case.model_dump_json(),
+                    _serialize_result(result),
+                    case_id,
+                ),
+            )
+
     def add_monitoring_entry(self, entry: MonitoringEntry) -> None:
         """Haengt einen Monitoring-Eintrag an (append-only INSERT, Monitoring-ADR).
 
@@ -686,6 +734,12 @@ class SQLiteRepository:
     ) -> None:
         """Async-Wrapper um update_status() via asyncio.to_thread (Lifecycle-ADR)."""
         await asyncio.to_thread(self.update_status, case_id, status, updated_at)
+
+    async def reevaluate_async(
+        self, case_id: str, use_case: UseCaseInput, result: TriageResult
+    ) -> None:
+        """Async-Wrapper um reevaluate() via asyncio.to_thread (ADR-0050)."""
+        await asyncio.to_thread(self.reevaluate, case_id, use_case, result)
 
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
         """Async-Wrapper um add_monitoring_entry() via asyncio.to_thread."""

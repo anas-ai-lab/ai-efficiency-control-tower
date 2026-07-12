@@ -422,6 +422,64 @@
         }
       }
     },
+    "/cases/{case_id}/implementation-approach": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Set Implementation Approach",
+        "description": "Traegt den Implementierungsansatz nach und bewertet den Case neu (ADR-0050).\n\nEin ohne Ansatz eingereichter Case steht im Vor-Bewertungs-Zustand\n(evaluation_pending). Dieser Endpoint setzt den Ansatz auf den rohen Eingaben\nund ruft die Regel-Pipeline EINMAL vollstaendig neu auf -- kein Teil-Patch,\ndamit Composite/Zone/Routing aus einem konsistenten Lauf stammen und\nidentisch zu einem Case sind, der den Ansatz von Anfang an hatte. Auch als\nKorrektur eines bereits gesetzten Ansatzes zulaessig.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key). Rate Limit: 10/Minute --\nschreibender Zugriff, analog POST /status. Kein LLM-Call.\n\nReturns:\n    Das vollstaendige, neu berechnete Triage-Ergebnis (TriageResponse).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "set_implementation_approach_cases__case_id__implementation_approach_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetImplementationApproachRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/monitoring": {
       "post": {
         "tags": [
@@ -1312,6 +1370,10 @@
             "type": "string",
             "title": "Status"
           },
+          "evaluation_pending": {
+            "type": "boolean",
+            "title": "Evaluation Pending"
+          },
           "eingaben": {
             "$ref": "#/components/schemas/UseCaseInput"
           },
@@ -1341,6 +1403,7 @@
           "id",
           "submitted_at",
           "status",
+          "evaluation_pending",
           "eingaben",
           "triage",
           "report"
@@ -1419,6 +1482,10 @@
             "type": "boolean",
             "title": "Is Actionable"
           },
+          "evaluation_pending": {
+            "type": "boolean",
+            "title": "Evaluation Pending"
+          },
           "feasibility_score": {
             "anyOf": [
               {
@@ -1451,6 +1518,7 @@
           "composite_total",
           "hours_per_year",
           "is_actionable",
+          "evaluation_pending",
           "feasibility_score",
           "feasibility_definition",
           "assessment_visible"
@@ -2345,6 +2413,20 @@
         "title": "ScoreComponentResponse",
         "description": "Eine Aufwandscore-Komponente mit deterministischer Begruendung (V4-P6)."
       },
+      "SetImplementationApproachRequest": {
+        "properties": {
+          "implementation_approach": {
+            "$ref": "#/components/schemas/ImplementationApproach"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "implementation_approach"
+        ],
+        "title": "SetImplementationApproachRequest",
+        "description": "Nachgetragener Umsetzungsansatz fuer einen Case (V4.1, ADR-0050).\n\nimplementation_approach: einer der ImplementationApproach-Enum-Werte\n(Pflicht -- hier gibt es keinen \"kein Ansatz\"-Fall, das Nachtragen setzt\nihn bewusst). extra=\"forbid\" konsistent mit den uebrigen Request-Schemas."
+      },
       "SharpenSuggestionResponse": {
         "properties": {
           "bezugsfeld": {
@@ -2886,6 +2968,11 @@
             "type": "string",
             "title": "Title"
           },
+          "evaluation_pending": {
+            "type": "boolean",
+            "title": "Evaluation Pending",
+            "default": false
+          },
           "passed_vorfilter": {
             "type": "boolean",
             "title": "Passed Vorfilter"
@@ -2895,13 +2982,34 @@
             "title": "Is Actionable"
           },
           "vorfilter": {
-            "$ref": "#/components/schemas/VorfilterResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VorfilterResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "routing": {
-            "$ref": "#/components/schemas/RoutingResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoutingResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "feasibility": {
-            "$ref": "#/components/schemas/FeasibilityResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeasibilityResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "roi": {
             "anyOf": [
@@ -2970,7 +3078,7 @@
           "score_breakdown"
         ],
         "title": "TriageResponse",
-        "description": "Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.\n\nroi, composite und zone sind None wenn passed_vorfilter False ist."
+        "description": "Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.\n\nroi, composite und zone sind None wenn passed_vorfilter False ist.\n\nevaluation_pending (V4.1, ADR-0050): der Case wurde ohne\nimplementation_approach eingereicht -- er ist noch nicht bewertet. Dann sind\nvorfilter/routing/feasibility/roi/composite/zone/score_breakdown ALLE None\nund passed_vorfilter/is_actionable False. Die UI behandelt das wie den\nVorfilter-Fail-Zustand (\"noch nicht bewertet\"). Ein Admin traegt den Ansatz\nueber POST /cases/{id}/implementation-approach nach."
       },
       "UseCaseInput": {
         "properties": {
@@ -3067,16 +3175,22 @@
           },
           "evidence_level": {
             "$ref": "#/components/schemas/EvidenceLevel",
-            "description": "Qualität der Grundlage für die Zeitersparnis-Schätzung",
-            "default": "pure_estimate"
+            "description": "Qualität der Grundlage für die Zeitersparnis-Schätzung. Pflichtfeld (V4.1): kein Default mehr -- die Evidenzlage bestimmt den Evidenzfaktor im ROI direkt und muss bewusst gesetzt werden."
           },
           "adoption_type": {
             "$ref": "#/components/schemas/AdoptionType",
             "description": "Pflicht- oder Freiwillignutzung (beeinflusst Nutzungsfaktor)"
           },
           "implementation_approach": {
-            "$ref": "#/components/schemas/ImplementationApproach",
-            "description": "Geplante Umsetzungsstrategie"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImplementationApproach"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Geplante Umsetzungsstrategie. Optional (V4.1, ADR-0050): ohne Angabe bleibt der Case im Zustand 'Bewertung ausstehend' -- die Regel-Pipeline (Composite/Zone/Routing) laeuft NICHT, weil die Komplexitaet aus dem Ansatz abgeleitet wird. Ein Admin traegt den Ansatz nach; das loest eine vollstaendige Neubewertung aus."
           },
           "estimated_license_cost_eur": {
             "type": "number",
@@ -3151,8 +3265,8 @@
           "occurrences_per_employee_per_year",
           "affected_employees_count",
           "employee_category",
+          "evidence_level",
           "adoption_type",
-          "implementation_approach",
           "data_classification"
         ],
         "title": "UseCaseInput",

@@ -87,7 +87,10 @@ export interface UseCaseInput {
   // Evidenz & Verbindlichkeit
   evidence_level: EvidenceLevel;
   adoption_type: AdoptionType;
-  implementation_approach: ImplementationApproach; // Komplexitaet 1-5 abgeleitet
+  // Optional (V4.1, ADR-0050): ohne Ansatz landet der Case im Zustand
+  // "Bewertung ausstehend"; ein Admin ergaenzt ihn spaeter. Komplexitaet 1-5
+  // wird im Backend aus dem Ansatz abgeleitet.
+  implementation_approach: ImplementationApproach | null;
   // Kosten
   estimated_license_cost_eur: number; // 0 - 10000000 (wiederkehrend, EUR/Jahr)
   implementation_cost_eur: number; // 0 - 10000000 (einmalig), default 0
@@ -199,11 +202,15 @@ export interface TriageResponse {
   id: string;
   submitted_at: string;
   title: string;
+  // Vor-Bewertungs-Zustand (V4.1, ADR-0050): ohne Implementierungsansatz ist
+  // der Case noch nicht bewertet -- vorfilter/routing/feasibility/roi/composite/
+  // zone/score_breakdown sind dann alle null.
+  evaluation_pending: boolean;
   passed_vorfilter: boolean;
   is_actionable: boolean;
-  vorfilter: VorfilterResult;
-  routing: RoutingResult;
-  feasibility: FeasibilityResult;
+  vorfilter: VorfilterResult | null;
+  routing: RoutingResult | null;
+  feasibility: FeasibilityResult | null;
   roi: ROIResult | null;
   composite: CompositeResult | null;
   zone: ZoneResult | null;
@@ -374,6 +381,9 @@ export interface CaseDetailResponse {
   id: string;
   submitted_at: string;
   status: CaseStatus;
+  // Vor-Bewertungs-Zustand (V4.1, ADR-0050): ohne Implementierungsansatz sind
+  // triage/report immer null (auch fuer Admins). Ein Admin ergaenzt den Ansatz.
+  evaluation_pending: boolean;
   eingaben: UseCaseInput;
   triage: TriageResponse | null;
   report: ReportResponse | null;
@@ -395,6 +405,9 @@ export interface CaseSummary {
   composite_total: number | null;
   hours_per_year: number | null;
   is_actionable: boolean;
+  // Vor-Bewertungs-Zustand (V4.1, ADR-0050): ohne Implementierungsansatz noch
+  // nicht bewertet -- zone/composite/etc. sind dann null.
+  evaluation_pending: boolean;
   feasibility_score: number | null;
   feasibility_definition: string;
   // V4-P7: False, wenn zone/net fuer diesen Aufrufer verborgen sind (anonym +

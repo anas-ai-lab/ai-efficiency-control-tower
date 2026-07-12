@@ -27,9 +27,11 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.metadata import version as _pkg_version
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
@@ -44,6 +46,16 @@ from aect.adapters.api.routes import auth, cases, health, ideation, stats, triag
 from aect.adapters.api.settings import check_azure_eu_region
 
 logger = structlog.get_logger()
+
+# Deutsche 422-Klartexte fuer die Governance-Pflichtfelder (V4.1, ADR-0050).
+# Key = Feldname (letztes loc-Element eines RequestValidationError). Nur diese
+# drei sind bewusste Pflichtfelder ohne Default (UseCaseInput) -- ihr Fehlen
+# ist der haeufige Nutzer-Fall und verdient einen Feld-genauen deutschen Satz.
+_REQUIRED_FIELD_MESSAGES: dict[str, str] = {
+    "data_classification": "Bitte die Datenschutzklasse auswaehlen (Pflichtfeld).",
+    "adoption_type": "Bitte die Verbindlichkeit der Nutzung auswaehlen (Pflichtfeld).",
+    "evidence_level": "Bitte das Evidenzlevel auswaehlen (Pflichtfeld).",
+}
 
 
 @asynccontextmanager
@@ -181,6 +193,37 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        """422 mit deutschem Feldbezug fuer die Governance-Pflichtfelder (ADR-0050).
+
+        Die drei Pflichtfelder (Datenschutzklasse, Nutzung, Evidenz) bekommen
+        einen deutschen Klartext statt Pydantics englischem "Field required"/
+        "Input should be ...". Alle uebrigen Validierungsfehler behalten ihre
+        Standard-Message. Die Fehlerstruktur (loc/msg/type) bleibt erhalten --
+        der Feldbezug ist ueber loc weiter maschinenlesbar. Kein Stack-Trace,
+        request_id fuer Log-Korrelation (analog global_exception_handler).
+        """
+        request_id = structlog.contextvars.get_contextvars().get(
+            "request_id", str(uuid.uuid4())
+        )
+        details: list[dict[str, Any]] = []
+        for err in exc.errors():
+            loc = err.get("loc", ())
+            field = str(loc[-1]) if loc else ""
+            msg = _REQUIRED_FIELD_MESSAGES.get(field, str(err.get("msg", "")))
+            details.append(
+                {"loc": list(loc), "msg": msg, "type": str(err.get("type", ""))}
+            )
+        return JSONResponse(
+            status_code=422,
+            content={"detail": details, "request_id": request_id},
+            headers={"X-Request-ID": request_id},
+        )
 
     @app.exception_handler(Exception)
     async def global_exception_handler(

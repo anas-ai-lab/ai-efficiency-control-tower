@@ -55,6 +55,16 @@ function ScoreBreakdownBlock({ triage }: { triage: TriageResponse }) {
 }
 
 export function CaseResult({ triage }: { triage: TriageResponse }) {
+  // CaseResult wird nur fuer bewertete Faelle gerendert -- die Detailseite gated
+  // gegen evaluation_pending (ADR-0050). Guard fuers TS-Narrowing der jetzt
+  // nullbaren Schichten (vorfilter/routing/feasibility); greift im Normalfall nie.
+  if (
+    triage.routing === null ||
+    triage.vorfilter === null ||
+    triage.feasibility === null
+  ) {
+    return null
+  }
   const zone = triage.zone
   const zoneConfig = zone ? ZONE_CONFIG[zone.final_zone as ZoneKey] : null
   const routingLabel =

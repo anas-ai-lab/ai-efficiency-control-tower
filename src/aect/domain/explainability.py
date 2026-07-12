@@ -194,6 +194,9 @@ def build_score_breakdown(
     Jede Komponente traegt Wert, Maximum und eine aus den Eingaben generierte
     deutsche Begruendung (Umsetzungsansatz, Kostenschwellen, DSGVO-Mapping).
     """
+    # Ein Score-Breakdown existiert nur fuer bewertete Cases (composite gesetzt);
+    # ohne Ansatz gibt es keinen Composite (Vor-Bewertungs-Zustand, ADR-0050).
+    assert use_case.implementation_approach is not None
     complexity_reason = (
         f"{_APPROACH_LABEL[use_case.implementation_approach]} "
         f"-> Komplexitaet {composite.complexity_score} von 5"
@@ -457,7 +460,20 @@ def build_recommendation_text(result: TriageResult, use_case: UseCaseInput) -> s
     Reihenfolge: eingesparte Stunden/Jahr -> Netto-Nutzen EUR -> Aufwand ->
     Datenschutzlage. Fuer den Vorfilter-Fail ein eigenes Template mit
     Klartext-Grund (inkl. "kein Zeitgewinn").
+
+    evaluation_pending (ADR-0050): der Case wurde ohne Umsetzungsansatz
+    eingereicht -- es gibt weder Routing noch Vorfilter-Ergebnis. Eigener
+    Satz vor allen anderen Zweigen (die auf result.routing/result.vorfilter
+    zugreifen, die hier None sind).
     """
+    if result.evaluation_pending:
+        return (
+            "Noch nicht bewertet: der Implementierungsansatz fehlt. Ein Admin "
+            "traegt ihn nach, danach wird der Fall vollstaendig bewertet."
+        )
+    # Nicht-pending: routing/vorfilter sind garantiert befuellt (ADR-0050).
+    assert result.routing is not None
+    assert result.vorfilter is not None
     if (
         result.passed_vorfilter
         and result.roi is not None
@@ -520,6 +536,8 @@ def build_zu_entscheiden(result: TriageResult) -> str:
     """Ein Satz, was das Board konkret freigeben soll (Template je Empfehlung)."""
     if not result.passed_vorfilter:
         return _ZU_ENTSCHEIDEN_FAIL
+    # passed_vorfilter True -> bewertet, routing befuellt (ADR-0050).
+    assert result.routing is not None
     return _ZU_ENTSCHEIDEN[result.routing.recommendation]
 
 
