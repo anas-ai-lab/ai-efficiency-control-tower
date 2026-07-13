@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """G-S1 Aktiv-Test: Gibt konstruierte Prompt-Texte fuer den Demo-Case aus.
 
-Zeigt exakt was sharpen_use_case/v2, propose_solution/v2 und
+Zeigt exakt was sharpen_use_case/v3, propose_solution/v2 und
 compliance_hints/v1 an das LLM schicken wuerden -- ohne echten API-Call.
 Voraussetzung: scripts/demo_payload.json muss ein gueltiges UseCaseInput-
 Schema haben (sichergestellt durch tests/test_demo_payload.py).
@@ -34,17 +34,15 @@ def main() -> None:
     desired_state = payload["desired_state"]
     example_process = payload["example_process"]
 
-    # -- sharpen_use_case v2 --
-    print(hr("sharpen_use_case v2 | SYSTEM"))
-    print(load_prompt("sharpen_use_case", "system", "v2"))
+    # -- sharpen_use_case v3 (nur Soll-Felder, siehe S4-Scope) --
+    print(hr("sharpen_use_case v3 | SYSTEM"))
+    print(load_prompt("sharpen_use_case", "system", "v3"))
 
-    print(hr("sharpen_use_case v2 | USER (konstruiert)"))
+    print(hr("sharpen_use_case v3 | USER (konstruiert)"))
     print(
-        load_prompt("sharpen_use_case", "user", "v2").format(
-            title=title,
-            current_state=current_state,
+        load_prompt("sharpen_use_case", "user", "v3").format(
             desired_state=desired_state,
-            example_process=example_process,
+            desired_example_process=example_process,
         )
     )
 

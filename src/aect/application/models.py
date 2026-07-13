@@ -247,7 +247,8 @@ class SharpenedUseCase:
 
     prompt_version macht nachvollziehbar, welche Prompt-Version dieses
     Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default seit
-    V4: "v3" (Zahlen-Verbot + Hebel-Pflicht). v2/v1 bleiben fuer Rollback.
+    V4: "v3" (Zahlen-Verbot + Hebel-Pflicht). Die stale v1/v2-Prompts (altes
+    Schema, kein Zahlen-Verbot) wurden vor S5 entfernt.
 
     frozen=True: Schaerfungs-Ergebnis ist nach Erstellung unveraenderlich,
     analog zu UseCaseInput.

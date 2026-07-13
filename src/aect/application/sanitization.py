@@ -9,7 +9,7 @@ Einreichungen ablehnen (z. B. "ignoriere die alte Prozessbeschreibung" in
 einem echten Ist-Zustand-Text). Erkannte Patterns werden geloggt
 (case_id + Feldname + Pattern-Namen, kein Body -- Logging-Allowlist v2.1),
 der LLM-Call laeuft trotzdem weiter. Der strukturelle Schutz (Delimiter
-<<<DATA>>>/<<<END_DATA>>> in prompts/sharpen_use_case/v1/user.md) bleibt die
+<<<DATA>>>/<<<END_DATA>>> in prompts/sharpen_use_case/v3/user.md) bleibt die
 primaere Verteidigung; dies ist Defense-in-Depth + Observability.
 """
 

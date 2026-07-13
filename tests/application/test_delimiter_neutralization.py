@@ -55,21 +55,19 @@ class TestNeutralizeDelimitersUnit:
     def test_injected_field_adds_no_extra_markers(self) -> None:
         from aect.application.sanitization import neutralize_delimiters
 
-        template = load_prompt("sharpen_use_case", "user", "v2")
+        template = load_prompt("sharpen_use_case", "user", "v3")
         # Das Template traegt selbst Marker (Erklaersatz + echte Region). Die
         # Invariante: ein neutralisiertes Feld darf KEINEN zusaetzlichen Marker
         # einbringen -- der Count bleibt gleich dem einer harmlosen Assemblierung.
         benign = template.format(
-            title="Titel",
-            current_state="Harmloser Ist-Zustand mit genug Zeichen padding.",
             desired_state="Harmloser Soll-Zustand mit genug Zeichen padding.",
-            example_process="Harmloser Beispielvorgang mit genug Zeichen.",
+            desired_example_process="Harmloser Beispielvorgang mit genug Zeichen.",
         )
         assembled = template.format(
-            title=neutralize_delimiters("Titel"),
-            current_state=neutralize_delimiters(_INJECTED + " padding padding padding"),
-            desired_state=neutralize_delimiters("Soll padding padding padding padding"),
-            example_process=neutralize_delimiters("Beispiel padding padding padding"),
+            desired_state=neutralize_delimiters(_INJECTED + " padding padding padding"),
+            desired_example_process=neutralize_delimiters(
+                "Beispiel padding padding padding"
+            ),
         )
         assert assembled.count("<<<END_DATA>>>") == benign.count("<<<END_DATA>>>")
         assert assembled.count("<<<DATA>>>") == benign.count("<<<DATA>>>")

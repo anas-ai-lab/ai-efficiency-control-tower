@@ -8,16 +8,14 @@ from aect.application.prompts import load_prompt
 
 
 def test_load_prompt_system_returns_nonempty_text() -> None:
-    text = load_prompt("sharpen_use_case", "system")
+    text = load_prompt("sharpen_use_case", "system", "v3")
     assert len(text) > 0
 
 
 def test_load_prompt_user_contains_placeholders() -> None:
-    text = load_prompt("sharpen_use_case", "user")
-    assert "{title}" in text
-    assert "{current_state}" in text
+    text = load_prompt("sharpen_use_case", "user", "v3")
     assert "{desired_state}" in text
-    assert "{example_process}" in text
+    assert "{desired_example_process}" in text
 
 
 def test_load_prompt_unknown_name_raises_file_not_found() -> None:
