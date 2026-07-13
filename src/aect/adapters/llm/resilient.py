@@ -43,6 +43,7 @@ from aect.application.ports.llm import (
     ToolDefinition,
 )
 from aect.application.structured_output import ArchitectureSketch, IdeationResult
+from aect.domain.i18n import Lang
 
 
 class ResilientLLMAdapter:
@@ -120,7 +121,9 @@ class ResilientLLMAdapter:
             lambda: self._inner.complete(messages, tools=tools)
         )
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: Lang = "de"
+    ) -> IdeationResult:
         """Wrappt inner.generate_ideation mit Retry + Backoff + Timeout (P10).
 
         Identisches Muster wie complete() (gemeinsamer _run_resilient-Kern): Retry
@@ -129,7 +132,7 @@ class ResilientLLMAdapter:
         ohne Retry -- die Route mappt sie auf einen sauberen HTTP-Fehler.
         """
         return await self._run_resilient(
-            lambda: self._inner.generate_ideation(problem_description)
+            lambda: self._inner.generate_ideation(problem_description, lang)
         )
 
     async def generate_architecture_sketch(

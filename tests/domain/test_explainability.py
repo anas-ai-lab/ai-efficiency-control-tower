@@ -105,7 +105,7 @@ def test_feasibility_formula_range_1_to_9(composite_total: int, expected: int) -
 
 
 def test_feasibility_definition_states_formula() -> None:
-    assert "10 - Aufwandscore" in FEASIBILITY_DEFINITION
+    assert "10 - Aufwandscore" in FEASIBILITY_DEFINITION["de"]
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@ def test_total_line_and_feasibility_at_range_bounds(
     assert breakdown.max_total == 9
     assert breakdown.total_line == f"Aufwandscore {total} von 9 -> {label}"
     assert breakdown.feasibility_score == 10 - total
-    assert breakdown.feasibility_definition == FEASIBILITY_DEFINITION
+    assert breakdown.feasibility_definition == FEASIBILITY_DEFINITION["de"]
 
 
 # ---------------------------------------------------------------------------
@@ -293,8 +293,8 @@ def test_confidence_low_near_composite_boundary(clf: ZoneClassifier) -> None:
     assert conf.level == "niedrig"
     grund = " ".join(conf.gruende)
     assert "Aufwandspunkt" in grund
-    assert ZONE_LABELS[TriageZone.CALCULATED_RISK] in grund
-    assert ZONE_LABELS[TriageZone.MARGINAL_GAIN] in grund
+    assert ZONE_LABELS["de"][TriageZone.CALCULATED_RISK] in grund
+    assert ZONE_LABELS["de"][TriageZone.MARGINAL_GAIN] in grund
 
 
 def test_confidence_low_near_benefit_boundary(clf: ZoneClassifier) -> None:
@@ -312,7 +312,7 @@ def test_confidence_low_near_benefit_boundary(clf: ZoneClassifier) -> None:
     grund = " ".join(conf.gruende)
     assert "%" in grund
     assert "weniger erwartetem Nutzen" in grund
-    assert ZONE_LABELS[TriageZone.LIKELY_WIN] in grund
+    assert ZONE_LABELS["de"][TriageZone.LIKELY_WIN] in grund
 
 
 def test_confidence_level_always_valid(clf: ZoneClassifier) -> None:
@@ -602,7 +602,8 @@ def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> 
     assert by["Aufwand"].erklaerung == "niedrig -- kurzfristig umsetzbar"
     # Deutsches Label statt Enum-Code (zentrale ZONE_LABELS-Map).
     assert (
-        by["Basis-Einstufung vor Dämpfung"].wert == ZONE_LABELS[TriageZone.LIKELY_WIN]
+        by["Basis-Einstufung vor Dämpfung"].wert
+        == ZONE_LABELS["de"][TriageZone.LIKELY_WIN]
     )
     joined = " ".join(r.wert + r.erklaerung for r in rows)
     for banned in ("LIKELY_WIN", "CALCULATED_RISK", "MARGINAL_GAIN"):

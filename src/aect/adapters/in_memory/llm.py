@@ -20,6 +20,7 @@ from aect.application.structured_output import (
     SketchNodeKind,
     SolutionProposalV2,
 )
+from aect.domain.i18n import Lang
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
 
@@ -124,12 +125,15 @@ class MockLLMAdapter:
         )
         return LLMResponse(content=f"[mock-response] {last_user}")
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: Lang = "de"
+    ) -> IdeationResult:
         """Liefert deterministisch 2 schema-konforme Entwuerfe (Tests, P10).
 
         Ignoriert den Prompt bewusst (kein echter Call) und baut IdeationResult
         direkt -- die Felder erfuellen die IdeationDraft-Bounds. Keine
         erfundenen Zahlen (D17): quantitative Luecken stehen als offene Fragen.
+        ``lang`` wird bewusst ignoriert (Mock erzeugt keine echten Texte).
         """
         return IdeationResult(
             drafts=[

@@ -169,27 +169,53 @@
         "summary": "List Cases",
         "description": "Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nresponse: Response -- von slowapi benoetigt fuer Header-Injektion.\nAuth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind\nabgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und\nnet_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der\nBoard-Entscheidung (ReviewerDecision != PENDING); davor null +\nassessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber\neinen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss\npriorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).\nRate Limit: 60 Requests/Minute pro Aufrufer.\n\nMapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->\nfloat, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine\nListe (kein Envelope) -- Abwaertskompatibilitaet.",
         "operationId": "list_cases_cases_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/CaseSummary"
                   },
-                  "type": "array",
                   "title": "Response List Cases Cases Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ]
+        }
       }
     },
     "/cases/similarity-pairs": {
@@ -279,6 +305,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -443,6 +483,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -610,6 +664,20 @@
               "type": "string",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
           }
         ],
         "responses": {
@@ -657,6 +725,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -706,6 +788,20 @@
               "type": "string",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
           }
         ],
         "responses": {
@@ -753,6 +849,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -802,6 +912,20 @@
               "type": "string",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
           }
         ],
         "responses": {
@@ -850,6 +974,20 @@
               "type": "string",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
           }
         ],
         "responses": {
@@ -897,6 +1035,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -1011,6 +1163,20 @@
               "type": "string",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
           }
         ],
         "responses": {
@@ -1089,9 +1255,23 @@
           "triage"
         ],
         "summary": "Submit Use Case",
-        "description": "Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nAuth: PUBLIC (V4-P-Auth) -- anonyme Einreichung ist eine Kern-Faehigkeit der\nunteren Zugriffsstufe (SDR-0003). Kein require_admin hier.\nRate Limit: 30 Requests/Minute pro Aufrufer.\nValidation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.\n\nIdempotency: siehe Modul-Docstring. Bei Replay wird response.status_code\nauf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.",
+        "description": "Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.\n\nrequest: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.\nAuth: PUBLIC (V4-P-Auth) -- anonyme Einreichung ist eine Kern-Faehigkeit der\nunteren Zugriffsstufe (SDR-0003). Kein require_admin hier.\nRate Limit: 30 Requests/Minute pro Aufrufer.\nValidation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.\nlang (V4.1-S6): \"de\" (Default) | \"en\" fuer die generierten Klartexte;\nungueltige Werte -> 422 (FastAPI-Literal-Validierung).\n\nIdempotency: siehe Modul-Docstring. Bei Replay wird response.status_code\nauf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.",
         "operationId": "submit_use_case_triage_post",
         "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          },
           {
             "name": "Idempotency-Key",
             "in": "header",
@@ -1152,15 +1332,31 @@
         "summary": "Generate Ideation",
         "description": "Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: PUBLIC (V4-P-Auth) -- anonymer Ideen-Assistent, kein require_admin.\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen.\n\nEphemer: kein Case wird angelegt (D16). extra='forbid' + Laengen-Bounds auf\nIdeationRequest -> 422 bei zu kurzem/langem/unbekanntem Input.\n\nFehler-Mapping (kein Stack-Trace an den Client, OWASP LLM02):\n- LLM nach Retries nicht erreichbar (Connection/Timeout) -> 503.\n- LLM liefert kein valides Schema (InvalidLLMOutputError) -> 502.\n\nRaises:\n    HTTPException 502: KI-Antwort war nicht verwertbar.\n    HTTPException 503: KI-Dienst nicht erreichbar.",
         "operationId": "generate_ideation_ideation_post",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/IdeationRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

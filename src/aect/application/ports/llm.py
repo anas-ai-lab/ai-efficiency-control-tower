@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 from aect.application.structured_output import ArchitectureSketch, IdeationResult
+from aect.domain.i18n import Lang
 
 Role = Literal["system", "user", "assistant", "tool"]
 
@@ -97,7 +98,9 @@ class LLMPort(Protocol):
         self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
     ) -> LLMResponse: ...
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: Lang = "de"
+    ) -> IdeationResult:
         """Erzeugt 1-3 AI-Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
 
         Hoehere Faehigkeit als complete(): der Adapter laedt den versionierten

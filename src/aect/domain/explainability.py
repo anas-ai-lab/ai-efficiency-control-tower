@@ -1,11 +1,16 @@
 """Deterministische Erklaerbarkeit der Triage-Ergebnisse (V4-P6, SDR-0003).
 
 Ziel: Keine nackte Zahl und kein rohes Enum erreicht den Nutzer. Alles
-Regelbasierte wird hier deterministisch in deutschen Klartext uebersetzt --
-Score-Herkunft, Konfidenz-Begruendung, Empfehlungs-Satz, Machbarkeits-Definition
-und die Contra-Punkte fuer den Entscheider-Report. LLM kommt hier NICHT vor;
-das ist bewusst die Regel-Schicht (analog zones._build_reason /
-application/eval/breakdown.py).
+Regelbasierte wird hier deterministisch in Klartext uebersetzt -- Score-Herkunft,
+Konfidenz-Begruendung, Empfehlungs-Satz, Machbarkeits-Definition und die
+Contra-Punkte fuer den Entscheider-Report. LLM kommt hier NICHT vor; das ist
+bewusst die Regel-Schicht (analog zones._build_reason / application/eval/
+breakdown.py).
+
+Sprache (V4.1-S6): Jede build_*-Funktion nimmt ein ``lang``-Argument
+(Default ``de``) und zieht ihren Klartext aus den Sprachkatalogen
+(domain/i18n). Zahlen/Formeln/Schwellen bleiben unveraendert -- nur der Wortlaut
+ist sprachabhaengig. ``de`` reproduziert die frueheren Strings exakt.
 
 Schicht: domain -- importiert nur aus aect.domain.*. Reine Projektion ueber
 bereits berechneten Werten (TriageResult), kein I/O, kein State. Die Ergebnisse
@@ -23,42 +28,51 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from aect.domain.formatting import format_de
+from aect.domain.i18n import (
+    APPROACH_LABEL,
+    BASIS_EINSTUFUNG_ERKLAERUNG,
+    BELASTBARKEIT_EMPFEHLUNG_GRUND,
+    BELASTBARKEIT_ZONE_SATZ,
+    BERECHNUNG_LABELS,
+    CONFIDENCE_LEVEL_DISPLAY,
+    CONTRA_POINTS,
+    COST_LABELS,
+    DATA_CLASSIFICATION_CLARTEXT,
+    DATA_PROTECTION_REASON,
+    DEFAULT_LANG,
+    EFFORT_ADJEKTIV,
+    EFFORT_KLARTEXT,
+    EFFORT_LABEL_DISPLAY,
+    EMPFEHLUNG_ANSATZ,
+    EVIDENCE_FAKTOR_GRUND,
+    EXPLAIN_TEXT,
+    FEASIBILITY_DEFINITION,
+    NUTZEN_FORMEL_WORTE,
+    RECOMMENDATION_TEMPLATES,
+    SCORE_COMPONENT_LABELS,
+    ZONE_LABELS,
+    ZU_ENTSCHEIDEN,
+    ZU_ENTSCHEIDEN_FAIL,
+    Lang,
+    localize_vorfilter_criteria,
+)
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import TriageResult
 from aect.domain.routing import RoutingRecommendation
 from aect.domain.scoring import CompositeScore
 from aect.domain.types import (
     AdoptionType,
-    DataClassification,
     EvidenceLevel,
-    ImplementationApproach,
     TriageZone,
 )
 from aect.domain.zones import ZoneClassifier
 
 # ---------------------------------------------------------------------------
-# Zentrale Label-/Definitions-Konstanten (einmal definiert, ueberall referenziert)
+# Zentrale numerische Konstanten (Text lebt in domain/i18n)
 # ---------------------------------------------------------------------------
 
 #: Composite-Aufwandscore-Obergrenze (V4-Modell, siehe scoring.CompositeScore).
 COMPOSITE_MAX_TOTAL = 9
-
-#: Deutsche Zonen-Labels fuer Entscheider (SDR-0003 / V4-P6). Zentrale Quelle --
-#: die Kennzahlen-Zeile im Entscheider-Report und die Konfidenz-Kipp-Saetze
-#: referenzieren dieselbe Map, kein zweiter Ort mit abweichenden Woertern.
-ZONE_LABELS: dict[TriageZone, str] = {
-    TriageZone.LIKELY_WIN: "Klarer Gewinn",
-    TriageZone.CALCULATED_RISK: "Kalkuliertes Risiko",
-    TriageZone.MARGINAL_GAIN: "Geringer Nutzen",
-}
-
-#: Machbarkeit = 10 - Aufwandscore. Bei Aufwandscore 1-9 (V4-Range, Step 0)
-#: ergibt das einen Machbarkeits-Bereich 1-9 -- verifiziert, nicht angenommen:
-#: total=1 -> 9 (leicht), total=9 -> 1 (schwer). Zentrale Definition + Formel,
-#: ueberall (Score-Breakdown, Board-Daten) referenziert.
-FEASIBILITY_DEFINITION = (
-    "Machbarkeit = 10 - Aufwandscore; hoher Wert = leichter umsetzbar."
-)
 
 
 def feasibility_from_composite(composite_total: int) -> int:
@@ -66,137 +80,12 @@ def feasibility_from_composite(composite_total: int) -> int:
     return 10 - composite_total
 
 
-_APPROACH_LABEL: dict[ImplementationApproach, str] = {
-    ImplementationApproach.SIMPLE_INTEGRATION: "Einfache Integration in Bestand",
-    ImplementationApproach.DEVELOPMENT_ON_EXISTING: "Entwicklung auf Bestehendem",
-    ImplementationApproach.API_INTEGRATION: "API-Anbindung an Bestehendes",
-    ImplementationApproach.CUSTOM_DEVELOPMENT: "Eigene Entwicklung",
-    ImplementationApproach.NEW_TOOL: "Einfuehrung eines neuen Tools",
-}
-
-#: Datenschutz-Klartext fuer Empfehlungssatz + Contra-Punkte + Datenlage.
-DATA_CLASSIFICATION_CLARTEXT: dict[DataClassification, str] = {
-    DataClassification.NO_PERSONAL_DATA: "keine personenbezogenen Daten",
-    DataClassification.PSEUDONYMOUS: (
-        "pseudonyme Daten (bleiben personenbezogen, Art. 4 Nr. 5 DSGVO)"
-    ),
-    DataClassification.PERSONAL: "personenbezogene Daten (Art. 4 DSGVO)",
-    DataClassification.SENSITIVE_PERSONAL: (
-        "besondere Kategorien personenbezogener Daten (Art. 9 DSGVO)"
-    ),
-}
-
-#: Evidenz-Labels (deutsche Klartext-Fassung der EvidenceLevel-Stufen).
-EVIDENCE_LABELS: dict[EvidenceLevel, str] = {
-    EvidenceLevel.PURE_ESTIMATE: "reine Einschätzung",
-    EvidenceLevel.SIMILAR_PROJECT: "eigene Erfahrung / Analogieprojekt",
-    EvidenceLevel.TESTED_PILOTED: "mit realen Beispielen getestet",
-}
-
-#: Verbindlichkeits-Labels (deutsche Klartext-Fassung der AdoptionType-Stufen).
-ADOPTION_LABELS: dict[AdoptionType, str] = {
-    AdoptionType.VOLUNTARY: "freiwillige Nutzung",
-    AdoptionType.RECOMMENDED_STANDARD: "empfohlener Teamstandard",
-    AdoptionType.FIXED_PROCESS_STEP: "fester Prozessschritt",
-}
-
-#: Datenschutz-Begruendung je Klassifizierung fuer die Score-Herkunft.
-_DATA_PROTECTION_REASON: dict[DataClassification, str] = {
-    DataClassification.NO_PERSONAL_DATA: "Keine personenbezogenen Daten -> 0 Punkte",
-    DataClassification.PSEUDONYMOUS: (
-        "Pseudonyme Daten (bleiben personenbezogen, Art. 4 Nr. 5 DSGVO) -> +1"
-    ),
-    DataClassification.PERSONAL: "Personenbezogene Daten (Art. 4 DSGVO) -> +1",
-    DataClassification.SENSITIVE_PERSONAL: (
-        "Besondere Kategorien personenbezogener Daten (Art. 9 DSGVO) -> +2"
-    ),
-}
-
 #: Zeitgewinn unterhalb dieser Schwelle (Stunden/Vorgang) gilt als "knapp"
 #: (~3 Minuten) -- Methodik-Schwelle, keine Firmenzahl.
 _KNAPP_HOURS = 0.05
 
-# ---------------------------------------------------------------------------
-# Management-Ebene (V4.1-S5): Klartext-Bausteine ohne interne Codes/Faktoren.
-# Zentrale, einmalige Quelle -- kein roher effort_label/Enum/Faktor erreicht die
-# UI. Alle Betraege/Formeln/Schwellen bleiben unveraendert; hier nur Sprache.
-# ---------------------------------------------------------------------------
-
-#: Aufwand-Adjektiv fuer den Management-Satz ("bei niedrigem Umsetzungsaufwand").
-#: Keyed am effort_label (NIEDRIG/MITTEL/HOCH aus scoring.CompositeScore).
-_EFFORT_ADJEKTIV: dict[str, str] = {
-    "NIEDRIG": "niedrigem",
-    "MITTEL": "mittlerem",
-    "HOCH": "hohem",
-}
-
-#: Verbale Aufwands-Einordnung fuer die Berechnungs-Ebene ("niedrig -- kurz-
-#: fristig umsetzbar"). Ersetzt den nackten Score als Klartext-Baustein.
-_EFFORT_KLARTEXT: dict[str, str] = {
-    "NIEDRIG": "niedrig -- kurzfristig umsetzbar",
-    "MITTEL": "mittel -- mit planbarem Vorlauf umsetzbar",
-    "HOCH": "hoch -- erheblicher Umsetzungsaufwand",
-}
-
-#: Empfehlung als Klartext-Ansatz (Management-Satz, kein Enum-Code). Keyed an
-#: der Routing-Empfehlung.
-_EMPFEHLUNG_ANSATZ: dict[RoutingRecommendation, str] = {
-    RoutingRecommendation.AUTOMATION_RECOMMENDED: (
-        "Automatisierung (regelbasiert, ohne KI)"
-    ),
-    RoutingRecommendation.AI_RECOMMENDED: "Umsetzung mit KI-Unterstützung",
-    RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
-        "fachliche Prüfung vor der Umsetzung"
-    ),
-    RoutingRecommendation.BORDERLINE: "Einzelfallprüfung (die Signale sind gemischt)",
-}
-
-#: Belastbarkeits-Satz fuer die Zonen-Zusammenfassung (Ebene 1). Beschreibt die
-#: Grundlage der Nutzenschaetzung in Alltagssprache, ohne Faktor.
-_BELASTBARKEIT_ZONE_SATZ: dict[EvidenceLevel, str] = {
-    EvidenceLevel.PURE_ESTIMATE: (
-        "Die Schätzung beruht bisher auf Einschätzungen ohne Belege"
-    ),
-    EvidenceLevel.SIMILAR_PROJECT: (
-        "Die Schätzung stützt sich auf Erfahrung aus einem Analogieprojekt"
-    ),
-    EvidenceLevel.TESTED_PILOTED: "Die Schätzung ist mit realen Beispielen getestet",
-}
-
-#: Belastbarkeits-Grund fuer den Empfehlungs-Satz (Ebene 1), zweite Person auf
-#: die Empfehlung bezogen ("sie stuetzt sich ...").
-_BELASTBARKEIT_EMPFEHLUNG_GRUND: dict[EvidenceLevel, str] = {
-    EvidenceLevel.PURE_ESTIMATE: (
-        "sie stützt sich bisher nur auf Einschätzungen ohne Belege"
-    ),
-    EvidenceLevel.SIMILAR_PROJECT: (
-        "sie stützt sich auf Erfahrung aus einem Analogieprojekt"
-    ),
-    EvidenceLevel.TESTED_PILOTED: "sie ist mit realen Beispielen getestet",
-}
-
-#: Grund fuer den uebersetzten Evidenzfaktor (Berechnungs-Ebene). Der interne
-#: Faktor wird als Prozentsatz des theoretischen Potenzials ausgedrueckt.
-_EVIDENCE_FAKTOR_GRUND: dict[EvidenceLevel, str] = {
-    EvidenceLevel.PURE_ESTIMATE: "weil noch keine Belege vorliegen",
-    EvidenceLevel.SIMILAR_PROJECT: "gestützt auf Erfahrung aus einem Analogieprojekt",
-    EvidenceLevel.TESTED_PILOTED: "abgesichert durch reale Beispiele",
-}
-
-#: Formel des erwarteten Nutzens in Worten (Berechnungs-Ebene). ASCII-"x" statt
-#: Malzeichen (RUF001). Deckt sich mit domain/roi.py-Semantik, ohne Zahlen.
-_NUTZEN_FORMEL_WORTE = (
-    "Minuten pro Vorgang x Vorgänge pro Mitarbeiter und Jahr x betroffene "
-    "Mitarbeiter x Stundensatz, anschließend gedämpft nach Belastbarkeit der "
-    "Angaben und erwarteter Nutzung."
-)
-
-#: Erklaerung der Basis-Einstufung (Berechnungs-Ebene): reine Nutzen-Aufwand-
-#: Einstufung, bevor der Handlungsdruck sie hochstufen kann.
-_BASIS_EINSTUFUNG_ERKLAERUNG = (
-    "Einstufung allein aus erwartetem Nutzen und Aufwand; der Handlungsdruck "
-    "kann sie danach noch hochstufen."
-)
+#: Maximale Anzahl Contra-Punkte im Entscheider-Report.
+_MAX_CONTRA = 4
 
 
 # ---------------------------------------------------------------------------
@@ -209,8 +98,8 @@ class ScoreComponent:
     """Eine Komponente des Aufwandscores mit deterministischer Begruendung.
 
     key: stabiler Maschinen-Schluessel (complexity/cost/data_protection).
-    label: deutsches Anzeige-Label. wert/max: der Punktwert und sein Maximum.
-    begruendung: deutscher Klartext, aus den Eingaben abgeleitet.
+    label: Anzeige-Label (sprachabhaengig). wert/max: Punktwert und Maximum.
+    begruendung: Klartext, aus den Eingaben abgeleitet (sprachabhaengig).
     """
 
     key: str
@@ -237,8 +126,9 @@ class ScoreBreakdown:
 class ConfidenceReasoning:
     """Konfidenz als Begruendung statt Zahl (V4-P6).
 
-    level: "hoch" | "mittel" | "niedrig". gruende: deterministische
-    Klartext-Begruendungen (Evidenzlage, Zonengrenz-Naehe).
+    level: "hoch" | "mittel" | "niedrig" (Maschinen-Key, sprachneutral).
+    gruende: deterministische Klartext-Begruendungen (Evidenzlage,
+    Zonengrenz-Naehe) -- sprachabhaengig.
     """
 
     level: str
@@ -264,7 +154,7 @@ class BerechnungsZeile:
     """Eine Zeile der Berechnungs-Ebene (Ebene 2, "Wie wurde das berechnet?").
 
     label: Anzeige-Label (z. B. "Erwarteter Nutzen"). wert: der Wert als fertig
-    formatierte Zeichenkette (Betrag, Stufe, Score oder deutsches Zonen-Label).
+    formatierte Zeichenkette (Betrag, Stufe, Score oder Zonen-Label).
     erklaerung: ein Satz Alltagssprache. Zahlenwerte identisch zu den
     bestehenden Feldern -- reine Sprach-Projektion.
     """
@@ -306,53 +196,59 @@ def build_score_breakdown(
     *,
     impl_cost_point_min_eur: float,
     license_cost_point_min_eur: float,
+    lang: Lang = DEFAULT_LANG,
 ) -> ScoreBreakdown:
     """Baut die deterministische Herkunft des Aufwandscores.
 
     Jede Komponente traegt Wert, Maximum und eine aus den Eingaben generierte
-    deutsche Begruendung (Umsetzungsansatz, Kostenschwellen, DSGVO-Mapping).
+    Begruendung (Umsetzungsansatz, Kostenschwellen, DSGVO-Mapping).
     """
+    text = EXPLAIN_TEXT[lang]
     # Ein Score-Breakdown existiert nur fuer bewertete Cases (composite gesetzt);
     # ohne Ansatz gibt es keinen Composite (Vor-Bewertungs-Zustand, ADR-0050).
     assert use_case.implementation_approach is not None
-    complexity_reason = (
-        f"{_APPROACH_LABEL[use_case.implementation_approach]} "
-        f"-> Komplexitaet {composite.complexity_score} von 5"
+    complexity_reason = text["complexity_reason"].format(
+        approach=APPROACH_LABEL[lang][use_case.implementation_approach],
+        n=composite.complexity_score,
     )
 
+    cost_labels = COST_LABELS[lang]
     license_reason = _cost_point_reason(
-        "Lizenzkosten",
+        cost_labels["license"],
         use_case.estimated_license_cost_eur,
         license_cost_point_min_eur,
-        suffix="/Jahr",
+        suffix=cost_labels["per_year"],
+        lang=lang,
     )
     impl_reason = _cost_point_reason(
-        "Implementierungskosten",
+        cost_labels["impl"],
         use_case.implementation_cost_eur,
         impl_cost_point_min_eur,
+        lang=lang,
     )
     cost_reason = f"{license_reason}; {impl_reason}"
 
-    data_reason = _DATA_PROTECTION_REASON[use_case.data_classification]
+    data_reason = DATA_PROTECTION_REASON[lang][use_case.data_classification]
 
+    comp_labels = SCORE_COMPONENT_LABELS[lang]
     components = (
         ScoreComponent(
             key="complexity",
-            label="Komplexitaet",
+            label=comp_labels["complexity"],
             wert=composite.complexity_score,
             max=5,
             begruendung=complexity_reason,
         ),
         ScoreComponent(
             key="cost",
-            label="Kosten",
+            label=comp_labels["cost"],
             wert=composite.cost_score,
             max=2,
             begruendung=cost_reason,
         ),
         ScoreComponent(
             key="data_protection",
-            label="Datenschutz",
+            label=comp_labels["data_protection"],
             wert=composite.data_protection_score,
             max=2,
             begruendung=data_reason,
@@ -364,27 +260,32 @@ def build_score_breakdown(
         total=composite.total,
         max_total=COMPOSITE_MAX_TOTAL,
         effort_label=composite.effort_label,
-        total_line=(
-            f"Aufwandscore {composite.total} von {COMPOSITE_MAX_TOTAL} "
-            f"-> {composite.effort_label}"
+        total_line=text["total_line"].format(
+            total=composite.total,
+            max=COMPOSITE_MAX_TOTAL,
+            effort=EFFORT_LABEL_DISPLAY[lang][composite.effort_label],
         ),
         feasibility_score=feasibility_from_composite(composite.total),
-        feasibility_definition=FEASIBILITY_DEFINITION,
+        feasibility_definition=FEASIBILITY_DEFINITION[lang],
     )
 
 
 def _cost_point_reason(
-    label: str, cost_eur: float, threshold_eur: float, *, suffix: str = ""
+    label: str,
+    cost_eur: float,
+    threshold_eur: float,
+    *,
+    suffix: str = "",
+    lang: Lang = DEFAULT_LANG,
 ) -> str:
     """Begruendung eines Kostenpunkts: Wert gegen Schwelle, +1 oder kein Punkt."""
-    if cost_eur >= threshold_eur:
-        return (
-            f"{label} {format_de(cost_eur, 'EUR')}{suffix} "
-            f">= {format_de(threshold_eur, 'EUR')} -> +1 Kostenpunkt"
-        )
-    return (
-        f"{label} {format_de(cost_eur, 'EUR')}{suffix} "
-        f"< {format_de(threshold_eur, 'EUR')} -> kein Punkt"
+    text = EXPLAIN_TEXT[lang]
+    key = "cost_point_plus" if cost_eur >= threshold_eur else "cost_point_none"
+    return text[key].format(
+        label=label,
+        cost=format_de(cost_eur, "EUR"),
+        suffix=suffix,
+        threshold=format_de(threshold_eur, "EUR"),
     )
 
 
@@ -401,6 +302,7 @@ def build_confidence_reasoning(
     composite_total: int,
     base_zone: TriageZone,
     classifier: ZoneClassifier,
+    lang: Lang = DEFAULT_LANG,
 ) -> ConfidenceReasoning:
     """Konfidenz als {level, gruende} aus deterministischen Regeln.
 
@@ -410,6 +312,7 @@ def build_confidence_reasoning(
       "niedrig".
     - Sonst -> "hoch" mit deutlichem-Abstand-Grund.
     """
+    text = EXPLAIN_TEXT[lang]
     is_pure_estimate = evidence_level == EvidenceLevel.PURE_ESTIMATE
 
     benefit_lever, composite_lever = _zone_flip_levers(
@@ -426,10 +329,12 @@ def build_confidence_reasoning(
     gruende: list[str] = []
     if is_pure_estimate:
         factor_str = f"{evidence_factor:.2f}".replace(".", ",")
-        gruende.append(f"Nutzen basiert auf reiner Einschätzung (Faktor {factor_str}).")
+        gruende.append(text["pure_estimate_grund"].format(factor=factor_str))
     if near:
         gruende.append(
-            _boundary_sentence(benefit_lever, composite_lever, base_zone, benefit_near)
+            _boundary_sentence(
+                benefit_lever, composite_lever, base_zone, benefit_near, lang
+            )
         )
 
     if near:
@@ -440,13 +345,15 @@ def build_confidence_reasoning(
         level = "hoch"
 
     if not gruende:
-        gruende.append("Evidenz gemessen und deutlicher Abstand zu allen Zonengrenzen.")
+        gruende.append(text["clear_margin_grund"])
 
     return ConfidenceReasoning(level=level, gruende=tuple(gruende))
 
 
 # Ein Hebel: (magnitude, richtung, ziel_zone). magnitude ist Prozent (Nutzen)
 # bzw. ganzzahlige Composite-Punkte -- interpretiert je nach Hebel-Typ.
+# richtung ist ein interner Marker ("weniger"/"mehr"), am Response-Rand
+# uebersetzt (siehe _boundary_sentence).
 _Lever = tuple[float, str, TriageZone]
 
 
@@ -519,30 +426,37 @@ def _boundary_sentence(
     composite_lever: _Lever | None,
     base_zone: TriageZone,
     benefit_near: bool,
+    lang: Lang,
 ) -> str:
     """Formuliert den kleineren (naeheren) Hebel als Kipp-Satz."""
+    text = EXPLAIN_TEXT[lang]
     # Normierter Abstand gegen die jeweilige "niedrig"-Schwelle (10 % / 1 Punkt):
     # der kleinere normierte Wert ist der naehere Hebel.
     b_norm = benefit_lever[0] / 10.0 if benefit_lever is not None else float("inf")
     c_norm = composite_lever[0] / 1.0 if composite_lever is not None else float("inf")
     use_benefit = benefit_lever is not None and b_norm <= c_norm
-    from_label = ZONE_LABELS[base_zone]
+    from_label = ZONE_LABELS[lang][base_zone]
+    richtung = {"weniger": text["richtung_less"], "mehr": text["richtung_more"]}
 
     if use_benefit:
         assert benefit_lever is not None
-        magnitude, richtung, ziel = benefit_lever
+        magnitude, direction, ziel = benefit_lever
         pct_str = f"{round(magnitude, 1):g}"
-        return (
-            f"Mit {pct_str} % {richtung} erwartetem Nutzen kippt der Case von "
-            f"{from_label} nach {ZONE_LABELS[ziel]}."
+        return text["flip_benefit"].format(
+            pct=pct_str,
+            richtung=richtung[direction],
+            from_zone=from_label,
+            to_zone=ZONE_LABELS[lang][ziel],
         )
     assert composite_lever is not None
-    points, richtung, ziel = composite_lever
+    points, direction, ziel = composite_lever
     n = int(points)
-    punkt = "einem Aufwandspunkt" if n == 1 else f"{n} Aufwandspunkten"
-    return (
-        f"Mit {punkt} {richtung} kippt der Case von {from_label} "
-        f"nach {ZONE_LABELS[ziel]}."
+    punkt = text["point_singular"] if n == 1 else text["point_plural"].format(n=n)
+    return text["flip_composite"].format(
+        points=punkt,
+        richtung=richtung[direction],
+        from_zone=from_label,
+        to_zone=ZONE_LABELS[lang][ziel],
     )
 
 
@@ -550,28 +464,11 @@ def _boundary_sentence(
 # 3. Empfehlung als Satz
 # ---------------------------------------------------------------------------
 
-_RECOMMENDATION_TEMPLATES: dict[RoutingRecommendation, str] = {
-    RoutingRecommendation.AUTOMATION_RECOMMENDED: (
-        "Automatisierung empfohlen: rechnerisch {h} eingesparte Stunden pro Jahr "
-        "({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
-    ),
-    RoutingRecommendation.AI_RECOMMENDED: (
-        "AI-Einsatz empfohlen: rechnerisch {h} eingesparte Stunden pro Jahr "
-        "({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
-    ),
-    RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
-        "Vor Umsetzung fachliche Prüfung erforderlich: {h} eingesparte Stunden "
-        "pro Jahr ({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
-    ),
-    RoutingRecommendation.BORDERLINE: (
-        "Mischsignale, Einzelfallpruefung empfohlen: {h} eingesparte Stunden pro "
-        "Jahr ({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
-    ),
-}
 
-
-def build_recommendation_text(result: TriageResult, use_case: UseCaseInput) -> str:
-    """Empfehlung als deutscher Satz -- feste Argument-Reihenfolge.
+def build_recommendation_text(
+    result: TriageResult, use_case: UseCaseInput, lang: Lang = DEFAULT_LANG
+) -> str:
+    """Empfehlung als Satz -- feste Argument-Reihenfolge.
 
     Reihenfolge: eingesparte Stunden/Jahr -> Netto-Nutzen EUR -> Aufwand ->
     Datenschutzlage. Fuer den Vorfilter-Fail ein eigenes Template mit
@@ -582,11 +479,9 @@ def build_recommendation_text(result: TriageResult, use_case: UseCaseInput) -> s
     Satz vor allen anderen Zweigen (die auf result.routing/result.vorfilter
     zugreifen, die hier None sind).
     """
+    text = EXPLAIN_TEXT[lang]
     if result.evaluation_pending:
-        return (
-            "Noch nicht bewertet: der Implementierungsansatz fehlt. Ein Admin "
-            "traegt ihn nach, danach wird der Fall vollstaendig bewertet."
-        )
+        return text["eval_pending"]
     # Nicht-pending: routing/vorfilter sind garantiert befuellt (ADR-0050).
     assert result.routing is not None
     assert result.vorfilter is not None
@@ -595,66 +490,34 @@ def build_recommendation_text(result: TriageResult, use_case: UseCaseInput) -> s
         and result.roi is not None
         and result.composite is not None
     ):
-        template = _RECOMMENDATION_TEMPLATES[result.routing.recommendation]
+        template = RECOMMENDATION_TEMPLATES[lang][result.routing.recommendation.value]
         return template.format(
             h=format_de(result.roi.hours_per_year),
             netto=format_de(result.roi.net_expected_benefit_eur),
             x=result.composite.total,
-            dp=DATA_CLASSIFICATION_CLARTEXT[use_case.data_classification],
+            dp=DATA_CLASSIFICATION_CLARTEXT[lang][use_case.data_classification],
         )
     # Vorfilter-Fail: Klartext-Grund (kein Zeitgewinn hat Vorrang, V4-P3).
     if use_case.time_per_case_hours_with_ai >= use_case.time_per_case_hours_current:
-        return (
-            "Nicht zur Umsetzung empfohlen: der Vorgang mit KI ist nicht schneller "
-            "als heute -- kein Zeitgewinn."
-        )
-    return (
-        "Nicht zur Umsetzung empfohlen: Vorfilter nicht bestanden "
-        f"({', '.join(result.vorfilter.failed_criteria)})."
+        return text["not_recommended_no_time"]
+    criteria = ", ".join(
+        localize_vorfilter_criteria(result.vorfilter.failed_criteria, lang)
     )
+    return text["not_recommended_prefilter"].format(criteria=criteria)
 
 
 # ---------------------------------------------------------------------------
 # 4. Entscheider-Report-Bausteine (zu_entscheiden, contra_punkte)
 # ---------------------------------------------------------------------------
 
-_ZU_ENTSCHEIDEN: dict[RoutingRecommendation, str] = {
-    RoutingRecommendation.AUTOMATION_RECOMMENDED: (
-        "Freigabe zur Umsetzung als klassische Automatisierung (ohne AI-Komponente)."
-    ),
-    RoutingRecommendation.AI_RECOMMENDED: ("Freigabe zur Umsetzung mit AI-Komponente."),
-    RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
-        "Freigabe einer vertieften fachlichen und datenschutzrechtlichen Prüfung "
-        "vor der Umsetzung."
-    ),
-    RoutingRecommendation.BORDERLINE: (
-        "Entscheidung über eine Einzelfallprüfung -- die Signale sind gemischt."
-    ),
-}
 
-_ZU_ENTSCHEIDEN_FAIL = (
-    "Keine Freigabe -- der Case erfuellt die Mindestkriterien des Vorfilters nicht."
-)
-
-# Immer verfuegbare, ehrliche Contra-Punkte (Fallback, wenn keine spezifischen
-# greifen -- garantiert mindestens 2 produzierbare Punkte).
-_CONTRA_FALLBACKS = (
-    "Bewertung beruht vollstaendig auf Angaben des Einreichers; keine unabhaengige "
-    "Validierung.",
-    "Die Bewertung ist eine Ex-ante-Schaetzung -- der tatsaechliche Nutzen zeigt "
-    "sich erst nach der Umsetzung.",
-)
-
-_MAX_CONTRA = 4
-
-
-def build_zu_entscheiden(result: TriageResult) -> str:
+def build_zu_entscheiden(result: TriageResult, lang: Lang = DEFAULT_LANG) -> str:
     """Ein Satz, was das Board konkret freigeben soll (Template je Empfehlung)."""
     if not result.passed_vorfilter:
-        return _ZU_ENTSCHEIDEN_FAIL
+        return ZU_ENTSCHEIDEN_FAIL[lang]
     # passed_vorfilter True -> bewertet, routing befuellt (ADR-0050).
     assert result.routing is not None
-    return _ZU_ENTSCHEIDEN[result.routing.recommendation]
+    return ZU_ENTSCHEIDEN[lang][result.routing.recommendation.value]
 
 
 def build_contra_points(
@@ -662,6 +525,7 @@ def build_contra_points(
     use_case: UseCaseInput,
     *,
     confidence: ConfidenceReasoning | None,
+    lang: Lang = DEFAULT_LANG,
 ) -> tuple[str, ...]:
     """2-4 regelbasierte Contra-Saetze (KEIN LLM).
 
@@ -669,58 +533,35 @@ def build_contra_points(
     Konfidenz-Zonennaehe und Zeitdelta. Mindestens 2 immer produzierbar --
     fehlen spezifische Punkte, greifen ehrliche Fallbacks.
     """
+    cp = CONTRA_POINTS[lang]
     contra: list[str] = []
 
     if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
-        contra.append(
-            "Der erwartete Nutzen beruht auf einer reinen Einschätzung -- keine "
-            "gemessene Grundlage."
-        )
+        contra.append(cp["pure_estimate"])
     if use_case.adoption_type == AdoptionType.VOLUNTARY:
-        contra.append(
-            "Die Nutzung ist freiwillig -- ohne Verbindlichkeit bleibt die "
-            "tatsaechliche Adoption unsicher."
-        )
+        contra.append(cp["voluntary"])
 
     if result.composite is not None:
         if result.composite.data_protection_score >= 2:
-            contra.append(
-                "Besondere Kategorien personenbezogener Daten (Art. 9 DSGVO) -- "
-                "Datenschutz-Folgenabschaetzung erforderlich."
-            )
+            contra.append(cp["data_sensitive"])
         elif result.composite.data_protection_score >= 1:
-            contra.append(
-                "Es werden personenbezogene Daten verarbeitet -- Datenschutzaufwand "
-                "einplanen."
-            )
+            contra.append(cp["data_personal"])
         if result.composite.cost_score >= 1:
-            contra.append(
-                "Der Aufwandscore traegt Kostenpunkte (Lizenz- und/oder "
-                "Implementierungskosten oberhalb der Schwelle)."
-            )
+            contra.append(cp["cost"])
 
     if confidence is not None and confidence.level == "niedrig":
-        contra.append(
-            "Der Case liegt nahe an einer Zonengrenze -- kleine Aenderungen an "
-            "Nutzen oder Aufwand kippen die Einstufung."
-        )
+        contra.append(cp["boundary"])
 
     time_delta = (
         use_case.time_per_case_hours_current - use_case.time_per_case_hours_with_ai
     )
     if time_delta <= 0:
-        contra.append(
-            "Der Vorgang spart mit KI keine Zeit -- der wirtschaftliche Nutzen ist "
-            "fraglich."
-        )
+        contra.append(cp["no_time"])
     elif time_delta < _KNAPP_HOURS:
-        contra.append(
-            "Die Zeitersparnis pro Vorgang ist mit unter 3 Minuten knapp -- der "
-            "Nutzen haengt stark am Volumen."
-        )
+        contra.append(cp["little_time"])
 
     # Mindestens 2 garantieren: mit ehrlichen Fallbacks auffuellen.
-    for fallback in _CONTRA_FALLBACKS:
+    for fallback in (cp["fallback_no_validation"], cp["fallback_ex_ante"]):
         if len(contra) >= 2:
             break
         if fallback not in contra:
@@ -741,6 +582,7 @@ def build_management_view(
     evidence_level: EvidenceLevel,
     confidence_level: str,
     recommendation: RoutingRecommendation,
+    lang: Lang = DEFAULT_LANG,
 ) -> ManagementView:
     """Baut die Management-Ebene (zwei Klartext-Saetze, keine internen Codes).
 
@@ -748,17 +590,18 @@ def build_management_view(
     (Stufe + Grund) sowie die Empfehlung als ganzer Satz. Alle Zahlen kommen
     unveraendert aus dem bereits berechneten TriageResult -- reine Projektion.
     """
-    adjektiv = _EFFORT_ADJEKTIV[effort_label]
-    zonen_satz = (
-        f"Erwarteter Nutzen rund {format_de(net_expected_benefit_eur, '€')} "
-        f"pro Jahr bei {adjektiv} Umsetzungsaufwand. "
-        f"{_BELASTBARKEIT_ZONE_SATZ[evidence_level]} -- "
-        f"Belastbarkeit {confidence_level}."
+    text = EXPLAIN_TEXT[lang]
+    level_display = CONFIDENCE_LEVEL_DISPLAY[lang][confidence_level]
+    zonen_satz = text["zonen_satz"].format(
+        eur=format_de(net_expected_benefit_eur, "€"),
+        adjektiv=EFFORT_ADJEKTIV[lang][effort_label],
+        bel_zone=BELASTBARKEIT_ZONE_SATZ[lang][evidence_level],
+        level=level_display,
     )
-    empfehlung_satz = (
-        f"Empfehlung: {_EMPFEHLUNG_ANSATZ[recommendation]}. "
-        f"Belastbarkeit der Empfehlung: {confidence_level} -- "
-        f"{_BELASTBARKEIT_EMPFEHLUNG_GRUND[evidence_level]}."
+    empfehlung_satz = text["empfehlung_satz"].format(
+        ansatz=EMPFEHLUNG_ANSATZ[lang][recommendation.value],
+        level=level_display,
+        grund=BELASTBARKEIT_EMPFEHLUNG_GRUND[lang][evidence_level],
     )
     return ManagementView(zonen_satz=zonen_satz, empfehlung_satz=empfehlung_satz)
 
@@ -772,45 +615,51 @@ def build_berechnung(
     effort_label: str,
     base_zone: TriageZone,
     confidence: ConfidenceReasoning,
+    lang: Lang = DEFAULT_LANG,
 ) -> tuple[BerechnungsZeile, ...]:
     """Baut die Berechnungs-Ebene: je Komponente eine Zeile in Alltagssprache.
 
     Vier Zeilen: erwarteter Nutzen (Formel in Worten), Belastbarkeit (Stufe +
     uebersetzter Faktor), Aufwand (Score + verbale Einordnung) und die Basis-
-    Einstufung vor der Handlungsdruck-Hochstufung (deutsches Label statt Code).
+    Einstufung vor der Handlungsdruck-Hochstufung (Zonen-Label statt Code).
     """
+    text = EXPLAIN_TEXT[lang]
+    labels = BERECHNUNG_LABELS[lang]
     evidence_pct = round(evidence_factor * 100)
-    belastbarkeit_erklaerung = (
-        f"Angesetzt werden {evidence_pct} % des theoretischen Potenzials, "
-        f"{_EVIDENCE_FAKTOR_GRUND[evidence_level]}."
+    belastbarkeit_erklaerung = text["belastbarkeit_erklaerung"].format(
+        pct=evidence_pct,
+        grund=EVIDENCE_FAKTOR_GRUND[lang][evidence_level],
     )
     # Zonengrenz-Naehe (falls vorhanden) als Zusatz -- faktorfrei, nennt den
     # kleineren Kipp-Hebel. Wiederverwendung der Konfidenz-Gruende (kein zweiter
-    # Rechenweg): der Kipp-Satz enthaelt "kippt".
-    flip = next((g for g in confidence.gruende if "kippt" in g), None)
+    # Rechenweg): der Kipp-Satz enthaelt das sprachweise Marker-Wort ("kippt"/
+    # "flips"). confidence wurde in derselben Sprache gebaut -> Marker passt.
+    flip = next((g for g in confidence.gruende if text["flip_marker"] in g), None)
     if flip is not None:
         belastbarkeit_erklaerung = f"{belastbarkeit_erklaerung} {flip}"
 
     return (
         BerechnungsZeile(
-            label="Erwarteter Nutzen",
-            wert=f"{format_de(net_expected_benefit_eur, '€')} / Jahr",
-            erklaerung=_NUTZEN_FORMEL_WORTE,
+            label=labels["benefit"],
+            wert=text["benefit_per_year"].format(
+                eur=format_de(net_expected_benefit_eur, "€")
+            ),
+            erklaerung=NUTZEN_FORMEL_WORTE[lang],
         ),
         BerechnungsZeile(
-            label="Belastbarkeit",
-            wert=confidence.level,
+            label=labels["confidence"],
+            wert=CONFIDENCE_LEVEL_DISPLAY[lang][confidence.level],
             erklaerung=belastbarkeit_erklaerung,
         ),
         BerechnungsZeile(
-            label="Aufwand",
+            label=labels["effort"],
             wert=f"{composite_total} / {COMPOSITE_MAX_TOTAL}",
-            erklaerung=_EFFORT_KLARTEXT[effort_label],
+            erklaerung=EFFORT_KLARTEXT[lang][effort_label],
         ),
         BerechnungsZeile(
-            label="Basis-Einstufung vor Dämpfung",
-            wert=ZONE_LABELS[base_zone],
-            erklaerung=_BASIS_EINSTUFUNG_ERKLAERUNG,
+            label=labels["base_zone"],
+            wert=ZONE_LABELS[lang][base_zone],
+            erklaerung=BASIS_EINSTUFUNG_ERKLAERUNG[lang],
         ),
     )
 
@@ -827,6 +676,7 @@ def explain_triage(
     impl_cost_point_min_eur: float,
     license_cost_point_min_eur: float,
     classifier: ZoneClassifier,
+    lang: Lang = DEFAULT_LANG,
 ) -> TriageExplanation:
     """Baut die vollstaendige Erklaerbarkeit eines TriageResult.
 
@@ -839,6 +689,7 @@ def explain_triage(
             result.composite,
             impl_cost_point_min_eur=impl_cost_point_min_eur,
             license_cost_point_min_eur=license_cost_point_min_eur,
+            lang=lang,
         )
         if result.composite is not None
         else None
@@ -852,6 +703,7 @@ def explain_triage(
             composite_total=result.composite.total,
             base_zone=result.zone.base_zone,
             classifier=classifier,
+            lang=lang,
         )
         if result.zone is not None
         and result.roi is not None
@@ -876,6 +728,7 @@ def explain_triage(
             evidence_level=use_case.evidence_level,
             confidence_level=confidence.level,
             recommendation=result.routing.recommendation,
+            lang=lang,
         )
         berechnung = build_berechnung(
             net_expected_benefit_eur=result.roi.net_expected_benefit_eur,
@@ -885,10 +738,11 @@ def explain_triage(
             effort_label=result.composite.effort_label,
             base_zone=result.zone.base_zone,
             confidence=confidence,
+            lang=lang,
         )
 
     return TriageExplanation(
-        recommendation_text=build_recommendation_text(result, use_case),
+        recommendation_text=build_recommendation_text(result, use_case, lang),
         score_breakdown=score_breakdown,
         confidence=confidence,
         management=management,

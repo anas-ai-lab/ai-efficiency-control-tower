@@ -198,7 +198,9 @@ class _SlowIdeationAdapter:
         self._delay_seconds = delay_seconds
         self.call_count = 0
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: str = "de"
+    ) -> IdeationResult:
         self.call_count += 1
         await asyncio.sleep(self._delay_seconds)
         raise AssertionError("unreached: wird vom Timeout abgebrochen")
@@ -208,7 +210,9 @@ class _NonRetryableIdeationAdapter:
     def __init__(self) -> None:
         self.call_count = 0
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: str = "de"
+    ) -> IdeationResult:
         self.call_count += 1
         raise InvalidLLMOutputError("schema kaputt")
 

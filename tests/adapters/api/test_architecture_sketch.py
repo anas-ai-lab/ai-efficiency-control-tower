@@ -109,7 +109,9 @@ class _BrokenSketchLLM:
     ) -> LLMResponse:
         return LLMResponse(content=_SOLUTION_JSON)
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: str = "de"
+    ) -> IdeationResult:
         raise NotImplementedError
 
     async def generate_architecture_sketch(
@@ -136,7 +138,9 @@ class _OverlongLabelSketchLLM:
     ) -> LLMResponse:
         return LLMResponse(content=_SOLUTION_JSON)
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: str = "de"
+    ) -> IdeationResult:
         raise NotImplementedError
 
     async def generate_architecture_sketch(

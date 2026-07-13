@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 from starlette.responses import Response
 
@@ -48,7 +48,10 @@ from aect.application.models import SimilarityWarning, SubmittedCase
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.service import TriageService
 from aect.domain.explainability import TriageExplanation
+from aect.domain.feasibility import build_feasibility_recommendation
+from aect.domain.i18n import DEFAULT_LANG, Lang
 from aect.domain.models import UseCaseInput
+from aect.domain.routing import collect_routing_signals
 
 router = APIRouter(prefix="/triage", tags=["triage"])
 
@@ -250,6 +253,7 @@ def _to_triage_response(
     case: SubmittedCase,
     explanation: TriageExplanation,
     similarity_warning: SimilarityWarning | None = None,
+    lang: Lang = DEFAULT_LANG,
 ) -> TriageResponse:
     """Mappt SubmittedCase + Erklaerbarkeit auf TriageResponse.
 
@@ -260,6 +264,11 @@ def _to_triage_response(
     score_breakdown, confidence) -- reine Read-Time-Projektion, kein LLM.
     similarity_warning: optionaler Dedup-Hinweis (ADR-0039), nur beim
     Erst-Intake gesetzt, nicht beim Idempotency-Replay.
+
+    lang (V4.1-S6): die persistierten Routing-Signale, Vorfilter-Kriterien und
+    die Machbarkeits-Empfehlung sind deutsch (Erstellungssprache); sie werden
+    hier am Response-Rand deterministisch in ``lang`` neu abgeleitet -- reine
+    Funktion der Eingabe, keine Neubewertung.
     """
     r = case.result
     # Vor-Bewertungs-Zustand (ADR-0050): kein Umsetzungsansatz -> keine Regel-
@@ -289,6 +298,10 @@ def _to_triage_response(
     assert r.routing is not None
     assert r.feasibility is not None
     confidence = explanation.confidence
+    # Persistierte (deutsche) Signale/Kriterien/Empfehlung in lang neu ableiten.
+    automation_signals, ai_signals, risk_flags = collect_routing_signals(
+        case.use_case, lang
+    )
     return TriageResponse(
         id=case.id,
         submitted_at=case.submitted_at,
@@ -304,15 +317,19 @@ def _to_triage_response(
             recommendation=r.routing.recommendation.value,
             recommendation_text=explanation.recommendation_text,
             confidence=r.routing.confidence,
-            automation_signals=list(r.routing.automation_signals),
-            ai_signals=list(r.routing.ai_signals),
-            risk_flags=list(r.routing.risk_flags),
+            automation_signals=list(automation_signals),
+            ai_signals=list(ai_signals),
+            risk_flags=list(risk_flags),
             requires_human_review=r.routing.requires_human_review,
         ),
         feasibility=FeasibilityResponse(
             is_feasible=r.feasibility.is_feasible,
             flags=[f.value for f in r.feasibility.flags],
-            recommendation=r.feasibility.recommendation,
+            recommendation=(
+                build_feasibility_recommendation(r.feasibility.flags, lang)
+                if r.feasibility.flags
+                else None
+            ),
         ),
         roi=ROIResponse(
             theoretical_potential_eur=float(r.roi.theoretical_potential_eur),
@@ -390,6 +407,7 @@ async def submit_use_case(
     idempotency_key: str | None = Header(
         default=None, alias="Idempotency-Key", max_length=200
     ),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> TriageResponse:
     """Reicht einen Use Case ein und gibt das vollstaendige Triage-Ergebnis zurueck.
 
@@ -398,6 +416,8 @@ async def submit_use_case(
     unteren Zugriffsstufe (SDR-0003). Kein require_admin hier.
     Rate Limit: 30 Requests/Minute pro Aufrufer.
     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
+    lang (V4.1-S6): "de" (Default) | "en" fuer die generierten Klartexte;
+    ungueltige Werte -> 422 (FastAPI-Literal-Validierung).
 
     Idempotency: siehe Modul-Docstring. Bei Replay wird response.status_code
     auf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.
@@ -422,7 +442,7 @@ async def submit_use_case(
                 response.status_code = 200
                 response.headers["Idempotent-Replay"] = "true"
                 return _to_triage_response(
-                    existing_case, service.explain_case(existing_case)
+                    existing_case, service.explain_case(existing_case, lang), lang=lang
                 )
             # Key gefuellt, aber Case geloescht (DSGVO Art. 17, ADR-0038):
             # neu verarbeiten; set() unten ueberschreibt mit der neuen ID.
@@ -442,4 +462,6 @@ async def submit_use_case(
     if idempotency_key is not None:
         idempotency_store.set(idempotency_key, case.id)
 
-    return _to_triage_response(case, service.explain_case(case), similarity_warning)
+    return _to_triage_response(
+        case, service.explain_case(case, lang), similarity_warning, lang
+    )

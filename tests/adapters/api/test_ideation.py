@@ -44,7 +44,9 @@ class _BrokenIdeationLLM:
     ) -> LLMResponse:
         return LLMResponse(content="{}")
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: str = "de"
+    ) -> IdeationResult:
         # Fehlende Pflichtfelder (nur title, zu kurz) -> InvalidLLMOutputError.
         return parse_structured_llm_output(
             '{"drafts": [{"title": "x"}]}', IdeationResult

@@ -17,9 +17,12 @@ thresholds — they do not belong in zone_thresholds.yaml.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+
+from aect.domain.i18n import DEFAULT_LANG, FEASIBILITY_RECOMMENDATION, Lang
 
 _MIN_SITUATION_LEN: int = 50  # minimum chars for a "concrete" situation description
 _MIN_EXAMPLE_LEN: int = 30  # minimum chars for a process example
@@ -128,22 +131,28 @@ class FeasibilityChecker:
         return FeasibilityResult(
             is_feasible=is_feasible,
             flags=tuple(flags),
-            recommendation=_build_recommendation(flags) if flags else None,
+            recommendation=(build_feasibility_recommendation(flags) if flags else None),
         )
 
 
-def _build_recommendation(flags: list[FeasibilityFlag]) -> str:
-    """Build a German-language recommendation string from active flags."""
+def build_feasibility_recommendation(
+    flags: Sequence[FeasibilityFlag], lang: Lang = DEFAULT_LANG
+) -> str:
+    """Baut die Machbarkeits-Empfehlung aus aktiven Flags (sprachabhaengig).
+
+    Feste Reihenfolge der Bausteine; ``de`` reproduziert die frueheren Strings.
+    Wird beim Check (Erstellungssprache ``de``, persistiert) UND am Response-Rand
+    (gewuenschte Sprache, aus den persistierten Flags neu gerendert) genutzt --
+    eine Quelle, kein zweiter Wortlaut (V4.1-S6).
+    """
+    cat = FEASIBILITY_RECOMMENDATION[lang]
     parts: list[str] = []
     if FeasibilityFlag.DESCRIPTION_TOO_VAGUE in flags:
-        parts.append(
-            f"Ist- und Soll-Zustand ausführlicher beschreiben "
-            f"(mind. {_MIN_SITUATION_LEN} Zeichen je Feld)."
-        )
+        parts.append(cat["DESCRIPTION_TOO_VAGUE"].format(min_len=_MIN_SITUATION_LEN))
     if FeasibilityFlag.MISSING_EXAMPLE in flags:
-        parts.append("Konkreten Beispielvorgang ergänzen.")
+        parts.append(cat["MISSING_EXAMPLE"])
     if FeasibilityFlag.NO_TIME_SAVING in flags:
-        parts.append("Zeitersparnis pro Vorgang muss größer 0 sein.")
+        parts.append(cat["NO_TIME_SAVING"])
     if FeasibilityFlag.NOT_RECURRING in flags:
-        parts.append("Vorgangshäufigkeit (pro Monat) muss angegeben und größer 0 sein.")
+        parts.append(cat["NOT_RECURRING"])
     return " ".join(parts)

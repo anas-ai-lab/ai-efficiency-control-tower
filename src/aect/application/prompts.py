@@ -14,6 +14,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aect.domain.i18n import Lang
+
+# LLM-Sprachinstruktion (V4.1-S6): bei lang="en" wird dem System-Prompt eine
+# Instruktion vorangestellt (Schaerfen/Loesung/Ideation). "keep numbers as
+# digits" schuetzt den deutschsprachigen Zahlwort-Zweig des Sharpening-Guards:
+# der Ziffernvergleich ist sprachunabhaengig, englische Zahlwoerter deckt der
+# Guard aber nicht ab (known_limitations).
+EN_LLM_INSTRUCTION = (
+    "Respond in professional business English. Keep all numeric values exactly "
+    "as digits; do not spell numbers out as words."
+)
+
+
+def with_language(system_prompt: str, lang: Lang) -> str:
+    """Stellt dem System-Prompt bei lang='en' die EN-Instruktion voran (V4.1-S6).
+
+    ``de`` (Default-Sprache) laesst den Prompt unveraendert -- die Prompt-Dateien
+    sind deutsch verfasst.
+    """
+    if lang == "en":
+        return f"{EN_LLM_INSTRUCTION}\n\n{system_prompt}"
+    return system_prompt
+
 
 def load_prompt(name: str, role: str, version: str = "v1") -> str:
     """Laedt eine Prompt-Datei aus prompts/<name>/<version>/<role>.md.

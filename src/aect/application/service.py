@@ -46,7 +46,7 @@ from aect.application.ports.llm import LLMMessage, LLMPort
 from aect.application.ports.pii_redactor import PIIRedactorPort
 from aect.application.ports.repository import RepositoryPort
 from aect.application.ports.retriever import RetrievedChunk, RetrieverPort
-from aect.application.prompts import load_prompt
+from aect.application.prompts import load_prompt, with_language
 from aect.application.sanitization import (
     detect_injection_patterns,
     neutralize_delimiters,
@@ -80,13 +80,19 @@ from aect.domain import (
     explain_triage,
     load_zone_classifier,
 )
-from aect.domain.explainability import (
+from aect.domain.explainability import COMPOSITE_MAX_TOTAL
+from aect.domain.feasibility import build_feasibility_recommendation
+from aect.domain.i18n import (
     ADOPTION_LABELS,
-    COMPOSITE_MAX_TOTAL,
     DATA_CLASSIFICATION_CLARTEXT,
+    DEFAULT_LANG,
     EVIDENCE_LABELS,
+    TECHNICAL_REPORT,
     ZONE_LABELS,
+    Lang,
+    localize_vorfilter_criteria,
 )
+from aect.domain.routing import collect_routing_signals
 from aect.domain.sharpening_guard import build_allowlist, find_violations
 from aect.domain.solution_guard import find_vocabulary_violations
 
@@ -322,7 +328,9 @@ def _render_compliance_hints(
     return hint_text, citations
 
 
-def _build_kennzahlen(result: TriageResult) -> DecisionKennzahlen:
+def _build_kennzahlen(
+    result: TriageResult, lang: Lang = DEFAULT_LANG
+) -> DecisionKennzahlen:
     """Harte Kennzahlen des Entscheider-Reports (None bei Vorfilter-Fail)."""
     if result.zone is None or result.roi is None or result.composite is None:
         return DecisionKennzahlen(
@@ -336,7 +344,7 @@ def _build_kennzahlen(result: TriageResult) -> DecisionKennzahlen:
             max=COMPOSITE_MAX_TOTAL,
             label=result.composite.effort_label,
         ),
-        zone_label=ZONE_LABELS[result.zone.final_zone],
+        zone_label=ZONE_LABELS[lang][result.zone.final_zone],
     )
 
 
@@ -347,14 +355,15 @@ def _build_decision_report(
     sharpened_text: str | None,
     solution_business: str | None,
     compliance_hint_text: str | None,
+    lang: Lang = DEFAULT_LANG,
 ) -> DecisionReport:
     """Baut den Entscheider-Report v2 aus TriageResult + Erklaerbarkeit (V4-P6)."""
     return DecisionReport(
         empfehlung_satz=explanation.recommendation_text,
-        kennzahlen=_build_kennzahlen(result),
-        zu_entscheiden=build_zu_entscheiden(result),
+        kennzahlen=_build_kennzahlen(result, lang),
+        zu_entscheiden=build_zu_entscheiden(result, lang),
         contra_punkte=build_contra_points(
-            result, use_case, confidence=explanation.confidence
+            result, use_case, confidence=explanation.confidence, lang=lang
         ),
         details=DecisionDetails(
             sharpened_text=sharpened_text,
@@ -365,42 +374,38 @@ def _build_decision_report(
 
 
 def _build_technical_report(
-    result: TriageResult, use_case: UseCaseInput, solution_technical: str | None
+    result: TriageResult,
+    use_case: UseCaseInput,
+    solution_technical: str | None,
+    lang: Lang = DEFAULT_LANG,
 ) -> TechnicalReport:
     """Baut den technischen Report in Abschnitten (V4-P6, Abschnitte statt Textwueste).
 
     Wird nur fuer bewertete Cases aufgerufen (generate_report ist gegen den
     Vor-Bewertungs-Zustand gegated, ADR-0050) -- result.routing ist befuellt.
+    Die Risiko-Flags werden am Response-Rand aus den Eingaben in ``lang`` neu
+    abgeleitet (collect_routing_signals) -- die persistierten sind deutsch.
     """
     assert result.routing is not None
+    cat = TECHNICAL_REPORT[lang]
     architektur = (
-        solution_technical
-        if solution_technical
-        else (
-            "Noch kein technischer Loesungsvorschlag erzeugt "
-            "(POST /cases/{id}/propose-solution)."
-        )
+        solution_technical if solution_technical else cat["architektur_placeholder"]
     )
-    datenlage = (
-        f"Datenschutz: {DATA_CLASSIFICATION_CLARTEXT[use_case.data_classification]}. "
-        f"Evidenz: {EVIDENCE_LABELS[use_case.evidence_level]}. "
-        f"Verbindlichkeit: {ADOPTION_LABELS[use_case.adoption_type]}."
+    datenlage = cat["datenlage"].format(
+        datenschutz=DATA_CLASSIFICATION_CLARTEXT[lang][use_case.data_classification],
+        evidenz=EVIDENCE_LABELS[lang][use_case.evidence_level],
+        verbindlichkeit=ADOPTION_LABELS[lang][use_case.adoption_type],
     )
-    risiken = (
-        "; ".join(result.routing.risk_flags)
-        if result.routing.risk_flags
-        else "Keine regelbasierten Risikoflags."
-    )
+    _, _, risk_flags = collect_routing_signals(use_case, lang)
+    risiken = "; ".join(risk_flags) if risk_flags else cat["risiken_none"]
     offene: list[str] = []
     if not solution_technical:
-        offene.append("Technischer Loesungsansatz noch offen.")
+        offene.append(cat["offene_solution"])
     if result.routing.requires_human_review:
-        offene.append("Fachliche/datenschutzrechtliche Pruefung offen.")
+        offene.append(cat["offene_review"])
     if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
-        offene.append("Zeitersparnis ist unbelegt (reine Einschaetzung).")
-    offene_text = (
-        " ".join(offene) if offene else "Keine offenen technischen Fragen erkennbar."
-    )
+        offene.append(cat["offene_estimate"])
+    offene_text = " ".join(offene) if offene else cat["offene_none"]
     return TechnicalReport(
         architektur_kurzfassung=architektur,
         datenlage=datenlage,
@@ -420,6 +425,7 @@ def _build_business_summary(
     reviewer_decision: str,
     reviewer_note: str | None,
     decided_at: datetime | None,
+    lang: Lang = DEFAULT_LANG,
 ) -> BusinessSummary:
     """Leitet die Entscheider-Schicht deterministisch aus TriageResult ab.
 
@@ -449,6 +455,7 @@ def _build_business_summary(
             sharpened_text,
             solution_business,
             compliance_hint_text,
+            lang,
         ),
         solution_business=solution_business,
         sharpened_text=sharpened_text,
@@ -461,7 +468,10 @@ def _build_business_summary(
 
 
 def _build_technical_detail(
-    result: TriageResult, use_case: UseCaseInput, proposal_text: str | None
+    result: TriageResult,
+    use_case: UseCaseInput,
+    proposal_text: str | None,
+    lang: Lang = DEFAULT_LANG,
 ) -> TechnicalDetail:
     """Leitet die Reviewer-Schicht deterministisch aus TriageResult ab.
 
@@ -471,13 +481,18 @@ def _build_technical_detail(
 
     Nur fuer bewertete Cases aufgerufen (generate_report gated gegen den
     Vor-Bewertungs-Zustand, ADR-0050) -- vorfilter/feasibility/routing befuellt.
+    Vorfilter-Kriterien, Machbarkeits-Empfehlung und Routing-Signale werden am
+    Response-Rand in ``lang`` neu abgeleitet (persistiert sind sie deutsch).
     """
     assert result.vorfilter is not None
     assert result.feasibility is not None
     assert result.routing is not None
+    automation_signals, ai_signals, risk_flags = collect_routing_signals(use_case, lang)
     return TechnicalDetail(
         passed_vorfilter=result.passed_vorfilter,
-        vorfilter_failed_criteria=list(result.vorfilter.failed_criteria),
+        vorfilter_failed_criteria=localize_vorfilter_criteria(
+            list(result.vorfilter.failed_criteria), lang
+        ),
         composite_total=(
             result.composite.total if result.composite is not None else None
         ),
@@ -485,10 +500,14 @@ def _build_technical_detail(
             result.composite.effort_label if result.composite is not None else None
         ),
         feasibility_flags=[f.value for f in result.feasibility.flags],
-        feasibility_recommendation=result.feasibility.recommendation,
-        automation_signals=list(result.routing.automation_signals),
-        ai_signals=list(result.routing.ai_signals),
-        risk_flags=list(result.routing.risk_flags),
+        feasibility_recommendation=(
+            build_feasibility_recommendation(result.feasibility.flags, lang)
+            if result.feasibility.flags
+            else None
+        ),
+        automation_signals=list(automation_signals),
+        ai_signals=list(ai_signals),
+        risk_flags=list(risk_flags),
         requires_human_review=result.routing.requires_human_review,
         roi_theoretical_potential_eur=(
             float(result.roi.theoretical_potential_eur)
@@ -500,7 +519,7 @@ def _build_technical_detail(
             if result.roi is not None
             else None
         ),
-        technical_report=_build_technical_report(result, use_case, proposal_text),
+        technical_report=_build_technical_report(result, use_case, proposal_text, lang),
         proposal_text=proposal_text,
     )
 
@@ -783,7 +802,9 @@ class TriageService:
             self._zone_classifier = load_zone_classifier()
         return self._zone_classifier
 
-    def explain_case(self, case: SubmittedCase) -> TriageExplanation:
+    def explain_case(
+        self, case: SubmittedCase, lang: Lang = DEFAULT_LANG
+    ) -> TriageExplanation:
         """Deterministische Erklaerbarkeit eines Case (V4-P6).
 
         Score-Herkunft, Konfidenz-Begruendung und Empfehlungs-Satz -- reine
@@ -791,6 +812,9 @@ class TriageService:
         dieselben Kostenschwellen (roi_config) und Zonen-Schwellen (classifier)
         wie die Pipeline-Bewertung. Wird sowohl von der Triage-Response als auch
         vom Entscheider-Report (generate_report) verwendet -- eine Quelle.
+
+        lang (V4.1-S6): steuert die Sprache der erzeugten Klartexte; ``de`` ist
+        Default und reproduziert die frueheren Strings.
         """
         return explain_triage(
             case.use_case,
@@ -798,6 +822,7 @@ class TriageService:
             impl_cost_point_min_eur=self._roi_config.impl_cost_point_min_eur,
             license_cost_point_min_eur=self._roi_config.license_cost_point_min_eur,
             classifier=self._get_zone_classifier(),
+            lang=lang,
         )
 
     async def set_implementation_approach(
@@ -1168,7 +1193,7 @@ class TriageService:
         )
 
     async def sharpen_case(
-        self, case_id: str, prompt_version: str = "v3"
+        self, case_id: str, prompt_version: str = "v3", lang: Lang = DEFAULT_LANG
     ) -> SharpenedUseCase | None:
         """Schaerft die Use-Case-Beschreibung eines persistierten Cases via LLM.
 
@@ -1219,7 +1244,9 @@ class TriageService:
             case_id=case.id,
         )
 
-        system_prompt = load_prompt("sharpen_use_case", "system", prompt_version)
+        system_prompt = with_language(
+            load_prompt("sharpen_use_case", "system", prompt_version), lang
+        )
         user_template = load_prompt("sharpen_use_case", "user", prompt_version)
         user_content = user_template.format(
             desired_state=neutralize_delimiters(case.use_case.desired_state),
@@ -1375,7 +1402,7 @@ class TriageService:
         return await self._repository.get_async(case.id)
 
     async def propose_solution(
-        self, case_id: str, prompt_version: str = "v3"
+        self, case_id: str, prompt_version: str = "v3", lang: Lang = DEFAULT_LANG
     ) -> SolutionProposal | None:
         """Skizziert einen Loesungsansatz fuer einen persistierten Case via LLM.
 
@@ -1420,7 +1447,9 @@ class TriageService:
             case_id=case.id,
         )
 
-        system_prompt = load_prompt("propose_solution", "system", prompt_version)
+        system_prompt = with_language(
+            load_prompt("propose_solution", "system", prompt_version), lang
+        )
         user_template = load_prompt("propose_solution", "user", prompt_version)
         user_content = user_template.format(
             title=neutralize_delimiters(case.use_case.title),
@@ -1754,7 +1783,9 @@ class TriageService:
             prompt_version=prompt_version,
         )
 
-    async def ideate(self, problem_description: str) -> tuple[IdeationResult, bool]:
+    async def ideate(
+        self, problem_description: str, lang: Lang = DEFAULT_LANG
+    ) -> tuple[IdeationResult, bool]:
         """Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
 
         Ephemer (D16): KEINE Persistenz -- kein Repository-Aufruf, kein Case.
@@ -1797,7 +1828,9 @@ class TriageService:
                 patterns=detected,
             )
 
-        result = await self._llm.generate_ideation(neutralize_delimiters(description))
+        result = await self._llm.generate_ideation(
+            neutralize_delimiters(description), lang
+        )
 
         logger.info(
             "ideation_requested",
@@ -1939,6 +1972,7 @@ class TriageService:
         case_id: str,
         sharpened_text: str | None = None,
         proposal_text: str | None = None,
+        lang: Lang = DEFAULT_LANG,
     ) -> ReportResult | None:
         """Erstellt den zweischichtigen Report (Business + Technisch) fuer einen Case.
 
@@ -1985,7 +2019,7 @@ class TriageService:
         compliance_hint_text, compliance_citations = _render_compliance_hints(
             case.compliance_hints_json
         )
-        explanation = self.explain_case(case)
+        explanation = self.explain_case(case, lang)
 
         return ReportResult(
             case_id=case.id,
@@ -2000,8 +2034,9 @@ class TriageService:
                 case.reviewer_decision.value,
                 case.reviewer_note,
                 case.decided_at,
+                lang,
             ),
             technical_detail=_build_technical_detail(
-                case.result, case.use_case, effective_proposal_text
+                case.result, case.use_case, effective_proposal_text, lang
             ),
         )

@@ -22,14 +22,16 @@ Das 10/min-Rate-Limit ist die Mengengrenze fuer diesen ephemeren Pfad.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
 from aect.adapters.api.dependencies import get_triage_service
+from aect.adapters.api.i18n import API_ERRORS
 from aect.adapters.api.rate_limit import limiter
 from aect.application.service import TriageService
 from aect.application.structured_output import IdeationDraft, InvalidLLMOutputError
+from aect.domain.i18n import DEFAULT_LANG, Lang
 
 router = APIRouter(prefix="/ideation", tags=["ideation"])
 
@@ -68,6 +70,7 @@ async def generate_ideation(
     response: Response,
     body: IdeationRequest,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> IdeationResponse:
     """Erzeugt AI-Use-Case-Entwuerfe aus einer Problembeschreibung.
 
@@ -87,18 +90,16 @@ async def generate_ideation(
         HTTPException 503: KI-Dienst nicht erreichbar.
     """
     try:
-        result, flagged = await service.ideate(body.problem_description)
+        result, flagged = await service.ideate(body.problem_description, lang)
     except InvalidLLMOutputError as exc:
         raise HTTPException(
             status_code=502,
-            detail="KI-Antwort war nicht verwertbar -- bitte erneut versuchen.",
+            detail=API_ERRORS[lang]["ideation_unusable"],
         ) from exc
     except (ConnectionError, TimeoutError) as exc:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
-            ),
+            detail=API_ERRORS[lang]["llm_unavailable"],
         ) from exc
 
     return IdeationResponse(drafts=list(result.drafts), flagged_input=flagged)

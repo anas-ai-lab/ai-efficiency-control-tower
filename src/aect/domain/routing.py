@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from aect.domain.i18n import DEFAULT_LANG, ROUTING_SIGNALS, Lang
 from aect.domain.models import UseCaseInput
 from aect.domain.scoring import COMPLEXITY_BY_APPROACH
 from aect.domain.types import (
@@ -86,20 +87,22 @@ class RoutingResult:
 # ---------------------------------------------------------------------------
 # Signal-Sammlung (seiteneffektfrei, einzeln testbar)
 # ---------------------------------------------------------------------------
-# TODO(S6/i18n): Die managementsichtbaren Signal-/Flag-Strings der drei
-# Sammler-Funktionen sind bewusst ASCII-transliteriert (RUF001/002/003) und in
-# test_routing.py per Substring gepinnt (Enum-nah). Pflicht-Teilaufgabe fuer S6
-# (i18n): ueber eine Uebersetzungsschicht externalisieren (echte Umlaute), Tests
-# dann gegen Message-Keys statt Inline-Literale.
+# Die managementsichtbaren Signal-/Flag-Strings kommen aus dem Sprachkatalog
+# (domain/i18n.ROUTING_SIGNALS, de/en). route_use_case erzeugt sie in der
+# Default-Sprache (de, Erstellungssprache); collect_routing_signals leitet sie
+# am Response-Rand in der gewuenschten Sprache neu ab (V4.1-S6). Die Enum-Werte
+# in Klammern (pure_estimate) bleiben unangetastet, nur der Fliesstext ist
+# uebersetzt.
 
 
-def _collect_automation_signals(use_case: UseCaseInput) -> list[str]:
+def _collect_automation_signals(use_case: UseCaseInput, lang: Lang) -> list[str]:
     """Argumente fuer klassische Automatisierung.
 
     Die Komplexitaet wird seit V4 aus dem Umsetzungsansatz abgeleitet
     (COMPLEXITY_BY_APPROACH) -- ein separates Ansatz-Signal entfaellt, es waere
     eine Doppelzaehlung derselben Groesse.
     """
+    cat = ROUTING_SIGNALS[lang]
     signals: list[str] = []
     # route_use_case laeuft nur fuer bewertete Cases: evaluate_use_case faengt
     # den fehlenden Ansatz vorher als Vor-Bewertungs-Zustand ab (ADR-0050).
@@ -107,64 +110,72 @@ def _collect_automation_signals(use_case: UseCaseInput) -> list[str]:
     complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
     if complexity <= _SIMPLE_TASK_MAX_COMPLEXITY:
         signals.append(
-            f"Komplexitaet {complexity}"
-            f" <= {_SIMPLE_TASK_MAX_COMPLEXITY} -- einfacher, regelbasierter Ablauf"
+            cat["auto_simple"].format(
+                complexity=complexity, threshold=_SIMPLE_TASK_MAX_COMPLEXITY
+            )
         )
     if use_case.occurrences_per_employee_per_year >= _HIGH_VOLUME_MIN_ANNUAL:
         signals.append(
-            f"Volumen {use_case.occurrences_per_employee_per_year}/Jahr je MA"
-            f" >= {_HIGH_VOLUME_MIN_ANNUAL} -- hoher Automatisierungs-ROI"
+            cat["auto_volume"].format(
+                volume=use_case.occurrences_per_employee_per_year,
+                threshold=_HIGH_VOLUME_MIN_ANNUAL,
+            )
         )
     if use_case.adoption_type == AdoptionType.FIXED_PROCESS_STEP:
-        signals.append(
-            "Fester Prozessschritt"
-            " -- konsistentes Nutzungsverhalten begunstigt Automatisierung"
-        )
+        signals.append(cat["auto_fixed"])
     return signals
 
 
-def _collect_ai_signals(use_case: UseCaseInput) -> list[str]:
+def _collect_ai_signals(use_case: UseCaseInput, lang: Lang) -> list[str]:
     """Argumente fuer AI/LLM-Einsatz.
 
     Die Komplexitaet wird seit V4 aus dem Umsetzungsansatz abgeleitet
     (COMPLEXITY_BY_APPROACH) -- ein separates Ansatz-Signal entfaellt.
     """
+    cat = ROUTING_SIGNALS[lang]
     signals: list[str] = []
     # route_use_case laeuft nur fuer bewertete Cases (ADR-0050, siehe oben).
     assert use_case.implementation_approach is not None
     complexity = COMPLEXITY_BY_APPROACH[use_case.implementation_approach]
     if complexity >= _COMPLEX_TASK_MIN_COMPLEXITY:
         signals.append(
-            f"Komplexitaet {complexity}"
-            f" >= {_COMPLEX_TASK_MIN_COMPLEXITY} -- kontextabhaengige, ambigue Aufgabe"
+            cat["ai_complex"].format(
+                complexity=complexity, threshold=_COMPLEX_TASK_MIN_COMPLEXITY
+            )
         )
     if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
-        signals.append(
-            "Schaetzqualitaet gering (pure_estimate)"
-            " -- AI fuer explorativen, unsicheren Anwendungsfall geeignet"
-        )
+        signals.append(cat["ai_estimate"])
     if len(use_case.desired_state) >= _AMBIGUOUS_DESC_MIN_LEN:
-        signals.append(
-            f"Soll-Beschreibung {len(use_case.desired_state)} Zeichen"
-            " -- mehrdimensionale Anforderung deutet auf AI-Bedarf hin"
-        )
+        signals.append(cat["ai_ambiguous"].format(length=len(use_case.desired_state)))
     return signals
 
 
-def _collect_risk_flags(use_case: UseCaseInput) -> list[str]:
+def _collect_risk_flags(use_case: UseCaseInput, lang: Lang) -> list[str]:
     """Datenschutz- und Eskalationshinweise."""
+    cat = ROUTING_SIGNALS[lang]
     flags: list[str] = []
     if use_case.data_classification == DataClassification.SENSITIVE_PERSONAL:
-        flags.append(
-            "Sensible Personendaten (Art. 9 DSGVO)"
-            " -- DSFA-Pruefung und Human Review vor Umsetzung erforderlich"
-        )
+        flags.append(cat["risk_sensitive"])
     if use_case.regulatory_pressure and use_case.contains_pii:
-        flags.append(
-            "Regulatorischer Druck + PII-Verarbeitung"
-            " -- Human Review und Datenschutzfolgenabschaetzung empfohlen"
-        )
+        flags.append(cat["risk_regulatory"])
     return flags
+
+
+def collect_routing_signals(
+    use_case: UseCaseInput, lang: Lang = DEFAULT_LANG
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Re-Ableitung der (Automation-, AI-, Risk-)Signale in ``lang``.
+
+    Reine Funktion der Eingabe: die Empfehlung und die Konfidenz haengen nur an
+    den Signal-ZAEHLERN (sprachunabhaengig), nicht am Wortlaut. Erlaubt es dem
+    Response-Rand, die persistierten (deutschen) Signale in der gewuenschten
+    Sprache neu zu rendern, ohne den Case neu zu bewerten (V4.1-S6).
+    """
+    return (
+        tuple(_collect_automation_signals(use_case, lang)),
+        tuple(_collect_ai_signals(use_case, lang)),
+        tuple(_collect_risk_flags(use_case, lang)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,9 +231,11 @@ def route_use_case(use_case: UseCaseInput) -> RoutingResult:
     Seiteneffektfrei, deterministisch, ohne LLM-Call (Phase A).
     BORDERLINE-Cases werden in Phase C per LLM-Analyse verfeinert.
     """
-    automation_signals = _collect_automation_signals(use_case)
-    ai_signals = _collect_ai_signals(use_case)
-    risk_flags = _collect_risk_flags(use_case)
+    # Erstellungssprache = Default (de). Der Response-Rand rendert bei Bedarf
+    # via collect_routing_signals in einer anderen Sprache neu (V4.1-S6).
+    automation_signals = _collect_automation_signals(use_case, DEFAULT_LANG)
+    ai_signals = _collect_ai_signals(use_case, DEFAULT_LANG)
+    risk_flags = _collect_risk_flags(use_case, DEFAULT_LANG)
 
     recommendation, confidence = _decide(
         automation_count=len(automation_signals),

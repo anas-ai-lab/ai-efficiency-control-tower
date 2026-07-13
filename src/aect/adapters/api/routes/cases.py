@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Literal
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
@@ -27,6 +27,7 @@ from aect.adapters.api.dependencies import (
     require_admin,
     require_token_budget,
 )
+from aect.adapters.api.i18n import API_ERRORS
 from aect.adapters.api.rate_limit import limiter
 from aect.adapters.api.routes.triage import TriageResponse, _to_triage_response
 from aect.application.models import (
@@ -45,10 +46,8 @@ from aect.application.service import (
 )
 from aect.application.structured_output import InvalidLLMOutputError
 from aect.domain import CaseStatus, ImplementationApproach, ReviewerDecision
-from aect.domain.explainability import (
-    FEASIBILITY_DEFINITION,
-    feasibility_from_composite,
-)
+from aect.domain.explainability import feasibility_from_composite
+from aect.domain.i18n import DEFAULT_LANG, FEASIBILITY_DEFINITION, Lang
 from aect.domain.models import UseCaseInput
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -123,6 +122,7 @@ async def list_cases(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     is_admin: bool = Depends(is_admin_request),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> list[CaseSummary]:
     """Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.
 
@@ -172,7 +172,7 @@ async def list_cases(
                     if r.composite is not None
                     else None
                 ),
-                feasibility_definition=FEASIBILITY_DEFINITION,
+                feasibility_definition=FEASIBILITY_DEFINITION[lang],
                 assessment_visible=visible,
             )
         )
@@ -432,6 +432,7 @@ async def set_implementation_approach(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> TriageResponse:
     """Traegt den Implementierungsansatz nach und bewertet den Case neu (ADR-0050).
 
@@ -458,7 +459,7 @@ async def set_implementation_approach(
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    return _to_triage_response(case, service.explain_case(case))
+    return _to_triage_response(case, service.explain_case(case, lang), lang=lang)
 
 
 class MonitoringNoteRequest(BaseModel):
@@ -616,6 +617,7 @@ async def sharpen_case(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SharpenedCaseResponse:
     """Erzeugt einen Schaerfungs-Entwurf fuer einen bestehenden Case via LLM.
 
@@ -640,19 +642,18 @@ async def sharpen_case(
         HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
     try:
-        sharpened = await service.sharpen_case(case_id)
+        sharpened = await service.sharpen_case(case_id, lang=lang)
     except SharpeningNumberViolationError as exc:
         # Die KI hat Zahlen erfunden, die nicht im Original stehen -- auch der
         # Retry hat sie nicht entfernt. 422 (der LLM-Call gelang, der Inhalt ist
         # unverwertbar), die Violation-Liste hilft dem Nutzer beim Nachjustieren.
+        # Der message-Text laeuft ueber lang (V4.1-S6, Freigabe Punkt 4) -- die
+        # Guard-Logik selbst bleibt unangetastet.
         raise HTTPException(
             status_code=422,
             detail={
                 "reason": "invented_numbers",
-                "message": (
-                    "Die Schärfung enthielt Zahlen, die nicht im Original "
-                    "stehen, auch nach einem Korrektur-Versuch."
-                ),
+                "message": API_ERRORS[lang]["sharpen_invented_numbers"],
                 "violations": exc.violations,
             },
         ) from exc
@@ -661,7 +662,7 @@ async def sharpen_case(
         # str(exc) traegt nur loc+type je Fehler (H-031), nie LLM-Rohtext.
         raise HTTPException(
             status_code=422,
-            detail=f"KI-Antwort verletzt das Schärfungs-Schema: {exc}",
+            detail=API_ERRORS[lang]["sharpen_schema"].format(exc=exc),
         ) from exc
 
     if sharpened is None:
@@ -691,6 +692,7 @@ async def accept_sharpening(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SharpeningActionResponse:
     """Uebernimmt den offenen Schaerfungs-Draft in die regulaeren Felder (V4).
 
@@ -706,7 +708,7 @@ async def accept_sharpening(
     except NoSharpeningDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Schärfungs-Entwurf für diesen Case.",
+            detail=API_ERRORS[lang]["no_sharpening_draft"],
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -721,6 +723,7 @@ async def reject_sharpening(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SharpeningActionResponse:
     """Verwirft den offenen Schaerfungs-Draft (V4) -- leert sharpening_draft.
 
@@ -736,7 +739,7 @@ async def reject_sharpening(
     except NoSharpeningDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Schärfungs-Entwurf für diesen Case.",
+            detail=API_ERRORS[lang]["no_sharpening_draft"],
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -765,6 +768,7 @@ async def propose_solution(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SolutionProposalResponse:
     """Skizziert einen zweigeteilten Loesungsansatz fuer einen Case via LLM (V4-P6).
 
@@ -787,19 +791,16 @@ async def propose_solution(
         HTTPException 429: Token-Budget des API-Keys erschoepft.
     """
     try:
-        proposal = await service.propose_solution(case_id)
+        proposal = await service.propose_solution(case_id, lang=lang)
     except SolutionVocabularyViolationError as exc:
         # Der Business-Absatz nutzt verbotene technische Begriffe -- auch der Retry
         # hat sie nicht entfernt. 422 (LLM-Call gelang, Inhalt unverwertbar), die
-        # Violation-Liste hilft beim Nachjustieren.
+        # Violation-Liste hilft beim Nachjustieren. message laeuft ueber lang.
         raise HTTPException(
             status_code=422,
             detail={
                 "reason": "forbidden_vocabulary",
-                "message": (
-                    "Der Geschäftsleitungs-Absatz enthielt technisches Vokabular, "
-                    "auch nach einem Korrektur-Versuch."
-                ),
+                "message": API_ERRORS[lang]["solution_forbidden_vocab"],
                 "violations": exc.violations,
             },
         ) from exc
@@ -808,7 +809,7 @@ async def propose_solution(
         # (H-031), nie LLM-Rohtext.
         raise HTTPException(
             status_code=422,
-            detail=f"KI-Antwort verletzt das Lösungs-Schema: {exc}",
+            detail=API_ERRORS[lang]["solution_schema"].format(exc=exc),
         ) from exc
 
     if proposal is None:
@@ -839,6 +840,7 @@ async def accept_solution(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SolutionActionResponse:
     """Uebernimmt den offenen Loesungs-Draft in die regulaeren Felder (S4).
 
@@ -854,7 +856,7 @@ async def accept_solution(
     except NoSolutionDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Lösungs-Entwurf für diesen Case.",
+            detail=API_ERRORS[lang]["no_solution_draft"],
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -871,6 +873,7 @@ async def reject_solution(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> SolutionActionResponse:
     """Verwirft den offenen Loesungs-Draft (S4) -- leert solution_draft.
 
@@ -887,7 +890,7 @@ async def reject_solution(
     except NoSolutionDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Lösungs-Entwurf für diesen Case.",
+            detail=API_ERRORS[lang]["no_solution_draft"],
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -1127,6 +1130,7 @@ async def get_report(
     body: ReportRequest | None = None,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> ReportResponse:
     """Erstellt den zweischichtigen Report fuer einen bestehenden Case.
 
@@ -1153,7 +1157,10 @@ async def get_report(
     _guard_not_pending(service.get_case(case_id))
 
     report = service.generate_report(
-        case_id, sharpened_text=sharpened_text, proposal_text=proposal_text
+        case_id,
+        sharpened_text=sharpened_text,
+        proposal_text=proposal_text,
+        lang=lang,
     )
     if report is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -1300,6 +1307,7 @@ async def generate_architecture_sketch(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> ArchitectureSketchResponse:
     """Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
 
@@ -1336,10 +1344,7 @@ async def generate_architecture_sketch(
     except NoProposalForSketchError as exc:
         raise HTTPException(
             status_code=409,
-            detail=(
-                "Fuer diesen Use Case liegt kein Loesungsvorschlag vor -- "
-                "Skizze nicht moeglich."
-            ),
+            detail=API_ERRORS[lang]["sketch_no_proposal"],
         ) from exc
     except InvalidLLMOutputError as exc:
         # Die KI-Antwort verletzt das Graph-Schema (ArchitectureSketch). Der
@@ -1349,14 +1354,12 @@ async def generate_architecture_sketch(
         # structured_output.py), nie LLM-Rohtext -- kein PII-Leak.
         raise HTTPException(
             status_code=422,
-            detail=f"KI-Antwort verletzt das Skizzen-Schema: {exc}",
+            detail=API_ERRORS[lang]["sketch_schema"].format(exc=exc),
         ) from exc
     except (ConnectionError, TimeoutError) as exc:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
-            ),
+            detail=API_ERRORS[lang]["llm_unavailable"],
         ) from exc
     except Exception as exc:
         # Interner Fehler HINTER dem gelungenen LLM-Call: der deterministische
@@ -1370,7 +1373,7 @@ async def generate_architecture_sketch(
         )
         raise HTTPException(
             status_code=500,
-            detail="Interner Fehler bei der Skizzen-Erzeugung.",
+            detail=API_ERRORS[lang]["sketch_internal"],
         ) from exc
 
     if result is None:
@@ -1467,6 +1470,7 @@ async def get_case_detail(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     is_admin: bool = Depends(is_admin_request),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> CaseDetailResponse:
     """Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.
 
@@ -1508,10 +1512,10 @@ async def get_case_detail(
         # proposal_text/compliance_hints_json + result) werden gelesen und
         # zusammengesetzt. get_case lieferte den Case, daher ist report hier nicht
         # None -- der Guard bleibt als defensiver Fail-loud stehen.
-        report_result = service.generate_report(case_id)
+        report_result = service.generate_report(case_id, lang=lang)
         if report_result is None:
             raise HTTPException(status_code=404, detail="Case not found")
-        triage = _to_triage_response(case, service.explain_case(case))
+        triage = _to_triage_response(case, service.explain_case(case, lang), lang=lang)
         report = _to_report_response(report_result)
 
     return CaseDetailResponse(

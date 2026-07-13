@@ -28,12 +28,13 @@ from aect.application.ports.llm import (
     ToolCall,
     ToolDefinition,
 )
-from aect.application.prompts import load_prompt
+from aect.application.prompts import load_prompt, with_language
 from aect.application.structured_output import (
     ArchitectureSketch,
     IdeationResult,
     parse_structured_llm_output,
 )
+from aect.domain.i18n import Lang
 
 _MAX_TOKENS_DEFAULT = 1000
 
@@ -118,7 +119,9 @@ class AzureOpenAIAdapter:
 
         return LLMResponse(content=content, tool_calls=tool_calls)
 
-    async def generate_ideation(self, problem_description: str) -> IdeationResult:
+    async def generate_ideation(
+        self, problem_description: str, lang: Lang = "de"
+    ) -> IdeationResult:
         """Erzeugt 1-3 Use-Case-Entwuerfe aus einer Problembeschreibung (P10).
 
         Baut die Messages aus dem versionierten ideation-Prompt (System/User
@@ -131,7 +134,7 @@ class AzureOpenAIAdapter:
             InvalidLLMOutputError: rohe Antwort verletzt IdeationResult.
             ConnectionError/TimeoutError: aus complete() durchgereicht.
         """
-        system_prompt = load_prompt("ideation", "system")
+        system_prompt = with_language(load_prompt("ideation", "system"), lang)
         user_template = load_prompt("ideation", "user")
         user_content = user_template.format(problem_description=problem_description)
 
