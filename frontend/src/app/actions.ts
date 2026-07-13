@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 import type {
@@ -191,6 +192,18 @@ export async function submitTriage(
   );
 }
 
+// Nach einer mutierenden Case-Aktion den Case-Detail-Pfad (und die Ideenliste,
+// deren Zellen sich mitaendern) revalidieren. Ohne das greift router.refresh()
+// im Prod-Build NICHT durch: die Server-Komponente rendert /cases/[id] aus dem
+// Full-Route-/Router-Cache statt aus frischen Backend-Daten -- der stale
+// Pending-Box-Befund nach dem Ansatz-Nachtrag (200 vom Backend, UI blieb
+// pending). revalidatePath invalidiert den Cache-Eintrag serverseitig, sodass
+// der anschliessende refresh/Navigation den neuen Stand zieht.
+function revalidateCase(caseId: string): void {
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath("/cases");
+}
+
 export async function sharpenCase(
   caseId: string,
 ): Promise<SharpenedCaseResponse> {
@@ -206,10 +219,12 @@ export async function sharpenCase(
 export async function acceptSharpening(
   caseId: string,
 ): Promise<SharpeningActionResponse> {
-  return apiFetch<SharpeningActionResponse>(
+  const res = await apiFetch<SharpeningActionResponse>(
     `/cases/${caseId}/sharpen/accept`,
     RULE_TIMEOUT_MS,
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 export async function rejectSharpening(
@@ -224,19 +239,23 @@ export async function rejectSharpening(
 export async function proposeSolution(
   caseId: string,
 ): Promise<SolutionProposalResponse> {
-  return apiFetch<SolutionProposalResponse>(
+  const res = await apiFetch<SolutionProposalResponse>(
     `/cases/${caseId}/propose-solution`,
     LLM_TOOL_LOOP_TIMEOUT_MS,
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 export async function generateComplianceHints(
   caseId: string,
 ): Promise<ComplianceHintsResponse> {
-  return apiFetch<ComplianceHintsResponse>(
+  const res = await apiFetch<ComplianceHintsResponse>(
     `/cases/${caseId}/compliance-hints`,
     LLM_TIMEOUT_MS,
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 // POST /ideation (P10/P14, ADR-0048): ephemere Use-Case-Entwuerfe aus einer
@@ -267,11 +286,13 @@ export async function recordDecision(
   decision: "approved" | "rejected",
   note: string | null,
 ): Promise<DecisionResponse> {
-  return apiFetch<DecisionResponse>(
+  const res = await apiFetch<DecisionResponse>(
     `/cases/${caseId}/decision`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ decision, note }),
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 // ---- Portfolio / Lifecycle / Monitoring (v3, regelbasiert) -----------------
@@ -330,11 +351,13 @@ export async function updateCaseStatus(
   caseId: string,
   status: CaseStatus,
 ): Promise<StatusUpdateResponse> {
-  return apiFetch<StatusUpdateResponse>(
+  const res = await apiFetch<StatusUpdateResponse>(
     `/cases/${caseId}/status`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ status }),
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 // Traegt den Implementierungsansatz eines Vor-Bewertungs-Case nach und loest
@@ -344,11 +367,13 @@ export async function setImplementationApproach(
   caseId: string,
   approach: ImplementationApproach,
 ): Promise<TriageResponse> {
-  return apiFetch<TriageResponse>(
+  const res = await apiFetch<TriageResponse>(
     `/cases/${caseId}/implementation-approach`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ implementation_approach: approach }),
   );
+  revalidateCase(caseId);
+  return res;
 }
 
 export async function addMonitoringNote(

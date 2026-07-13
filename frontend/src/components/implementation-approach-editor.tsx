@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { setImplementationApproach } from "@/app/actions";
 import { Button } from "@/components/ui/button";
@@ -24,26 +23,31 @@ export function ImplementationApproachEditor({
   approach: ImplementationApproach | null;
   isAdmin: boolean;
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(approach ?? "");
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const label = approach ? IMPLEMENTATION_APPROACH_LABELS[approach] : "—";
 
-  function save() {
+  // Harter Reload statt router.refresh(): Letzteres greift im Prod-Build hier
+  // NICHT durch -- der Client-Router-Cache liefert die alte RSC-Nutzlast der
+  // Detailseite weiter, sodass die Pending-Box trotz 200 (voll neu bewerteter
+  // Case) sichtbar blieb. Der SSR-Dokument-Request ist frisch (no-store), also
+  // zieht ein window.location.reload() zuverlaessig den neuen Stand. Der
+  // Nachtrag loest ohnehin eine vollstaendige Neubewertung aus -> ein sauberer
+  // Reload der Detailseite ist hier angemessen.
+  async function save() {
     if (value === "") return;
     setError(null);
-    startTransition(async () => {
-      try {
-        await setImplementationApproach(caseId, value as ImplementationApproach);
-        setEditing(false);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
-      }
-    });
+    setIsPending(true);
+    try {
+      await setImplementationApproach(caseId, value as ImplementationApproach);
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+      setIsPending(false);
+    }
   }
 
   return (
