@@ -181,6 +181,12 @@ class SubmittedCase:
     # sharpened_content_json, reject leert ihn. None, solange kein Draft offen
     # ist. JSON-Objekt (original/sharpened/improvement_suggestions/metadaten).
     sharpening_draft: str | None = None
+    # solution_draft (S4, Draft/Accept-Flow analog sharpening_draft): der von
+    # propose_solution() erzeugte Loesungsvorschlag (business + technical), BEVOR
+    # ein Mensch ihn uebernimmt. Ueberschreibt nichts am Case; accept traegt ihn
+    # nach solution_business + proposal_text, reject leert ihn. None, solange kein
+    # Draft offen ist. JSON-Objekt (solution_business/solution_technical/metadaten).
+    solution_draft: str | None = None
     # Intake-Embedding fuer Dedup-Aehnlichkeitspruefung (L-3, ADR-0039).
     # None, solange kein Embedding berechnet wurde (Mock-Modus, erster Case,
     # oder Case aus einer aelteren DB-Version). Persistiert als JSON-Float-Liste.
@@ -234,9 +240,10 @@ class SharpenedUseCase:
     Beschreibungs-Felder keine im Original fehlenden Zahlen erfinden. Bei
     Schema- oder Zahlen-Verstoss laeuft genau EIN Retry; scheitert auch der,
     wirft sharpen_case() (Fail loud, kein Graceful-Degradation-Fallback mehr).
-    In der Erfolgs-Form sind alle drei sharpened_*-Felder gesetzt und
+    In der Erfolgs-Form sind beide sharpened_*-Soll-Felder gesetzt und
     improvement_suggestions traegt 1-3 ImprovementSuggestion (bezugsfeld/
-    vorschlag/hebel).
+    vorschlag/hebel). S4: Titel und Ist-Felder sind nicht mehr Teil der
+    Schaerfung -- nur Soll-Zustand + Soll-Beispiel.
 
     prompt_version macht nachvollziehbar, welche Prompt-Version dieses
     Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default seit
@@ -247,12 +254,10 @@ class SharpenedUseCase:
     """
 
     case_id: str
-    original_title: str
-    original_current_state: str
     original_desired_state: str
-    sharpened_title: str
-    sharpened_current_state: str
+    original_desired_example_process: str
     sharpened_desired_state: str
+    sharpened_desired_example_process: str
     improvement_suggestions: tuple[ImprovementSuggestion, ...]
     prompt_version: str
 

@@ -38,6 +38,7 @@ from aect.application.service import (
     CaseNotFoundError,
     NoProposalForSketchError,
     NoSharpeningDraftError,
+    NoSolutionDraftError,
     SharpeningNumberViolationError,
     SolutionVocabularyViolationError,
     TriageService,
@@ -591,12 +592,10 @@ class SharpenedCaseResponse(BaseModel):
     """
 
     case_id: str
-    original_title: str
-    original_current_state: str
     original_desired_state: str
-    sharpened_title: str
-    sharpened_current_state: str
+    original_desired_example_process: str
     sharpened_desired_state: str
+    sharpened_desired_example_process: str
     improvement_suggestions: list[SharpenSuggestionResponse]
     prompt_version: str
 
@@ -670,12 +669,10 @@ async def sharpen_case(
 
     return SharpenedCaseResponse(
         case_id=sharpened.case_id,
-        original_title=sharpened.original_title,
-        original_current_state=sharpened.original_current_state,
         original_desired_state=sharpened.original_desired_state,
-        sharpened_title=sharpened.sharpened_title,
-        sharpened_current_state=sharpened.sharpened_current_state,
+        original_desired_example_process=sharpened.original_desired_example_process,
         sharpened_desired_state=sharpened.sharpened_desired_state,
+        sharpened_desired_example_process=(sharpened.sharpened_desired_example_process),
         improvement_suggestions=[
             SharpenSuggestionResponse(
                 bezugsfeld=s.bezugsfeld.value, vorschlag=s.vorschlag, hebel=s.hebel
@@ -823,6 +820,78 @@ async def propose_solution(
         solution_technical=proposal.solution_technical,
         prompt_version=proposal.prompt_version,
     )
+
+
+class SolutionActionResponse(BaseModel):
+    """Bestaetigung fuer accept/reject eines Loesungs-Drafts (S4)."""
+
+    case_id: str
+    status: str
+
+
+@router.post(
+    "/{case_id}/propose-solution/accept", response_model=SolutionActionResponse
+)
+@limiter.limit("10/minute")
+async def accept_solution(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> SolutionActionResponse:
+    """Uebernimmt den offenen Loesungs-Draft in die regulaeren Felder (S4).
+
+    Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
+    Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: kein offener Draft (nichts zu uebernehmen).
+    """
+    try:
+        updated = await service.accept_solution(case_id)
+    except NoSolutionDraftError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Kein offener Loesungs-Entwurf fuer diesen Case.",
+        ) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return SolutionActionResponse(case_id=case_id, status="accepted")
+
+
+@router.post(
+    "/{case_id}/propose-solution/reject", response_model=SolutionActionResponse
+)
+@limiter.limit("10/minute")
+async def reject_solution(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> SolutionActionResponse:
+    """Verwirft den offenen Loesungs-Draft (S4) -- leert solution_draft.
+
+    Kein LLM-Call -> kein Token-Budget noetig. Persistiert NICHTS an
+    proposal_text/solution_business.
+    Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: kein offener Draft (nichts zu verwerfen).
+    """
+    try:
+        updated = await service.reject_solution(case_id)
+    except NoSolutionDraftError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Kein offener Loesungs-Entwurf fuer diesen Case.",
+        ) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return SolutionActionResponse(case_id=case_id, status="rejected")
 
 
 class ComplianceCitationResponse(BaseModel):

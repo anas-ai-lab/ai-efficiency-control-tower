@@ -246,20 +246,25 @@ export interface SharpenSuggestion {
 // Draft-Ergebnis: Original + geschaerfte Fassung. Der Client baut daraus die
 // Diff-Ansicht und uebernimmt/verwirft via /sharpen/accept bzw. /reject. Alle
 // sharpened_*-Felder sind bei Erfolg gesetzt (422 statt Teilantwort im Backend).
+// S4: Schaerfung nur noch ueber die Soll-Felder (Soll-Zustand + Soll-Beispiel).
 export interface SharpenedCaseResponse {
   case_id: string;
-  original_title: string;
-  original_current_state: string;
   original_desired_state: string;
-  sharpened_title: string;
-  sharpened_current_state: string;
+  original_desired_example_process: string;
   sharpened_desired_state: string;
+  sharpened_desired_example_process: string;
   improvement_suggestions: SharpenSuggestion[];
   prompt_version: string;
 }
 
 // Bestaetigung fuer accept/reject eines Schaerfungs-Drafts (V4).
 export interface SharpeningActionResponse {
+  case_id: string;
+  status: string; // "accepted" | "rejected"
+}
+
+// Bestaetigung fuer accept/reject eines Loesungs-Drafts (S4).
+export interface SolutionActionResponse {
   case_id: string;
   status: string; // "accepted" | "rejected"
 }

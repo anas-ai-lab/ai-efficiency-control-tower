@@ -50,21 +50,16 @@ def test_solution_proposal_v2_rejects_too_short() -> None:
 
 
 _VALID_PAYLOAD: dict = {
-    "sharpened_title": (
-        "Automatisierte Rechnungsverarbeitung mit OCR-Erkennung und "
-        "direkter SAP-Integration"
-    ),
-    "sharpened_current_state": (
-        "Mitarbeiter im Finance-Team scannen taeglich rund 50 eingehende "
-        "Rechnungen manuell und uebertragen Betraege, Kostenstellen und "
-        "Lieferantendaten per Hand in SAP. Pro Rechnung werden ca. 15 "
-        "Minuten benoetigt."
-    ),
     "sharpened_desired_state": (
         "Ein KI-System liest eingehende Rechnungen automatisch aus, "
         "ordnet Pflichtfelder zu und befuellt SAP direkt. Ziel ist eine "
         "Bearbeitungszeit unter 2 Minuten pro Rechnung bei einer "
         "Fehlerquote unter 1 Prozent."
+    ),
+    "sharpened_desired_example_process": (
+        "Eine eingehende Lieferantenrechnung wird automatisch ausgelesen, "
+        "den Kostenstellen zugeordnet und als SAP-Buchungsvorschlag "
+        "bereitgestellt; nur ein Zweifelsfall geht an eine Fachkraft."
     ),
     "improvement_suggestions": [
         {
@@ -87,7 +82,9 @@ class TestParseStructuredLLMOutputValid:
             json.dumps(_VALID_PAYLOAD), SharpenedContentV2
         )
         assert isinstance(result, SharpenedContentV2)
-        assert result.sharpened_title == _VALID_PAYLOAD["sharpened_title"]
+        assert (
+            result.sharpened_desired_state == _VALID_PAYLOAD["sharpened_desired_state"]
+        )
         assert len(result.improvement_suggestions) == 2
 
 
@@ -103,7 +100,9 @@ class TestParseStructuredLLMOutputInvalidJSON:
 
 class TestParseStructuredLLMOutputSchemaViolations:
     def test_missing_required_field_raises(self) -> None:
-        payload = {k: v for k, v in _VALID_PAYLOAD.items() if k != "sharpened_title"}
+        payload = {
+            k: v for k, v in _VALID_PAYLOAD.items() if k != "sharpened_desired_state"
+        }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
@@ -112,13 +111,13 @@ class TestParseStructuredLLMOutputSchemaViolations:
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
-    def test_title_too_long_raises(self) -> None:
-        payload = {**_VALID_PAYLOAD, "sharpened_title": "x" * 201}
+    def test_desired_state_too_long_raises(self) -> None:
+        payload = {**_VALID_PAYLOAD, "sharpened_desired_state": "x" * 2001}
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
-    def test_title_too_short_raises(self) -> None:
-        payload = {**_VALID_PAYLOAD, "sharpened_title": "x"}
+    def test_desired_state_too_short_raises(self) -> None:
+        payload = {**_VALID_PAYLOAD, "sharpened_desired_state": "x" * 29}
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
@@ -315,7 +314,9 @@ class TestParseStructuredLLMOutputFenceTolerance:
         fenced = "```json\n" + json.dumps(_VALID_PAYLOAD) + "\n```"
         result = parse_structured_llm_output(fenced, SharpenedContentV2)
         assert isinstance(result, SharpenedContentV2)
-        assert result.sharpened_title == _VALID_PAYLOAD["sharpened_title"]
+        assert (
+            result.sharpened_desired_state == _VALID_PAYLOAD["sharpened_desired_state"]
+        )
 
     def test_surrounding_prose_is_tolerated(self) -> None:
         wrapped = "Hier das Ergebnis:\n" + json.dumps(_VALID_PAYLOAD) + "\nFertig."

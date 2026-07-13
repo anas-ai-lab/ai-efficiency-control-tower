@@ -780,6 +780,102 @@
         }
       }
     },
+    "/cases/{case_id}/propose-solution/accept": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Accept Solution",
+        "description": "Uebernimmt den offenen Loesungs-Draft in die regulaeren Felder (S4).\n\nKein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.\nAuth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu uebernehmen).",
+        "operationId": "accept_solution_cases__case_id__propose_solution_accept_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolutionActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/propose-solution/reject": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Reject Solution",
+        "description": "Verwirft den offenen Loesungs-Draft (S4) -- leert solution_draft.\n\nKein LLM-Call -> kein Token-Budget noetig. Persistiert NICHTS an\nproposal_text/solution_business.\nAuth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: kein offener Draft (nichts zu verwerfen).",
+        "operationId": "reject_solution_cases__case_id__propose_solution_reject_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolutionActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/report": {
       "post": {
         "tags": [
@@ -2457,29 +2553,21 @@
             "type": "string",
             "title": "Case Id"
           },
-          "original_title": {
-            "type": "string",
-            "title": "Original Title"
-          },
-          "original_current_state": {
-            "type": "string",
-            "title": "Original Current State"
-          },
           "original_desired_state": {
             "type": "string",
             "title": "Original Desired State"
           },
-          "sharpened_title": {
+          "original_desired_example_process": {
             "type": "string",
-            "title": "Sharpened Title"
-          },
-          "sharpened_current_state": {
-            "type": "string",
-            "title": "Sharpened Current State"
+            "title": "Original Desired Example Process"
           },
           "sharpened_desired_state": {
             "type": "string",
             "title": "Sharpened Desired State"
+          },
+          "sharpened_desired_example_process": {
+            "type": "string",
+            "title": "Sharpened Desired Example Process"
           },
           "improvement_suggestions": {
             "items": {
@@ -2496,12 +2584,10 @@
         "type": "object",
         "required": [
           "case_id",
-          "original_title",
-          "original_current_state",
           "original_desired_state",
-          "sharpened_title",
-          "sharpened_current_state",
+          "original_desired_example_process",
           "sharpened_desired_state",
+          "sharpened_desired_example_process",
           "improvement_suggestions",
           "prompt_version"
         ],
@@ -2673,6 +2759,25 @@
         ],
         "title": "SketchNodeResponse",
         "description": "Ein Knoten der Architektur-Skizze (P11, ADR-0049).\n\nkind: einer der fuenf generischen Bausteintypen (user/system/ai_service/\ndata_store/external) -- als String serialisiert (StrEnum.value)."
+      },
+      "SolutionActionResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "status"
+        ],
+        "title": "SolutionActionResponse",
+        "description": "Bestaetigung fuer accept/reject eines Loesungs-Drafts (S4)."
       },
       "SolutionProposalResponse": {
         "properties": {

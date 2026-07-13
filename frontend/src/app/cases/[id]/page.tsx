@@ -207,7 +207,11 @@ export default async function CaseDetailPage({
               hasSolution={summary.solution_business !== null}
               hasCompliance={summary.compliance_hint_text !== null}
             />
-            <SketchView caseId={detail.id} initialSketch={initialSketch} />
+            <SketchView
+              caseId={detail.id}
+              initialSketch={initialSketch}
+              hasSolution={summary.solution_business !== null}
+            />
           </div>
         )}
 

@@ -236,6 +236,21 @@ class NoSharpeningDraftError(Exception):
         self.case_id = case_id
 
 
+class NoSolutionDraftError(Exception):
+    """Loesungs-Draft-Aktion (accept/reject) ohne offenen Draft (S4).
+
+    accept_solution()/reject_solution() setzen einen offenen solution_draft
+    voraus. Fehlt er (nie vorgeschlagen, oder bereits uebernommen/verworfen),
+    ist das ein typisierter Fehlerfall -- von "Case fehlt" (None -> 404)
+    unterschieden, damit die Route auf 409 mappen kann. Analog
+    NoSharpeningDraftError.
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"No open solution draft: {case_id}")
+        self.case_id = case_id
+
+
 def _render_suggestion_line(suggestion: object) -> str:
     """Rendert einen Verbesserungsvorschlag als lesbare Zeile.
 
@@ -268,9 +283,8 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     if data.get("raw_text") is not None:
         return str(data["raw_text"])
     lines = [
-        f"Titel: {data['sharpened_title']}",
-        f"Ist-Zustand: {data['sharpened_current_state']}",
         f"Soll-Zustand: {data['sharpened_desired_state']}",
+        f"Soll-Beispiel: {data['sharpened_desired_example_process']}",
         "Verbesserungsvorschlaege:",
     ]
     lines += [_render_suggestion_line(s) for s in data["improvement_suggestions"]]
@@ -1079,11 +1093,11 @@ class TriageService:
         - Schema ok, aber erfundene Zahlen -> (parsed, None, [Zahlen]).
         - Sauber -> (parsed, None, []).
 
-        Der Zahlen-Guard laeuft NUR ueber die drei Beschreibungs-Felder
-        (sharpened_title/current_state/desired_state) -- NICHT ueber die
-        improvement_suggestions. Deren hebel darf bewusst Bewertungsgroessen
-        beziffern ("Evidenzfaktor steigt von 0,40 auf 0,90"); das sind
-        Config-/Modell-Werte, keine erfundenen Case-Zahlen.
+        Der Zahlen-Guard laeuft NUR ueber die beiden geschaerften Soll-Felder
+        (sharpened_desired_state/sharpened_desired_example_process, S4) -- NICHT
+        ueber die improvement_suggestions. Deren hebel darf bewusst
+        Bewertungsgroessen beziffern ("Evidenzfaktor steigt von 0,40 auf 0,90");
+        das sind Config-/Modell-Werte, keine erfundenen Case-Zahlen.
         """
         try:
             parsed = parse_structured_llm_output(content, SharpenedContentV2)
@@ -1091,9 +1105,8 @@ class TriageService:
             return None, exc, []
         guarded_text = "\n".join(
             (
-                parsed.sharpened_title,
-                parsed.sharpened_current_state,
                 parsed.sharpened_desired_state,
+                parsed.sharpened_desired_example_process,
             )
         )
         return parsed, None, find_violations(allowlist, guarded_text)
@@ -1194,12 +1207,14 @@ class TriageService:
         if case is None:
             return None
 
+        # S4: geschaerft werden nur die Soll-Felder -> nur die fliessen in den
+        # Prompt und werden auf Injection geprueft. desired_example_process ist
+        # optional; None -> Leerstring.
+        desired_example = case.use_case.desired_example_process or ""
         _flag_injection_in_fields(
             {
-                "title": case.use_case.title,
-                "current_state": case.use_case.current_state,
                 "desired_state": case.use_case.desired_state,
-                "example_process": case.use_case.example_process,
+                "desired_example_process": desired_example,
             },
             case_id=case.id,
         )
@@ -1207,10 +1222,8 @@ class TriageService:
         system_prompt = load_prompt("sharpen_use_case", "system", prompt_version)
         user_template = load_prompt("sharpen_use_case", "user", prompt_version)
         user_content = user_template.format(
-            title=neutralize_delimiters(case.use_case.title),
-            current_state=neutralize_delimiters(case.use_case.current_state),
             desired_state=neutralize_delimiters(case.use_case.desired_state),
-            example_process=neutralize_delimiters(case.use_case.example_process),
+            desired_example_process=neutralize_delimiters(desired_example),
         )
         allowlist = build_allowlist(case.use_case)
 
@@ -1272,14 +1285,14 @@ class TriageService:
         draft_json = json.dumps(
             {
                 "original": {
-                    "title": case.use_case.title,
-                    "current_state": case.use_case.current_state,
                     "desired_state": case.use_case.desired_state,
+                    "desired_example_process": desired_example,
                 },
                 "sharpened": {
-                    "sharpened_title": parsed.sharpened_title,
-                    "sharpened_current_state": parsed.sharpened_current_state,
                     "sharpened_desired_state": parsed.sharpened_desired_state,
+                    "sharpened_desired_example_process": (
+                        parsed.sharpened_desired_example_process
+                    ),
                 },
                 "improvement_suggestions": [
                     s.model_dump(mode="json") for s in suggestions
@@ -1294,12 +1307,12 @@ class TriageService:
 
         return SharpenedUseCase(
             case_id=case.id,
-            original_title=case.use_case.title,
-            original_current_state=case.use_case.current_state,
             original_desired_state=case.use_case.desired_state,
-            sharpened_title=parsed.sharpened_title,
-            sharpened_current_state=parsed.sharpened_current_state,
+            original_desired_example_process=desired_example,
             sharpened_desired_state=parsed.sharpened_desired_state,
+            sharpened_desired_example_process=(
+                parsed.sharpened_desired_example_process
+            ),
             improvement_suggestions=suggestions,
             prompt_version=prompt_version,
         )
@@ -1329,9 +1342,10 @@ class TriageService:
         sharpened = draft["sharpened"]
         content_json = json.dumps(
             {
-                "sharpened_title": sharpened["sharpened_title"],
-                "sharpened_current_state": sharpened["sharpened_current_state"],
                 "sharpened_desired_state": sharpened["sharpened_desired_state"],
+                "sharpened_desired_example_process": sharpened[
+                    "sharpened_desired_example_process"
+                ],
                 "improvement_suggestions": draft["improvement_suggestions"],
                 "prompt_version": draft.get("prompt_version"),
             }
@@ -1502,14 +1516,20 @@ class TriageService:
             )
             raise SolutionVocabularyViolationError(case.id, violations)
 
-        # proposal_text traegt weiter die technische Fassung (Sketch-Eingabe,
-        # technische Report-Sicht, Request-Override); solution_business daneben.
-        await self._repository.update_field_async(
-            case.id, "proposal_text", parsed.solution_technical
+        # Draft/Accept-Flow (S4, Muster aus sharpen_case): der Vorschlag wird als
+        # solution_draft persistiert und ueberschreibt NICHTS am Case. Erst
+        # accept_solution() traegt beide Fassungen nach proposal_text +
+        # solution_business -- damit hat auch die technische Variante einen
+        # expliziten Freigabe-Weg. reject_solution() verwirft den Draft.
+        draft_json = json.dumps(
+            {
+                "solution_business": parsed.solution_business,
+                "solution_technical": parsed.solution_technical,
+                "prompt_version": prompt_version,
+                "created_at": self._clock.now().isoformat(),
+            }
         )
-        await self._repository.update_field_async(
-            case.id, "solution_business", parsed.solution_business
-        )
+        await self._repository.update_field_async(case.id, "solution_draft", draft_json)
 
         return SolutionProposal(
             case_id=case.id,
@@ -1517,6 +1537,58 @@ class TriageService:
             solution_technical=parsed.solution_technical,
             prompt_version=prompt_version,
         )
+
+    async def accept_solution(self, case_id: str) -> SubmittedCase | None:
+        """Uebernimmt den offenen Loesungs-Draft in die regulaeren Felder (S4).
+
+        Traegt solution_technical -> proposal_text (Sketch-Eingabe, technische
+        Report-Sicht) und solution_business -> solution_business und leert den
+        Draft. Alle Schreibvorgaenge sind per-Feld-UPDATEs (F-011). Analog
+        accept_sharpening().
+
+        Returns:
+            Den aktualisierten Case (reload), oder None wenn case_id fehlt
+            (Route -> 404).
+
+        Raises:
+            NoSolutionDraftError: kein offener Draft (Route -> 409).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        if case.solution_draft is None:
+            raise NoSolutionDraftError(case.id)
+
+        draft = json.loads(case.solution_draft)
+        await self._repository.update_field_async(
+            case.id, "proposal_text", draft["solution_technical"]
+        )
+        await self._repository.update_field_async(
+            case.id, "solution_business", draft["solution_business"]
+        )
+        await self._repository.update_field_async(case.id, "solution_draft", None)
+        return await self._repository.get_async(case.id)
+
+    async def reject_solution(self, case_id: str) -> SubmittedCase | None:
+        """Verwirft den offenen Loesungs-Draft (S4) -- leert solution_draft.
+
+        Persistiert NICHTS an proposal_text/solution_business. Analog
+        reject_sharpening().
+
+        Returns:
+            Den aktualisierten Case (reload), oder None wenn case_id fehlt
+            (Route -> 404).
+
+        Raises:
+            NoSolutionDraftError: kein offener Draft (Route -> 409).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        if case.solution_draft is None:
+            raise NoSolutionDraftError(case.id)
+        await self._repository.update_field_async(case.id, "solution_draft", None)
+        return await self._repository.get_async(case.id)
 
     async def generate_compliance_hints(
         self, case_id: str, prompt_version: str = "v1"

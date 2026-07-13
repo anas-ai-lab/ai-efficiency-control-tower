@@ -211,24 +211,21 @@ export function SharpeningReview({
   const [pending, setPending] = useState<"accept" | "reject" | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // S4: Schaerfung nur ueber die Soll-Felder -> nur diese im Diff.
   const fields = useMemo(
     () => [
-      {
-        label: "Titel",
-        diff: computeDiff(sharpened.original_title, sharpened.sharpened_title),
-      },
-      {
-        label: "Ist-Zustand",
-        diff: computeDiff(
-          sharpened.original_current_state,
-          sharpened.sharpened_current_state,
-        ),
-      },
       {
         label: "Soll-Zustand",
         diff: computeDiff(
           sharpened.original_desired_state,
           sharpened.sharpened_desired_state,
+        ),
+      },
+      {
+        label: "Soll-Beispiel",
+        diff: computeDiff(
+          sharpened.original_desired_example_process,
+          sharpened.sharpened_desired_example_process,
         ),
       },
     ],

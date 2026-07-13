@@ -26,9 +26,10 @@ class TestValidationErrorRedaction:
         # den Sentinel als input_value in den pydantic-ValidationError.
         raw = json.dumps(
             {
-                "sharpened_title": "Ein ausreichend langer Titel",
-                "sharpened_current_state": "Ist-Zustand mit mehr als dreissig Zeichen.",
                 "sharpened_desired_state": "Soll-Zustand mit mehr als dreissig Zeichen.",
+                "sharpened_desired_example_process": (
+                    "Soll-Beispiel mit mehr als dreissig Zeichen im Text."
+                ),
                 "improvement_suggestions": [
                     {
                         "bezugsfeld": "notes",

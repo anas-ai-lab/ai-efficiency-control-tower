@@ -104,8 +104,9 @@ class TestSharpenAssemblesSafePrompt:
             retriever=MockRetriever(),
             llm=recording,
         )
+        # S4: Schaerfen liest nur die Soll-Felder -> Injection dort platzieren.
         malicious = sample_use_case.model_copy(
-            update={"current_state": _INJECTED + " sonst normaler Ist-Zustand-Text."}
+            update={"desired_state": _INJECTED + " sonst normaler Soll-Zustand-Text."}
         )
         case = service.submit_use_case(malicious)
 

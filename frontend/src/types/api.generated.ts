@@ -528,6 +528,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/propose-solution/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Solution
+         * @description Uebernimmt den offenen Loesungs-Draft in die regulaeren Felder (S4).
+         *
+         *     Kein LLM-Call (nur Persistenz) -> kein Token-Budget noetig.
+         *     Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: kein offener Draft (nichts zu uebernehmen).
+         */
+        post: operations["accept_solution_cases__case_id__propose_solution_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/propose-solution/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Solution
+         * @description Verwirft den offenen Loesungs-Draft (S4) -- leert solution_draft.
+         *
+         *     Kein LLM-Call -> kein Token-Budget noetig. Persistiert NICHTS an
+         *     proposal_text/solution_business.
+         *     Auth: require_admin (Session ODER X-API-Key). Rate Limit: 10/Minute (Schreib-Endpoint).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: kein offener Draft (nichts zu verwerfen).
+         */
+        post: operations["reject_solution_cases__case_id__propose_solution_reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/report": {
         parameters: {
             query?: never;
@@ -1435,18 +1490,14 @@ export interface components {
         SharpenedCaseResponse: {
             /** Case Id */
             case_id: string;
-            /** Original Title */
-            original_title: string;
-            /** Original Current State */
-            original_current_state: string;
             /** Original Desired State */
             original_desired_state: string;
-            /** Sharpened Title */
-            sharpened_title: string;
-            /** Sharpened Current State */
-            sharpened_current_state: string;
+            /** Original Desired Example Process */
+            original_desired_example_process: string;
             /** Sharpened Desired State */
             sharpened_desired_state: string;
+            /** Sharpened Desired Example Process */
+            sharpened_desired_example_process: string;
             /** Improvement Suggestions */
             improvement_suggestions: components["schemas"]["SharpenSuggestionResponse"][];
             /** Prompt Version */
@@ -1549,6 +1600,16 @@ export interface components {
             label: string;
             /** Kind */
             kind: string;
+        };
+        /**
+         * SolutionActionResponse
+         * @description Bestaetigung fuer accept/reject eines Loesungs-Drafts (S4).
+         */
+        SolutionActionResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Status */
+            status: string;
         };
         /**
          * SolutionProposalResponse
@@ -2394,6 +2455,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SolutionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_solution_cases__case_id__propose_solution_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolutionActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_solution_cases__case_id__propose_solution_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolutionActionResponse"];
                 };
             };
             /** @description Validation Error */

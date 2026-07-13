@@ -21,6 +21,7 @@ CaseUpdateField = Literal[
     "embedding",
     "architecture_sketch",
     "sharpening_draft",
+    "solution_draft",
 ]
 
 

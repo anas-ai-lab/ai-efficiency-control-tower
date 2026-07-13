@@ -262,6 +262,12 @@ async def test_report_uses_persisted_proposal_text_after_propose_solution_call()
             f"/cases/{case_id}/propose-solution",
             headers={"X-API-Key": TEST_API_KEY},
         )
+        # S4: propose liefert nur einen Draft -> uebernehmen, damit proposal_text
+        # im Report erscheint.
+        await client.post(
+            f"/cases/{case_id}/propose-solution/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
 
         response = await client.post(
             f"/cases/{case_id}/report",

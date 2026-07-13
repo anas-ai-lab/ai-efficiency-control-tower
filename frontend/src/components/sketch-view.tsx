@@ -134,6 +134,10 @@ interface SketchViewProps {
   caseId: string;
   // Persistierte Skizze aus dem GET beim Seitenaufbau (null = nie erzeugt).
   initialSketch: ArchitectureSketchResponse | null;
+  // S4-D: die Skizze setzt einen uebernommenen Loesungsvorschlag voraus (Backend
+  // 409 NoProposalForSketchError). Ist keiner vorhanden, ist der Button vorab
+  // deaktiviert + Grund -- kein roher 409 mehr in der UI.
+  hasSolution: boolean;
 }
 
 // Abschnitt "Architektur-Skizze" der Detail-Seite (P13). Fuenf Zustaende:
@@ -143,7 +147,11 @@ interface SketchViewProps {
 // (in MermaidDiagram). Ob ein Loesungsvorschlag existiert, verraet einzig der
 // 409 des POST -- CaseSummary fuehrt das nicht; darum wird Zustand c) LAZY aus
 // einem Fehlversuch abgeleitet (kein neues Backend-Feld, kein Vorab-Deaktivieren).
-export function SketchView({ caseId, initialSketch }: SketchViewProps) {
+export function SketchView({
+  caseId,
+  initialSketch,
+  hasSolution,
+}: SketchViewProps) {
   const [sketch, setSketch] = useState<ArchitectureSketchResponse | null>(
     initialSketch,
   );
@@ -222,16 +230,24 @@ export function SketchView({ caseId, initialSketch }: SketchViewProps) {
     );
   }
 
-  // Zustand c) -- 409: kein Loesungsvorschlag. Button deaktiviert + Hinweis.
-  if (noProposal) {
+  // Zustand c) -- kein (uebernommener) Loesungsvorschlag: Button vorab
+  // deaktiviert + Grund (S4-D). hasSolution kommt vom Detail-Page; noProposal ist
+  // der defensive Fallback, falls ein 409 doch noch durchkommt.
+  if (!hasSolution || noProposal) {
     return (
       <SectionShell>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Eine Architektur-Skizze braucht einen Lösungsvorschlag als Grundlage
-            — für diesen Use Case liegt keiner vor.
+            Eine Architektur-Skizze braucht einen übernommenen Lösungsvorschlag
+            als Grundlage — für diesen Use Case liegt keiner vor.
           </p>
-          <Button type="button" size="xl" className="mt-4 w-full" disabled>
+          <Button
+            type="button"
+            size="xl"
+            className="mt-4 w-full"
+            disabled
+            title="Zuerst einen Lösungsvorschlag erzeugen und übernehmen."
+          >
             Skizze erzeugen
           </Button>
         </div>

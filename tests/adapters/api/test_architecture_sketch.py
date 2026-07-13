@@ -252,6 +252,13 @@ async def _add_proposal(client: AsyncClient, case_id: str) -> None:
         f"/cases/{case_id}/propose-solution", headers={"X-API-Key": TEST_API_KEY}
     )
     assert resp.status_code == 200
+    # S4: propose liefert nur einen Draft -> uebernehmen, damit proposal_text
+    # gesetzt ist (Voraussetzung fuer die Skizze).
+    accepted = await client.post(
+        f"/cases/{case_id}/propose-solution/accept",
+        headers={"X-API-Key": TEST_API_KEY},
+    )
+    assert accepted.status_code == 200
 
 
 async def test_sketch_without_key_returns_401() -> None:

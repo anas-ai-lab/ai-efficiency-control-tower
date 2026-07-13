@@ -18,6 +18,7 @@ import type {
   SharpenedCaseResponse,
   SharpeningActionResponse,
   SimilarityPairsResponse,
+  SolutionActionResponse,
   SolutionProposalResponse,
   StatsResponse,
   StatusUpdateResponse,
@@ -236,15 +237,39 @@ export async function rejectSharpening(
   );
 }
 
+// S4 Draft/Accept: propose liefert nur einen Vorschlags-Entwurf (persistiert
+// als solution_draft, ueberschreibt nichts am Case). Kein revalidateCase --
+// erst acceptSolution traegt beide Varianten in den Case.
 export async function proposeSolution(
   caseId: string,
 ): Promise<SolutionProposalResponse> {
-  const res = await apiFetch<SolutionProposalResponse>(
+  return apiFetch<SolutionProposalResponse>(
     `/cases/${caseId}/propose-solution`,
     LLM_TOOL_LOOP_TIMEOUT_MS,
   );
+}
+
+// Uebernimmt bzw. verwirft den offenen Loesungs-Draft (S4, Muster wie
+// acceptSharpening). Kein LLM-Call -> RULE_TIMEOUT_MS. 409 (kein offener Draft)
+// laeuft durch statusMessageDE.
+export async function acceptSolution(
+  caseId: string,
+): Promise<SolutionActionResponse> {
+  const res = await apiFetch<SolutionActionResponse>(
+    `/cases/${caseId}/propose-solution/accept`,
+    RULE_TIMEOUT_MS,
+  );
   revalidateCase(caseId);
   return res;
+}
+
+export async function rejectSolution(
+  caseId: string,
+): Promise<SolutionActionResponse> {
+  return apiFetch<SolutionActionResponse>(
+    `/cases/${caseId}/propose-solution/reject`,
+    RULE_TIMEOUT_MS,
+  );
 }
 
 export async function generateComplianceHints(

@@ -111,7 +111,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     status_updated_at       TEXT,
     architecture_sketch     TEXT,
     sharpening_draft        TEXT,
-    solution_business       TEXT
+    solution_business       TEXT,
+    solution_draft          TEXT
 )
 """
 
@@ -137,15 +138,15 @@ _INSERT_SQL = (
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business "
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -153,7 +154,7 @@ _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business "
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -180,6 +181,7 @@ _UPDATE_FIELD_SQL: dict[str, str] = {
     "solution_business": (
         "UPDATE submitted_cases SET solution_business = ? WHERE id = ?"
     ),
+    "solution_draft": ("UPDATE submitted_cases SET solution_draft = ? WHERE id = ?"),
 }
 
 # record_decision (ADR-0043): eigenes dediziertes UPDATE statt Eintrag in
@@ -399,6 +401,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         architecture_sketch,
         sharpening_draft,
         solution_business,
+        solution_draft,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -440,6 +443,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         solution_business=(
             str(solution_business) if solution_business is not None else None
         ),
+        solution_draft=(str(solution_draft) if solution_draft is not None else None),
     )
 
 
@@ -527,6 +531,10 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN solution_business TEXT"
                 )
+            if "solution_draft" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN solution_draft TEXT"
+                )
             # ADR-0051: der Lifecycle-Status 'integrated' wurde entfernt.
             # Bestehende Rows idempotent auf 'implemented' heben -- sonst wirft
             # CaseStatus('integrated') beim Lesen ValueError (fail loud).
@@ -570,6 +578,7 @@ class SQLiteRepository:
                     case.architecture_sketch,
                     case.sharpening_draft,
                     case.solution_business,
+                    case.solution_draft,
                 ),
             )
 

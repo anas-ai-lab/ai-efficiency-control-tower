@@ -102,8 +102,9 @@ class TestSketchInjectionFlagging:
         service = _make_service(roi_config)
         malicious = sample_use_case.model_copy(update={"title": _INJECTION_TITLE})
         case = service.submit_use_case(malicious)
-        # sketch braucht proposal_text -> zuerst propose_solution.
+        # sketch braucht proposal_text -> propose_solution + accept (S4-Draft).
         await service.propose_solution(case.id)
+        await service.accept_solution(case.id)
 
         with capture_logs() as logs:
             await service.generate_sketch(case.id)

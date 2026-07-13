@@ -44,12 +44,11 @@ class _SequentialIdGenerator:
 
 _SHARPEN_JSON = json.dumps(
     {
-        "sharpened_title": "[mock] Parallel geschaerft",
-        "sharpened_current_state": (
-            "Ein zahlenfreier Ist-Zustand mit ausreichend Zeichen fuer das Schema."
-        ),
         "sharpened_desired_state": (
-            "Ein zahlenfreier Soll-Zustand mit ausreichend Zeichen fuer das Schema."
+            "[mock] Ein zahlenfreier Soll-Zustand mit ausreichend Zeichen."
+        ),
+        "sharpened_desired_example_process": (
+            "Ein zahlenfreies Soll-Beispiel mit ausreichend Zeichen fuer das Schema."
         ),
         "improvement_suggestions": [
             {
@@ -83,7 +82,7 @@ class _RendezvousLLMAdapter:
     beide Service-Methoden haben den Case bereits gelesen, bevor eine
     von beiden ihr Ergebnis persistiert.
 
-    Fuer den Schaerfungs-Aufruf (System-Prompt traegt "sharpened_title")
+    Fuer den Schaerfungs-Aufruf (System-Prompt traegt "sharpened_desired_state")
     liefert der Adapter schema-valides, zahlenfreies JSON -- sonst laeuft
     sharpen_case() in den Fail-loud-Pfad. Fuer propose_solution() (System-Prompt
     traegt "solution_business") schema-valides, technikfreies Loesungs-JSON.
@@ -103,7 +102,7 @@ class _RendezvousLLMAdapter:
         if self._arrived >= self._expected:
             self._all_arrived.set()
         await asyncio.wait_for(self._all_arrived.wait(), timeout=5.0)
-        if any("sharpened_title" in m.content for m in messages):
+        if any("sharpened_desired_state" in m.content for m in messages):
             return LLMResponse(content=_SHARPEN_JSON, tool_calls=None)
         return LLMResponse(content=_SOLUTION_JSON, tool_calls=None)
 
@@ -138,14 +137,11 @@ async def test_parallel_sharpen_and_propose_keep_both_narratives(
     assert loaded is not None
     # Vor F-011 gewann der langsamere save() und loeschte das Feld der
     # anderen Operation -- genau eines der beiden Felder war wieder None.
-    # sharpen schreibt jetzt sharpening_draft (Draft-Flow), propose weiterhin
-    # proposal_text -- verschiedene Spalten, kein Lost Update.
+    # sharpen schreibt sharpening_draft, propose schreibt jetzt solution_draft
+    # (beide S4-Draft-Flow) -- verschiedene Spalten, kein Lost Update.
     assert loaded.sharpening_draft is not None
-    # proposal_text traegt die technische Fassung (solution_technical), daneben
-    # der Business-Absatz -- verschiedene Spalten, kein Lost Update.
-    assert loaded.proposal_text is not None
-    assert "parallel-antwort" in loaded.proposal_text
-    assert loaded.solution_business is not None
+    assert loaded.solution_draft is not None
+    assert "parallel-antwort" in loaded.solution_draft
 
 
 async def test_update_field_does_not_touch_other_columns(

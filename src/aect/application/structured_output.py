@@ -91,11 +91,13 @@ class ImprovementSuggestion(BaseModel):
 
 
 class SharpenedContentV2(BaseModel):
-    """Strukturierte Schaerfung (ADR-0013 Teil 2, erweitert V4).
+    """Strukturierte Schaerfung (ADR-0013 Teil 2, erweitert V4; S4 auf Soll-Felder
+    reduziert).
 
-    Feld-Bounds orientieren sich an UseCaseInput (domain/models.py):
-    sharpened_title analog title (5-200), sharpened_current_state/
-    sharpened_desired_state analog current_state/desired_state (30-2000).
+    Geschaerft werden ausschliesslich die Soll-Felder: sharpened_desired_state
+    (analog desired_state) und sharpened_desired_example_process (analog
+    desired_example_process), je 30-2000. Titel und Ist-Felder sind bewusst NICHT
+    mehr Teil der Schaerfung (S4).
 
     improvement_suggestions: max. 3 Eintraege (V4, Hebel-Pflicht -- Fokus statt
     Floskel-Liste), je ein ImprovementSuggestion mit bezugsfeld/vorschlag/hebel.
@@ -107,9 +109,8 @@ class SharpenedContentV2(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    sharpened_title: str = Field(min_length=5, max_length=200)
-    sharpened_current_state: str = Field(min_length=30, max_length=2000)
     sharpened_desired_state: str = Field(min_length=30, max_length=2000)
+    sharpened_desired_example_process: str = Field(min_length=30, max_length=2000)
     improvement_suggestions: list[ImprovementSuggestion] = Field(
         min_length=1, max_length=3
     )

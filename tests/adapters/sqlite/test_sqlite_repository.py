@@ -319,9 +319,8 @@ class TestLLMNarrativePersistence:
     ) -> None:
         sample_case.sharpened_content_json = json.dumps(
             {
-                "sharpened_title": None,
-                "sharpened_current_state": None,
                 "sharpened_desired_state": None,
+                "sharpened_desired_example_process": None,
                 "improvement_suggestions": [],
                 "raw_text": "Geschaerfte Version: ...",
             }
@@ -857,11 +856,10 @@ class TestSharpeningDraftColumn:
         repo.save(sample_case)
         draft_json = json.dumps(
             {
-                "original": {"title": "x", "current_state": "y", "desired_state": "z"},
+                "original": {"desired_state": "z", "desired_example_process": "ze"},
                 "sharpened": {
-                    "sharpened_title": "s",
-                    "sharpened_current_state": "sc",
                     "sharpened_desired_state": "sd",
+                    "sharpened_desired_example_process": "sde",
                 },
                 "improvement_suggestions": [],
                 "prompt_version": "v3",

@@ -59,7 +59,7 @@ _VALID_PAYLOAD: dict = {
 
 
 class _InventsNumbersLLM(MockLLMAdapter):
-    """Liefert schema-valide Schaerfung, erfindet aber im Ist-Zustand eine Zahl
+    """Liefert schema-valide Schaerfung, erfindet aber im Soll-Beispiel eine Zahl
     (999), die nirgends in der Eingabe steht -- loest den Zahlen-Guard aus."""
 
     async def complete(
@@ -67,18 +67,17 @@ class _InventsNumbersLLM(MockLLMAdapter):
         messages: list[LLMMessage],
         tools: list[ToolDefinition] | None = None,
     ) -> LLMResponse:
-        if any("sharpened_title" in m.content for m in messages):
+        if any("sharpened_desired_state" in m.content for m in messages):
             return LLMResponse(
                 content=json.dumps(
                     {
-                        "sharpened_title": "[mock] Erfundene Zahl",
-                        "sharpened_current_state": (
-                            "Der Prozess bindet exakt 999 Stunden pro Jahr und "
-                            "ist reine Routine im Team."
-                        ),
                         "sharpened_desired_state": (
                             "Ein AI-System uebernimmt die Routine qualitativ und "
                             "ohne weitere numerische Angabe im Text."
+                        ),
+                        "sharpened_desired_example_process": (
+                            "Ein typischer Zielvorgang bindet exakt 999 Stunden "
+                            "pro Jahr und laeuft sonst als reine Routine."
                         ),
                         "improvement_suggestions": [
                             {
@@ -150,16 +149,16 @@ async def test_sharpen_existing_case_returns_draft() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["case_id"] == case_id
-    assert data["original_title"] == _VALID_PAYLOAD["title"]
+    # Diff-tauglich: Original-Soll steht feldweise neben der geschaerften Fassung.
+    assert data["original_desired_state"] == _VALID_PAYLOAD["desired_state"]
     assert data["prompt_version"] == "v3"
-    # Erfolgs-Form: geschaerfte Felder gesetzt, Vorschlaege mit Feldbezug + Hebel.
-    assert data["sharpened_title"].startswith("[mock]")
+    # Erfolgs-Form (S4): nur die Soll-Felder geschaerft, Vorschlaege mit Feldbezug.
+    assert data["sharpened_desired_state"].startswith("[mock]")
+    assert data["sharpened_desired_example_process"]
     assert len(data["improvement_suggestions"]) >= 1
     first = data["improvement_suggestions"][0]
     assert set(first) == {"bezugsfeld", "vorschlag", "hebel"}
     assert first["bezugsfeld"] == "evidence_level"
-    # Diff-tauglich: Original steht feldweise neben der geschaerften Fassung.
-    assert data["original_current_state"] == _VALID_PAYLOAD["current_state"]
 
 
 async def test_sharpen_draft_does_not_appear_in_report_until_accept() -> None:
@@ -299,4 +298,4 @@ async def test_sharpen_with_injection_payload_still_returns_200() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json()["sharpened_title"].startswith("[mock]")
+    assert response.json()["sharpened_desired_state"].startswith("[mock]")

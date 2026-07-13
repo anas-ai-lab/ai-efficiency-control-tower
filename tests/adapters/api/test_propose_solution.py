@@ -138,3 +138,121 @@ async def test_propose_solution_with_injection_payload_still_returns_200() -> No
     assert response.status_code == 200
     data = response.json()
     assert "[mock]" in data["solution_technical"]
+
+
+# --- S4 Draft/Accept-Flow: /propose-solution/accept + /reject ---------------
+
+
+async def test_solution_draft_does_not_persist_until_accept() -> None:
+    # propose liefert einen Draft; der Report zeigt proposal_text erst nach accept.
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        await client.post(
+            f"/cases/{case_id}/propose-solution", headers={"X-API-Key": TEST_API_KEY}
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert report.json()["technical_detail"]["proposal_text"] is None
+
+
+async def test_solution_accept_applies_draft() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        await client.post(
+            f"/cases/{case_id}/propose-solution", headers={"X-API-Key": TEST_API_KEY}
+        )
+        accept = await client.post(
+            f"/cases/{case_id}/propose-solution/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert accept.status_code == 200
+    assert accept.json() == {"case_id": case_id, "status": "accepted"}
+    proposal_text = report.json()["technical_detail"]["proposal_text"]
+    assert proposal_text is not None
+    assert "[mock]" in proposal_text
+
+
+async def test_solution_reject_discards_draft() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        await client.post(
+            f"/cases/{case_id}/propose-solution", headers={"X-API-Key": TEST_API_KEY}
+        )
+        reject = await client.post(
+            f"/cases/{case_id}/propose-solution/reject",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        report = await client.post(
+            f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
+        )
+
+    assert reject.status_code == 200
+    assert reject.json()["status"] == "rejected"
+    assert report.json()["technical_detail"]["proposal_text"] is None
+
+
+async def test_solution_accept_without_draft_returns_409() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        response = await client.post(
+            f"/cases/{case_id}/propose-solution/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 409
+
+
+async def test_solution_reject_without_draft_returns_409() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        response = await client.post(
+            f"/cases/{case_id}/propose-solution/reject",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 409
+
+
+async def test_solution_accept_unknown_case_returns_404() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/cases/does-not-exist/propose-solution/accept",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert response.status_code == 404
