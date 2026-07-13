@@ -40,8 +40,8 @@ export default async function BoardPage() {
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
         Jeder bewertete Use Case als Punkt: erwarteter Nettonutzen (x),
         Machbarkeit (y, invertierter Aufwand-Score) und eingesparte Stunden pro
-        Jahr (Blasengroesse). Die Farbe zeigt die Triage-Zone. Klick auf einen
-        Punkt oeffnet den Fall.
+        Jahr (Blasengröße). Die Farbe zeigt die Triage-Zone. Klick auf einen
+        Punkt öffnet den Fall.
       </p>
 
       <div className="mt-8">

@@ -1325,6 +1325,30 @@
         "title": "AuthResponse",
         "description": "Einheitliche Auth-Statusantwort fuer login/logout/me."
       },
+      "BerechnungsZeileResponse": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "wert": {
+            "type": "string",
+            "title": "Wert"
+          },
+          "erklaerung": {
+            "type": "string",
+            "title": "Erklaerung"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "wert",
+          "erklaerung"
+        ],
+        "title": "BerechnungsZeileResponse",
+        "description": "Eine Zeile der Berechnungs-Ebene (V4.1-S5, \"Wie wurde das berechnet?\")."
+      },
       "BusinessSummaryResponse": {
         "properties": {
           "title": {
@@ -2204,6 +2228,25 @@
         ],
         "title": "LoginRequest",
         "description": "Login-Body -- nur das Passwort.\n\nmax_length: Token-Flooding-/DoS-Schutz (scrypt auf sehr langem Input ist\nteuer), konsistent mit der Eingabe-Disziplin der uebrigen Request-Schemas."
+      },
+      "ManagementViewResponse": {
+        "properties": {
+          "zonen_satz": {
+            "type": "string",
+            "title": "Zonen Satz"
+          },
+          "empfehlung_satz": {
+            "type": "string",
+            "title": "Empfehlung Satz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zonen_satz",
+          "empfehlung_satz"
+        ],
+        "title": "ManagementViewResponse",
+        "description": "Management-Ebene der Ergebnisdarstellung (V4.1-S5): zwei Klartext-Saetze.\n\nzonen_satz fasst Nutzen/Aufwand/Belastbarkeit zusammen, empfehlung_satz die\nEmpfehlung samt Belastbarkeit -- ohne interne Codes, Faktoren oder Scores.\nNone bei Vorfilter-Fail (kein bewertetes Ergebnis)."
       },
       "MonitoringEntryResponse": {
         "properties": {
@@ -3154,6 +3197,30 @@
                 "type": "null"
               }
             ]
+          },
+          "management": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagementViewResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "berechnung": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BerechnungsZeileResponse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Berechnung"
           },
           "similarity_warning": {
             "anyOf": [

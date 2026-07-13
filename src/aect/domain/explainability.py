@@ -88,7 +88,7 @@ DATA_CLASSIFICATION_CLARTEXT: dict[DataClassification, str] = {
 
 #: Evidenz-Labels (deutsche Klartext-Fassung der EvidenceLevel-Stufen).
 EVIDENCE_LABELS: dict[EvidenceLevel, str] = {
-    EvidenceLevel.PURE_ESTIMATE: "reine Einschaetzung",
+    EvidenceLevel.PURE_ESTIMATE: "reine Einschätzung",
     EvidenceLevel.SIMILAR_PROJECT: "eigene Erfahrung / Analogieprojekt",
     EvidenceLevel.TESTED_PILOTED: "mit realen Beispielen getestet",
 }
@@ -115,6 +115,88 @@ _DATA_PROTECTION_REASON: dict[DataClassification, str] = {
 #: Zeitgewinn unterhalb dieser Schwelle (Stunden/Vorgang) gilt als "knapp"
 #: (~3 Minuten) -- Methodik-Schwelle, keine Firmenzahl.
 _KNAPP_HOURS = 0.05
+
+# ---------------------------------------------------------------------------
+# Management-Ebene (V4.1-S5): Klartext-Bausteine ohne interne Codes/Faktoren.
+# Zentrale, einmalige Quelle -- kein roher effort_label/Enum/Faktor erreicht die
+# UI. Alle Betraege/Formeln/Schwellen bleiben unveraendert; hier nur Sprache.
+# ---------------------------------------------------------------------------
+
+#: Aufwand-Adjektiv fuer den Management-Satz ("bei niedrigem Umsetzungsaufwand").
+#: Keyed am effort_label (NIEDRIG/MITTEL/HOCH aus scoring.CompositeScore).
+_EFFORT_ADJEKTIV: dict[str, str] = {
+    "NIEDRIG": "niedrigem",
+    "MITTEL": "mittlerem",
+    "HOCH": "hohem",
+}
+
+#: Verbale Aufwands-Einordnung fuer die Berechnungs-Ebene ("niedrig -- kurz-
+#: fristig umsetzbar"). Ersetzt den nackten Score als Klartext-Baustein.
+_EFFORT_KLARTEXT: dict[str, str] = {
+    "NIEDRIG": "niedrig -- kurzfristig umsetzbar",
+    "MITTEL": "mittel -- mit planbarem Vorlauf umsetzbar",
+    "HOCH": "hoch -- erheblicher Umsetzungsaufwand",
+}
+
+#: Empfehlung als Klartext-Ansatz (Management-Satz, kein Enum-Code). Keyed an
+#: der Routing-Empfehlung.
+_EMPFEHLUNG_ANSATZ: dict[RoutingRecommendation, str] = {
+    RoutingRecommendation.AUTOMATION_RECOMMENDED: (
+        "Automatisierung (regelbasiert, ohne KI)"
+    ),
+    RoutingRecommendation.AI_RECOMMENDED: "Umsetzung mit KI-Unterstützung",
+    RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
+        "fachliche Prüfung vor der Umsetzung"
+    ),
+    RoutingRecommendation.BORDERLINE: "Einzelfallprüfung (die Signale sind gemischt)",
+}
+
+#: Belastbarkeits-Satz fuer die Zonen-Zusammenfassung (Ebene 1). Beschreibt die
+#: Grundlage der Nutzenschaetzung in Alltagssprache, ohne Faktor.
+_BELASTBARKEIT_ZONE_SATZ: dict[EvidenceLevel, str] = {
+    EvidenceLevel.PURE_ESTIMATE: (
+        "Die Schätzung beruht bisher auf Einschätzungen ohne Belege"
+    ),
+    EvidenceLevel.SIMILAR_PROJECT: (
+        "Die Schätzung stützt sich auf Erfahrung aus einem Analogieprojekt"
+    ),
+    EvidenceLevel.TESTED_PILOTED: "Die Schätzung ist mit realen Beispielen getestet",
+}
+
+#: Belastbarkeits-Grund fuer den Empfehlungs-Satz (Ebene 1), zweite Person auf
+#: die Empfehlung bezogen ("sie stuetzt sich ...").
+_BELASTBARKEIT_EMPFEHLUNG_GRUND: dict[EvidenceLevel, str] = {
+    EvidenceLevel.PURE_ESTIMATE: (
+        "sie stützt sich bisher nur auf Einschätzungen ohne Belege"
+    ),
+    EvidenceLevel.SIMILAR_PROJECT: (
+        "sie stützt sich auf Erfahrung aus einem Analogieprojekt"
+    ),
+    EvidenceLevel.TESTED_PILOTED: "sie ist mit realen Beispielen getestet",
+}
+
+#: Grund fuer den uebersetzten Evidenzfaktor (Berechnungs-Ebene). Der interne
+#: Faktor wird als Prozentsatz des theoretischen Potenzials ausgedrueckt.
+_EVIDENCE_FAKTOR_GRUND: dict[EvidenceLevel, str] = {
+    EvidenceLevel.PURE_ESTIMATE: "weil noch keine Belege vorliegen",
+    EvidenceLevel.SIMILAR_PROJECT: "gestützt auf Erfahrung aus einem Analogieprojekt",
+    EvidenceLevel.TESTED_PILOTED: "abgesichert durch reale Beispiele",
+}
+
+#: Formel des erwarteten Nutzens in Worten (Berechnungs-Ebene). ASCII-"x" statt
+#: Malzeichen (RUF001). Deckt sich mit domain/roi.py-Semantik, ohne Zahlen.
+_NUTZEN_FORMEL_WORTE = (
+    "Minuten pro Vorgang x Vorgänge pro Mitarbeiter und Jahr x betroffene "
+    "Mitarbeiter x Stundensatz, anschließend gedämpft nach Belastbarkeit der "
+    "Angaben und erwarteter Nutzung."
+)
+
+#: Erklaerung der Basis-Einstufung (Berechnungs-Ebene): reine Nutzen-Aufwand-
+#: Einstufung, bevor der Handlungsdruck sie hochstufen kann.
+_BASIS_EINSTUFUNG_ERKLAERUNG = (
+    "Einstufung allein aus erwartetem Nutzen und Aufwand; der Handlungsdruck "
+    "kann sie danach noch hochstufen."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -164,17 +246,53 @@ class ConfidenceReasoning:
 
 
 @dataclass(frozen=True)
+class ManagementView:
+    """Management-taugliche Ergebnis-Ebene (Ebene 1, V4.1-S5).
+
+    Zwei Klartext-Saetze ohne interne Codes, Faktoren oder rohe Scores:
+    zonen_satz fasst Nutzen, Aufwand und Belastbarkeit zusammen; empfehlung_satz
+    nennt die Empfehlung als ganzen Satz samt Belastbarkeit. Nur fuer bewertete
+    Cases gesetzt (sonst None am TriageExplanation).
+    """
+
+    zonen_satz: str
+    empfehlung_satz: str
+
+
+@dataclass(frozen=True)
+class BerechnungsZeile:
+    """Eine Zeile der Berechnungs-Ebene (Ebene 2, "Wie wurde das berechnet?").
+
+    label: Anzeige-Label (z. B. "Erwarteter Nutzen"). wert: der Wert als fertig
+    formatierte Zeichenkette (Betrag, Stufe, Score oder deutsches Zonen-Label).
+    erklaerung: ein Satz Alltagssprache. Zahlenwerte identisch zu den
+    bestehenden Feldern -- reine Sprach-Projektion.
+    """
+
+    label: str
+    wert: str
+    erklaerung: str
+
+
+@dataclass(frozen=True)
 class TriageExplanation:
     """Gebuendelte, deterministische Erklaerbarkeit eines TriageResult.
 
-    score_breakdown/confidence sind None, wenn der Vorfilter nicht bestanden
-    wurde (dann sind composite/zone im TriageResult None). recommendation_text
-    ist immer gesetzt (auch fuer den Vorfilter-Fail-Fall).
+    score_breakdown/confidence/management/berechnung sind None, wenn der
+    Vorfilter nicht bestanden wurde (dann sind composite/zone im TriageResult
+    None). recommendation_text ist immer gesetzt (auch fuer den Vorfilter-Fail-
+    Fall).
+
+    management (Ebene 1) und berechnung (Ebene 2) sind die zweischichtige
+    Ergebnisdarstellung (V4.1-S5): management fuer Entscheider ohne interne
+    Codes, berechnung als aufklappbare Herkunft je Komponente.
     """
 
     recommendation_text: str
     score_breakdown: ScoreBreakdown | None
     confidence: ConfidenceReasoning | None
+    management: ManagementView | None
+    berechnung: tuple[BerechnungsZeile, ...] | None
 
 
 # ---------------------------------------------------------------------------
@@ -308,9 +426,7 @@ def build_confidence_reasoning(
     gruende: list[str] = []
     if is_pure_estimate:
         factor_str = f"{evidence_factor:.2f}".replace(".", ",")
-        gruende.append(
-            f"Nutzen basiert auf reiner Einschaetzung (Faktor {factor_str})."
-        )
+        gruende.append(f"Nutzen basiert auf reiner Einschätzung (Faktor {factor_str}).")
     if near:
         gruende.append(
             _boundary_sentence(benefit_lever, composite_lever, base_zone, benefit_near)
@@ -444,7 +560,7 @@ _RECOMMENDATION_TEMPLATES: dict[RoutingRecommendation, str] = {
         "({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
     ),
     RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
-        "Vor Umsetzung fachliche Pruefung erforderlich: {h} eingesparte Stunden "
+        "Vor Umsetzung fachliche Prüfung erforderlich: {h} eingesparte Stunden "
         "pro Jahr ({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
     ),
     RoutingRecommendation.BORDERLINE: (
@@ -508,11 +624,11 @@ _ZU_ENTSCHEIDEN: dict[RoutingRecommendation, str] = {
     ),
     RoutingRecommendation.AI_RECOMMENDED: ("Freigabe zur Umsetzung mit AI-Komponente."),
     RoutingRecommendation.HUMAN_REVIEW_REQUIRED: (
-        "Freigabe einer vertieften fachlichen und datenschutzrechtlichen Pruefung "
+        "Freigabe einer vertieften fachlichen und datenschutzrechtlichen Prüfung "
         "vor der Umsetzung."
     ),
     RoutingRecommendation.BORDERLINE: (
-        "Entscheidung ueber eine Einzelfallpruefung -- die Signale sind gemischt."
+        "Entscheidung über eine Einzelfallprüfung -- die Signale sind gemischt."
     ),
 }
 
@@ -557,7 +673,7 @@ def build_contra_points(
 
     if use_case.evidence_level == EvidenceLevel.PURE_ESTIMATE:
         contra.append(
-            "Der erwartete Nutzen beruht auf einer reinen Einschaetzung -- keine "
+            "Der erwartete Nutzen beruht auf einer reinen Einschätzung -- keine "
             "gemessene Grundlage."
         )
     if use_case.adoption_type == AdoptionType.VOLUNTARY:
@@ -614,6 +730,92 @@ def build_contra_points(
 
 
 # ---------------------------------------------------------------------------
+# 5. Management-Ebene (Ebene 1) + Berechnungs-Ebene (Ebene 2) -- V4.1-S5
+# ---------------------------------------------------------------------------
+
+
+def build_management_view(
+    *,
+    net_expected_benefit_eur: Decimal,
+    effort_label: str,
+    evidence_level: EvidenceLevel,
+    confidence_level: str,
+    recommendation: RoutingRecommendation,
+) -> ManagementView:
+    """Baut die Management-Ebene (zwei Klartext-Saetze, keine internen Codes).
+
+    Informationsgehalt: Nutzen (EUR/Jahr), Aufwand (verbal), Belastbarkeit
+    (Stufe + Grund) sowie die Empfehlung als ganzer Satz. Alle Zahlen kommen
+    unveraendert aus dem bereits berechneten TriageResult -- reine Projektion.
+    """
+    adjektiv = _EFFORT_ADJEKTIV[effort_label]
+    zonen_satz = (
+        f"Erwarteter Nutzen rund {format_de(net_expected_benefit_eur, '€')} "
+        f"pro Jahr bei {adjektiv} Umsetzungsaufwand. "
+        f"{_BELASTBARKEIT_ZONE_SATZ[evidence_level]} -- "
+        f"Belastbarkeit {confidence_level}."
+    )
+    empfehlung_satz = (
+        f"Empfehlung: {_EMPFEHLUNG_ANSATZ[recommendation]}. "
+        f"Belastbarkeit der Empfehlung: {confidence_level} -- "
+        f"{_BELASTBARKEIT_EMPFEHLUNG_GRUND[evidence_level]}."
+    )
+    return ManagementView(zonen_satz=zonen_satz, empfehlung_satz=empfehlung_satz)
+
+
+def build_berechnung(
+    *,
+    net_expected_benefit_eur: Decimal,
+    evidence_level: EvidenceLevel,
+    evidence_factor: float,
+    composite_total: int,
+    effort_label: str,
+    base_zone: TriageZone,
+    confidence: ConfidenceReasoning,
+) -> tuple[BerechnungsZeile, ...]:
+    """Baut die Berechnungs-Ebene: je Komponente eine Zeile in Alltagssprache.
+
+    Vier Zeilen: erwarteter Nutzen (Formel in Worten), Belastbarkeit (Stufe +
+    uebersetzter Faktor), Aufwand (Score + verbale Einordnung) und die Basis-
+    Einstufung vor der Handlungsdruck-Hochstufung (deutsches Label statt Code).
+    """
+    evidence_pct = round(evidence_factor * 100)
+    belastbarkeit_erklaerung = (
+        f"Angesetzt werden {evidence_pct} % des theoretischen Potenzials, "
+        f"{_EVIDENCE_FAKTOR_GRUND[evidence_level]}."
+    )
+    # Zonengrenz-Naehe (falls vorhanden) als Zusatz -- faktorfrei, nennt den
+    # kleineren Kipp-Hebel. Wiederverwendung der Konfidenz-Gruende (kein zweiter
+    # Rechenweg): der Kipp-Satz enthaelt "kippt".
+    flip = next((g for g in confidence.gruende if "kippt" in g), None)
+    if flip is not None:
+        belastbarkeit_erklaerung = f"{belastbarkeit_erklaerung} {flip}"
+
+    return (
+        BerechnungsZeile(
+            label="Erwarteter Nutzen",
+            wert=f"{format_de(net_expected_benefit_eur, '€')} / Jahr",
+            erklaerung=_NUTZEN_FORMEL_WORTE,
+        ),
+        BerechnungsZeile(
+            label="Belastbarkeit",
+            wert=confidence.level,
+            erklaerung=belastbarkeit_erklaerung,
+        ),
+        BerechnungsZeile(
+            label="Aufwand",
+            wert=f"{composite_total} / {COMPOSITE_MAX_TOTAL}",
+            erklaerung=_EFFORT_KLARTEXT[effort_label],
+        ),
+        BerechnungsZeile(
+            label="Basis-Einstufung vor Dämpfung",
+            wert=ZONE_LABELS[base_zone],
+            erklaerung=_BASIS_EINSTUFUNG_ERKLAERUNG,
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
 
@@ -657,8 +859,38 @@ def explain_triage(
         else None
     )
 
+    # Ebene 1 + Ebene 2 (V4.1-S5): nur fuer bewertete Cases -- sie brauchen
+    # roi/composite/zone/routing und die bereits gebaute Konfidenz-Begruendung.
+    management: ManagementView | None = None
+    berechnung: tuple[BerechnungsZeile, ...] | None = None
+    if (
+        confidence is not None
+        and result.roi is not None
+        and result.composite is not None
+        and result.zone is not None
+        and result.routing is not None
+    ):
+        management = build_management_view(
+            net_expected_benefit_eur=result.roi.net_expected_benefit_eur,
+            effort_label=result.composite.effort_label,
+            evidence_level=use_case.evidence_level,
+            confidence_level=confidence.level,
+            recommendation=result.routing.recommendation,
+        )
+        berechnung = build_berechnung(
+            net_expected_benefit_eur=result.roi.net_expected_benefit_eur,
+            evidence_level=use_case.evidence_level,
+            evidence_factor=result.roi.evidence_factor,
+            composite_total=result.composite.total,
+            effort_label=result.composite.effort_label,
+            base_zone=result.zone.base_zone,
+            confidence=confidence,
+        )
+
     return TriageExplanation(
         recommendation_text=build_recommendation_text(result, use_case),
         score_breakdown=score_breakdown,
         confidence=confidence,
+        management=management,
+        berechnung=berechnung,
     )

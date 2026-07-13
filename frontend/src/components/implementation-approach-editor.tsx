@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { setImplementationApproach } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
+import { ActionError } from "@/components/action-error";
 import { Button } from "@/components/ui/button";
 import {
   IMPLEMENTATION_APPROACH_LABELS,
@@ -110,11 +111,7 @@ export function ImplementationApproachEditor({
             <p className="text-xs leading-relaxed text-muted-foreground">
               Ergänzen löst eine vollständige Neubewertung des Falls aus.
             </p>
-            {error !== null && (
-              <p role="alert" className="text-xs text-destructive">
-                {error}
-              </p>
-            )}
+            <ActionError message={error} className="mt-1" />
           </div>
         )}
       </dd>

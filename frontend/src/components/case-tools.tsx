@@ -9,6 +9,7 @@ import type {
 } from "@/types/api";
 import { generateComplianceHints, sharpenCase } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
+import { ActionError } from "@/components/action-error";
 import { SharpeningReview } from "@/components/sharpening-review";
 import { SolutionModal } from "@/components/solution-modal";
 import { Button } from "@/components/ui/button";
@@ -91,14 +92,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
         Schärfen und Lösung sind LLM-Aktionen · 5–30 Sekunden.
       </p>
 
-      {sharpenError !== null && (
-        <p
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {sharpenError}
-        </p>
-      )}
+      <ActionError message={sharpenError} className="mt-3" />
 
       {draft !== null && (
         <div className="mt-5">
@@ -136,14 +130,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
           </p>
         )}
 
-        {complianceError !== null && (
-          <p
-            role="alert"
-            className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-          >
-            {complianceError}
-          </p>
-        )}
+        <ActionError message={complianceError} className="mt-3" />
 
         {compliance !== null && !complianceBusy && (
           <div className="mt-3 rounded-xl border border-border bg-card p-4">

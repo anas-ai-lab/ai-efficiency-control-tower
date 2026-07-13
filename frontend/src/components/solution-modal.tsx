@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import type { SolutionProposalResponse } from "@/types/api";
 import { acceptSolution, proposeSolution, rejectSolution } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
+import { ActionError } from "@/components/action-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -82,14 +83,7 @@ export function SolutionModal({
         {loading && <Loader2 className="size-4 animate-spin" />}
         {hasSolution ? "Lösung neu erzeugen" : "Lösung vorschlagen"}
       </Button>
-      {error !== null && draft === null && (
-        <p
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {error}
-        </p>
-      )}
+      {draft === null && <ActionError message={error} className="mt-3" />}
 
       <Dialog open={draft !== null} onOpenChange={handleOpenChange}>
         <DialogContent>
@@ -126,14 +120,7 @@ export function SolutionModal({
             </Tabs>
           )}
 
-          {error !== null && draft !== null && (
-            <p
-              role="alert"
-              className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-            >
-              {error}
-            </p>
-          )}
+          {draft !== null && <ActionError message={error} className="mt-3" />}
 
           <DialogFooter>
             <Button

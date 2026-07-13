@@ -650,7 +650,7 @@ async def sharpen_case(
             detail={
                 "reason": "invented_numbers",
                 "message": (
-                    "Die Schaerfung enthielt Zahlen, die nicht im Original "
+                    "Die Schärfung enthielt Zahlen, die nicht im Original "
                     "stehen, auch nach einem Korrektur-Versuch."
                 ),
                 "violations": exc.violations,
@@ -661,7 +661,7 @@ async def sharpen_case(
         # str(exc) traegt nur loc+type je Fehler (H-031), nie LLM-Rohtext.
         raise HTTPException(
             status_code=422,
-            detail=f"KI-Antwort verletzt das Schaerfungs-Schema: {exc}",
+            detail=f"KI-Antwort verletzt das Schärfungs-Schema: {exc}",
         ) from exc
 
     if sharpened is None:
@@ -706,7 +706,7 @@ async def accept_sharpening(
     except NoSharpeningDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Schaerfungs-Entwurf fuer diesen Case.",
+            detail="Kein offener Schärfungs-Entwurf für diesen Case.",
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -736,7 +736,7 @@ async def reject_sharpening(
     except NoSharpeningDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Schaerfungs-Entwurf fuer diesen Case.",
+            detail="Kein offener Schärfungs-Entwurf für diesen Case.",
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -797,7 +797,7 @@ async def propose_solution(
             detail={
                 "reason": "forbidden_vocabulary",
                 "message": (
-                    "Der Geschaeftsleitungs-Absatz enthielt technisches Vokabular, "
+                    "Der Geschäftsleitungs-Absatz enthielt technisches Vokabular, "
                     "auch nach einem Korrektur-Versuch."
                 ),
                 "violations": exc.violations,
@@ -808,7 +808,7 @@ async def propose_solution(
         # (H-031), nie LLM-Rohtext.
         raise HTTPException(
             status_code=422,
-            detail=f"KI-Antwort verletzt das Loesungs-Schema: {exc}",
+            detail=f"KI-Antwort verletzt das Lösungs-Schema: {exc}",
         ) from exc
 
     if proposal is None:
@@ -854,7 +854,7 @@ async def accept_solution(
     except NoSolutionDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Loesungs-Entwurf fuer diesen Case.",
+            detail="Kein offener Lösungs-Entwurf für diesen Case.",
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -887,7 +887,7 @@ async def reject_solution(
     except NoSolutionDraftError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Kein offener Loesungs-Entwurf fuer diesen Case.",
+            detail="Kein offener Lösungs-Entwurf für diesen Case.",
         ) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")

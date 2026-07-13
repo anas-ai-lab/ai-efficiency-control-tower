@@ -125,6 +125,26 @@ class ConfidenceReasoningResponse(BaseModel):
     gruende: list[str]
 
 
+class ManagementViewResponse(BaseModel):
+    """Management-Ebene der Ergebnisdarstellung (V4.1-S5): zwei Klartext-Saetze.
+
+    zonen_satz fasst Nutzen/Aufwand/Belastbarkeit zusammen, empfehlung_satz die
+    Empfehlung samt Belastbarkeit -- ohne interne Codes, Faktoren oder Scores.
+    None bei Vorfilter-Fail (kein bewertetes Ergebnis).
+    """
+
+    zonen_satz: str
+    empfehlung_satz: str
+
+
+class BerechnungsZeileResponse(BaseModel):
+    """Eine Zeile der Berechnungs-Ebene (V4.1-S5, "Wie wurde das berechnet?")."""
+
+    label: str
+    wert: str
+    erklaerung: str
+
+
 class FeasibilityResponse(BaseModel):
     is_feasible: bool
     flags: list[str]
@@ -184,6 +204,11 @@ class TriageResponse(BaseModel):
     # Score-Herkunft (V4-P6): deterministische Begruendung je Aufwandscore-
     # Komponente + Machbarkeit. None bei Vorfilter-Fail (kein Composite).
     score_breakdown: ScoreBreakdownResponse | None
+    # Zweischichtige Ergebnisdarstellung (V4.1-S5): management = Ebene 1
+    # (Klartext fuer Entscheider), berechnung = Ebene 2 (aufklappbare Herkunft
+    # je Komponente). Beide None bei Vorfilter-Fail (kein bewertetes Ergebnis).
+    management: ManagementViewResponse | None = None
+    berechnung: list[BerechnungsZeileResponse] | None = None
     # Dedup-Hinweis (L-3, ADR-0039) -- None, wenn kein aehnlicher Case existiert
     # oder die Pruefung uebersprungen wurde (Mock-Modus, erster Case).
     similarity_warning: SimilarityWarning | None = None
@@ -327,6 +352,24 @@ def _to_triage_response(
         if r.zone is not None and confidence is not None
         else None,
         score_breakdown=_to_score_breakdown_response(explanation),
+        management=(
+            ManagementViewResponse(
+                zonen_satz=explanation.management.zonen_satz,
+                empfehlung_satz=explanation.management.empfehlung_satz,
+            )
+            if explanation.management is not None
+            else None
+        ),
+        berechnung=(
+            [
+                BerechnungsZeileResponse(
+                    label=z.label, wert=z.wert, erklaerung=z.erklaerung
+                )
+                for z in explanation.berechnung
+            ]
+            if explanation.berechnung is not None
+            else None
+        ),
         similarity_warning=similarity_warning,
     )
 

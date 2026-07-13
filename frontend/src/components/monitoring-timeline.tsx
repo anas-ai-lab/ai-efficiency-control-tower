@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { MonitoringEntry } from "@/types/api";
 import { addMonitoringNote } from "@/app/actions";
 import { STATUS_CONFIG } from "@/lib/status";
+import { ActionError } from "@/components/action-error";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,14 +87,7 @@ export function MonitoringTimeline({
             {pending ? "Wird gespeichert …" : "Eintrag hinzufügen"}
           </Button>
         </div>
-        {error !== null && (
-          <p
-            role="alert"
-            className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-          >
-            {error}
-          </p>
-        )}
+        <ActionError message={error} className="mt-3" />
       </div>
 
       {/* Zeitleiste */}

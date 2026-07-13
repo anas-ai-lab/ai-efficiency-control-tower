@@ -870,6 +870,18 @@ export interface components {
             authenticated: boolean;
         };
         /**
+         * BerechnungsZeileResponse
+         * @description Eine Zeile der Berechnungs-Ebene (V4.1-S5, "Wie wurde das berechnet?").
+         */
+        BerechnungsZeileResponse: {
+            /** Label */
+            label: string;
+            /** Wert */
+            wert: string;
+            /** Erklaerung */
+            erklaerung: string;
+        };
+        /**
          * BusinessSummaryResponse
          * @description Entscheider-Schicht des Reports.
          *
@@ -1304,6 +1316,20 @@ export interface components {
         LoginRequest: {
             /** Password */
             password: string;
+        };
+        /**
+         * ManagementViewResponse
+         * @description Management-Ebene der Ergebnisdarstellung (V4.1-S5): zwei Klartext-Saetze.
+         *
+         *     zonen_satz fasst Nutzen/Aufwand/Belastbarkeit zusammen, empfehlung_satz die
+         *     Empfehlung samt Belastbarkeit -- ohne interne Codes, Faktoren oder Scores.
+         *     None bei Vorfilter-Fail (kein bewertetes Ergebnis).
+         */
+        ManagementViewResponse: {
+            /** Zonen Satz */
+            zonen_satz: string;
+            /** Empfehlung Satz */
+            empfehlung_satz: string;
         };
         /**
          * MonitoringEntryResponse
@@ -1767,6 +1793,9 @@ export interface components {
             composite: components["schemas"]["CompositeScoreResponse"] | null;
             zone: components["schemas"]["ZoneResponse"] | null;
             score_breakdown: components["schemas"]["ScoreBreakdownResponse"] | null;
+            management?: components["schemas"]["ManagementViewResponse"] | null;
+            /** Berechnung */
+            berechnung?: components["schemas"]["BerechnungsZeileResponse"][] | null;
             similarity_warning?: components["schemas"]["SimilarityWarning"] | null;
         };
         /**

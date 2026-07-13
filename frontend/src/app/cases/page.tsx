@@ -24,7 +24,7 @@ export default async function CasesPage() {
   // die Kernliste unberuehrt -- die Ideenliste rendert dann nur ohne Badges.
   const pairsPromise = listSimilarityPairs().catch((e) => {
     console.error(
-      "listSimilarityPairs fehlgeschlagen -- Ideenliste ohne Aehnlichkeits-Badges:",
+      "listSimilarityPairs fehlgeschlagen -- Ideenliste ohne Ähnlichkeits-Badges:",
       e,
     );
     return null;

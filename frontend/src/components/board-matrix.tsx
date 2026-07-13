@@ -238,7 +238,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
           {points.length === 0 ? (
             <div className="flex h-[520px] items-center justify-center text-center">
               <p className="text-sm text-muted-foreground">
-                Keine bewerteten Use Cases fuer diesen Filter.
+                Keine bewerteten Use Cases für diesen Filter.
               </p>
             </div>
           ) : (
@@ -258,7 +258,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                     transform: "rotate(180deg)",
                   }}
                 >
-                  Machbarkeit
+                  Machbarkeit · leichter umsetzbar ↑
                 </span>
               </div>
 
@@ -353,7 +353,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                     <span className="absolute top-2 right-6">Quick Wins</span>
                     <span className="absolute bottom-11 left-14">Vermeiden</span>
                     <span className="absolute right-6 bottom-11 text-right">
-                      Strategische Wetten
+                      Strategische Investitionen
                     </span>
                   </div>
                 </div>
@@ -369,7 +369,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
           {/* Achsen-Untertitel + Blasen-Legende */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
             <span>Aufwand-Score 1–9, invertiert</span>
-            <span>Blasengroesse = eingesparte Stunden/Jahr</span>
+            <span>Blasengröße = eingesparte Stunden/Jahr</span>
           </div>
 
           {unscoredCount > 0 && (
@@ -407,20 +407,20 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               <dt className="font-medium text-foreground">x-Achse</dt>
               <dd>
                 Erwarteter Nettonutzen pro Jahr — theoretisches Potenzial x
-                Nutzungsfaktor x Evidenzfaktor, abzueglich Lizenzkosten.
+                Nutzungsfaktor x Evidenzfaktor, abzüglich Lizenzkosten.
               </dd>
             </div>
             <div>
               <dt className="font-medium text-foreground">y-Achse</dt>
               <dd>
-                Machbarkeit — der Aufwand-Score (Komplexitaet 1–5 + Kosten 0–2 +
-                Datenschutz 0–2) invertiert: je hoeher der Punkt, desto geringer
+                Machbarkeit — der Aufwand-Score (Komplexität 1–5 + Kosten 0–2 +
+                Datenschutz 0–2) invertiert: je höher der Punkt, desto geringer
                 der Umsetzungsaufwand.
               </dd>
             </div>
             <div>
               <dt className="font-medium text-foreground">Blase</dt>
-              <dd>Groesse = eingesparte Arbeitsstunden pro Jahr.</dd>
+              <dd>Größe = eingesparte Arbeitsstunden pro Jahr.</dd>
             </div>
             <div>
               <dt className="font-medium text-foreground">Farbe</dt>
