@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { CaseStatus } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
 import { STATUS_CONFIG } from "@/lib/status";
+import { ActionError } from "@/components/action-error";
 import { StatusBadge } from "@/components/status-badge";
 import {
   Select,
@@ -86,11 +87,7 @@ export function CaseStatusControl({
           </SelectContent>
         </Select>
       </div>
-      {error !== null && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
+      <ActionError message={error} className="mt-3" />
     </div>
   );
 }

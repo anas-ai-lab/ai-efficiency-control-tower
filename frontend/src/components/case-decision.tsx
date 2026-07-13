@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, XCircle } from "lucide-react";
 import type { ReviewerDecision } from "@/types/api";
 import { recordDecision } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
+import { ActionError } from "@/components/action-error";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -65,14 +66,7 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
         disabled={busy !== null}
         rows={2}
       />
-      {error !== null && (
-        <p
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {error}
-        </p>
-      )}
+      <ActionError message={error} className="mt-3" />
       <div className="mt-3 flex gap-2">
         <Button onClick={() => handleDecide("approved")} disabled={busy !== null}>
           {busy === "approved" ? "Wird gespeichert …" : "Freigeben"}

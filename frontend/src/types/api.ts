@@ -189,6 +189,21 @@ export interface ScoreBreakdown {
   feasibility_definition: string;
 }
 
+// Management-Ebene der Ergebnisdarstellung (V4.1-S5, Ebene 1): zwei Klartext-
+// Saetze ohne interne Codes/Faktoren/Scores. null bei Vorfilter-Fail.
+export interface ManagementView {
+  zonen_satz: string;
+  empfehlung_satz: string;
+}
+
+// Eine Zeile der Berechnungs-Ebene (V4.1-S5, Ebene 2, "Wie wurde das
+// berechnet?"): Label, formatierter Wert, ein Satz Alltagssprache.
+export interface BerechnungsZeile {
+  label: string;
+  wert: string;
+  erklaerung: string;
+}
+
 // L-3 Dedup (ADR-0039): Hinweis auf einen aehnlichen, bereits erfassten Case.
 export interface SimilarityWarning {
   similar_case_id: string;
@@ -215,6 +230,11 @@ export interface TriageResponse {
   zone: ZoneResult | null;
   // Score-Herkunft (V4-P6): None bei Vorfilter-Fail (kein Composite).
   score_breakdown: ScoreBreakdown | null;
+  // Zweischichtige Ergebnisdarstellung (V4.1-S5): management = Ebene 1
+  // (Klartext), berechnung = Ebene 2 (Herkunft je Komponente). null bei
+  // Vorfilter-Fail.
+  management?: ManagementView | null;
+  berechnung?: BerechnungsZeile[] | null;
   similarity_warning?: SimilarityWarning | null;
 }
 

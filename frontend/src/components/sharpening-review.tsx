@@ -7,6 +7,7 @@ import { AlignLeft, Check, Columns2, Sparkles, X } from "lucide-react"
 import type { SharpenedCaseResponse } from "@/types/api"
 import { acceptSharpening, rejectSharpening } from "@/app/actions"
 import { CASE_FIELD_LABELS } from "@/lib/labels"
+import { ActionError } from "@/components/action-error"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -307,14 +308,7 @@ export function SharpeningReview({
         </div>
       )}
 
-      {error !== null && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {error}
-        </p>
-      )}
+      <ActionError message={error} className="mt-4" />
 
       <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={() => resolve("accept")} disabled={pending !== null}>

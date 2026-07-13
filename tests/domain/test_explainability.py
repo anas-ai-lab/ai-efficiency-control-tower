@@ -14,8 +14,10 @@ import pytest
 from aect.domain.explainability import (
     FEASIBILITY_DEFINITION,
     ZONE_LABELS,
+    build_berechnung,
     build_confidence_reasoning,
     build_contra_points,
+    build_management_view,
     build_recommendation_text,
     build_score_breakdown,
     build_zu_entscheiden,
@@ -262,7 +264,7 @@ def test_confidence_pure_estimate_caps_at_mittel(clf: ZoneClassifier) -> None:
         classifier=clf,
     )
     assert conf.level == "mittel"
-    assert any("reiner Einschaetzung" in g and "0,40" in g for g in conf.gruende)
+    assert any("reiner Einschätzung" in g and "0,40" in g for g in conf.gruende)
 
 
 def test_confidence_high_when_measured_and_far(clf: ZoneClassifier) -> None:
@@ -389,7 +391,7 @@ def _passing_result(
         (RoutingRecommendation.AI_RECOMMENDED, "AI-Einsatz empfohlen"),
         (
             RoutingRecommendation.HUMAN_REVIEW_REQUIRED,
-            "Vor Umsetzung fachliche Pruefung erforderlich",
+            "Vor Umsetzung fachliche Prüfung erforderlich",
         ),
         (RoutingRecommendation.BORDERLINE, "Mischsignale"),
     ],
@@ -454,7 +456,7 @@ def test_contra_points_derive_specific_reasons(clf: ZoneClassifier) -> None:
     )
     contra = build_contra_points(result, use_case, confidence=conf)
     joined = " ".join(contra)
-    assert "reinen Einschaetzung" in joined
+    assert "reinen Einschätzung" in joined
     assert "freiwillig" in joined
     assert 2 <= len(contra) <= 4
 
@@ -501,8 +503,8 @@ def test_contra_points_sensitive_data() -> None:
     [
         (RoutingRecommendation.AUTOMATION_RECOMMENDED, "klassische Automatisierung"),
         (RoutingRecommendation.AI_RECOMMENDED, "mit AI-Komponente"),
-        (RoutingRecommendation.HUMAN_REVIEW_REQUIRED, "Pruefung"),
-        (RoutingRecommendation.BORDERLINE, "Einzelfallpruefung"),
+        (RoutingRecommendation.HUMAN_REVIEW_REQUIRED, "Prüfung"),
+        (RoutingRecommendation.BORDERLINE, "Einzelfallprüfung"),
     ],
 )
 def test_zu_entscheiden_per_recommendation(
@@ -510,3 +512,122 @@ def test_zu_entscheiden_per_recommendation(
 ) -> None:
     result = _passing_result(recommendation)
     assert fragment in build_zu_entscheiden(result)
+
+
+# ---------------------------------------------------------------------------
+# Management-Ebene (Ebene 1) + Berechnungs-Ebene (Ebene 2) -- V4.1-S5
+# ---------------------------------------------------------------------------
+
+# Ebene-1-Verbote (Task A): keine internen Codes/Faktoren/Scores duerfen in den
+# Management-Saetzen erscheinen.
+_EBENE1_VERBOTE = (
+    "LIKELY_WIN",
+    "CALCULATED_RISK",
+    "MARGINAL_GAIN",
+    "Faktor",
+    "von 9",
+    "Basis-Zone",
+    "Composite",
+    "composite",
+)
+
+
+def test_management_view_summarises_without_internal_codes() -> None:
+    mv = build_management_view(
+        net_expected_benefit_eur=Decimal("164929"),
+        effort_label="NIEDRIG",
+        evidence_level=EvidenceLevel.PURE_ESTIMATE,
+        confidence_level="niedrig",
+        recommendation=RoutingRecommendation.AUTOMATION_RECOMMENDED,
+    )
+    # Nutzen (EUR/Jahr), Aufwand (verbal) und Belastbarkeit (Stufe) im Satz.
+    assert "164.929 €" in mv.zonen_satz
+    assert "niedrigem Umsetzungsaufwand" in mv.zonen_satz
+    assert "Belastbarkeit niedrig" in mv.zonen_satz
+    # Empfehlung als ganzer Satz + Belastbarkeit der Empfehlung.
+    assert mv.empfehlung_satz.startswith(
+        "Empfehlung: Automatisierung (regelbasiert, ohne KI)."
+    )
+    assert "Belastbarkeit der Empfehlung: niedrig" in mv.empfehlung_satz
+    for banned in _EBENE1_VERBOTE:
+        assert banned not in mv.zonen_satz
+        assert banned not in mv.empfehlung_satz
+
+
+@pytest.mark.parametrize(
+    ("effort_label", "adjektiv"),
+    [("NIEDRIG", "niedrigem"), ("MITTEL", "mittlerem"), ("HOCH", "hohem")],
+)
+def test_management_view_effort_adjektiv(effort_label: str, adjektiv: str) -> None:
+    mv = build_management_view(
+        net_expected_benefit_eur=Decimal("120000"),
+        effort_label=effort_label,
+        evidence_level=EvidenceLevel.TESTED_PILOTED,
+        confidence_level="hoch",
+        recommendation=RoutingRecommendation.AI_RECOMMENDED,
+    )
+    assert f"bei {adjektiv} Umsetzungsaufwand" in mv.zonen_satz
+
+
+def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> None:
+    conf = build_confidence_reasoning(
+        evidence_level=EvidenceLevel.PURE_ESTIMATE,
+        evidence_factor=0.40,
+        expected_benefit_eur=Decimal("200000"),
+        composite_total=2,
+        base_zone=TriageZone.LIKELY_WIN,
+        classifier=clf,
+    )
+    rows = build_berechnung(
+        net_expected_benefit_eur=Decimal("164929"),
+        evidence_level=EvidenceLevel.PURE_ESTIMATE,
+        evidence_factor=0.40,
+        composite_total=3,
+        effort_label="NIEDRIG",
+        base_zone=TriageZone.LIKELY_WIN,
+        confidence=conf,
+    )
+    by = {r.label: r for r in rows}
+    assert [r.label for r in rows] == [
+        "Erwarteter Nutzen",
+        "Belastbarkeit",
+        "Aufwand",
+        "Basis-Einstufung vor Dämpfung",
+    ]
+    assert "164.929 €" in by["Erwarteter Nutzen"].wert
+    assert "Minuten pro Vorgang" in by["Erwarteter Nutzen"].erklaerung
+    # Interner Faktor uebersetzt: 40 % des theoretischen Potenzials.
+    assert "40 % des theoretischen Potenzials" in by["Belastbarkeit"].erklaerung
+    assert by["Aufwand"].wert == "3 / 9"
+    assert by["Aufwand"].erklaerung == "niedrig -- kurzfristig umsetzbar"
+    # Deutsches Label statt Enum-Code (zentrale ZONE_LABELS-Map).
+    assert (
+        by["Basis-Einstufung vor Dämpfung"].wert == ZONE_LABELS[TriageZone.LIKELY_WIN]
+    )
+    joined = " ".join(r.wert + r.erklaerung for r in rows)
+    for banned in ("LIKELY_WIN", "CALCULATED_RISK", "MARGINAL_GAIN"):
+        assert banned not in joined
+
+
+def test_berechnung_belastbarkeit_appends_boundary_flip(clf: ZoneClassifier) -> None:
+    # Genau 1 Composite-Punkt bis MARGINAL_GAIN -> Konfidenz niedrig, Kipp-Satz.
+    conf = build_confidence_reasoning(
+        evidence_level=EvidenceLevel.TESTED_PILOTED,
+        evidence_factor=0.90,
+        expected_benefit_eur=Decimal("20000"),
+        composite_total=7,
+        base_zone=TriageZone.CALCULATED_RISK,
+        classifier=clf,
+    )
+    rows = build_berechnung(
+        net_expected_benefit_eur=Decimal("20000"),
+        evidence_level=EvidenceLevel.TESTED_PILOTED,
+        evidence_factor=0.90,
+        composite_total=7,
+        effort_label="HOCH",
+        base_zone=TriageZone.CALCULATED_RISK,
+        confidence=conf,
+    )
+    belastbarkeit = next(r for r in rows if r.label == "Belastbarkeit")
+    assert "90 % des theoretischen Potenzials" in belastbarkeit.erklaerung
+    assert "kippt" in belastbarkeit.erklaerung

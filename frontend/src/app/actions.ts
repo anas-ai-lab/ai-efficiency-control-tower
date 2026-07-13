@@ -71,10 +71,12 @@ const RULE_TIMEOUT_MS = 15_000;
 const LLM_TIMEOUT_MS = 75_000;
 const LLM_TOOL_LOOP_TIMEOUT_MS = 135_000;
 
-// F-025: Das Backend liefert englische detail-Strings (API-Vertrag bleibt
-// Englisch), die UI zeigt e.message direkt an. Bekannte Details werden hier
-// auf Deutsch gemappt; alles Unbekannte fällt auf eine deutsche
-// Status-Meldung zurück — kein rohes Englisch in der deutschen Oberfläche.
+// Bekannte englische Backend-Details (generische Fehler wie "Case not found",
+// die im API-Vertrag englisch bleiben) werden hier auf Deutsch gemappt. Die
+// aktionsspezifischen Details (z. B. "Kein offener Loesungs-Entwurf ...") liefert
+// das Backend bereits deutsch und erklaerend -- sie werden direkt gerendert
+// (V4.1-S5 Task D). Nicht-String- oder fehlende Details fallen auf eine deutsche
+// Status-Meldung zurueck -- nie ein roher Status/kein rohes Englisch in der UI.
 const ERROR_MESSAGES_DE: Record<string, string> = {
   "Case not found":
     "Der Fall wurde nicht gefunden. Bitte die Triage erneut starten.",
@@ -130,17 +132,37 @@ function statusMessageDE(status: number): string {
   return `Anfrage fehlgeschlagen (HTTP ${status}).`;
 }
 
+// Leitet die anzuzeigende deutsche Fehlermeldung aus dem Backend-detail ab
+// (Task D). String-Details: bekannte englische auf Deutsch mappen, alles andere
+// (bereits deutsche, aktionsspezifische Texte) direkt uebernehmen. Strukturierte
+// Guard-Details ({reason, message, violations}) tragen die Begruendung im
+// message-Feld. Nicht-String/fehlend -> deutsche Status-Meldung (nie roher
+// Status).
+function messageFromDetail(detail: unknown, status: number): string {
+  if (typeof detail === "string" && detail.length > 0) {
+    return ERROR_MESSAGES_DE[detail] ?? detail;
+  }
+  if (
+    detail !== null &&
+    typeof detail === "object" &&
+    "message" in detail &&
+    typeof (detail as { message: unknown }).message === "string"
+  ) {
+    return (detail as { message: string }).message;
+  }
+  return statusMessageDE(status);
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    let detail: string | undefined;
+    let detail: unknown;
     try {
-      const body = (await res.json()) as { detail?: string };
+      const body = (await res.json()) as { detail?: unknown };
       detail = body.detail;
     } catch {
       // JSON-Parsing gescheitert, HTTP-Status reicht als Fehlermeldung
     }
-    const mapped = detail ? ERROR_MESSAGES_DE[detail] : undefined;
-    throw new ApiError(res.status, mapped ?? statusMessageDE(res.status));
+    throw new ApiError(res.status, messageFromDetail(detail, res.status));
   }
   return res.json() as Promise<T>;
 }
