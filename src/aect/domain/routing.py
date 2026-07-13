@@ -86,6 +86,11 @@ class RoutingResult:
 # ---------------------------------------------------------------------------
 # Signal-Sammlung (seiteneffektfrei, einzeln testbar)
 # ---------------------------------------------------------------------------
+# TODO(S6/i18n): Die managementsichtbaren Signal-/Flag-Strings der drei
+# Sammler-Funktionen sind bewusst ASCII-transliteriert (RUF001/002/003) und in
+# test_routing.py per Substring gepinnt (Enum-nah). Pflicht-Teilaufgabe fuer S6
+# (i18n): ueber eine Uebersetzungsschicht externalisieren (echte Umlaute), Tests
+# dann gegen Message-Keys statt Inline-Literale.
 
 
 def _collect_automation_signals(use_case: UseCaseInput) -> list[str]:

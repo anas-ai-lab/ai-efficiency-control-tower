@@ -7,15 +7,6 @@ import { formatEUR, formatPercent, formatFactor } from "@/lib/formatters"
 // Report. Alle Texte werden aus vorhandenen Zahlenfeldern getemplatet -- kein
 // LLM, keine erfundenen Werte. Nur Ist-Werte aus der TriageResponse.
 
-// Konfidenz-Score (ADR-0036) in Klartext. Der Score misst den Abstand zur
-// naechsten Zonengrenze; diese Saetze uebersetzen ihn fuer Entscheider.
-export const CONFIDENCE_INTERPRETATION: Record<string, string> = {
-  hoch: "Klar in der Zone — robuste Einstufung.",
-  mittel: "Nahe an einer Zonengrenze — Einstufung mit Vorbehalt.",
-  niedrig:
-    "Direkt an der Zonengrenze — schon kleine Änderungen kippen die Zone.",
-}
-
 // --- 1a: Nettonutzen-Erklaerung + aufklappbarer Rechenweg --------------------
 
 export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
