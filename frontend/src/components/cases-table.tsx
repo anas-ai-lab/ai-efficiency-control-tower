@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Download } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Clock, Download } from "lucide-react";
 
 import type {
   CaseStatus,
@@ -13,7 +13,7 @@ import type {
 } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
 import { formatEUR, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
-import { STATUS_CONFIG } from "@/lib/status";
+import { EVALUATION_PENDING_DISPLAY, STATUS_CONFIG } from "@/lib/status";
 import { downloadCasesCsv } from "@/lib/csv";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,11 @@ const ZONE_ORDER: TriageZone[] = [
 ];
 
 type StatusFilter = CaseStatus | "all";
-type ZoneFilter = TriageZone | "none" | "all";
+// "pending" = evaluation_pending (kein Implementierungsansatz -> noch nicht
+// bewertet). "none" = echter Vorfilter-Fail (zone === null TROTZ Bewertung).
+// Bewusst getrennte Optionen: beide Faelle haben zone === null, meinen aber
+// Unterschiedliches -- nicht unter einer Option vermischen.
+type ZoneFilter = TriageZone | "none" | "pending" | "all";
 type SortKey = "date" | "net";
 type SortDir = "asc" | "desc";
 
@@ -72,6 +76,25 @@ function compareNullable(a: number | null, b: number | null, dir: SortDir): numb
 // steht fuer den echten Vorfilter-Fail), sondern ein ruhiger "wird geprueft".
 function PendingCell() {
   return <span className="text-xs text-muted-foreground">wird geprüft</span>;
+}
+
+// Vor-Bewertungs-Zustand (evaluation_pending): eigene, eindeutige
+// Darstellungs-Kategorie fuer die Zellen "Zone"/"Nettonutzen". Bewusst gestrichelter
+// Rahmen + Uhr-Icon + neutraler Ton -- deutlich verschieden vom gefuellten,
+// farbigen ZoneBadge, damit es NICHT wie eine vierte Zone wirkt. Nicht "—" (das
+// bleibt dem echten Vorfilter-Fail vorbehalten) und nicht "wird geprüft" (das
+// bleibt dem Anonym-vor-Board-Entscheidung-Fall vorbehalten). Wortlaut aus der
+// zentralen Quelle, identisch zur Detail-Pending-Box.
+function PendingEvaluationBadge() {
+  return (
+    <span
+      title={EVALUATION_PENDING_DISPLAY.tooltip}
+      className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+    >
+      <Clock className="size-3" aria-hidden />
+      {EVALUATION_PENDING_DISPLAY.labelDE}
+    </span>
+  );
 }
 
 function ZoneBadge({ zone }: { zone: TriageZone | null }) {
@@ -232,10 +255,11 @@ export function CasesTable({
   const visible = useMemo(() => {
     const filtered = rows.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (zoneFilter === "none" && c.zone !== null) return false;
-      if (zoneFilter !== "all" && zoneFilter !== "none" && c.zone !== zoneFilter) {
-        return false;
-      }
+      // Pending: nur Faelle im Vor-Bewertungs-Zustand.
+      if (zoneFilter === "pending") return c.evaluation_pending;
+      // Ohne Bewertung: echter Vorfilter-Fail -- zone === null, aber NICHT pending.
+      if (zoneFilter === "none") return c.zone === null && !c.evaluation_pending;
+      if (zoneFilter !== "all" && c.zone !== zoneFilter) return false;
       return true;
     });
     const sorted = [...filtered].sort((a, b) => {
@@ -360,6 +384,7 @@ export function CasesTable({
                 </SelectItem>
               ))}
               <SelectItem value="none">Ohne Bewertung</SelectItem>
+              <SelectItem value="pending">Bewertung ausstehend</SelectItem>
             </SelectContent>
           </Select>
         </label>
@@ -447,14 +472,18 @@ export function CasesTable({
                   {formatDate(c.submitted_at)}
                 </td>
                 <td className="px-4 py-3">
-                  {c.assessment_visible ? (
+                  {c.evaluation_pending ? (
+                    <PendingEvaluationBadge />
+                  ) : c.assessment_visible ? (
                     <ZoneBadge zone={c.zone} />
                   ) : (
                     <PendingCell />
                   )}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-foreground tabular-nums">
-                  {!c.assessment_visible ? (
+                  {c.evaluation_pending ? (
+                    <PendingEvaluationBadge />
+                  ) : !c.assessment_visible ? (
                     <PendingCell />
                   ) : c.net_expected_benefit_eur === null ? (
                     <span className="text-muted-foreground">—</span>

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "generate-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/api.generated.ts",
-    "generate-types:file": "openapi-typescript ../openapi.json -o src/types/api.generated.ts"
+    "generate-types:file": "openapi-typescript ../openapi.json -o src/types/api.generated.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -30,6 +31,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

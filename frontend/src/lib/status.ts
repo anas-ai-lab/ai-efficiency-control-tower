@@ -69,3 +69,14 @@ export const STATUS_CONFIG: Record<CaseStatus, StatusStyle> = {
 };
 
 export type StatusKey = keyof typeof STATUS_CONFIG;
+
+// Vor-Bewertungs-Zustand (evaluation_pending, V4.1/ADR-0050): eigene
+// Darstellungs-Kategorie, KEIN CaseStatus und KEINE Zone -- deshalb bewusst
+// nicht in STATUS_CONFIG/ZONE_CONFIG. Zentrale Quelle fuer Label + Tooltip,
+// damit Listen-Badge (cases-table) und Detail-Pending-Box denselben Wortlaut
+// teilen. Neutral gehalten: kein Fehler-Rot, kein Zonen-Farbton.
+export const EVALUATION_PENDING_DISPLAY = {
+  labelDE: "Bewertung ausstehend",
+  tooltip:
+    "Kein Implementierungsansatz angegeben — Bewertung erfolgt nach Ergänzung durch einen Admin.",
+} as const;
