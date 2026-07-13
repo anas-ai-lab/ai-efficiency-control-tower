@@ -6,7 +6,8 @@
 > die v3.1-Assistenz-Features (Juli 2026). #21-#24 ergaenzen die im externen
 > Master-Audit H (Juli 2026) bestaetigten ehrlichen Luecken (#24 = offener
 > Fix-Kandidat, kein Design-Limit). #25-#32 ergaenzen die V4-Kalibrierungs- und
-> Demo-Grenzen (Juli 2026, Demo-Build SDR-0003).
+> Demo-Grenzen (Juli 2026, Demo-Build SDR-0003). #33 dokumentiert den
+> Prod-Router-Cache-Workaround im Frontend (Next.js App Router).
 
 ---
 
@@ -629,6 +630,30 @@ sind Lese-Hilfe, keine Schwellen).
 
 ---
 
+## 33. Prod-Router-Cache: harter Reload statt `router.refresh()`
+
+**Was:** Auf der Case-Detailseite (`/cases/[id]`) greift `router.refresh()` im
+**Prod-Build** nicht durch -- der client-seitige RSC-Router-Cache liefert die
+alte Server-Component-Nutzlast weiter. Eine gerade persistierte Admin-Aktion
+(Schaerfen-Uebernehmen, Loesung, Compliance, Board-Entscheidung, Ansatz-Nachtrag)
+erscheint dann nicht in der UI, obwohl der Backend-/RSC-Endpoint frisch ist
+(`no-store`, `force-dynamic`, 200 vom Backend).
+
+**Workaround:** Ein zentraler harter Reload statt Soft-Refresh --
+`hardRefresh()` (`frontend/src/lib/reload.ts`, `window.location.reload()`) an
+allen mutierenden Detail-Aktionen zieht den frischen SSR-Stand zuverlaessig
+(Fix `86791c3`).
+
+**Warum so:** Die serverseitige Cache-Invalidierung per `revalidatePath`
+(`actions.ts`) und ein `staleTimes: 0` loesten den **client-seitigen**
+Router-Cache nicht auf -- der Soft-Refresh blieb stale. Das ist **kein
+AECT-spezifischer Bug**, sondern bekanntes Next.js-App-Router-Verhalten (der
+RSC-Router-Cache im Prod-Build, im Dev-Build nicht sichtbar). Der harte Reload
+ist die pragmatische, robuste Antwort fuer den Single-User-Demo-Build; ein
+feineres Soft-Refresh-Muster ist ein Post-v4-Punkt.
+
+---
+
 ## 14. Vorfilter-Schwellen: Zwei Quellen (BEHOBEN, F-001)
 
 **Was (historisch):** Die Vorfilter-Schwellen existierten doppelt: als
@@ -645,7 +670,10 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: 2026-07-11 -- V4-Release (v4.0.0): #25-#32 ergaenzt
+*Letzte Aktualisierung: 2026-07-13 -- Pre-S5-Nacharbeit: #33 ergaenzt
+(Prod-Router-Cache-Workaround, harter Reload statt `router.refresh()`; bekanntes
+Next.js-App-Router-Verhalten, kein AECT-Bug). Vorher 2026-07-11 -- V4-Release
+(v4.0.0): #25-#32 ergaenzt
 (Composite-Range 1-9 bei stabilen Zonen-Schwellen, Golden-Agreement-Remessung
 62,5 %, Zahlen-Validator-Grenze, Single-Admin-Auth, unverifizierte
 Nicht-DACH-Stundensaetze, decision-gekoppelte Sichtbarkeit, Routing-Volumen-
