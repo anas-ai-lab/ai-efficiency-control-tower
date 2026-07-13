@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { getLocale } from "next-intl/server";
 
 import type {
   ArchitectureSketchEnvelope,
@@ -167,6 +168,16 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Haengt die aktive UI-Sprache als lang-Query an (V4.1-S6). Das Backend liefert
+// generierte Klartexte (Score-Erklaerungen, Report, darstellbare Fehler) in
+// dieser Sprache; Endpoints ohne lang-Parameter ignorieren die Query. Der Wert
+// kommt aus dem NEXT_LOCALE-Cookie (next-intl getLocale), nie vom Client-Bundle.
+async function withLang(path: string): Promise<string> {
+  const locale = await getLocale();
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}lang=${locale}`;
+}
+
 async function apiFetch<T>(
   path: string,
   timeoutMs: number,
@@ -175,7 +186,7 @@ async function apiFetch<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(`${BASE_URL}${await withLang(path)}`, {
       method,
       headers: {
         "Content-Type": "application/json",

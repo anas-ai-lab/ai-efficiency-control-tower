@@ -1,0 +1,191 @@
+{
+  "metadata": {
+    "title": "AECT | AI Efficiency Control Tower",
+    "description": "Intelligent pre-assessment layer for AI use-case intake"
+  },
+  "common": {
+    "languageSwitcher": "Choose language",
+    "loading": "Loading …",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "save": "Save",
+    "close": "Close",
+    "optional": "optional"
+  },
+  "theme": {
+    "toLight": "Switch to light theme",
+    "toDark": "Switch to dark theme",
+    "light": "Light theme",
+    "dark": "Dark theme"
+  },
+  "nav": {
+    "mainNav": "Main navigation",
+    "start": "Home",
+    "submit": "Submit",
+    "ideas": "Idea Assistant",
+    "cases": "Idea List",
+    "board": "Board",
+    "monitoring": "Monitoring",
+    "adminLogin": "Admin login",
+    "logout": "Sign out",
+    "loggingOut": "Signing out …",
+    "admin": "Admin"
+  },
+  "footer": {
+    "badge": "EU AI ACT · ART. 50",
+    "disclaimer": "This application uses an AI system (Azure OpenAI). All outputs are non-binding guidance for expert review, not a legally binding decision."
+  },
+  "landing": {
+    "eyebrow": "AI Efficiency Control Tower",
+    "heroTitle": "From idea to a well-founded decision.",
+    "heroLead": "Submit your AI idea — AECT assesses benefit, effort and risk before the AI Board decides.",
+    "kpiSubmittedLabel": "Submitted ideas",
+    "kpiSubmittedHint": "captured in total",
+    "kpiEvaluatedLabel": "Evaluated ideas",
+    "kpiEvaluatedHint": "passed the prefilter",
+    "kpiImplementedLabel": "Implemented use cases",
+    "kpiImplementedHint": "live in production",
+    "cardSubmitTitle": "Submit",
+    "cardSubmitDesc": "Describe your use case in a few steps.",
+    "cardIdeasTitle": "Idea Assistant",
+    "cardIdeasDesc": "No finished idea yet? Describe your problem — the assistant drafts options.",
+    "cardCasesTitle": "Idea List",
+    "cardCasesDesc": "All submitted ideas and their status — transparent for everyone.",
+    "cardBoardTitle": "Board",
+    "cardBoardDesc": "Portfolio matrix: benefit against feasibility, each case a point.",
+    "cardMonitoringTitle": "Monitoring",
+    "cardMonitoringDesc": "Maintain approved and implemented use cases — status and progress notes.",
+    "adminPrompt": "Do you manage the portfolio?",
+    "adminLink": "Admin login",
+    "adminSuffix": "— unlocks Board, Monitoring and the editing actions."
+  },
+  "login": {
+    "metaTitle": "Admin login | AECT",
+    "eyebrow": "Admin",
+    "title": "Sign in",
+    "intro": "Submission, Idea Assistant and Idea List are usable without signing in. Signing in unlocks the admin functions (Board, Monitoring, Refine, Propose Solution, Compliance Check, Report, status changes).",
+    "passwordLabel": "Admin password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Sign in",
+    "submitting": "Signing in …",
+    "genericError": "Sign-in failed."
+  },
+  "enums": {
+    "country": {
+      "de": "Germany",
+      "at": "Austria",
+      "ch": "Switzerland",
+      "no": "Norway",
+      "gb": "United Kingdom",
+      "es": "Spain",
+      "it": "Italy",
+      "tr": "Turkey",
+      "ro": "Romania",
+      "pl": "Poland",
+      "eg": "Egypt",
+      "in": "India"
+    },
+    "employeeCategory": {
+      "junior": "Junior",
+      "professional": "Professional",
+      "consultant": "Consultant",
+      "senior": "Senior",
+      "management": "Management"
+    },
+    "evidenceLevel": {
+      "pure_estimate": "Estimate",
+      "similar_project": "Comparable project",
+      "tested_piloted": "Piloted / Measured"
+    },
+    "adoptionType": {
+      "voluntary": "Voluntary",
+      "recommended_standard": "Recommended standard",
+      "fixed_process_step": "Fixed process step"
+    },
+    "implementationApproach": {
+      "simple_integration": "Simple integration (existing)",
+      "development_on_existing": "Development on existing",
+      "api_integration": "API integration (existing)",
+      "custom_development": "Custom development",
+      "new_tool": "New tool introduction"
+    },
+    "dataClassification": {
+      "no_personal_data": "No personal data",
+      "pseudonymous": "Pseudonymized",
+      "personal": "Personal",
+      "sensitive_personal": "Special categories (Art. 9 GDPR)"
+    },
+    "routing": {
+      "AI_RECOMMENDED": "AI recommended",
+      "AUTOMATION_RECOMMENDED": "Automation recommended",
+      "HUMAN_REVIEW_REQUIRED": "Human review",
+      "BORDERLINE": "Borderline"
+    },
+    "confidence": {
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low"
+    },
+    "caseField": {
+      "title": "Title",
+      "current_state": "Current state",
+      "desired_state": "Target state",
+      "example_process": "Example (current)",
+      "desired_example_process": "Example (target)",
+      "time_per_case_hours_current": "Time / case today",
+      "time_per_case_hours_with_ai": "Time / case with AI",
+      "occurrences_per_employee_per_year": "Cases / year",
+      "affected_employees_count": "Affected employees",
+      "employee_category": "Employee level",
+      "evidence_level": "Evidence level",
+      "adoption_type": "Commitment",
+      "implementation_approach": "Implementation approach",
+      "estimated_license_cost_eur": "License cost",
+      "implementation_cost_eur": "Implementation cost",
+      "data_classification": "Data protection class"
+    },
+    "feasibilityFlag": {
+      "DESCRIPTION_TOO_VAGUE": "Description too vague",
+      "MISSING_EXAMPLE": "Example missing",
+      "NO_TIME_SAVING": "No time saved",
+      "NOT_RECURRING": "Not recurring"
+    },
+    "confidenceLevel": {
+      "hoch": "high",
+      "mittel": "medium",
+      "niedrig": "low"
+    },
+    "effortLabel": {
+      "NIEDRIG": "LOW",
+      "MITTEL": "MEDIUM",
+      "HOCH": "HIGH"
+    }
+  },
+  "status": {
+    "submitted": "Submitted",
+    "in_review": "In review",
+    "approved": "Approved",
+    "already_exists": "Already exists",
+    "rejected": "Rejected",
+    "implemented": "Implemented",
+    "evaluationPending": "Evaluation pending",
+    "evaluationPendingTooltip": "No implementation approach provided — evaluation follows once an admin adds it."
+  },
+  "zones": {
+    "LIKELY_WIN": {
+      "label": "Promising",
+      "summary": "Clear impact lever, low implementation risk."
+    },
+    "CALCULATED_RISK": {
+      "label": "Calculated risk",
+      "summary": "Viable, but tied to conditions and effort."
+    },
+    "MARGINAL_GAIN": {
+      "label": "Marginal gain",
+      "summary": "Benefit is out of proportion to the effort."
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   Activity,
 } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 import type { StatsResponse } from "@/types/api";
 import { formatNumber } from "@/lib/formatters";
@@ -22,33 +23,10 @@ interface Kpi {
   hint: string;
 }
 
-// Netto-Nutzen bewusst NICHT auf der Startseite (S2): der Wert bleibt in
-// Ideenliste und Board, hier nur die Mengen-Kennzahlen.
-function statsToKpis(stats: StatsResponse | null): Kpi[] {
-  const dash = "—";
-  return [
-    {
-      label: "Eingereichte Ideen",
-      value: stats ? formatNumber(stats.eingereicht) : dash,
-      hint: "insgesamt erfasst",
-    },
-    {
-      label: "Bewertete Ideen",
-      value: stats ? formatNumber(stats.bewertet) : dash,
-      hint: "Vorfilter bestanden",
-    },
-    {
-      label: "Umgesetzte Use Cases",
-      value: stats ? formatNumber(stats.umgesetzt) : dash,
-      hint: "produktiv im Einsatz",
-    },
-  ];
-}
-
 interface NavCard {
   href: string;
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
   icon: React.ComponentType<{ className?: string }>;
   // Icon-Farbakzent aus der Marken-Palette (Tailwind text-*-Klasse auf einen
   // Token). Kontrast auf --ink-subtle in Light UND Dark geprueft; Gruen laeuft
@@ -59,23 +37,22 @@ interface NavCard {
 const PUBLIC_CARDS: NavCard[] = [
   {
     href: "/einreichen",
-    title: "Einreichen",
-    description: "Beschreibe deinen Use Case in wenigen Schritten.",
+    titleKey: "cardSubmitTitle",
+    descKey: "cardSubmitDesc",
     icon: ClipboardList,
     accent: "text-[var(--brand-primary)]",
   },
   {
     href: "/ideation",
-    title: "Ideen-Assistent",
-    description:
-      "Noch keine fertige Idee? Beschreibe dein Problem — der Assistent macht Entwürfe.",
+    titleKey: "cardIdeasTitle",
+    descKey: "cardIdeasDesc",
     icon: Lightbulb,
     accent: "text-[var(--brand-accent)]",
   },
   {
     href: "/cases",
-    title: "Ideenliste",
-    description: "Alle eingereichten Ideen und ihr Status — transparent für alle.",
+    titleKey: "cardCasesTitle",
+    descKey: "cardCasesDesc",
     icon: ListChecks,
     accent: "text-[var(--zone-win-fg)]",
   },
@@ -84,23 +61,29 @@ const PUBLIC_CARDS: NavCard[] = [
 const ADMIN_CARDS: NavCard[] = [
   {
     href: "/board",
-    title: "Board",
-    description:
-      "Portfolio-Matrix: Nutzen gegen Machbarkeit, jeder Case ein Punkt.",
+    titleKey: "cardBoardTitle",
+    descKey: "cardBoardDesc",
     icon: LayoutGrid,
     accent: "text-[var(--brand-accent)]",
   },
   {
     href: "/monitoring",
-    title: "Monitoring",
-    description:
-      "Freigegebene und umgesetzte Use Cases pflegen — Status und Verlaufsnotizen.",
+    titleKey: "cardMonitoringTitle",
+    descKey: "cardMonitoringDesc",
     icon: Activity,
     accent: "text-[var(--brand-primary)]",
   },
 ];
 
-function Card({ card }: { card: NavCard }) {
+function Card({
+  card,
+  title,
+  description,
+}: {
+  card: NavCard;
+  title: string;
+  description: string;
+}) {
   const Icon = card.icon;
   return (
     <Link
@@ -117,24 +100,44 @@ function Card({ card }: { card: NavCard }) {
         <Icon className="size-4.5" />
       </span>
       <span className="mt-4 flex items-center gap-1.5 text-[0.95rem] font-semibold tracking-tight text-foreground">
-        {card.title}
+        {title}
         <ArrowRight className="size-3.5 text-muted-foreground transition-transform motion-safe:group-hover:translate-x-0.5" />
       </span>
       <span className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-        {card.description}
+        {description}
       </span>
     </Link>
   );
 }
 
-export function Landing({
+export async function Landing({
   stats,
   authenticated,
 }: {
   stats: StatsResponse | null;
   authenticated: boolean;
 }) {
-  const kpis = statsToKpis(stats);
+  const t = await getTranslations("landing");
+  const dash = "—";
+  // Netto-Nutzen bewusst NICHT auf der Startseite (S2): der Wert bleibt in
+  // Ideenliste und Board, hier nur die Mengen-Kennzahlen.
+  const kpis: Kpi[] = [
+    {
+      label: t("kpiSubmittedLabel"),
+      value: stats ? formatNumber(stats.eingereicht) : dash,
+      hint: t("kpiSubmittedHint"),
+    },
+    {
+      label: t("kpiEvaluatedLabel"),
+      value: stats ? formatNumber(stats.bewertet) : dash,
+      hint: t("kpiEvaluatedHint"),
+    },
+    {
+      label: t("kpiImplementedLabel"),
+      value: stats ? formatNumber(stats.umgesetzt) : dash,
+      hint: t("kpiImplementedHint"),
+    },
+  ];
   const cards = authenticated ? [...PUBLIC_CARDS, ...ADMIN_CARDS] : PUBLIC_CARDS;
 
   return (
@@ -144,13 +147,12 @@ export function Landing({
           Full-Screen-Farbrausch. */}
       <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="max-w-2xl">
-          <p className="eyebrow">AI Efficiency Control Tower</p>
+          <p className="eyebrow">{t("eyebrow")}</p>
           <h1 className="mt-3 text-pretty text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
-            Von der Idee zur belastbaren Entscheidung.
+            {t("heroTitle")}
           </h1>
           <p className="mt-4 max-w-prose text-base leading-relaxed text-muted-foreground">
-            Reiche deine AI-Idee ein — AECT bewertet Nutzen, Aufwand und Risiko,
-            bevor das AI Board entscheidet.
+            {t("heroLead")}
           </p>
         </div>
 
@@ -187,7 +189,12 @@ export function Landing({
       <section className="mt-12">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => (
-            <Card key={card.href} card={card} />
+            <Card
+              key={card.href}
+              card={card}
+              title={t(card.titleKey)}
+              description={t(card.descKey)}
+            />
           ))}
         </div>
       </section>
@@ -197,14 +204,14 @@ export function Landing({
       {!authenticated && (
         <section className="mt-10 border-t border-border/70 pt-6">
           <p className="text-sm text-muted-foreground">
-            Verwaltest du das Portfolio?{" "}
+            {t("adminPrompt")}{" "}
             <Link
               href="/login"
               className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
             >
-              Admin-Login
+              {t("adminLink")}
             </Link>{" "}
-            — schaltet Board, Monitoring und die Bearbeitungs-Aktionen frei.
+            {t("adminSuffix")}
           </p>
         </section>
       )}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 
 import { logout } from "@/app/actions";
@@ -12,6 +13,7 @@ import { logout } from "@/app/actions";
 export function AuthControl({ authenticated }: { authenticated: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations("nav");
   const [pending, startTransition] = useTransition();
 
   if (!authenticated) {
@@ -22,7 +24,7 @@ export function AuthControl({ authenticated }: { authenticated: boolean }) {
         href="/login"
         className="text-[0.8rem] font-medium text-muted-foreground underline-offset-[6px] transition-colors hover:text-foreground hover:underline hover:decoration-border"
       >
-        Admin-Login
+        {t("adminLogin")}
       </Link>
     );
   }
@@ -42,7 +44,7 @@ export function AuthControl({ authenticated }: { authenticated: boolean }) {
       disabled={pending}
       className="text-[0.8rem] font-medium text-muted-foreground underline-offset-[6px] transition-colors hover:text-foreground hover:underline hover:decoration-border disabled:opacity-60"
     >
-      {pending ? "Abmelden …" : "Abmelden"}
+      {pending ? t("loggingOut") : t("logout")}
     </button>
   );
 }

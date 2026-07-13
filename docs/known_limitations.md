@@ -670,7 +670,47 @@ Regressionstest: `tests/domain/test_pipeline.py`
 
 ---
 
-*Letzte Aktualisierung: 2026-07-13 -- Pre-S5-Nacharbeit: #33 ergaenzt
+## 15. i18n (Deutsch/Englisch): Grenzen der Lokalisierung (V4.1-S6)
+
+**Was:** AECT ist zweisprachig (Deutsch = Default, Englisch per Header-Umschalter,
+Cookie-basiert ohne Locale-URL-Prefix). Backend-seitig sind alle deterministisch
+erzeugten Texte katalogisiert (Score-Erklaerungen, Report/Contra-Punkte,
+Routing-Signale, Vorfilter-/Machbarkeits-Texte, darstellbare 4xx/5xx-Details) und
+folgen dem `lang`-Query-Parameter (Default `de`, ungueltig -> 422).
+
+**Bewusste Grenzen:**
+
+1. **Nutzereingaben werden nie uebersetzt.** Case-Titel, Ist-/Soll-Beschreibungen,
+   Beispielprozesse und Monitoring-Notizen erscheinen in der Sprache, in der sie
+   erfasst wurden -- unabhaengig von der aktiven UI-Sprache. Das System uebersetzt
+   keine Freitext-Eingaben (kein zusaetzlicher LLM-Call, keine erfundene Semantik).
+
+2. **Bestands-LLM-Inhalte bleiben in ihrer Erstellungssprache.** Schaerfungen,
+   Loesungsvorschlaege und Ideen-Entwuerfe, die vor bzw. in einer anderen Sprache
+   erzeugt wurden, werden nicht rueckuebersetzt. Neue LLM-Calls (Schaerfen, Loesung,
+   Ideation) erhalten bei `lang=en` eine Sprachinstruktion; bereits gespeicherte
+   Ergebnisse bleiben unveraendert.
+
+3. **Sharpening-Guard-Zahlwoerter sind deutsch.** Der Zahlen-Validator vergleicht
+   sprachunabhaengig Ziffern; die zusaetzliche Wort->Ziffer-Normalisierung
+   ("fuenf" -> "5") deckt nur deutsche Zahlwoerter ab. Im EN-Modus erzwingt die
+   LLM-Sprachinstruktion daher Ziffern ("keep all numeric values as digits") --
+   englische Zahlwoerter wuerden vom Guard nicht als Zahl erkannt.
+
+4. **Frontend-EN-Abdeckung wird schrittweise ausgerollt.** Die i18n-Infrastruktur
+   (next-intl, Cookie-Locale, Umschalter, Server-Action-Durchreichung von `lang`)
+   und die geteilten Kataloge (Enums, Status, Zonen, Navigation, Footer) stehen;
+   lokalisiert sind Startseite, Admin-Login, Kopf-/Fussbereich und die geteilten
+   Badges. Die uebrigen Seiten-Inhalte (Einreichen-Wizard, Fall-Detail, Board,
+   Ideenliste, Monitoring, Ideen-Assistent) werden pro Komponente nachgezogen und
+   zeigen bis dahin deutschen Text. Ein CI-faehiger Paritaets-Check
+   (`npm run i18n:check`) stellt sicher, dass `de.json`/`en.json` keine
+   divergierenden Schluessel haben.
+
+---
+
+*Letzte Aktualisierung: 2026-07-14 -- #15 ergaenzt (i18n de/en, V4.1-S6:
+Grenzen der Lokalisierung + inkrementeller Frontend-Rollout). Vorher 2026-07-13 -- Pre-S5-Nacharbeit: #33 ergaenzt
 (Prod-Router-Cache-Workaround, harter Reload statt `router.refresh()`; bekanntes
 Next.js-App-Router-Verhalten, kein AECT-Bug). Vorher 2026-07-11 -- V4-Release
 (v4.0.0): #25-#32 ergaenzt

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "generate-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/api.generated.ts",
     "generate-types:file": "openapi-typescript ../openapi.json -o src/types/api.generated.ts",
+    "i18n:check": "node scripts/check-i18n-parity.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "lucide-react": "^1.21.0",
     "mermaid": "^11.16.0",
     "next": "^16.2.9",
+    "next-intl": "^4.13.2",
     "radix-ui": "^1.6.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

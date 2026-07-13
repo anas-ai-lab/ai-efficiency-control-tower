@@ -1,14 +1,18 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import type { CaseStatus, TriageZone } from "@/types/api";
 import { STATUS_CONFIG } from "@/lib/status";
 import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
-// Server-sichere Badges (kein "use client"): nutzbar in Server- und Client-
-// Komponenten. Farbe/Label kommen ausschliesslich aus STATUS_CONFIG bzw.
-// ZONE_CONFIG (einzige Quelle). Analog zur (lokalen) ZoneBadge in cases-table --
-// hier als geteilte Variante fuer /cases/[id] und /monitoring.
+// Geteilte Badges (V4.1-S6 client-only wegen useTranslations -- rendern in
+// Server- UND Client-Komponenten). Farbe kommt aus STATUS_CONFIG/ZONE_CONFIG,
+// das Label aus dem Sprachkatalog (status.* / zones.*.label).
 
 export function StatusBadge({ status }: { status: CaseStatus }) {
+  const t = useTranslations("status");
   const c = STATUS_CONFIG[status];
   return (
     <span
@@ -19,12 +23,13 @@ export function StatusBadge({ status }: { status: CaseStatus }) {
       )}
     >
       <span className={cn("size-1.5 rounded-full", c.dot)} aria-hidden />
-      {c.labelDE}
+      {t(status)}
     </span>
   );
 }
 
 export function ZoneBadge({ zone }: { zone: TriageZone | null }) {
+  const t = useTranslations("zones");
   if (zone === null) {
     return <span className="text-muted-foreground">—</span>;
   }
@@ -38,7 +43,7 @@ export function ZoneBadge({ zone }: { zone: TriageZone | null }) {
       )}
     >
       <span className={cn("size-1.5 rounded-full", c.dot)} aria-hidden />
-      {c.labelDE}
+      {t(`${zone}.label`)}
     </span>
   );
 }

@@ -731,6 +731,8 @@ export interface paths {
          *     unteren Zugriffsstufe (SDR-0003). Kein require_admin hier.
          *     Rate Limit: 30 Requests/Minute pro Aufrufer.
          *     Validation: extra='forbid' auf UseCaseInput -- unbekannte Felder -> 422.
+         *     lang (V4.1-S6): "de" (Default) | "en" fuer die generierten Klartexte;
+         *     ungueltige Werte -> 422 (FastAPI-Literal-Validierung).
          *
          *     Idempotency: siehe Modul-Docstring. Bei Replay wird response.status_code
          *     auf 200 gesetzt und der Header 'Idempotent-Replay: true' ergaenzt.
@@ -2104,7 +2106,9 @@ export interface operations {
     };
     list_cases_cases_get: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2118,6 +2122,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2144,7 +2157,9 @@ export interface operations {
     };
     get_case_detail_cases__case_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2274,7 +2289,9 @@ export interface operations {
     };
     set_implementation_approach_cases__case_id__implementation_approach_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2375,7 +2392,9 @@ export interface operations {
     };
     sharpen_case_cases__case_id__sharpen_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2406,7 +2425,9 @@ export interface operations {
     };
     accept_sharpening_cases__case_id__sharpen_accept_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2437,7 +2458,9 @@ export interface operations {
     };
     reject_sharpening_cases__case_id__sharpen_reject_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2468,7 +2491,9 @@ export interface operations {
     };
     propose_solution_cases__case_id__propose_solution_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2499,7 +2524,9 @@ export interface operations {
     };
     accept_solution_cases__case_id__propose_solution_accept_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2530,7 +2557,9 @@ export interface operations {
     };
     reject_solution_cases__case_id__propose_solution_reject_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2561,7 +2590,9 @@ export interface operations {
     };
     get_report_cases__case_id__report_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2658,7 +2689,9 @@ export interface operations {
     };
     generate_architecture_sketch_cases__case_id__architecture_sketch_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;
@@ -2689,7 +2722,9 @@ export interface operations {
     };
     submit_use_case_triage_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: {
                 "Idempotency-Key"?: string | null;
             };
@@ -2724,7 +2759,9 @@ export interface operations {
     };
     generate_ideation_ideation_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path?: never;
             cookie?: never;

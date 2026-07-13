@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 // Primaer-Navigation im Header. Client-Komponente nur wegen usePathname
 // (aktiver Link) -- das Layout selbst bleibt Server Component. Dezente
@@ -15,18 +16,18 @@ import { usePathname } from "next/navigation";
 // Pruefen/Entscheiden, nicht Einreichen. Anonymer Zustand unveraendert.
 interface NavLink {
   href: string;
-  label: string;
+  labelKey: string;
   adminOnly: boolean;
   hideForAdmin: boolean;
 }
 
 const LINKS: NavLink[] = [
-  { href: "/", label: "Start", adminOnly: false, hideForAdmin: false },
-  { href: "/einreichen", label: "Einreichen", adminOnly: false, hideForAdmin: true },
-  { href: "/ideation", label: "Ideen-Assistent", adminOnly: false, hideForAdmin: true },
-  { href: "/cases", label: "Ideenliste", adminOnly: false, hideForAdmin: false },
-  { href: "/board", label: "Board", adminOnly: true, hideForAdmin: false },
-  { href: "/monitoring", label: "Monitoring", adminOnly: true, hideForAdmin: false },
+  { href: "/", labelKey: "start", adminOnly: false, hideForAdmin: false },
+  { href: "/einreichen", labelKey: "submit", adminOnly: false, hideForAdmin: true },
+  { href: "/ideation", labelKey: "ideas", adminOnly: false, hideForAdmin: true },
+  { href: "/cases", labelKey: "cases", adminOnly: false, hideForAdmin: false },
+  { href: "/board", labelKey: "board", adminOnly: true, hideForAdmin: false },
+  { href: "/monitoring", labelKey: "monitoring", adminOnly: true, hideForAdmin: false },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -37,6 +38,7 @@ function isActive(pathname: string, href: string): boolean {
 
 export function MainNav({ authenticated }: { authenticated: boolean }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   const links = LINKS.filter((link) => {
     if (link.adminOnly && !authenticated) return false;
     if (link.hideForAdmin && authenticated) return false;
@@ -44,7 +46,7 @@ export function MainNav({ authenticated }: { authenticated: boolean }) {
   });
 
   return (
-    <nav aria-label="Hauptnavigation" className="flex items-center gap-4 sm:gap-5">
+    <nav aria-label={t("mainNav")} className="flex items-center gap-4 sm:gap-5">
       {links.map((link) => {
         const active = isActive(pathname, link.href);
         return (
@@ -58,7 +60,7 @@ export function MainNav({ authenticated }: { authenticated: boolean }) {
                 : "text-[0.8rem] font-medium text-muted-foreground underline-offset-[6px] transition-colors hover:text-foreground hover:underline hover:decoration-border"
             }
           >
-            {link.label}
+            {t(link.labelKey)}
           </Link>
         );
       })}

@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { RotateCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,16 @@ import { cn } from "@/lib/utils";
 // eine useTransition gehuellt, damit der Button waehrend des erneuten Ladens
 // deaktiviert ist (kein Doppelklick, sichtbares Pending).
 export function RetryButton({
-  label = "Erneut versuchen",
+  label,
   className,
 }: {
   label?: string;
   className?: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("common");
   const [isPending, startTransition] = useTransition();
+  const resolvedLabel = label ?? t("retry");
 
   return (
     <Button
@@ -34,7 +37,7 @@ export function RetryButton({
         aria-hidden
         className={cn(isPending && "motion-safe:animate-spin")}
       />
-      {isPending ? "Wird geladen …" : label}
+      {isPending ? t("loading") : resolvedLabel}
     </Button>
   );
 }

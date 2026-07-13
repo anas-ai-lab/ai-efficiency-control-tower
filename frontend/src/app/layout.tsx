@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Inter, Source_Serif_4, Geist_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LangToggle } from "@/components/lang-toggle";
 import { MainNav } from "@/components/main-nav";
 import { AuthControl } from "@/components/auth-control";
 import { checkAuth } from "@/app/actions";
@@ -30,10 +33,13 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "AECT | AI Efficiency Control Tower",
-  description: "Intelligenter Vorbewertungs-Layer für KI-Use-Case-Intake",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("metadata");
+  return {
+    title: t("title"),
+    description: t("description"),
+  };
+}
 
 // Setzt die .dark-Klasse vor dem ersten Paint (kein Theme-Flackern). Default
 // ist hell; dunkel nur, wenn die Person es ausdruecklich gewaehlt hat.
@@ -49,9 +55,15 @@ export default async function RootLayout({
   // Backend; die UI blendet nur aus.
   const authenticated = await checkAuth();
 
+  // i18n (V4.1-S6): aktive Locale + Messages serverseitig -- der Provider stellt
+  // sie den Client-Komponenten zur Verfuegung. lang am <html> folgt der Wahl.
+  const locale = await getLocale();
+  const messages = await getMessages();
+  const t = await getTranslations("footer");
+
   return (
     <html
-      lang="de"
+      lang={locale}
       suppressHydrationWarning
       className={`${inter.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
@@ -59,6 +71,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="flex min-h-full flex-col bg-background">
+        <NextIntlClientProvider messages={messages}>
         <header className="sticky top-0 z-40 border-b border-border/70 bg-background">
           <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-5 sm:px-6">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
@@ -78,8 +91,9 @@ export default async function RootLayout({
               </Link>
               <MainNav authenticated={authenticated} />
             </div>
-            <div className="flex items-center gap-4 sm:gap-5">
+            <div className="flex items-center gap-3 sm:gap-4">
               <AuthControl authenticated={authenticated} />
+              <LangToggle />
               <ThemeToggle />
             </div>
           </div>
@@ -93,15 +107,14 @@ export default async function RootLayout({
               aria-hidden
               className="mt-px font-mono text-[0.6rem] font-semibold tracking-wider text-muted-foreground/70"
             >
-              EU AI ACT · ART. 50
+              {t("badge")}
             </span>
             <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
-              Diese Anwendung nutzt ein KI-System (Azure OpenAI). Alle Ausgaben
-              sind unverbindliche Hinweise zur fachlichen Prüfung, kein
-              rechtsverbindliches Urteil.
+              {t("disclaimer")}
             </p>
           </div>
         </footer>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

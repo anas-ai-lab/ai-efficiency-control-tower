@@ -1,0 +1,191 @@
+{
+  "metadata": {
+    "title": "AECT | AI Efficiency Control Tower",
+    "description": "Intelligenter Vorbewertungs-Layer für KI-Use-Case-Intake"
+  },
+  "common": {
+    "languageSwitcher": "Sprache wählen",
+    "loading": "Wird geladen …",
+    "retry": "Erneut versuchen",
+    "cancel": "Abbrechen",
+    "back": "Zurück",
+    "next": "Weiter",
+    "save": "Speichern",
+    "close": "Schließen",
+    "optional": "optional"
+  },
+  "theme": {
+    "toLight": "Helles Design aktivieren",
+    "toDark": "Dunkles Design aktivieren",
+    "light": "Helles Design",
+    "dark": "Dunkles Design"
+  },
+  "nav": {
+    "mainNav": "Hauptnavigation",
+    "start": "Start",
+    "submit": "Einreichen",
+    "ideas": "Ideen-Assistent",
+    "cases": "Ideenliste",
+    "board": "Board",
+    "monitoring": "Monitoring",
+    "adminLogin": "Admin-Login",
+    "logout": "Abmelden",
+    "loggingOut": "Abmelden …",
+    "admin": "Admin"
+  },
+  "footer": {
+    "badge": "EU AI ACT · ART. 50",
+    "disclaimer": "Diese Anwendung nutzt ein KI-System (Azure OpenAI). Alle Ausgaben sind unverbindliche Hinweise zur fachlichen Prüfung, kein rechtsverbindliches Urteil."
+  },
+  "landing": {
+    "eyebrow": "AI Efficiency Control Tower",
+    "heroTitle": "Von der Idee zur belastbaren Entscheidung.",
+    "heroLead": "Reiche deine AI-Idee ein — AECT bewertet Nutzen, Aufwand und Risiko, bevor das AI Board entscheidet.",
+    "kpiSubmittedLabel": "Eingereichte Ideen",
+    "kpiSubmittedHint": "insgesamt erfasst",
+    "kpiEvaluatedLabel": "Bewertete Ideen",
+    "kpiEvaluatedHint": "Vorfilter bestanden",
+    "kpiImplementedLabel": "Umgesetzte Use Cases",
+    "kpiImplementedHint": "produktiv im Einsatz",
+    "cardSubmitTitle": "Einreichen",
+    "cardSubmitDesc": "Beschreibe deinen Use Case in wenigen Schritten.",
+    "cardIdeasTitle": "Ideen-Assistent",
+    "cardIdeasDesc": "Noch keine fertige Idee? Beschreibe dein Problem — der Assistent macht Entwürfe.",
+    "cardCasesTitle": "Ideenliste",
+    "cardCasesDesc": "Alle eingereichten Ideen und ihr Status — transparent für alle.",
+    "cardBoardTitle": "Board",
+    "cardBoardDesc": "Portfolio-Matrix: Nutzen gegen Machbarkeit, jeder Case ein Punkt.",
+    "cardMonitoringTitle": "Monitoring",
+    "cardMonitoringDesc": "Freigegebene und umgesetzte Use Cases pflegen — Status und Verlaufsnotizen.",
+    "adminPrompt": "Verwaltest du das Portfolio?",
+    "adminLink": "Admin-Login",
+    "adminSuffix": "— schaltet Board, Monitoring und die Bearbeitungs-Aktionen frei."
+  },
+  "login": {
+    "metaTitle": "Admin-Login | AECT",
+    "eyebrow": "Admin",
+    "title": "Anmelden",
+    "intro": "Einreichung, Ideen-Assistent und Ideenliste sind ohne Anmeldung nutzbar. Der Login schaltet die Admin-Funktionen frei (Board, Monitoring, Schärfen, Lösung, Compliance, Report, Statuswechsel).",
+    "passwordLabel": "Admin-Passwort",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort verbergen",
+    "submit": "Anmelden",
+    "submitting": "Anmelden …",
+    "genericError": "Login fehlgeschlagen."
+  },
+  "enums": {
+    "country": {
+      "de": "Deutschland",
+      "at": "Österreich",
+      "ch": "Schweiz",
+      "no": "Norwegen",
+      "gb": "Vereinigtes Königreich",
+      "es": "Spanien",
+      "it": "Italien",
+      "tr": "Türkei",
+      "ro": "Rumänien",
+      "pl": "Polen",
+      "eg": "Ägypten",
+      "in": "Indien"
+    },
+    "employeeCategory": {
+      "junior": "Junior",
+      "professional": "Professional",
+      "consultant": "Consultant",
+      "senior": "Senior",
+      "management": "Management"
+    },
+    "evidenceLevel": {
+      "pure_estimate": "Schätzung",
+      "similar_project": "Analogieprojekt",
+      "tested_piloted": "Pilotiert / Gemessen"
+    },
+    "adoptionType": {
+      "voluntary": "Freiwillig",
+      "recommended_standard": "Empfohlener Standard",
+      "fixed_process_step": "Fester Prozessschritt"
+    },
+    "implementationApproach": {
+      "simple_integration": "Einfache Integration (Bestand)",
+      "development_on_existing": "Entwicklung auf Bestand",
+      "api_integration": "API-Anbindung (Bestand)",
+      "custom_development": "Eigenentwicklung",
+      "new_tool": "Einführung neues Tool"
+    },
+    "dataClassification": {
+      "no_personal_data": "Keine personenbezogenen Daten",
+      "pseudonymous": "Pseudonymisiert",
+      "personal": "Personenbezogen",
+      "sensitive_personal": "Besondere Kategorien (Art. 9 DSGVO)"
+    },
+    "routing": {
+      "AI_RECOMMENDED": "KI empfohlen",
+      "AUTOMATION_RECOMMENDED": "Automatisierung empfohlen",
+      "HUMAN_REVIEW_REQUIRED": "Menschliche Prüfung",
+      "BORDERLINE": "Grenzfall"
+    },
+    "confidence": {
+      "HIGH": "Hoch",
+      "MEDIUM": "Mittel",
+      "LOW": "Niedrig"
+    },
+    "caseField": {
+      "title": "Titel",
+      "current_state": "Ist-Zustand",
+      "desired_state": "Soll-Zustand",
+      "example_process": "Beispiel (Ist)",
+      "desired_example_process": "Beispiel (Soll)",
+      "time_per_case_hours_current": "Zeit / Vorgang heute",
+      "time_per_case_hours_with_ai": "Zeit / Vorgang mit AI",
+      "occurrences_per_employee_per_year": "Vorgänge / Jahr",
+      "affected_employees_count": "Betroffene Mitarbeiter",
+      "employee_category": "Mitarbeiterlevel",
+      "evidence_level": "Evidenzlevel",
+      "adoption_type": "Verbindlichkeit",
+      "implementation_approach": "Implementierungsansatz",
+      "estimated_license_cost_eur": "Lizenzkosten",
+      "implementation_cost_eur": "Implementierungskosten",
+      "data_classification": "Datenschutzklasse"
+    },
+    "feasibilityFlag": {
+      "DESCRIPTION_TOO_VAGUE": "Beschreibung zu vage",
+      "MISSING_EXAMPLE": "Beispiel fehlt",
+      "NO_TIME_SAVING": "Keine Zeitersparnis",
+      "NOT_RECURRING": "Nicht wiederkehrend"
+    },
+    "confidenceLevel": {
+      "hoch": "hoch",
+      "mittel": "mittel",
+      "niedrig": "niedrig"
+    },
+    "effortLabel": {
+      "NIEDRIG": "NIEDRIG",
+      "MITTEL": "MITTEL",
+      "HOCH": "HOCH"
+    }
+  },
+  "status": {
+    "submitted": "Eingereicht",
+    "in_review": "In Prüfung",
+    "approved": "Freigegeben",
+    "already_exists": "Existiert bereits",
+    "rejected": "Abgelehnt",
+    "implemented": "Umgesetzt",
+    "evaluationPending": "Bewertung ausstehend",
+    "evaluationPendingTooltip": "Kein Implementierungsansatz angegeben — Bewertung erfolgt nach Ergänzung durch einen Admin."
+  },
+  "zones": {
+    "LIKELY_WIN": {
+      "label": "Vielversprechend",
+      "summary": "Klarer Wirkungshebel, geringes Umsetzungsrisiko."
+    },
+    "CALCULATED_RISK": {
+      "label": "Kalkuliertes Risiko",
+      "summary": "Tragfähig, aber an Bedingungen und Aufwand geknüpft."
+    },
+    "MARGINAL_GAIN": {
+      "label": "Geringer Nutzen",
+      "summary": "Nutzen steht in keinem klaren Verhältnis zum Aufwand."
+    }
+  }
+}

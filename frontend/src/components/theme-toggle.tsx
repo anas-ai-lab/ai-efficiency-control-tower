@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Moon, Sun } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 const STORAGE_KEY = "aect-theme"
 
@@ -18,6 +19,7 @@ type DocumentWithViewTransition = Document & {
 export function ThemeToggle() {
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const t = useTranslations("theme")
 
   useEffect(() => {
     setMounted(true)
@@ -78,8 +80,8 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      aria-label={mounted && isDark ? "Helles Design aktivieren" : "Dunkles Design aktivieren"}
-      title={mounted && isDark ? "Helles Design" : "Dunkles Design"}
+      aria-label={mounted && isDark ? t("toLight") : t("toDark")}
+      title={mounted && isDark ? t("light") : t("dark")}
       className="group relative inline-flex size-9 items-center justify-center rounded-lg border border-border bg-transparent text-muted-foreground outline-none transition-colors duration-150 ease-out hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/35"
     >
       <Sun

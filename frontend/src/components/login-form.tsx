@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 // (Schutz vor Open-Redirect), sonst Startseite.
 export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
+  const t = useTranslations("login");
   const [password, setPassword] = useState("");
   // Sichtbarkeits-Toggle: bewusst nur lokaler UI-State, wird nie persistiert.
   const [showPassword, setShowPassword] = useState(false);
@@ -37,14 +39,14 @@ export function LoginForm({ next }: { next?: string }) {
       router.refresh();
       return;
     }
-    setError(result.error ?? "Login fehlgeschlagen.");
+    setError(result.error ?? t("genericError"));
     setPending(false);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="admin-password">Admin-Passwort</Label>
+        <Label htmlFor="admin-password">{t("passwordLabel")}</Label>
         <div className="relative">
           <Input
             id="admin-password"
@@ -59,7 +61,7 @@ export function LoginForm({ next }: { next?: string }) {
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
-            aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
+            aria-label={showPassword ? t("hidePassword") : t("showPassword")}
             aria-pressed={showPassword}
             className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition-colors hover:text-foreground"
           >
@@ -80,7 +82,7 @@ export function LoginForm({ next }: { next?: string }) {
         </p>
       )}
       <Button type="submit" disabled={pending || password.length === 0}>
-        {pending ? "Anmelden …" : "Anmelden"}
+        {pending ? t("submitting") : t("submit")}
       </Button>
     </form>
   );

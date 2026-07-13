@@ -291,6 +291,29 @@ Monitoring -> Logout) steht in [`docs/demo-script.md`](docs/demo-script.md).
 
 ---
 
+## Sprachen (Deutsch / Englisch)
+
+AECT ist zweisprachig. **Deutsch ist Default**, Englisch laesst sich ueber den
+Umschalter im Kopfbereich waehlen (Cookie-basiert, `NEXT_LOCALE`, **kein
+Locale-URL-Prefix** -- internes Tool, kein SEO-Bedarf).
+
+- **Backend:** alle deterministisch erzeugten Texte (Score-Erklaerungen,
+  Entscheider-Report samt Contra-Punkten, Routing-Signale, Vorfilter-/
+  Machbarkeits-Hinweise, darstellbare Fehlermeldungen) liegen als Sprachkataloge
+  (`src/aect/domain/i18n.py`, `src/aect/adapters/api/i18n.py`) vor und folgen dem
+  `lang`-Query-Parameter (`de` | `en`, Default `de`, ungueltig -> 422). Nur
+  Endpoints, die Katalogtext zurueckgeben, tragen den Parameter; reine
+  Zahlen-/Aggregat-Antworten nicht.
+- **Frontend:** next-intl mit Server-Component-Support; die aktive Sprache wird
+  serverseitig aus dem Cookie gelesen und als `lang` an die Backend-Calls
+  durchgereicht. Ein CI-faehiger Paritaets-Check (`npm run i18n:check`) haelt die
+  Schluessel von `messages/de.json` und `messages/en.json` deckungsgleich.
+- **Grenzen** (bewusst, siehe `docs/known_limitations.md` #15): Nutzereingaben
+  und bereits erzeugte LLM-Inhalte werden nicht uebersetzt; sie bleiben in ihrer
+  Erfassungs-/Erstellungssprache.
+
+---
+
 ## Engineering-Entscheidungen (Auswahl)
 
 | Entscheidung | ADR | Begruendung |
