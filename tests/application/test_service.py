@@ -1251,11 +1251,11 @@ class TestTriageServiceUpdateStatus:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        await service.update_status(case.id, CaseStatus.INTEGRATED)
+        await service.update_status(case.id, CaseStatus.IMPLEMENTED)
 
         persisted = repo.get(case.id)
         assert persisted is not None
-        assert persisted.status == CaseStatus.INTEGRATED
+        assert persisted.status == CaseStatus.IMPLEMENTED
         assert persisted.status_updated_at == _FIXED_TIME
 
     async def test_update_status_missing_case_returns_none(

@@ -22,7 +22,6 @@ const STATUS_ORDER: CaseStatus[] = [
   "in_review",
   "approved",
   "already_exists",
-  "integrated",
   "rejected",
   "implemented",
 ];

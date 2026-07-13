@@ -649,11 +649,11 @@ class TestCaseStatusColumn:
         repo.save(sample_case)
         updated_at = datetime(2026, 6, 14, 7, 15, 0, tzinfo=UTC)
 
-        repo.update_status(sample_case.id, CaseStatus.INTEGRATED, updated_at)
+        repo.update_status(sample_case.id, CaseStatus.IMPLEMENTED, updated_at)
 
         reloaded = SQLiteRepository(db_path).get(sample_case.id)
         assert reloaded is not None
-        assert reloaded.status == CaseStatus.INTEGRATED
+        assert reloaded.status == CaseStatus.IMPLEMENTED
         assert reloaded.status_updated_at == updated_at
 
     def test_update_status_is_noop_for_unknown_case_id(
@@ -911,3 +911,26 @@ class TestSharpeningDraftColumn:
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
             }
         assert "sharpening_draft" in columns
+
+    def test_migration_bumps_integrated_status_to_implemented(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """ADR-0051: Alt-Rows mit dem entfernten Status 'integrated' hebt
+        _init_db idempotent auf 'implemented' -- sonst wirft CaseStatus beim
+        Lesen ValueError (fail loud)."""
+        from aect.adapters.sqlite.connection import connect
+
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        # Entfernten Status direkt in der DB setzen (der Enum laesst das nicht mehr zu).
+        with connect(db_path) as conn:
+            conn.execute(
+                "UPDATE submitted_cases SET status = 'integrated' WHERE id = ?",
+                (sample_case.id,),
+            )
+
+        # Neue Instanz -> _init_db laeuft erneut -> Migration.
+        migrated = SQLiteRepository(db_path).get(sample_case.id)
+
+        assert migrated is not None
+        assert migrated.status is CaseStatus.IMPLEMENTED

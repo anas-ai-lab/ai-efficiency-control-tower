@@ -11,7 +11,6 @@ import type { CaseStatus } from "@/types/api";
 //   in_review       --ink          -- aktiv in Bearbeitung (Akzentfarbe)
 //   approved        --zone-win      -- positiv freigegeben
 //   already_exists  neutral/muted  -- kein Fortschritt, Dublette
-//   integrated      --ink dezent    -- fortgeschritten, ruhiger als in_review
 //   rejected        --zone-gain     -- negatives Verdikt (gedaempftes Rot)
 //   implemented     --zone-win      -- Ziel erreicht, kraeftiger als approved
 export interface StatusStyle {
@@ -45,12 +44,6 @@ export const STATUS_CONFIG: Record<CaseStatus, StatusStyle> = {
     dot: "bg-muted-foreground/35",
     text: "text-muted-foreground/80",
     surface: "border-border/70 bg-muted/25",
-  },
-  integrated: {
-    labelDE: "Integriert",
-    dot: "bg-[var(--ink)]/55",
-    text: "text-[var(--ink)]",
-    surface: "border-[var(--ink)]/15 bg-[var(--ink-subtle)]",
   },
   rejected: {
     labelDE: "Abgelehnt",

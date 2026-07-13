@@ -1603,7 +1603,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "submitted" | "in_review" | "approved" | "already_exists" | "integrated" | "rejected" | "implemented";
+            status: "submitted" | "in_review" | "approved" | "already_exists" | "rejected" | "implemented";
         };
         /**
          * StatusUpdateResponse

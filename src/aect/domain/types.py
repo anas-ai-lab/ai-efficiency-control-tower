@@ -164,6 +164,5 @@ class CaseStatus(StrEnum):
     IN_REVIEW = "in_review"
     APPROVED = "approved"
     ALREADY_EXISTS = "already_exists"
-    INTEGRATED = "integrated"
     REJECTED = "rejected"
     IMPLEMENTED = "implemented"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { setImplementationApproach } from "@/app/actions";
+import { hardRefresh } from "@/lib/reload";
 import { Button } from "@/components/ui/button";
 import {
   IMPLEMENTATION_APPROACH_LABELS,
@@ -30,20 +31,16 @@ export function ImplementationApproachEditor({
 
   const label = approach ? IMPLEMENTATION_APPROACH_LABELS[approach] : "—";
 
-  // Harter Reload statt router.refresh(): Letzteres greift im Prod-Build hier
-  // NICHT durch -- der Client-Router-Cache liefert die alte RSC-Nutzlast der
-  // Detailseite weiter, sodass die Pending-Box trotz 200 (voll neu bewerteter
-  // Case) sichtbar blieb. Der SSR-Dokument-Request ist frisch (no-store), also
-  // zieht ein window.location.reload() zuverlaessig den neuen Stand. Der
-  // Nachtrag loest ohnehin eine vollstaendige Neubewertung aus -> ein sauberer
-  // Reload der Detailseite ist hier angemessen.
+  // Harter Reload statt router.refresh() (Prod-Router-Cache, siehe lib/reload):
+  // der Nachtrag loest ohnehin eine vollstaendige Neubewertung aus -> ein
+  // sauberer Reload der Detailseite ist hier angemessen.
   async function save() {
     if (value === "") return;
     setError(null);
     setIsPending(true);
     try {
       await setImplementationApproach(caseId, value as ImplementationApproach);
-      window.location.reload();
+      hardRefresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
       setIsPending(false);

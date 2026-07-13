@@ -130,15 +130,32 @@ async def test_update_status_sets_field_and_returns_200() -> None:
 
         response = await client.post(
             f"/cases/{case_id}/status",
-            json={"status": "integrated"},
+            json={"status": "already_exists"},
             headers=_AUTH,
         )
 
     assert response.status_code == 200
     body = response.json()
     assert body["case_id"] == case_id
-    assert body["status"] == "integrated"
+    assert body["status"] == "already_exists"
     assert body["updated_at"] is not None
+
+
+async def test_update_status_rejects_removed_integrated_status() -> None:
+    # ADR-0051: 'integrated' ist kein gueltiger CaseStatus mehr -> 422.
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        created = await client.post("/triage", json=_VALID_PAYLOAD, headers=_AUTH)
+        case_id = created.json()["id"]
+
+        response = await client.post(
+            f"/cases/{case_id}/status",
+            json={"status": "integrated"},
+            headers=_AUTH,
+        )
+
+    assert response.status_code == 422
 
 
 async def test_decision_endpoint_moves_lifecycle_status() -> None:

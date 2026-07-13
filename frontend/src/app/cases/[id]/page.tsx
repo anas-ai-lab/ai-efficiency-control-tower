@@ -6,23 +6,21 @@ import {
   checkAuth,
   getArchitectureSketch,
   getCaseDetail,
-  listMonitoringEntries,
   listSimilarityPairs,
 } from "@/app/actions";
-import { CaseAdminActions } from "@/components/case-admin-actions";
+import { CaseDecision } from "@/components/case-decision";
 import { CaseInputs } from "@/components/case-inputs";
 import { CaseReport } from "@/components/case-report";
 import { CaseResult } from "@/components/case-result";
 import { CaseStatusControl } from "@/components/case-status-control";
-import { MonitoringTimeline } from "@/components/monitoring-timeline";
+import { CaseTools } from "@/components/case-tools";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
 import { RetryButton } from "@/components/retry-button";
 import { SketchView } from "@/components/sketch-view";
-import { StatusBadge, ZoneBadge } from "@/components/status-badge";
+import { StatusBadge } from "@/components/status-badge";
 import type {
   ArchitectureSketchResponse,
   CaseDetailResponse,
-  MonitoringEntry,
   SimilarityPair,
 } from "@/types/api";
 
@@ -31,7 +29,7 @@ export const metadata: Metadata = {
 };
 
 // Immer frisch: nach Admin-Aktionen (Schaerfen/Loesung/Compliance/Entscheidung/
-// Statuswechsel) + router.refresh muss GET /cases/{id} den neuen Stand liefern.
+// Statuswechsel) muss GET /cases/{id} den neuen Stand liefern.
 export const dynamic = "force-dynamic";
 
 function formatDate(iso: string): string {
@@ -40,6 +38,43 @@ function formatDate(iso: string): string {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(iso));
+}
+
+// Ein Bereich der Detailseite (S4): drei klar getrennte Segmente statt einer
+// langen Sektionsliste. Trennlinie + kraeftige Ueberschrift grenzen sie ab.
+function AreaSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-12 border-t border-border pt-8">
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">
+        {title}
+      </h2>
+      <div className="mt-6">{children}</div>
+    </section>
+  );
+}
+
+// Ruhiger Zwischenzustand (Pending / "wird geprueft") -- Uhr-Icon + zwei Zeilen.
+function StatusBox({ heading, body }: { heading: string; body: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
+      <span
+        aria-hidden
+        className="mx-auto flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
+      >
+        <Clock className="size-4.5" />
+      </span>
+      <p className="mt-3 text-sm font-medium text-foreground">{heading}</p>
+      <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+        {body}
+      </p>
+    </div>
+  );
 }
 
 function NotFound({ id }: { id: string }) {
@@ -103,25 +138,14 @@ export default async function CaseDetailPage({
   const authenticated = await checkAuth();
   // Bewertung ist bedingt sichtbar (V4-P7): das Backend liefert triage/report
   // erst nach der Board-Entscheidung -- oder fuer Admins. Davor beide null ->
-  // ruhiger Zwischenzustand statt Score/Report. Die Null-Checks stehen inline
-  // im JSX (TS-Narrowing).
+  // ruhiger Zwischenzustand statt Score/Report.
   const { eingaben, triage, report } = detail;
 
   // Admin-Panels nur fuer Angemeldete laden -- die Endpoints sind require_admin.
-  let entries: MonitoringEntry[] = [];
-  let timelineError: string | null = null;
   let similarityPairs: SimilarityPair[] = [];
   let initialSketch: ArchitectureSketchResponse | null = null;
 
   if (authenticated) {
-    try {
-      entries = await listMonitoringEntries(id);
-    } catch (e) {
-      timelineError =
-        e instanceof Error
-          ? e.message
-          : "Die Monitoring-Einträge konnten nicht geladen werden.";
-    }
     try {
       similarityPairs = (await listSimilarityPairs()).pairs;
     } catch (e) {
@@ -134,6 +158,9 @@ export default async function CaseDetailPage({
     }
   }
 
+  const evaluated = !detail.evaluation_pending;
+  const summary = report?.business_summary ?? null;
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
       {/* --- Kopf --- */}
@@ -144,105 +171,77 @@ export default async function CaseDetailPage({
       <p className="mt-2 text-sm text-muted-foreground">
         {eingaben.department} · Eingereicht am {formatDate(detail.submitted_at)}
       </p>
+      {/* Status zur Orientierung (read-only); die Steuerung lebt in Bereich 3. */}
+      <div className="mt-4 flex items-center gap-2">
+        <span className="eyebrow">Status</span>
+        <StatusBadge status={detail.status} />
+      </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-4">
-        {/* Zone erst nach Freigabe der Bewertung (V4-P7). */}
-        {triage !== null && (
-          <div className="flex items-center gap-2">
-            <span className="eyebrow">Zone</span>
-            <ZoneBadge zone={triage.zone?.final_zone ?? null} />
+      {/* ===== Bereich 1: Use Case ===== */}
+      <AreaSection title="Use Case">
+        <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
+      </AreaSection>
+
+      {/* ===== Bereich 2: Analyse & Empfehlung ===== */}
+      <AreaSection title="Analyse & Empfehlung">
+        {detail.evaluation_pending ? (
+          <StatusBox
+            heading="Bewertung ausstehend"
+            body="Für diesen Fall wurde noch kein Implementierungsansatz gewählt. Sobald ein Admin ihn oben ergänzt, wird der Fall vollständig bewertet (Nutzen, Aufwand, Risiko)."
+          />
+        ) : triage !== null ? (
+          <CaseResult triage={triage} />
+        ) : (
+          <StatusBox
+            heading="Wird vom AI Board geprüft"
+            body={`Eingereicht am ${formatDate(detail.submitted_at)}. Die Bewertung (Nutzen, Aufwand, Risiko) wird sichtbar, sobald das AI Board über den Use Case entschieden hat.`}
+          />
+        )}
+
+        {/* Admin-Werkzeuge + Skizze nur fuer angemeldete Admins mit
+            ausgewertetem Case (report != null). */}
+        {authenticated && evaluated && report !== null && summary !== null && (
+          <div className="mt-8 space-y-6">
+            <CaseTools
+              caseId={detail.id}
+              hasSolution={summary.solution_business !== null}
+              hasCompliance={summary.compliance_hint_text !== null}
+            />
+            <SketchView caseId={detail.id} initialSketch={initialSketch} />
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <span className="eyebrow">Status</span>
-          {authenticated ? (
-            <CaseStatusControl caseId={detail.id} initialStatus={detail.status} />
-          ) : (
-            <StatusBadge status={detail.status} />
-          )}
-        </div>
-      </div>
 
-      {/* --- Erfasste Eingaben (Erklaerbarkeit: Grundlage der Bewertung). --- */}
-      <div className="mt-8">
-        <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
-      </div>
-
-      {/* --- Bewertung: Vor-Bewertungs-Zustand > Bewertung > "wird geprueft". --- */}
-      {detail.evaluation_pending ? (
-        <div className="mt-10 rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
-          <span
-            aria-hidden
-            className="mx-auto flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          >
-            <Clock className="size-4.5" />
-          </span>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            Bewertung ausstehend
-          </p>
-          <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-            Für diesen Fall wurde noch kein Implementierungsansatz gewählt. Sobald
-            ein Admin ihn oben ergänzt, wird der Fall vollständig bewertet (Nutzen,
-            Aufwand, Risiko).
-          </p>
-        </div>
-      ) : triage !== null && report !== null ? (
-        <>
-          <div className="mt-10">
-            <CaseResult triage={triage} />
+        {authenticated && (
+          <div className="mt-8">
+            <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
           </div>
-          <div className="mt-10">
+        )}
+      </AreaSection>
+
+      {/* ===== Bereich 3: Entscheidung & Report ===== */}
+      {report !== null && summary !== null && (
+        <AreaSection title="Entscheidung & Report">
+          {authenticated && (
+            <div className="space-y-6">
+              <div>
+                <p className="eyebrow mb-2">Status</p>
+                <CaseStatusControl
+                  caseId={detail.id}
+                  initialStatus={detail.status}
+                />
+              </div>
+              <CaseDecision
+                caseId={detail.id}
+                reviewerDecision={summary.reviewer_decision}
+                reviewerNote={summary.reviewer_note}
+              />
+            </div>
+          )}
+          <div className={authenticated ? "mt-10" : ""}>
             <p className="eyebrow mb-3">Report</p>
             <CaseReport report={report} />
           </div>
-        </>
-      ) : (
-        <div className="mt-10 rounded-xl border border-border bg-muted/30 px-6 py-8 text-center">
-          <span
-            aria-hidden
-            className="mx-auto flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          >
-            <Clock className="size-4.5" />
-          </span>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            Wird vom AI Board geprüft
-          </p>
-          <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-            Eingereicht am {formatDate(detail.submitted_at)}. Die Bewertung
-            (Nutzen, Aufwand, Risiko) wird sichtbar, sobald das AI Board über den
-            Use Case entschieden hat.
-          </p>
-        </div>
-      )}
-
-      {authenticated && (
-        <>
-          {report !== null && (
-            <CaseAdminActions
-              caseId={detail.id}
-              reviewerDecision={report.business_summary.reviewer_decision}
-              reviewerNote={report.business_summary.reviewer_note}
-              hasSolution={report.business_summary.solution_business !== null}
-              hasCompliance={report.business_summary.compliance_hint_text !== null}
-            />
-          )}
-
-          <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
-          <SketchView caseId={detail.id} initialSketch={initialSketch} />
-
-          <div className="mt-10">
-            {timelineError !== null ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-              >
-                {timelineError}
-              </p>
-            ) : (
-              <MonitoringTimeline caseId={detail.id} initialEntries={entries} />
-            )}
-          </div>
-        </>
+        </AreaSection>
       )}
     </main>
   );

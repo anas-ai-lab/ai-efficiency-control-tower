@@ -124,10 +124,10 @@ test("Implementierungsansatz-Nachtrag hebt den Vor-Bewertungs-Zustand auf", asyn
     .selectOption("development_on_existing");
   await page.getByRole("button", { name: "Speichern" }).click();
 
-  // 5. Nach Erfolg: Pending-Box weg, Zone im Kopf sichtbar (deterministische
-  //    Neubewertung -- kein LLM-Call noetig).
+  // 5. Nach Erfolg: Pending-Box weg (deterministische Neubewertung, kein
+  //    LLM-Call), und der Ansatz ist gesetzt -> Editor zeigt "ändern".
   await expect(page.getByText("Bewertung ausstehend")).toHaveCount(0);
-  await expect(page.locator("span.eyebrow", { hasText: "Zone" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "ändern" })).toBeVisible();
 
   // 6. Ideenliste: derselbe Case ohne Pending-Badge.
   await page.goto("/cases");

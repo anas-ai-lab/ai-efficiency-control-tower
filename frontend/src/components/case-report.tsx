@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // Read-only Report-Ansicht (V4-P6/P7) fuer die Fall-Detailseite. Rendert den
 // vom Backend deterministisch zusammengesetzten Report (decision_report +
 // technical_report) -- keine Aktions-Buttons, kein LLM. Die Admin-Trigger
-// (Loesung/Compliance erzeugen, Entscheidung) liegen in case-admin-actions.
+// liegen in case-tools (Loesung/Compliance, Bereich 2) und case-decision
+// (Entscheidung, Bereich 3).
 
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="eyebrow mb-2">{children}</p>

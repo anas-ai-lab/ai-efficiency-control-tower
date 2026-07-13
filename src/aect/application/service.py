@@ -945,7 +945,7 @@ class TriageService:
         # Lifecycle-Kopplung (Lifecycle-ADR), monoton (H-034): der Freigabe-/
         # Ablehnungs-Akt bewegt den Case im Lifecycle NUR, solange er noch in
         # einem fruehen Zustand ({submitted, in_review}) steht. Ein bereits
-        # fortgeschrittener Status (z. B. implemented/integrated) wird NICHT
+        # fortgeschrittener Status (z. B. implemented) wird NICHT
         # zurueckgestuft -- die reviewer_decision wird dennoch festgehalten.
         # PENDING hat keinen Lifecycle-Gegenwert (kommt ueber die Route nicht).
         status_map = {

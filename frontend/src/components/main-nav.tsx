@@ -10,15 +10,24 @@ import { usePathname } from "next/navigation";
 //
 // V4-P-Auth: adminOnly-Links (Board, Monitoring) sind nur fuer Angemeldete
 // sichtbar -- die Sicherheit erzwingt das Backend (require_admin), die Nav
-// blendet sie nur aus.
-const LINKS = [
-  { href: "/", label: "Start", adminOnly: false },
-  { href: "/einreichen", label: "Einreichen", adminOnly: false },
-  { href: "/ideation", label: "Ideen-Assistent", adminOnly: false },
-  { href: "/cases", label: "Ideenliste", adminOnly: false },
-  { href: "/board", label: "Board", adminOnly: true },
-  { href: "/monitoring", label: "Monitoring", adminOnly: true },
-] as const;
+// blendet sie nur aus. S4: hideForAdmin blendet die Einreicher-Pfade
+// (Einreichen, Ideen-Assistent) fuer eingeloggte Admins aus -- ihre Rolle ist
+// Pruefen/Entscheiden, nicht Einreichen. Anonymer Zustand unveraendert.
+interface NavLink {
+  href: string;
+  label: string;
+  adminOnly: boolean;
+  hideForAdmin: boolean;
+}
+
+const LINKS: NavLink[] = [
+  { href: "/", label: "Start", adminOnly: false, hideForAdmin: false },
+  { href: "/einreichen", label: "Einreichen", adminOnly: false, hideForAdmin: true },
+  { href: "/ideation", label: "Ideen-Assistent", adminOnly: false, hideForAdmin: true },
+  { href: "/cases", label: "Ideenliste", adminOnly: false, hideForAdmin: false },
+  { href: "/board", label: "Board", adminOnly: true, hideForAdmin: false },
+  { href: "/monitoring", label: "Monitoring", adminOnly: true, hideForAdmin: false },
+];
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -28,7 +37,11 @@ function isActive(pathname: string, href: string): boolean {
 
 export function MainNav({ authenticated }: { authenticated: boolean }) {
   const pathname = usePathname();
-  const links = LINKS.filter((link) => authenticated || !link.adminOnly);
+  const links = LINKS.filter((link) => {
+    if (link.adminOnly && !authenticated) return false;
+    if (link.hideForAdmin && authenticated) return false;
+    return true;
+  });
 
   return (
     <nav aria-label="Hauptnavigation" className="flex items-center gap-4 sm:gap-5">

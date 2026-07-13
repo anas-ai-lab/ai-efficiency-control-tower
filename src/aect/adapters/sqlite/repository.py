@@ -527,6 +527,13 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN solution_business TEXT"
                 )
+            # ADR-0051: der Lifecycle-Status 'integrated' wurde entfernt.
+            # Bestehende Rows idempotent auf 'implemented' heben -- sonst wirft
+            # CaseStatus('integrated') beim Lesen ValueError (fail loud).
+            conn.execute(
+                "UPDATE submitted_cases SET status = 'implemented' "
+                "WHERE status = 'integrated'"
+            )
 
     def save(self, case: SubmittedCase) -> None:
         """Persistiert einen SubmittedCase. INSERT OR REPLACE bei Duplikat-ID."""
