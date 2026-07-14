@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Clock, Download } from "lucide-react";
 
 import type {
@@ -12,8 +13,9 @@ import type {
   TriageZone,
 } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
-import { formatEUR, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
-import { EVALUATION_PENDING_DISPLAY, STATUS_CONFIG } from "@/lib/status";
+import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
+import { STATUS_CONFIG } from "@/lib/status";
+import { useFormat } from "@/lib/use-format";
 import { downloadCasesCsv } from "@/lib/csv";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -51,14 +53,6 @@ type ZoneFilter = TriageZone | "none" | "pending" | "all";
 type SortKey = "date" | "net";
 type SortDir = "asc" | "desc";
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
-}
-
 // Nullwerte ("—") sortieren IMMER ans Ende, unabhaengig von asc/desc.
 function compareNullable(a: number | null, b: number | null, dir: SortDir): number {
   const aNull = a === null || Number.isNaN(a);
@@ -74,7 +68,8 @@ function compareNullable(a: number | null, b: number | null, dir: SortDir): numb
 // fuer Anonyme erst nach der Board-Entscheidung sichtbar. Bewusst NICHT "—" (das
 // steht fuer den echten Vorfilter-Fail), sondern ein ruhiger "wird geprueft".
 function PendingCell() {
-  return <span className="text-xs text-muted-foreground">wird geprüft</span>;
+  const t = useTranslations("cases");
+  return <span className="text-xs text-muted-foreground">{t("underReview")}</span>;
 }
 
 // Vor-Bewertungs-Zustand (evaluation_pending): eigene, eindeutige
@@ -85,18 +80,20 @@ function PendingCell() {
 // bleibt dem Anonym-vor-Board-Entscheidung-Fall vorbehalten). Wortlaut aus der
 // zentralen Quelle, identisch zur Detail-Pending-Box.
 function PendingEvaluationBadge() {
+  const ts = useTranslations("status");
   return (
     <span
-      title={EVALUATION_PENDING_DISPLAY.tooltip}
+      title={ts("evaluationPendingTooltip")}
       className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground"
     >
       <Clock className="size-3" aria-hidden />
-      {EVALUATION_PENDING_DISPLAY.labelDE}
+      {ts("evaluationPending")}
     </span>
   );
 }
 
 function ZoneBadge({ zone }: { zone: TriageZone | null }) {
+  const tz = useTranslations("zones");
   if (zone === null) {
     return <span className="text-muted-foreground">—</span>;
   }
@@ -110,7 +107,7 @@ function ZoneBadge({ zone }: { zone: TriageZone | null }) {
       )}
     >
       <span className={cn("size-1.5 rounded-full", c.dot)} aria-hidden />
-      {c.labelDE}
+      {tz(`${zone}.label`)}
     </span>
   );
 }
@@ -148,10 +145,11 @@ function buildSimilarityIndex(
 // Hinweis, KEIN Fehler, daher bewusst nicht rot. Der Tooltip nennt die Titel
 // der aehnlichen Cases.
 function SimilarityBadge({ info }: { info: SimilarityInfo }) {
+  const t = useTranslations("cases");
   const n = info.partnerTitles.length;
   return (
     <span
-      title={`Ähnlich zu: ${info.partnerTitles.join(" · ")}`}
+      title={t("similarTo", { titles: info.partnerTitles.join(" · ") })}
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap",
         info.suggestCombine
@@ -159,7 +157,7 @@ function SimilarityBadge({ info }: { info: SimilarityInfo }) {
           : "border-border bg-muted/50 text-muted-foreground",
       )}
     >
-      {n} ähnlich
+      {t("nSimilar", { n })}
     </span>
   );
 }
@@ -177,6 +175,7 @@ function StatusSelect({
   disabled: boolean;
   onChange: (next: CaseStatus) => void;
 }) {
+  const ts = useTranslations("status");
   return (
     <Select
       value={value}
@@ -193,7 +192,7 @@ function StatusSelect({
               className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
               aria-hidden
             />
-            {STATUS_CONFIG[s].labelDE}
+            {ts(s)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -210,6 +209,7 @@ interface SortableHeaderProps {
 }
 
 function SortableHeader({ label, active, dir, onClick, align }: SortableHeaderProps) {
+  const t = useTranslations("cases");
   const Icon = !active ? ChevronsUpDown : dir === "asc" ? ArrowUp : ArrowDown;
   return (
     <button
@@ -220,7 +220,7 @@ function SortableHeader({ label, active, dir, onClick, align }: SortableHeaderPr
         align === "right" && "flex-row-reverse",
         active && "text-foreground",
       )}
-      aria-label={`Nach ${label} sortieren`}
+      aria-label={t("sortBy", { label })}
     >
       {label}
       <Icon className={cn("size-3.5", !active && "opacity-60")} aria-hidden />
@@ -240,6 +240,10 @@ export function CasesTable({
   // mit 401 ablehnen).
   authenticated?: boolean;
 }) {
+  const t = useTranslations("cases");
+  const ts = useTranslations("status");
+  const tz = useTranslations("zones");
+  const fmt = useFormat();
   const router = useRouter();
   const [rows, setRows] = useState<CaseSummary[]>(cases);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -306,8 +310,7 @@ export function CasesTable({
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status: prev } : r)));
       setErrors((er) => ({
         ...er,
-        [id]:
-          e instanceof Error ? e.message : "Statuswechsel fehlgeschlagen.",
+        [id]: e instanceof Error ? e.message : t("statusError"),
       }));
     } finally {
       setPending((p) => ({ ...p, [id]: false }));
@@ -321,14 +324,12 @@ export function CasesTable({
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
-        <p className="text-sm text-muted-foreground">
-          Noch keine Use Cases eingereicht.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("emptyTitle")}</p>
         <Link
           href="/einreichen"
           className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
         >
-          Ersten Use Case einreichen
+          {t("emptyCta")}
         </Link>
       </div>
     );
@@ -339,7 +340,7 @@ export function CasesTable({
       {/* Filter */}
       <div className="mb-4 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="eyebrow">Status</span>
+          <span className="eyebrow">{t("status")}</span>
           <Select
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -348,14 +349,14 @@ export function CasesTable({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
+              <SelectItem value="all">{t("allStatus")}</SelectItem>
               {STATUS_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>
                   <span
                     className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
                     aria-hidden
                   />
-                  {STATUS_CONFIG[s].labelDE}
+                  {ts(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -363,7 +364,7 @@ export function CasesTable({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="eyebrow">Zone</span>
+          <span className="eyebrow">{t("zone")}</span>
           <Select
             value={zoneFilter}
             onValueChange={(v) => setZoneFilter(v as ZoneFilter)}
@@ -372,18 +373,18 @@ export function CasesTable({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle Zonen</SelectItem>
+              <SelectItem value="all">{t("allZones")}</SelectItem>
               {ZONE_ORDER.map((z) => (
                 <SelectItem key={z} value={z}>
                   <span
                     className={cn("size-1.5 rounded-full", ZONE_CONFIG[z].dot)}
                     aria-hidden
                   />
-                  {ZONE_CONFIG[z].labelDE}
+                  {tz(`${z}.label`)}
                 </SelectItem>
               ))}
-              <SelectItem value="none">Ohne Bewertung</SelectItem>
-              <SelectItem value="pending">Bewertung ausstehend</SelectItem>
+              <SelectItem value="none">{t("noAssessment")}</SelectItem>
+              <SelectItem value="pending">{ts("evaluationPending")}</SelectItem>
             </SelectContent>
           </Select>
         </label>
@@ -399,7 +400,7 @@ export function CasesTable({
           disabled={visible.length === 0}
         >
           <Download aria-hidden />
-          CSV exportieren
+          {t("exportCsv")}
         </Button>
       </div>
 
@@ -409,25 +410,25 @@ export function CasesTable({
           <thead>
             <tr className="border-b border-border text-left">
               <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Titel
+                {t("colTitle")}
               </th>
               <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Abteilung
+                {t("colDepartment")}
               </th>
               <th className="px-4 py-3">
                 <SortableHeader
-                  label="Eingereicht"
+                  label={t("colSubmitted")}
                   active={sortKey === "date"}
                   dir={sortDir}
                   onClick={() => toggleSort("date")}
                 />
               </th>
               <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Zone
+                {t("colZone")}
               </th>
               <th className="px-4 py-3 text-right">
                 <SortableHeader
-                  label="Nettonutzen"
+                  label={t("colNet")}
                   active={sortKey === "net"}
                   dir={sortDir}
                   onClick={() => toggleSort("net")}
@@ -435,7 +436,7 @@ export function CasesTable({
                 />
               </th>
               <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Status
+                {t("colStatus")}
               </th>
             </tr>
           </thead>
@@ -468,7 +469,7 @@ export function CasesTable({
                   {c.department}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
-                  {formatDate(c.submitted_at)}
+                  {fmt.dateShort(c.submitted_at)}
                 </td>
                 <td className="px-4 py-3">
                   {c.evaluation_pending ? (
@@ -487,7 +488,7 @@ export function CasesTable({
                   ) : c.net_expected_benefit_eur === null ? (
                     <span className="text-muted-foreground">—</span>
                   ) : (
-                    formatEUR(c.net_expected_benefit_eur)
+                    fmt.eur(c.net_expected_benefit_eur)
                   )}
                 </td>
                 {/* Status-Zelle: Klick/Tastatur hier navigiert NICHT (stopPropagation).
@@ -525,7 +526,7 @@ export function CasesTable({
                   colSpan={6}
                   className="px-4 py-10 text-center text-sm text-muted-foreground"
                 >
-                  Keine Use Cases entsprechen den Filtern.
+                  {t("emptyFiltered")}
                 </td>
               </tr>
             )}
@@ -535,8 +536,7 @@ export function CasesTable({
 
       {/* Anzahl */}
       <p className="mt-3 text-xs text-muted-foreground tabular-nums">
-        {rows.length} {rows.length === 1 ? "Use Case" : "Use Cases"} ·{" "}
-        {visible.length} gefiltert
+        {t("count", { count: rows.length, filtered: visible.length })}
       </p>
     </div>
   );

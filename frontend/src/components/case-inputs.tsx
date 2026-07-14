@@ -1,12 +1,7 @@
+import { getFormatter, getTranslations } from "next-intl/server"
+
 import type { UseCaseInput } from "@/types/api"
-import {
-  ADOPTION_TYPE_LABELS,
-  COUNTRY_LABELS,
-  DATA_CLASSIFICATION_LABELS,
-  EMPLOYEE_CATEGORY_LABELS,
-  EVIDENCE_LEVEL_LABELS,
-} from "@/lib/labels"
-import { formatEUR } from "@/lib/formatters"
+import { bindFormat } from "@/lib/format"
 import { ImplementationApproachEditor } from "@/components/implementation-approach-editor"
 
 // Rohe Eingaben des Einreichers (UseCaseInput) read-only auf der Fall-
@@ -40,16 +35,7 @@ function Group({
   )
 }
 
-function druckLabel(e: UseCaseInput): string {
-  const parts = [
-    e.regulatory_pressure && "Regulatorisch",
-    e.competitive_pressure && "Wettbewerb",
-    e.strategic_priority && "Strategisch",
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(", ") : "keiner"
-}
-
-export function CaseInputs({
+export async function CaseInputs({
   eingaben: e,
   caseId,
   isAdmin = false,
@@ -58,88 +44,100 @@ export function CaseInputs({
   caseId: string
   isAdmin?: boolean
 }) {
+  const t = await getTranslations("caseInputs")
+  const te = await getTranslations("enums")
+  const fmt = bindFormat(await getFormatter())
+
+  const druck =
+    [
+      e.regulatory_pressure && t("pressureRegulatory"),
+      e.competitive_pressure && t("pressureCompetitive"),
+      e.strategic_priority && t("pressureStrategic"),
+    ]
+      .filter(Boolean)
+      .join(", ") || t("pressureNone")
+
   return (
     <section>
-      <p className="eyebrow mb-3">Erfasste Eingaben</p>
+      <p className="eyebrow mb-3">{t("title")}</p>
       <p className="mb-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        Die beim Einreichen erfassten Rohdaten — Grundlage der Bewertung. So ist
-        nachvollziehbar, worauf Zone, Nutzen und Aufwand beruhen.
+        {t("intro")}
       </p>
 
       <div className="divide-y divide-border rounded-xl border border-border bg-card py-1">
-        <Group title="Beschreibung">
-          <Row label="Titel" value={e.title} />
-          <Row label="Ist-Zustand" value={e.current_state} />
-          <Row label="Soll-Zustand" value={e.desired_state} />
-          <Row label="Beispiel (Ist)" value={e.example_process} />
-          <Row label="Beispiel (Soll)" value={e.desired_example_process ?? ""} />
+        <Group title={t("groupDescription")}>
+          <Row label={t("rowTitle")} value={e.title} />
+          <Row label={t("rowCurrentState")} value={e.current_state} />
+          <Row label={t("rowDesiredState")} value={e.desired_state} />
+          <Row label={t("rowExample")} value={e.example_process} />
+          <Row label={t("rowDesiredExample")} value={e.desired_example_process ?? ""} />
         </Group>
 
-        <Group title="Stammdaten">
-          <Row label="Einreicher" value={e.submitter} />
-          <Row label="Abteilung" value={e.department} />
-          <Row label="Land" value={COUNTRY_LABELS[e.country]} />
+        <Group title={t("groupMaster")}>
+          <Row label={t("rowSubmitter")} value={e.submitter} />
+          <Row label={t("rowDepartment")} value={e.department} />
+          <Row label={t("rowCountry")} value={te(`country.${e.country}`)} />
           <Row
-            label="Mitarbeiterlevel"
-            value={EMPLOYEE_CATEGORY_LABELS[e.employee_category]}
+            label={t("rowEmployeeCategory")}
+            value={te(`employeeCategory.${e.employee_category}`)}
           />
         </Group>
 
-        <Group title="Zeit & Häufigkeit">
+        <Group title={t("groupTime")}>
           <Row
-            label="Zeit / Vorgang heute"
-            value={`${e.time_per_case_hours_current} Std.`}
+            label={t("rowTimeCurrent")}
+            value={`${e.time_per_case_hours_current} ${t("hoursUnit")}`}
           />
           <Row
-            label="Zeit / Vorgang mit AI"
-            value={`${e.time_per_case_hours_with_ai} Std.`}
+            label={t("rowTimeAi")}
+            value={`${e.time_per_case_hours_with_ai} ${t("hoursUnit")}`}
           />
           <Row
-            label="Vorgänge / Mitarbeiter / Jahr"
+            label={t("rowOccurrences")}
             value={String(e.occurrences_per_employee_per_year)}
           />
           <Row
-            label="Betroffene Mitarbeiter"
+            label={t("rowEmployees")}
             value={String(e.affected_employees_count)}
           />
         </Group>
 
-        <Group title="Umsetzung">
+        <Group title={t("groupImpl")}>
           <ImplementationApproachEditor
             caseId={caseId}
             approach={e.implementation_approach}
             isAdmin={isAdmin}
           />
           <Row
-            label="Implementierungskosten"
-            value={formatEUR(e.implementation_cost_eur)}
+            label={t("rowImplCost")}
+            value={fmt.eur(e.implementation_cost_eur)}
           />
           <Row
-            label="Lizenzkosten / Jahr"
-            value={formatEUR(e.estimated_license_cost_eur)}
+            label={t("rowLicenseCost")}
+            value={fmt.eur(e.estimated_license_cost_eur)}
           />
         </Group>
 
-        <Group title="Daten & Verbindlichkeit">
+        <Group title={t("groupData")}>
           <Row
-            label="Datenschutzklasse"
-            value={DATA_CLASSIFICATION_LABELS[e.data_classification]}
+            label={t("rowDataClass")}
+            value={te(`dataClassification.${e.data_classification}`)}
           />
           <Row
-            label="Personenbezogene Daten"
-            value={e.contains_pii ? "Ja" : "Nein"}
+            label={t("rowPii")}
+            value={e.contains_pii ? t("yes") : t("no")}
           />
           <Row
-            label="Verbindlichkeit"
-            value={ADOPTION_TYPE_LABELS[e.adoption_type]}
+            label={t("rowAdoption")}
+            value={te(`adoptionType.${e.adoption_type}`)}
           />
-          <Row label="Evidenzlevel" value={EVIDENCE_LEVEL_LABELS[e.evidence_level]} />
-          <Row label="Handlungsdruck" value={druckLabel(e)} />
+          <Row label={t("rowEvidence")} value={te(`evidenceLevel.${e.evidence_level}`)} />
+          <Row label={t("rowPressure")} value={druck} />
         </Group>
 
         {e.notes && e.notes.length > 0 && (
-          <Group title="Anmerkungen">
-            <Row label="Anmerkungen" value={e.notes} />
+          <Group title={t("groupNotes")}>
+            <Row label={t("rowNotes")} value={e.notes} />
           </Group>
         )}
       </div>

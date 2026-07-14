@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react"
 import { diffWords, type Change } from "diff"
+import { useTranslations } from "next-intl"
 import { AlignLeft, Check, Columns2, Sparkles, X } from "lucide-react"
 
 import type { SharpenedCaseResponse } from "@/types/api"
 import { acceptSharpening, rejectSharpening } from "@/app/actions"
-import { CASE_FIELD_LABELS } from "@/lib/labels"
 import { ActionError } from "@/components/action-error"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -82,10 +82,11 @@ function InlineDiff({ parts }: { parts: Change[] }) {
 // enthaelt nur ihre eigene Fassung -- kein interleaving, daher auch bei einem
 // kompletten Rewrite lesbar. Auf Mobile untereinander (Vorher ueber Nachher).
 function SplitDiff({ parts }: { parts: Change[] }) {
+  const t = useTranslations("sharpening")
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="rounded-lg border border-border bg-muted/20 p-3.5">
-        <p className="eyebrow mb-2">Vorher</p>
+        <p className="eyebrow mb-2">{t("before")}</p>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">
           {parts.map((part, i) => {
             if (part.added) return null
@@ -108,7 +109,7 @@ function SplitDiff({ parts }: { parts: Change[] }) {
         </p>
       </div>
       <div className="rounded-lg border border-[var(--zone-win-border)] bg-[var(--zone-win-surface)]/40 p-3.5">
-        <p className="eyebrow mb-2">Nachher</p>
+        <p className="eyebrow mb-2">{t("after")}</p>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">
           {parts.map((part, i) => {
             if (part.removed) return null
@@ -143,6 +144,7 @@ function DiffField({
   diff: FieldDiff
   mode: DiffMode
 }) {
+  const t = useTranslations("sharpening")
   const strongRewrite = diff.churn >= REWRITE_THRESHOLD
   return (
     <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
@@ -150,7 +152,7 @@ function DiffField({
         <p className="eyebrow">{label}</p>
         {strongRewrite && (
           <span className="font-mono text-[0.6875rem] text-muted-foreground tabular-nums">
-            {Math.round(diff.churn * 100)} % überarbeitet
+            {t("churnPct", { pct: Math.round(diff.churn * 100) })}
           </span>
         )}
       </div>
@@ -171,9 +173,10 @@ function ModeToggle({
   mode: DiffMode
   onChange: (mode: DiffMode) => void
 }) {
+  const t = useTranslations("sharpening")
   const options: { value: DiffMode; label: string; icon: typeof AlignLeft }[] = [
-    { value: "inline", label: "Inline", icon: AlignLeft },
-    { value: "split", label: "Nebeneinander", icon: Columns2 },
+    { value: "inline", label: t("modeInline"), icon: AlignLeft },
+    { value: "split", label: t("modeSplit"), icon: Columns2 },
   ]
   return (
     <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
@@ -209,6 +212,8 @@ export function SharpeningReview({
   sharpened: SharpenedCaseResponse
   onResolved: () => void
 }) {
+  const t = useTranslations("sharpening")
+  const te = useTranslations("enums")
   const [pending, setPending] = useState<"accept" | "reject" | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -216,21 +221,21 @@ export function SharpeningReview({
   const fields = useMemo(
     () => [
       {
-        label: "Soll-Zustand",
+        label: t("fieldDesiredState"),
         diff: computeDiff(
           sharpened.original_desired_state,
           sharpened.sharpened_desired_state,
         ),
       },
       {
-        label: "Soll-Beispiel",
+        label: t("fieldDesiredExample"),
         diff: computeDiff(
           sharpened.original_desired_example_process,
           sharpened.sharpened_desired_example_process,
         ),
       },
     ],
-    [sharpened],
+    [sharpened, t],
   )
 
   // Staerkster Rewrite ueber alle Felder entscheidet ueber den Startmodus.
@@ -250,7 +255,7 @@ export function SharpeningReview({
       onResolved()
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Aktion konnte nicht ausgeführt werden.",
+        e instanceof Error ? e.message : t("actionError"),
       )
       setPending(null)
     }
@@ -262,21 +267,14 @@ export function SharpeningReview({
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-[var(--ink)]" />
           <p className="text-sm font-semibold text-foreground">
-            Schärfungs-Entwurf — bitte prüfen
+            {t("title")}
           </p>
         </div>
         <ModeToggle mode={mode} onChange={setMode} />
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-        Grün = neu vorgeschlagen, durchgestrichen = entfernt. Der Entwurf wird
-        erst nach „Übernehmen“ gespeichert.
-        {autoSplit && (
-          <>
-            {" "}
-            Starke Überarbeitung erkannt — Nebeneinander-Ansicht ist
-            voreingestellt.
-          </>
-        )}
+        {t("helpDiff")}
+        {autoSplit && <> {t("helpAutoSplit")}</>}
       </p>
 
       <div className="mt-4 space-y-3">
@@ -288,18 +286,18 @@ export function SharpeningReview({
       {/* Verbesserungsvorschlaege: Bezugsfeld-Badge + Vorschlag + Hebel. */}
       {sharpened.improvement_suggestions.length > 0 && (
         <div className="mt-5">
-          <p className="eyebrow mb-2">Vorschläge</p>
+          <p className="eyebrow mb-2">{t("suggestions")}</p>
           <ul className="space-y-2.5">
             {sharpened.improvement_suggestions.map((s, i) => (
               <li key={i} className="rounded-xl border border-border bg-card p-4">
                 <span className="inline-flex items-center rounded-md border border-[var(--ink)]/25 bg-[var(--ink-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--ink)]">
-                  {CASE_FIELD_LABELS[s.bezugsfeld] ?? s.bezugsfeld}
+                  {te(`caseField.${s.bezugsfeld}`)}
                 </span>
                 <p className="mt-2 text-sm leading-relaxed text-foreground/90">
                   {s.vorschlag}
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground/70">Hebel:</span>{" "}
+                  <span className="font-medium text-foreground/70">{t("lever")}</span>{" "}
                   {s.hebel}
                 </p>
               </li>
@@ -313,7 +311,7 @@ export function SharpeningReview({
       <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={() => resolve("accept")} disabled={pending !== null}>
           <Check className="size-4" />
-          {pending === "accept" ? "Wird übernommen …" : "Übernehmen"}
+          {pending === "accept" ? t("accepting") : t("accept")}
         </Button>
         <Button
           variant="outline"
@@ -321,7 +319,7 @@ export function SharpeningReview({
           disabled={pending !== null}
         >
           <X className="size-4" />
-          {pending === "reject" ? "Wird verworfen …" : "Verwerfen"}
+          {pending === "reject" ? t("rejecting") : t("reject")}
         </Button>
       </div>
     </section>

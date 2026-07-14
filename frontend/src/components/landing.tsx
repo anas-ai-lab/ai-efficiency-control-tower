@@ -7,10 +7,10 @@ import {
   LayoutGrid,
   Activity,
 } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import type { StatsResponse } from "@/types/api";
-import { formatNumber } from "@/lib/formatters";
+import { bindFormat } from "@/lib/format";
 
 // Startseite (V4-P7). Reine Praesentationsschicht -- Server-Komponente, bekommt
 // Kennzahlen + Auth-Zustand als Props. Bewusst so geschnitten, dass der
@@ -118,23 +118,24 @@ export async function Landing({
   authenticated: boolean;
 }) {
   const t = await getTranslations("landing");
+  const fmt = bindFormat(await getFormatter());
   const dash = "—";
   // Netto-Nutzen bewusst NICHT auf der Startseite (S2): der Wert bleibt in
   // Ideenliste und Board, hier nur die Mengen-Kennzahlen.
   const kpis: Kpi[] = [
     {
       label: t("kpiSubmittedLabel"),
-      value: stats ? formatNumber(stats.eingereicht) : dash,
+      value: stats ? fmt.number(stats.eingereicht) : dash,
       hint: t("kpiSubmittedHint"),
     },
     {
       label: t("kpiEvaluatedLabel"),
-      value: stats ? formatNumber(stats.bewertet) : dash,
+      value: stats ? fmt.number(stats.bewertet) : dash,
       hint: t("kpiEvaluatedHint"),
     },
     {
       label: t("kpiImplementedLabel"),
-      value: stats ? formatNumber(stats.umgesetzt) : dash,
+      value: stats ? fmt.number(stats.umgesetzt) : dash,
       hint: t("kpiImplementedHint"),
     },
   ];

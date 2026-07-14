@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { Clock } from "lucide-react";
 
 import {
@@ -8,6 +9,7 @@ import {
   getCaseDetail,
   listSimilarityPairs,
 } from "@/app/actions";
+import { bindFormat } from "@/lib/format";
 import { CaseDecision } from "@/components/case-decision";
 import { CaseInputs } from "@/components/case-inputs";
 import { CaseReport } from "@/components/case-report";
@@ -24,21 +26,14 @@ import type {
   SimilarityPair,
 } from "@/types/api";
 
-export const metadata: Metadata = {
-  title: "Fall-Detail | AECT",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("detailPage");
+  return { title: t("metaTitle") };
+}
 
 // Immer frisch: nach Admin-Aktionen (Schaerfen/Loesung/Compliance/Entscheidung/
 // Statuswechsel) muss GET /cases/{id} den neuen Stand liefern.
 export const dynamic = "force-dynamic";
-
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
-}
 
 // Ein Bereich der Detailseite (S4): drei klar getrennte Segmente statt einer
 // langen Sektionsliste. Trennlinie + kraeftige Ueberschrift grenzen sie ab.
@@ -77,23 +72,22 @@ function StatusBox({ heading, body }: { heading: string; body: React.ReactNode }
   );
 }
 
-function NotFound({ id }: { id: string }) {
+async function NotFound({ id }: { id: string }) {
+  const t = await getTranslations("detailPage");
   return (
     <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6">
-      <p className="eyebrow">Fall-Detail</p>
+      <p className="eyebrow">{t("eyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        Use Case nicht gefunden
+        {t("notFoundTitle")}
       </h1>
       <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Zum angefragten Fall{" "}
-        <span className="font-mono text-foreground">{id}</span> gibt es keinen
-        Eintrag. Möglicherweise wurde er gelöscht.
+        {t("notFoundBody", { id })}
       </p>
       <Link
         href="/cases"
         className="mt-4 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
       >
-        Zurück zur Ideenliste
+        {t("backToList")}
       </Link>
     </main>
   );
@@ -105,6 +99,9 @@ export default async function CaseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations("detailPage");
+  const ts = await getTranslations("status");
+  const fmt = bindFormat(await getFormatter());
 
   // GET /cases/{id} (public): vollstaendiger read-only Bewertungsstand. 404 ->
   // null -> NotFound. Andere Fehler propagieren (Next.js-Error-Boundary).
@@ -114,16 +111,12 @@ export default async function CaseDetailPage({
   } catch (e) {
     return (
       <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6">
-        <p className="eyebrow">Fall-Detail</p>
+        <p className="eyebrow">{t("eyebrow")}</p>
         <div
           role="alert"
           className="mt-4 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3.5 text-sm text-destructive"
         >
-          <p>
-            {e instanceof Error
-              ? e.message
-              : "Der Bewertungsstand konnte nicht geladen werden."}
-          </p>
+          <p>{e instanceof Error ? e.message : t("loadError")}</p>
           <div className="mt-3">
             <RetryButton />
           </div>
@@ -164,37 +157,40 @@ export default async function CaseDetailPage({
   return (
     <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
       {/* --- Kopf --- */}
-      <p className="eyebrow">Fall-Detail</p>
+      <p className="eyebrow">{t("eyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
         {eingaben.title}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {eingaben.department} · Eingereicht am {formatDate(detail.submitted_at)}
+        {t("submittedLine", {
+          department: eingaben.department,
+          date: fmt.dateShort(detail.submitted_at),
+        })}
       </p>
       {/* Status zur Orientierung (read-only); die Steuerung lebt in Bereich 3. */}
       <div className="mt-4 flex items-center gap-2">
-        <span className="eyebrow">Status</span>
+        <span className="eyebrow">{t("status")}</span>
         <StatusBadge status={detail.status} />
       </div>
 
       {/* ===== Bereich 1: Use Case ===== */}
-      <AreaSection title="Use Case">
+      <AreaSection title={t("areaUseCase")}>
         <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
       </AreaSection>
 
       {/* ===== Bereich 2: Analyse & Empfehlung ===== */}
-      <AreaSection title="Analyse & Empfehlung">
+      <AreaSection title={t("areaAnalysis")}>
         {detail.evaluation_pending ? (
           <StatusBox
-            heading="Bewertung ausstehend"
-            body="Für diesen Fall wurde noch kein Implementierungsansatz gewählt. Sobald ein Admin ihn oben ergänzt, wird der Fall vollständig bewertet (Nutzen, Aufwand, Risiko)."
+            heading={ts("evaluationPending")}
+            body={t("pendingBody")}
           />
         ) : triage !== null ? (
           <CaseResult triage={triage} />
         ) : (
           <StatusBox
-            heading="Wird vom AI Board geprüft"
-            body={`Eingereicht am ${formatDate(detail.submitted_at)}. Die Bewertung (Nutzen, Aufwand, Risiko) wird sichtbar, sobald das AI Board über den Use Case entschieden hat.`}
+            heading={t("reviewingHeading")}
+            body={t("reviewingBody", { date: fmt.dateShort(detail.submitted_at) })}
           />
         )}
 
@@ -224,11 +220,11 @@ export default async function CaseDetailPage({
 
       {/* ===== Bereich 3: Entscheidung & Report ===== */}
       {report !== null && summary !== null && (
-        <AreaSection title="Entscheidung & Report">
+        <AreaSection title={t("areaDecision")}>
           {authenticated && (
             <div className="space-y-6">
               <div>
-                <p className="eyebrow mb-2">Status</p>
+                <p className="eyebrow mb-2">{t("status")}</p>
                 <CaseStatusControl
                   caseId={detail.id}
                   initialStatus={detail.status}
@@ -242,7 +238,7 @@ export default async function CaseDetailPage({
             </div>
           )}
           <div className={authenticated ? "mt-10" : ""}>
-            <p className="eyebrow mb-3">Report</p>
+            <p className="eyebrow mb-3">{t("report")}</p>
             <CaseReport report={report} />
           </div>
         </AreaSection>

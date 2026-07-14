@@ -1,6 +1,7 @@
 "use client"
 
 import { Loader2 } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -25,6 +26,7 @@ export function LlmAction({
   hint,
   error,
 }: LlmActionProps) {
+  const t = useTranslations("llmAction")
   return (
     <div className="space-y-3">
       {error != null && (
@@ -56,7 +58,7 @@ export function LlmAction({
             <Skeleton className="h-3 w-[78%]" />
           </div>
           <p className="px-5 pb-4 text-xs text-muted-foreground tnum">
-            Dauert in der Regel 5–30 Sekunden · LLM-Call
+            {t("durationHint")}
           </p>
         </div>
       ) : (

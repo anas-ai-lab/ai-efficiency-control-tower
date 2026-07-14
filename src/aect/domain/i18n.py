@@ -310,8 +310,16 @@ BASIS_EINSTUFUNG_ERKLAERUNG: dict[Lang, str] = {
 
 #: Score-Komponenten-Labels (Aufwandscore-Herkunft).
 SCORE_COMPONENT_LABELS: dict[Lang, dict[str, str]] = {
-    "de": {"complexity": "Komplexitaet", "cost": "Kosten", "data_protection": "Datenschutz"},
-    "en": {"complexity": "Complexity", "cost": "Cost", "data_protection": "Data protection"},
+    "de": {
+        "complexity": "Komplexitaet",
+        "cost": "Kosten",
+        "data_protection": "Datenschutz",
+    },
+    "en": {
+        "complexity": "Complexity",
+        "cost": "Cost",
+        "data_protection": "Data protection",
+    },
 }
 
 #: Kostenpunkt-Labels + Suffix (Score-Herkunft).
@@ -509,21 +517,17 @@ ZU_ENTSCHEIDEN: dict[Lang, dict[str, str]] = {
             "Approval of an in-depth expert and data-protection review before "
             "implementation."
         ),
-        "BORDERLINE": (
-            "Decision on a case-by-case review -- the signals are mixed."
-        ),
+        "BORDERLINE": ("Decision on a case-by-case review -- the signals are mixed."),
     },
 }
 
 #: "Zu entscheiden"-Satz bei Vorfilter-Fail.
 ZU_ENTSCHEIDEN_FAIL: dict[Lang, str] = {
     "de": (
-        "Keine Freigabe -- der Case erfuellt die Mindestkriterien des Vorfilters "
-        "nicht."
+        "Keine Freigabe -- der Case erfuellt die Mindestkriterien des Vorfilters nicht."
     ),
     "en": (
-        "No approval -- the case does not meet the minimum criteria of the "
-        "prefilter."
+        "No approval -- the case does not meet the minimum criteria of the prefilter."
     ),
 }
 
@@ -576,8 +580,7 @@ CONTRA_POINTS: dict[Lang, dict[str, str]] = {
             "The expected benefit rests on a pure estimate -- no measured basis."
         ),
         "voluntary": (
-            "Use is voluntary -- without commitment, actual adoption remains "
-            "uncertain."
+            "Use is voluntary -- without commitment, actual adoption remains uncertain."
         ),
         "data_sensitive": (
             "Special categories of personal data (Art. 9 GDPR) -- a data protection "
@@ -595,8 +598,7 @@ CONTRA_POINTS: dict[Lang, dict[str, str]] = {
             "effort flip the classification."
         ),
         "no_time": (
-            "The process saves no time with AI -- the economic benefit is "
-            "questionable."
+            "The process saves no time with AI -- the economic benefit is questionable."
         ),
         "little_time": (
             "The time saved per case is tight at under 3 minutes -- the benefit "
@@ -627,8 +629,7 @@ ROUTING_SIGNALS: dict[Lang, dict[str, str]] = {
             "Ablauf"
         ),
         "auto_volume": (
-            "Volumen {volume}/Jahr je MA >= {threshold} -- hoher "
-            "Automatisierungs-ROI"
+            "Volumen {volume}/Jahr je MA >= {threshold} -- hoher Automatisierungs-ROI"
         ),
         "auto_fixed": (
             "Fester Prozessschritt -- konsistentes Nutzungsverhalten begünstigt "
@@ -662,9 +663,7 @@ ROUTING_SIGNALS: dict[Lang, dict[str, str]] = {
         "auto_volume": (
             "Volume {volume}/year per employee >= {threshold} -- high automation ROI"
         ),
-        "auto_fixed": (
-            "Fixed process step -- consistent usage favors automation"
-        ),
+        "auto_fixed": ("Fixed process step -- consistent usage favors automation"),
         "ai_complex": (
             "Complexity {complexity} >= {threshold} -- context-dependent, ambiguous "
             "task"

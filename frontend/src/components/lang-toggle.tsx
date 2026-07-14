@@ -1,27 +1,30 @@
 "use client"
 
 import { useLocale, useTranslations } from "next-intl"
-import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 
 import { setLocale } from "@/i18n/actions"
 import { locales, type Locale } from "@/i18n/config"
 
 // Sprachumschalter (V4.1-S6): segmentiertes DE|EN neben dem Theme-Toggle. Setzt
-// das NEXT_LOCALE-Cookie serverseitig (setLocale) und ruft router.refresh() --
-// die Server-Komponenten rendern in der neuen Sprache neu, der Client-State
-// (z. B. offener Intake-Wizard) bleibt erhalten (kein Remount bei refresh).
+// das NEXT_LOCALE-Cookie serverseitig (setLocale) und laedt danach HART neu
+// (window.location.reload). Ein blosses router.refresh() aktualisiert nur die
+// aktuelle Route -- die im Next.js-Router-Cache VORGELADENEN anderen Routen
+// bleiben in der alten Sprache (der Cache variiert NICHT nach Cookie; dieselbe
+// App-Router-Cache-Grenze, die das Projekt schon via lib/reload.hardRefresh
+// umgeht). Der harte Reload bustet den gesamten Cache -> die ganze App rendert
+// konsistent in der neuen Sprache, ohne deutschen Rest bei Soft-Navigation.
+// Kosten: ein offener Intake-Wizard verliert seinen Zwischenstand (dokumentiert).
 export function LangToggle() {
   const active = useLocale() as Locale
   const t = useTranslations("common")
-  const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   function switchTo(next: Locale) {
     if (next === active || pending) return
     startTransition(async () => {
       await setLocale(next)
-      router.refresh()
+      window.location.reload()
     })
   }
 

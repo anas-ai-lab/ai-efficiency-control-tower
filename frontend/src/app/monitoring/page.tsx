@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { checkAuth, listCases } from "@/app/actions";
 import { MonitoringBoard } from "@/components/monitoring-board";
 import { RetryButton } from "@/components/retry-button";
 import type { CaseSummary } from "@/types/api";
 
-export const metadata: Metadata = {
-  title: "Monitoring | AECT",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("monitoring");
+  return { title: t("metaTitle") };
+}
 
 // Immer frisch: nach Statuswechsel/neuer Notiz + Reload muss der neue Stand
 // erscheinen.
@@ -20,13 +22,13 @@ export default async function MonitoringPage() {
     redirect("/login?next=/monitoring");
   }
 
+  const t = await getTranslations("monitoring");
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   try {
     cases = await listCases();
   } catch (e) {
-    loadError =
-      e instanceof Error ? e.message : "Die Liste konnte nicht geladen werden.";
+    loadError = e instanceof Error ? e.message : t("loadErrorFallback");
   }
 
   // Monitoring beginnt nach der Freigabe: nur freigegebene oder umgesetzte Faelle.
@@ -36,13 +38,12 @@ export default async function MonitoringPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-12 sm:px-6">
-      <p className="eyebrow">Monitoring</p>
+      <p className="eyebrow">{t("pageEyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        Freigegebene und umgesetzte Use Cases
+        {t("pageTitle")}
       </h1>
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Status direkt pflegen und den Verlauf je Use Case als append-only
-        Zeitleiste dokumentieren — kein automatisches Tracking.
+        {t("pageLead")}
       </p>
 
       <div className="mt-8">

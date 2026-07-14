@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { checkAuth, listCases } from "@/app/actions";
 import { BoardMatrix } from "@/components/board-matrix";
 import { RetryButton } from "@/components/retry-button";
 import type { CaseSummary } from "@/types/api";
 
-export const metadata: Metadata = {
-  title: "Board | AECT",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("board");
+  return { title: t("metaTitle") };
+}
 
 // Immer frisch laden (wie /cases): nach Statuswechsel + Reload muss der neue
 // Stand erscheinen. listCases nutzt cache: "no-store"; force-dynamic verhindert
@@ -21,27 +23,24 @@ export default async function BoardPage() {
     redirect("/login?next=/board");
   }
 
+  const t = await getTranslations("board");
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   try {
     cases = await listCases();
   } catch (e) {
     cases = [];
-    loadError =
-      e instanceof Error ? e.message : "Die Liste konnte nicht geladen werden.";
+    loadError = e instanceof Error ? e.message : t("loadErrorFallback");
   }
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-12 sm:px-6">
-      <p className="eyebrow">Board</p>
+      <p className="eyebrow">{t("pageEyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        Portfolio-Matrix: Nutzen gegen Machbarkeit
+        {t("pageTitle")}
       </h1>
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Jeder bewertete Use Case als Punkt: erwarteter Nettonutzen (x),
-        Machbarkeit (y, invertierter Aufwand-Score) und eingesparte Stunden pro
-        Jahr (Blasengröße). Die Farbe zeigt die Triage-Zone. Klick auf einen
-        Punkt öffnet den Fall.
+        {t("pageLead")}
       </p>
 
       <div className="mt-8">

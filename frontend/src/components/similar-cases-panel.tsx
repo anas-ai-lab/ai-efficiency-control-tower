@@ -1,27 +1,22 @@
 import Link from "next/link";
+import { getFormatter, getTranslations } from "next-intl/server";
 
+import { bindFormat } from "@/lib/format";
 import type { SimilarityPair } from "@/types/api";
-
-// Aehnlichkeit als Prozent mit einer Nachkommastelle (de-DE): 0.873 -> "87,3 %".
-function formatSimilarity(score: number): string {
-  return new Intl.NumberFormat("de-DE", {
-    style: "percent",
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(score);
-}
 
 // Aehnlichkeits-Panel der Detail-Seite (P12/C). Kein Per-Case-Endpoint
 // vorhanden -- die Detail-Seite ruft dieselbe volle Paar-Liste ab und filtert
 // client-/server-seitig auf Paare, die diese case_id enthalten. Wird nur
 // gerendert, wenn es solche Paare gibt (Aufrufer prueft das ebenfalls).
-export function SimilarCasesPanel({
+export async function SimilarCasesPanel({
   caseId,
   pairs,
 }: {
   caseId: string;
   pairs: SimilarityPair[];
 }) {
+  const t = await getTranslations("similarCases");
+  const fmt = bindFormat(await getFormatter());
   const related = pairs.filter(
     (p) => p.case_a_id === caseId || p.case_b_id === caseId,
   );
@@ -29,7 +24,7 @@ export function SimilarCasesPanel({
 
   return (
     <section className="mt-8 rounded-xl border border-border bg-card p-5">
-      <p className="eyebrow mb-3">Ähnliche Use Cases</p>
+      <p className="eyebrow mb-3">{t("title")}</p>
       <ul className="flex flex-col gap-3">
         {related.map((p) => {
           const isA = p.case_a_id === caseId;
@@ -48,11 +43,11 @@ export function SimilarCasesPanel({
               </Link>
               <span className="flex items-baseline gap-3 text-sm">
                 <span className="font-mono text-foreground tabular-nums">
-                  {formatSimilarity(p.similarity_score)}
+                  {fmt.percent1(p.similarity_score)}
                 </span>
                 {p.suggest_combine && (
                   <span className="text-[var(--ink)]">
-                    Zusammenführung prüfen
+                    {t("suggestCombine")}
                   </span>
                 )}
               </span>
@@ -61,8 +56,7 @@ export function SimilarCasesPanel({
         })}
       </ul>
       <p className="mt-4 border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
-        Ähnlichkeit basiert auf Text-Embeddings von Titel und Ist-Beschreibung —
-        kein inhaltliches Urteil.
+        {t("footer")}
       </p>
     </section>
   );

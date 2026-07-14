@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
 import type { SolutionProposalResponse } from "@/types/api";
@@ -31,6 +32,7 @@ export function SolutionModal({
   caseId: string;
   hasSolution: boolean;
 }) {
+  const t = useTranslations("solution");
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState<SolutionProposalResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,7 +47,7 @@ export function SolutionModal({
       setDraft(await proposeSolution(caseId));
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Lösungsvorschlag fehlgeschlagen.",
+        e instanceof Error ? e.message : t("proposeError"),
       );
     } finally {
       setLoading(false);
@@ -60,7 +62,7 @@ export function SolutionModal({
       acceptedRef.current = true;
       hardRefresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Übernehmen fehlgeschlagen.");
+      setError(e instanceof Error ? e.message : t("acceptError"));
       setBusy(false);
     }
   }
@@ -81,25 +83,22 @@ export function SolutionModal({
     <>
       <Button variant="outline" onClick={handlePropose} disabled={loading}>
         {loading && <Loader2 className="size-4 animate-spin" />}
-        {hasSolution ? "Lösung neu erzeugen" : "Lösung vorschlagen"}
+        {hasSolution ? t("regenerate") : t("propose")}
       </Button>
       {draft === null && <ActionError message={error} className="mt-3" />}
 
       <Dialog open={draft !== null} onOpenChange={handleOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Lösungsvorschlag</DialogTitle>
-            <DialogDescription>
-              KI-Entwurf, zu prüfen. „Übernehmen“ speichert beide Varianten,
-              „Verwerfen“ nichts.
-            </DialogDescription>
+            <DialogTitle>{t("title")}</DialogTitle>
+            <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
 
           {draft !== null && (
             <Tabs defaultValue="technical" className="min-h-0 flex-1">
               <TabsList>
-                <TabsTrigger value="technical">Technische Variante</TabsTrigger>
-                <TabsTrigger value="business">Management-Variante</TabsTrigger>
+                <TabsTrigger value="technical">{t("tabTechnical")}</TabsTrigger>
+                <TabsTrigger value="business">{t("tabBusiness")}</TabsTrigger>
               </TabsList>
               <TabsContent
                 value="technical"
@@ -128,10 +127,10 @@ export function SolutionModal({
               onClick={() => handleOpenChange(false)}
               disabled={busy}
             >
-              Verwerfen
+              {t("reject")}
             </Button>
             <Button onClick={handleAccept} disabled={busy}>
-              {busy ? "Wird übernommen …" : "Übernehmen"}
+              {busy ? t("accepting") : t("accept")}
             </Button>
           </DialogFooter>
         </DialogContent>

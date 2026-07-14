@@ -1,7 +1,11 @@
 "use client"
 
+"use client"
+
+import { useTranslations } from "next-intl"
+
 import type { ROIResult } from "@/types/api"
-import { formatEUR, formatPercent, formatFactor } from "@/lib/formatters"
+import { useFormat } from "@/lib/use-format"
 
 // Deterministische Begruendungs-Bausteine, geteilt zwischen Triage-Ergebnis und
 // Report. Alle Texte werden aus vorhandenen Zahlenfeldern getemplatet -- kein
@@ -10,6 +14,8 @@ import { formatEUR, formatPercent, formatFactor } from "@/lib/formatters"
 // --- 1a: Nettonutzen-Erklaerung + aufklappbarer Rechenweg --------------------
 
 export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
+  const t = useTranslations("rationale")
+  const fmt = useFormat()
   const usageReduces = roi.usage_factor < 1
   const evidenceReduces = roi.evidence_factor < 1
   const hasLicense = roi.license_cost_annual_eur > 0
@@ -26,28 +32,28 @@ export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
   }[] = [
     {
       op: "",
-      label: "Theoret. Potenzial",
-      value: formatEUR(roi.theoretical_potential_eur),
+      label: t("theoreticalPotential"),
+      value: fmt.eur(roi.theoretical_potential_eur),
       highlight: false,
     },
     {
       op: "×",
-      label: "Nutzungsfaktor",
-      value: formatFactor(roi.usage_factor),
+      label: t("usageFactor"),
+      value: fmt.factor(roi.usage_factor),
       highlight: usageReduces,
     },
     {
       op: "×",
-      label: "Evidenzfaktor",
-      value: formatFactor(roi.evidence_factor),
+      label: t("evidenceFactor"),
+      value: fmt.factor(roi.evidence_factor),
       highlight: evidenceReduces,
     },
   ]
   if (hasLicense) {
     rows.push({
       op: "−",
-      label: "Lizenzkosten p.a.",
-      value: formatEUR(roi.license_cost_annual_eur),
+      label: t("licenseCostPa"),
+      value: fmt.eur(roi.license_cost_annual_eur),
       highlight: false,
     })
   }
@@ -55,25 +61,26 @@ export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
   return (
     <div>
       <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-        Vom theoretischen Potenzial ({formatEUR(roi.theoretical_potential_eur)})
-        {" "}bleiben{" "}
-        <span className="font-medium text-foreground">
-          {formatEUR(roi.net_expected_benefit_eur)}
-        </span>
-        : Nutzung{" "}
-        <span className={usageReduces ? mark : "text-foreground/80"}>
-          {formatPercent(roi.usage_factor)}
-        </span>{" "}
-        × Evidenz{" "}
-        <span className={evidenceReduces ? mark : "text-foreground/80"}>
-          {formatPercent(roi.evidence_factor)}
-        </span>
-        {hasLicense && (
-          <>
-            , abzüglich {formatEUR(roi.license_cost_annual_eur)} Lizenzkosten
-          </>
-        )}
-        .
+        {t.rich(hasLicense ? "sentenceLicense" : "sentence", {
+          potential: fmt.eur(roi.theoretical_potential_eur),
+          net: fmt.eur(roi.net_expected_benefit_eur),
+          usage: fmt.percent(roi.usage_factor),
+          evidence: fmt.percent(roi.evidence_factor),
+          license: hasLicense ? fmt.eur(roi.license_cost_annual_eur) : "",
+          netTag: (chunks) => (
+            <span className="font-medium text-foreground">{chunks}</span>
+          ),
+          usageTag: (chunks) => (
+            <span className={usageReduces ? mark : "text-foreground/80"}>
+              {chunks}
+            </span>
+          ),
+          evidenceTag: (chunks) => (
+            <span className={evidenceReduces ? mark : "text-foreground/80"}>
+              {chunks}
+            </span>
+          ),
+        })}
       </p>
 
       <details className="group mt-3">
@@ -81,7 +88,7 @@ export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
           <span className="transition-transform group-open:rotate-90" aria-hidden>
             ›
           </span>
-          Rechenweg
+          {t("calcPath")}
         </summary>
         <div className="mt-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-[0.8125rem]">
           {rows.map((row) => (
@@ -116,10 +123,10 @@ export function NetBenefitRationale({ roi }: { roi: ROIResult }) {
               =
             </span>
             <span className="font-medium text-foreground">
-              Erwarteter Nettonutzen
+              {t("expectedNetBenefit")}
             </span>
             <span className="text-right font-mono tnum font-medium text-foreground">
-              {formatEUR(roi.net_expected_benefit_eur)}
+              {fmt.eur(roi.net_expected_benefit_eur)}
             </span>
           </div>
         </div>
@@ -165,6 +172,7 @@ export function RoutingRationale({
   automationSignals: string[]
   aiSignals: string[]
 }) {
+  const t = useTranslations("rationale")
   // Welche Signale die Empfehlung tragen, haengt an der Empfehlung selbst.
   // Bei Grenzfaellen zeigen beide Seiten -- das IST die Begruendung.
   const aiLeaning = recommendation === "AI_RECOMMENDED"
@@ -186,8 +194,8 @@ export function RoutingRationale({
         both ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : "space-y-4"
       }
     >
-      <SignalList title="Wofür KI spricht" signals={ai} />
-      <SignalList title="Wofür Automatisierung spricht" signals={auto} />
+      <SignalList title={t("aiSupports")} signals={ai} />
+      <SignalList title={t("autoSupports")} signals={auto} />
     </div>
   )
 }

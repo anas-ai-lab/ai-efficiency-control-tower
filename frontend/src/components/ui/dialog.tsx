@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ function DialogContent({
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  const t = useTranslations("common");
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
@@ -42,7 +44,7 @@ function DialogContent({
       >
         {children}
         <DialogPrimitive.Close
-          aria-label="Schließen"
+          aria-label={t("close")}
           className="absolute top-4 right-4 rounded-md text-muted-foreground opacity-70 transition-opacity outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <X className="size-4" aria-hidden />

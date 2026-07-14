@@ -697,20 +697,34 @@ folgen dem `lang`-Query-Parameter (Default `de`, ungueltig -> 422).
    LLM-Sprachinstruktion daher Ziffern ("keep all numeric values as digits") --
    englische Zahlwoerter wuerden vom Guard nicht als Zahl erkannt.
 
-4. **Frontend-EN-Abdeckung wird schrittweise ausgerollt.** Die i18n-Infrastruktur
-   (next-intl, Cookie-Locale, Umschalter, Server-Action-Durchreichung von `lang`)
-   und die geteilten Kataloge (Enums, Status, Zonen, Navigation, Footer) stehen;
-   lokalisiert sind Startseite, Admin-Login, Kopf-/Fussbereich und die geteilten
-   Badges. Die uebrigen Seiten-Inhalte (Einreichen-Wizard, Fall-Detail, Board,
-   Ideenliste, Monitoring, Ideen-Assistent) werden pro Komponente nachgezogen und
-   zeigen bis dahin deutschen Text. Ein CI-faehiger Paritaets-Check
-   (`npm run i18n:check`) stellt sicher, dass `de.json`/`en.json` keine
-   divergierenden Schluessel haben.
+4. **Zahl-Gruppierung in Backend-Fliesstext folgt Deutsch.** Frontend-seitig
+   formatierte Zahlen/Betraege/Daten folgen der aktiven Locale (next-intl
+   `useFormatter`, EUR-Symbol fix). Zahlen, die das Backend deterministisch IN
+   einen Satz einbettet (z. B. der Empfehlungs-Satz "... about 10.000 hours
+   saved ... (259.200 EUR net benefit) ..."), nutzen weiterhin die deutsche
+   Tausender-Gruppierung (`domain/formatting.format_de`). Das ist eine reine
+   Gruppierungs-Konvention, kein deutsches Wort; eine Locale-abhaengige
+   Backend-Zahlformatierung ist bewusst nicht gebaut (waere ein Query-Wert quer
+   durch die Erklaerbarkeits-Schicht).
+
+Die Frontend-Lokalisierung ist vollstaendig: alle Seiten (Startseite, Einreichen
+inkl. Validierungsfehler, Ideenliste, Fall-Detail mit allen drei Bereichen,
+Board, Monitoring, Ideen-Assistent, Admin-Login) und die geteilten Kataloge
+(Enums, Status, Zonen, Navigation, Footer, Fehlermeldungen) sind in de/en. Ein
+CI-faehiger Paritaets-Check (`npm run i18n:check`) stellt sicher, dass
+`de.json`/`en.json` keine divergierenden Schluessel haben. Der Sprachwechsel
+laedt hart neu (`window.location.reload`), damit der Next.js-Router-Cache -- der
+NICHT nach Cookie variiert -- keinen Rest der Vorsprache auf vorgeladenen Routen
+zeigt (dieselbe App-Router-Cache-Grenze wie #33). Ein offener Intake-Wizard
+verliert dabei seinen Zwischenstand -- bewusster Kompromiss zugunsten
+konsistenter Sprache.
 
 ---
 
-*Letzte Aktualisierung: 2026-07-14 -- #15 ergaenzt (i18n de/en, V4.1-S6:
-Grenzen der Lokalisierung + inkrementeller Frontend-Rollout). Vorher 2026-07-13 -- Pre-S5-Nacharbeit: #33 ergaenzt
+*Letzte Aktualisierung: 2026-07-14 -- #15 auf vollstaendige Frontend-Lokalisierung
+aktualisiert (V4.1-S6 Phase 2 abgeschlossen: alle Seiten de/en, Zahl-Gruppierung
+in Backend-Fliesstext bleibt deutsch, Hard-Reload beim Sprachwechsel). Vorher
+2026-07-14 -- #15 ergaenzt (i18n de/en, Grenzen). Vorher 2026-07-13 -- Pre-S5-Nacharbeit: #33 ergaenzt
 (Prod-Router-Cache-Workaround, harter Reload statt `router.refresh()`; bekanntes
 Next.js-App-Router-Verhalten, kein AECT-Bug). Vorher 2026-07-11 -- V4-Release
 (v4.0.0): #25-#32 ergaenzt

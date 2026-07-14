@@ -4,24 +4,19 @@ import Link from "next/link"
 import { useForm, type Resolver, type Path } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useTransition, useState, useEffect } from "react"
+import { useTranslations } from "next-intl"
+import { useTransition, useState, useEffect, useMemo } from "react"
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react"
 
 import { submitTriage } from "@/app/actions"
 import type { TriageResponse } from "@/types/api"
 import { IDEATION_PREFILL_KEY } from "@/lib/ideation-prefill"
 import {
-  ADOPTION_TYPE_LABELS,
   ADOPTION_TYPE_OPTIONS,
-  COUNTRY_LABELS,
   COUNTRY_OPTIONS,
-  DATA_CLASSIFICATION_LABELS,
   DATA_CLASSIFICATION_OPTIONS,
-  EMPLOYEE_CATEGORY_LABELS,
   EMPLOYEE_CATEGORY_OPTIONS,
-  EVIDENCE_LEVEL_LABELS,
   EVIDENCE_LEVEL_OPTIONS,
-  IMPLEMENTATION_APPROACH_LABELS,
   IMPLEMENTATION_APPROACH_OPTIONS,
 } from "@/lib/labels"
 import { StepIndicator } from "@/components/step-indicator"
@@ -44,99 +39,69 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { formatEUR } from "@/lib/formatters"
+import { useFormat } from "@/lib/use-format"
 
 // Werte exakt aus src/types/api.ts gespiegelt -- nicht aus dem Gedaechtnis.
-const formSchema = z.object({
-  title: z.string().min(5).max(200),
-  submitter: z.string().min(1).max(100),
-  department: z.string().min(1).max(100),
-  country: z.enum([
-    "de", "at", "ch", "no", "gb", "es", "it", "tr", "ro", "pl", "eg", "in",
-  ]),
-  current_state: z.string().min(30).max(2000),
-  desired_state: z.string().min(30).max(2000),
-  example_process: z.string().min(20).max(2000),
-  desired_example_process: z.string().max(2000).optional(),
-  time_per_case_hours_current: z.coerce.number().positive().max(8),
-  time_per_case_hours_with_ai: z.coerce.number().min(0).max(8),
-  occurrences_per_employee_per_year: z.coerce.number().int().positive().max(1000000),
-  affected_employees_count: z.coerce.number().int().positive().max(50000),
-  employee_category: z.enum([
-    "junior", "professional", "consultant", "senior", "management",
-  ]),
-  evidence_level: z.enum(
-    ["pure_estimate", "similar_project", "tested_piloted"],
-    { error: "Bitte das Evidenzlevel auswählen." },
-  ),
-  adoption_type: z.enum(
-    ["voluntary", "recommended_standard", "fixed_process_step"],
-    { error: "Bitte die Verbindlichkeit der Nutzung auswählen." },
-  ),
-  // Optional (V4.1, ADR-0050): ohne Ansatz landet der Case im Zustand
-  // "Bewertung ausstehend"; ein Admin ergänzt ihn später.
-  implementation_approach: z
-    .enum([
-      "simple_integration",
-      "development_on_existing",
-      "api_integration",
-      "custom_development",
-      "new_tool",
-    ])
-    .optional(),
-  estimated_license_cost_eur: z.coerce.number().min(0).max(10000000),
-  implementation_cost_eur: z.coerce.number().min(0).max(10000000),
-  contains_pii: z.boolean(),
-  data_classification: z.enum(
-    ["no_personal_data", "pseudonymous", "personal", "sensitive_personal"],
-    { error: "Bitte die Datenschutzklasse auswählen." },
-  ),
-  regulatory_pressure: z.boolean(),
-  competitive_pressure: z.boolean(),
-  strategic_priority: z.boolean(),
-  notes: z.string().max(2000).optional(),
-})
+// Schema als Factory (V4.1-S6): die drei benutzersichtbaren Enum-Fehlertexte
+// kommen aus dem Sprachkatalog. Die zod-Default-Meldungen (min/max) bleiben
+// zod-eigen (sprachneutral/englisch, auch bisher).
+type ErrText = (key: string) => string
 
-type FormValues = z.infer<typeof formSchema>
-
-// Feste Erklaersaetze fuer die Auswahl-Enums (kein LLM). Reihenfolge egal --
-// per Key nachgeschlagen.
-const APPROACH_HELP: Record<string, string> = {
-  simple_integration:
-    "Anbindung in eine bestehende Umgebung, minimaler Entwicklungsaufwand.",
-  development_on_existing:
-    "Entwicklung/Erweiterung auf einer bereits vorhandenen Plattform.",
-  api_integration:
-    "Externe Dienste über deren Schnittstelle (API) einbinden.",
-  custom_development: "Eine neue Lösung selbst entwickeln.",
-  new_tool: "Ein neues Werkzeug oder eine neue Plattform einführen (hoher Aufwand).",
-}
-const DATA_HELP: Record<string, string> = {
-  no_personal_data: "Rein operative oder anonyme Daten.",
-  pseudonymous:
-    "Personenbezug nur mit Zusatzinfo herstellbar (Art. 4 Nr. 5 DSGVO) — bleibt DSGVO-relevant.",
-  personal: "Direkt einer Person zuordenbar (Art. 4 Nr. 1 DSGVO).",
-  sensitive_personal:
-    "Gesundheit, Herkunft, Biometrie etc. — höchste Schutzstufe (Art. 9 DSGVO).",
-}
-const EVIDENCE_HELP: Record<string, string> = {
-  pure_estimate: "Bauchgefühl ohne Datenbasis.",
-  similar_project: "Eigene Erfahrung oder ein vergleichbares Projekt.",
-  tested_piloted: "Mit realen Beispielen getestet oder gemessen.",
-}
-const ADOPTION_HELP: Record<string, string> = {
-  voluntary: "Opt-in — niemand ist zur Nutzung verpflichtet.",
-  recommended_standard: "Empfohlener Teamstandard.",
-  fixed_process_step: "Verbindlicher Schritt im Prozess.",
+function makeSchema(tErr: ErrText) {
+  return z.object({
+    title: z.string().min(5).max(200),
+    submitter: z.string().min(1).max(100),
+    department: z.string().min(1).max(100),
+    country: z.enum([
+      "de", "at", "ch", "no", "gb", "es", "it", "tr", "ro", "pl", "eg", "in",
+    ]),
+    current_state: z.string().min(30).max(2000),
+    desired_state: z.string().min(30).max(2000),
+    example_process: z.string().min(20).max(2000),
+    desired_example_process: z.string().max(2000).optional(),
+    time_per_case_hours_current: z.coerce.number().positive().max(8),
+    time_per_case_hours_with_ai: z.coerce.number().min(0).max(8),
+    occurrences_per_employee_per_year: z.coerce.number().int().positive().max(1000000),
+    affected_employees_count: z.coerce.number().int().positive().max(50000),
+    employee_category: z.enum([
+      "junior", "professional", "consultant", "senior", "management",
+    ]),
+    evidence_level: z.enum(
+      ["pure_estimate", "similar_project", "tested_piloted"],
+      { error: tErr("evidence") },
+    ),
+    adoption_type: z.enum(
+      ["voluntary", "recommended_standard", "fixed_process_step"],
+      { error: tErr("adoption") },
+    ),
+    // Optional (V4.1, ADR-0050): ohne Ansatz landet der Case im Zustand
+    // "Bewertung ausstehend"; ein Admin ergänzt ihn später.
+    implementation_approach: z
+      .enum([
+        "simple_integration",
+        "development_on_existing",
+        "api_integration",
+        "custom_development",
+        "new_tool",
+      ])
+      .optional(),
+    estimated_license_cost_eur: z.coerce.number().min(0).max(10000000),
+    implementation_cost_eur: z.coerce.number().min(0).max(10000000),
+    contains_pii: z.boolean(),
+    data_classification: z.enum(
+      ["no_personal_data", "pseudonymous", "personal", "sensitive_personal"],
+      { error: tErr("data") },
+    ),
+    regulatory_pressure: z.boolean(),
+    competitive_pressure: z.boolean(),
+    strategic_priority: z.boolean(),
+    notes: z.string().max(2000).optional(),
+  })
 }
 
-const STEPS = [
-  { key: "idee", label: "Idee" },
-  { key: "menge", label: "Zeit & Häufigkeit" },
-  { key: "umsetzung", label: "Umsetzung" },
-  { key: "daten", label: "Daten & Verbindlichkeit" },
-  { key: "pruefen", label: "Prüfen & Absenden" },
-] as const
+type FormValues = z.infer<ReturnType<typeof makeSchema>>
+
+const STEP_KEYS = ["idee", "menge", "umsetzung", "daten", "pruefen"] as const
 
 // Welche Felder jeder Schritt validiert, bevor "Weiter" freigibt.
 // implementation_approach ist NICHT dabei (V4.1, ADR-0050): optional, blockiert
@@ -171,13 +136,16 @@ function HelpText({ children }: { children: React.ReactNode }) {
 }
 
 // Ein Select mit Optionsliste + optionalem Erklaersatz zur aktuellen Auswahl.
+// enumKey: Namespace unter enums.* fuer die Options-Labels; helpKey: Namespace
+// unter intake.help.* fuer den Erklaersatz zur Auswahl (beide sprachabhaengig).
 function SelectField({
   form,
   name,
   label,
   placeholder,
   options,
-  help,
+  enumKey,
+  helpKey,
   note,
 }: {
   form: ReturnType<typeof useForm<FormValues>>
@@ -185,11 +153,12 @@ function SelectField({
   label: string
   placeholder: string
   options: { value: string; label: string }[]
-  help?: Record<string, string>
-  // Statische Zeile unter dem Label -- z. B. "Pflichtfeld" oder der
-  // Optional-Hinweis beim Implementierungsansatz (V4.1, ADR-0050).
+  enumKey: string
+  helpKey?: string
   note?: string
 }) {
+  const te = useTranslations("enums")
+  const th = useTranslations("intake.help")
   return (
     <FormField
       control={form.control}
@@ -209,13 +178,13 @@ function SelectField({
               <SelectContent>
                 {options.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {te(`${enumKey}.${opt.value}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {help && selected && help[selected] && (
-              <HelpText>{help[selected]}</HelpText>
+            {helpKey && selected && (
+              <HelpText>{th(`${helpKey}.${selected}`)}</HelpText>
             )}
             <FormMessage />
           </FormItem>
@@ -237,13 +206,26 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 export function IntakeWizard() {
+  const t = useTranslations("intake")
+  const tf = useTranslations("intake.fields")
+  const tr = useTranslations("intake.review")
+  const te = useTranslations("enums")
+  const tc = useTranslations("common")
+  const tErr = useTranslations("intake.errors")
+  const fmt = useFormat()
+
   const [step, setStep] = useState(0)
   const [isPending, startTransition] = useTransition()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState<TriageResponse | null>(null)
 
+  // Schema an die aktive Sprache gebunden (Enum-Fehlertexte). Bei einem
+  // Sprachwechsel mitten im Formular bleiben die zod-Meldungen bis zum naechsten
+  // Mount in der Ausgangssprache -- die Feld-Labels/Hilfetexte wechseln sofort.
+  const schema = useMemo(() => makeSchema(tErr), [tErr])
+
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema) as Resolver<FormValues>,
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     mode: "onBlur",
     defaultValues: {
       title: "",
@@ -296,7 +278,7 @@ export function IntakeWizard() {
 
   async function goNext() {
     const valid = await form.trigger(STEP_FIELDS[step])
-    if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1))
+    if (valid) setStep((s) => Math.min(s + 1, STEP_KEYS.length - 1))
   }
 
   function goBack() {
@@ -316,7 +298,7 @@ export function IntakeWizard() {
         })
         setSubmitted(result)
       } catch (e) {
-        setSubmitError(e instanceof Error ? e.message : "Unbekannter Fehler")
+        setSubmitError(e instanceof Error ? e.message : tErr("unknown"))
       }
     })
   }
@@ -332,18 +314,17 @@ export function IntakeWizard() {
           <CheckCircle2 className="size-6 text-[var(--zone-win)]" />
         </span>
         <h2 className="mt-5 text-xl font-semibold tracking-tight text-foreground">
-          Use Case eingereicht
+          {t("confirm.title")}
         </h2>
         <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-          „{submitted.title}“ wurde erfasst und bewertet. Den vollständigen
-          Bewertungsstand siehst du auf der Fall-Detailseite.
+          {t("confirm.body", { title: submitted.title })}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg">
-            <Link href={`/cases/${submitted.id}`}>Zum Fall</Link>
+            <Link href={`/cases/${submitted.id}`}>{t("confirm.toCase")}</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href="/cases">Zur Ideenliste</Link>
+            <Link href="/cases">{t("confirm.toList")}</Link>
           </Button>
         </div>
       </div>
@@ -351,11 +332,13 @@ export function IntakeWizard() {
   }
 
   const v = form.getValues()
-  const isLast = step === STEPS.length - 1
+  const isLast = step === STEP_KEYS.length - 1
+  const steps = STEP_KEYS.map((key) => ({ key, label: t(`steps.${key}`) }))
+  const placeholder = t("selectPlaceholder")
 
   return (
     <Form {...form}>
-      <StepIndicator steps={STEPS as unknown as { key: string; label: string }[]} current={step} />
+      <StepIndicator steps={steps} current={step} />
 
       <form
         onSubmit={form.handleSubmit(onSubmit)}
@@ -376,9 +359,9 @@ export function IntakeWizard() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Titel</FormLabel>
+                    <FormLabel>{tf("titleLabel")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Kurzer, prägnanter Titel des Use Cases" {...field} />
+                      <Input placeholder={tf("titlePlaceholder")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -390,9 +373,9 @@ export function IntakeWizard() {
                   name="submitter"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Einreicher</FormLabel>
+                      <FormLabel>{tf("submitterLabel")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Name der einreichenden Person" {...field} />
+                        <Input placeholder={tf("submitterPlaceholder")} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -403,9 +386,9 @@ export function IntakeWizard() {
                   name="department"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Abteilung</FormLabel>
+                      <FormLabel>{tf("departmentLabel")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Organisationseinheit" {...field} />
+                        <Input placeholder={tf("departmentPlaceholder")} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -417,9 +400,9 @@ export function IntakeWizard() {
                 name="current_state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Ist-Zustand</FormLabel>
+                    <FormLabel>{tf("currentStateLabel")}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Wie läuft der Prozess heute ab?" rows={4} {...field} />
+                      <Textarea placeholder={tf("currentStatePlaceholder")} rows={4} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -430,9 +413,9 @@ export function IntakeWizard() {
                 name="desired_state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Soll-Zustand</FormLabel>
+                    <FormLabel>{tf("desiredStateLabel")}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Wie soll der Prozess zukünftig ablaufen?" rows={4} {...field} />
+                      <Textarea placeholder={tf("desiredStatePlaceholder")} rows={4} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -443,14 +426,11 @@ export function IntakeWizard() {
                 name="example_process"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Beispiel (Ist-Zustand)</FormLabel>
+                    <FormLabel>{tf("exampleLabel")}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Ein konkreter, typischer Durchlauf heute" rows={3} {...field} />
+                      <Textarea placeholder={tf("examplePlaceholder")} rows={3} {...field} />
                     </FormControl>
-                    <HelpText>
-                      Beschreibe, wie dieser Prozess oder diese Aufgabe heute
-                      tatsächlich abläuft — Schritt für Schritt.
-                    </HelpText>
+                    <HelpText>{tf("exampleHelp")}</HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -460,15 +440,15 @@ export function IntakeWizard() {
                 name="desired_example_process"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Beispiel (Soll-Zustand)</FormLabel>
+                    <FormLabel>{tf("desiredExampleLabel")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Wie derselbe Vorgang nach AI-Einsatz aussehen soll"
+                        placeholder={tf("desiredExamplePlaceholder")}
                         rows={3}
                         {...field}
                       />
                     </FormControl>
-                    <HelpText>Optional — wie der Vorgang nach AI-Einsatz aussehen soll.</HelpText>
+                    <HelpText>{tf("desiredExampleHelp")}</HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -483,16 +463,18 @@ export function IntakeWizard() {
                 <SelectField
                   form={form}
                   name="country"
-                  label="Land"
-                  placeholder="Bitte wählen"
+                  label={tf("countryLabel")}
+                  placeholder={placeholder}
                   options={COUNTRY_OPTIONS}
+                  enumKey="country"
                 />
                 <SelectField
                   form={form}
                   name="employee_category"
-                  label="Mitarbeiterlevel"
-                  placeholder="Bitte wählen"
+                  label={tf("employeeCategoryLabel")}
+                  placeholder={placeholder}
                   options={EMPLOYEE_CATEGORY_OPTIONS}
+                  enumKey="employeeCategory"
                 />
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -501,14 +483,11 @@ export function IntakeWizard() {
                   name="time_per_case_hours_current"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Zeit / Vorgang heute (Std.)</FormLabel>
+                      <FormLabel>{tf("timeCurrentLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" placeholder="0,5" {...field} />
+                        <Input type="number" step="0.1" placeholder={tf("timeCurrentPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>
-                        Wie viele Stunden dauert der Vorgang heute — einmalig, ohne
-                        KI? (0,5 = 30 Minuten)
-                      </HelpText>
+                      <HelpText>{tf("timeCurrentHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -518,14 +497,11 @@ export function IntakeWizard() {
                   name="time_per_case_hours_with_ai"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Zeit / Vorgang mit AI (Std.)</FormLabel>
+                      <FormLabel>{tf("timeAiLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" placeholder="0,1" {...field} />
+                        <Input type="number" step="0.1" placeholder={tf("timeAiPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>
-                        Wie viele Stunden würde derselbe Vorgang mit der KI-Lösung
-                        schätzungsweise dauern?
-                      </HelpText>
+                      <HelpText>{tf("timeAiHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -537,13 +513,11 @@ export function IntakeWizard() {
                   name="occurrences_per_employee_per_year"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vorgänge / Jahr</FormLabel>
+                      <FormLabel>{tf("occurrencesLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="500" {...field} />
+                        <Input type="number" placeholder={tf("occurrencesPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>
-                        Wie oft führt EIN Mitarbeiter diesen Vorgang pro Jahr aus?
-                      </HelpText>
+                      <HelpText>{tf("occurrencesHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -553,13 +527,11 @@ export function IntakeWizard() {
                   name="affected_employees_count"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Betroffene Mitarbeiter</FormLabel>
+                      <FormLabel>{tf("employeesLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="20" {...field} />
+                        <Input type="number" placeholder={tf("employeesPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>
-                        Wie viele Mitarbeiter führen diesen Vorgang regelmäßig aus?
-                      </HelpText>
+                      <HelpText>{tf("employeesHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -574,11 +546,12 @@ export function IntakeWizard() {
               <SelectField
                 form={form}
                 name="implementation_approach"
-                label="Implementierungsansatz"
-                placeholder="Bitte wählen"
+                label={tf("approachLabel")}
+                placeholder={placeholder}
                 options={IMPLEMENTATION_APPROACH_OPTIONS}
-                help={APPROACH_HELP}
-                note="Optional — kann später vom Admin ergänzt werden."
+                enumKey="implementationApproach"
+                helpKey="approach"
+                note={t("noteOptionalApproach")}
               />
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
@@ -586,11 +559,11 @@ export function IntakeWizard() {
                   name="implementation_cost_eur"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Implementierungskosten (einmalig, €)</FormLabel>
+                      <FormLabel>{tf("implCostLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" min={0} placeholder="0" {...field} />
+                        <Input type="number" min={0} placeholder={tf("implCostPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>Einmalige Setup-/Integrationskosten.</HelpText>
+                      <HelpText>{tf("implCostHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -600,11 +573,11 @@ export function IntakeWizard() {
                   name="estimated_license_cost_eur"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Lizenzkosten (wiederkehrend, € / Jahr)</FormLabel>
+                      <FormLabel>{tf("licenseCostLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="number" min={0} placeholder="0" {...field} />
+                        <Input type="number" min={0} placeholder={tf("licenseCostPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>0 = Open Source oder intern.</HelpText>
+                      <HelpText>{tf("licenseCostHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -619,11 +592,12 @@ export function IntakeWizard() {
               <SelectField
                 form={form}
                 name="data_classification"
-                label="Datenschutzklasse"
-                placeholder="Bitte wählen"
+                label={tf("dataClassLabel")}
+                placeholder={placeholder}
                 options={DATA_CLASSIFICATION_OPTIONS}
-                help={DATA_HELP}
-                note="Pflichtfeld"
+                enumKey="dataClassification"
+                helpKey="data"
+                note={t("noteRequired")}
               />
               <FormField
                 control={form.control}
@@ -635,14 +609,10 @@ export function IntakeWizard() {
                         <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                       </FormControl>
                       <span className="text-sm font-medium text-foreground">
-                        Enthält personenbezogene Daten (PII)
+                        {tf("piiLabel")}
                       </span>
                     </label>
-                    <HelpText>
-                      Löst zusammen mit regulatorischem Druck die Empfehlung zu
-                      DSFA und menschlicher Prüfung aus. Die Datenschutzklasse
-                      oben steuert stattdessen den Aufwands-Score.
-                    </HelpText>
+                    <HelpText>{tf("piiHelp")}</HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -650,40 +620,42 @@ export function IntakeWizard() {
               <SelectField
                 form={form}
                 name="adoption_type"
-                label="Verbindlichkeit der Nutzung"
-                placeholder="Bitte wählen"
+                label={tf("adoptionLabel")}
+                placeholder={placeholder}
                 options={ADOPTION_TYPE_OPTIONS}
-                help={ADOPTION_HELP}
-                note="Pflichtfeld"
+                enumKey="adoptionType"
+                helpKey="adoption"
+                note={t("noteRequired")}
               />
               <SelectField
                 form={form}
                 name="evidence_level"
-                label="Evidenzlevel"
-                placeholder="Bitte wählen"
+                label={tf("evidenceLabel")}
+                placeholder={placeholder}
                 options={EVIDENCE_LEVEL_OPTIONS}
-                help={EVIDENCE_HELP}
-                note="Pflichtfeld"
+                enumKey="evidenceLevel"
+                helpKey="evidence"
+                note={t("noteRequired")}
               />
 
               <fieldset className="space-y-3 border-t border-border pt-5">
-                <legend className="eyebrow mb-1">Handlungsdruck (optional)</legend>
+                <legend className="eyebrow mb-1">{t("pressure.legend")}</legend>
                 {(
                   [
-                    ["regulatory_pressure", "Regulatorischer Druck", "Gesetzliche oder aufsichtsrechtliche Anforderungen."],
-                    ["competitive_pressure", "Wettbewerbsdruck", "Mitbewerber setzen vergleichbare Lösungen bereits ein."],
-                    ["strategic_priority", "Strategische Priorität", "Teil der Unternehmensstrategie oder eines Vorstandsziels."],
+                    ["regulatory_pressure", t("pressure.regulatoryLabel"), t("pressure.regulatoryHint")],
+                    ["competitive_pressure", t("pressure.competitiveLabel"), t("pressure.competitiveHint")],
+                    ["strategic_priority", t("pressure.strategicLabel"), t("pressure.strategicHint")],
                   ] as const
                 ).map(([name, label, hint]) => (
                   <FormField
                     key={name}
                     control={form.control}
-                    name={name}
+                    name={name as Path<FormValues>}
                     render={({ field }) => (
                       <FormItem>
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
                           <FormControl>
-                            <Checkbox className="mt-0.5" checked={field.value} onCheckedChange={field.onChange} />
+                            <Checkbox className="mt-0.5" checked={Boolean(field.value)} onCheckedChange={field.onChange} />
                           </FormControl>
                           <span className="grid gap-0.5">
                             <span className="text-sm font-medium text-foreground">{label}</span>
@@ -701,9 +673,9 @@ export function IntakeWizard() {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Anmerkungen (optional)</FormLabel>
+                    <FormLabel>{tf("notesLabel")}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Zusätzliche Infos für die Bewertung" rows={3} {...field} />
+                      <Textarea placeholder={tf("notesPlaceholder")} rows={3} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -716,59 +688,58 @@ export function IntakeWizard() {
           {step === 4 && (
             <div className="space-y-6">
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Bitte prüfe deine Eingaben. Nach dem Absenden bewertet AECT den Use
-                Case; das Ergebnis siehst du auf der Fall-Detailseite.
+                {t("review.intro")}
               </p>
               <dl className="divide-y divide-border rounded-xl border border-border bg-card px-5 py-1">
-                <ReviewRow label="Titel" value={v.title} />
-                <ReviewRow label="Einreicher" value={v.submitter} />
-                <ReviewRow label="Abteilung" value={v.department} />
-                <ReviewRow label="Ist-Zustand" value={v.current_state} />
-                <ReviewRow label="Soll-Zustand" value={v.desired_state} />
-                <ReviewRow label="Beispiel (Ist)" value={v.example_process} />
-                <ReviewRow label="Beispiel (Soll)" value={v.desired_example_process ?? ""} />
-                <ReviewRow label="Land" value={v.country ? COUNTRY_LABELS[v.country] : ""} />
+                <ReviewRow label={tr("rowTitle")} value={v.title} />
+                <ReviewRow label={tr("rowSubmitter")} value={v.submitter} />
+                <ReviewRow label={tr("rowDepartment")} value={v.department} />
+                <ReviewRow label={tr("rowCurrentState")} value={v.current_state} />
+                <ReviewRow label={tr("rowDesiredState")} value={v.desired_state} />
+                <ReviewRow label={tr("rowExample")} value={v.example_process} />
+                <ReviewRow label={tr("rowDesiredExample")} value={v.desired_example_process ?? ""} />
+                <ReviewRow label={tr("rowCountry")} value={v.country ? te(`country.${v.country}`) : ""} />
                 <ReviewRow
-                  label="Mitarbeiterlevel"
-                  value={v.employee_category ? EMPLOYEE_CATEGORY_LABELS[v.employee_category] : ""}
+                  label={tr("rowEmployeeCategory")}
+                  value={v.employee_category ? te(`employeeCategory.${v.employee_category}`) : ""}
                 />
-                <ReviewRow label="Zeit / Vorgang heute" value={`${v.time_per_case_hours_current} Std.`} />
-                <ReviewRow label="Zeit / Vorgang mit AI" value={`${v.time_per_case_hours_with_ai} Std.`} />
-                <ReviewRow label="Vorgänge / Jahr" value={String(v.occurrences_per_employee_per_year)} />
-                <ReviewRow label="Betroffene Mitarbeiter" value={String(v.affected_employees_count)} />
+                <ReviewRow label={tr("rowTimeCurrent")} value={`${v.time_per_case_hours_current} ${tr("hoursUnit")}`} />
+                <ReviewRow label={tr("rowTimeAi")} value={`${v.time_per_case_hours_with_ai} ${tr("hoursUnit")}`} />
+                <ReviewRow label={tr("rowOccurrences")} value={String(v.occurrences_per_employee_per_year)} />
+                <ReviewRow label={tr("rowEmployees")} value={String(v.affected_employees_count)} />
                 <ReviewRow
-                  label="Implementierungsansatz"
-                  value={v.implementation_approach ? IMPLEMENTATION_APPROACH_LABELS[v.implementation_approach] : ""}
+                  label={tr("rowApproach")}
+                  value={v.implementation_approach ? te(`implementationApproach.${v.implementation_approach}`) : ""}
                 />
-                <ReviewRow label="Implementierungskosten" value={formatEUR(v.implementation_cost_eur || 0)} />
-                <ReviewRow label="Lizenzkosten / Jahr" value={formatEUR(v.estimated_license_cost_eur || 0)} />
+                <ReviewRow label={tr("rowImplCost")} value={fmt.eur(v.implementation_cost_eur || 0)} />
+                <ReviewRow label={tr("rowLicenseCost")} value={fmt.eur(v.estimated_license_cost_eur || 0)} />
                 <ReviewRow
-                  label="Datenschutzklasse"
-                  value={v.data_classification ? DATA_CLASSIFICATION_LABELS[v.data_classification] : ""}
+                  label={tr("rowDataClass")}
+                  value={v.data_classification ? te(`dataClassification.${v.data_classification}`) : ""}
                 />
-                <ReviewRow label="Personenbezogene Daten" value={v.contains_pii ? "Ja" : "Nein"} />
+                <ReviewRow label={tr("rowPii")} value={v.contains_pii ? tr("yes") : tr("no")} />
                 <ReviewRow
-                  label="Verbindlichkeit"
-                  value={v.adoption_type ? ADOPTION_TYPE_LABELS[v.adoption_type] : ""}
-                />
-                <ReviewRow
-                  label="Evidenzlevel"
-                  value={v.evidence_level ? EVIDENCE_LEVEL_LABELS[v.evidence_level] : ""}
+                  label={tr("rowAdoption")}
+                  value={v.adoption_type ? te(`adoptionType.${v.adoption_type}`) : ""}
                 />
                 <ReviewRow
-                  label="Handlungsdruck"
+                  label={tr("rowEvidence")}
+                  value={v.evidence_level ? te(`evidenceLevel.${v.evidence_level}`) : ""}
+                />
+                <ReviewRow
+                  label={tr("rowPressure")}
                   value={
                     [
-                      v.regulatory_pressure && "Regulatorisch",
-                      v.competitive_pressure && "Wettbewerb",
-                      v.strategic_priority && "Strategisch",
+                      v.regulatory_pressure && tr("pressureRegulatory"),
+                      v.competitive_pressure && tr("pressureCompetitive"),
+                      v.strategic_priority && tr("pressureStrategic"),
                     ]
                       .filter(Boolean)
-                      .join(", ") || "keiner"
+                      .join(", ") || tr("pressureNone")
                   }
                 />
                 {v.notes && v.notes.length > 0 && (
-                  <ReviewRow label="Anmerkungen" value={v.notes} />
+                  <ReviewRow label={tr("rowNotes")} value={v.notes} />
                 )}
               </dl>
 
@@ -794,17 +765,17 @@ export function IntakeWizard() {
             className={step === 0 ? "invisible" : ""}
           >
             <ArrowLeft className="size-4" />
-            Zurück
+            {tc("back")}
           </Button>
 
           {isLast ? (
             <Button type="submit" size="lg" disabled={isPending}>
               {isPending && <Loader2 className="size-4 animate-spin" />}
-              {isPending ? "Wird eingereicht …" : "Use Case einreichen"}
+              {isPending ? t("submitting") : t("submit")}
             </Button>
           ) : (
             <Button type="button" size="lg" onClick={goNext}>
-              Weiter
+              {tc("next")}
               <ArrowRight className="size-4" />
             </Button>
           )}

@@ -1,12 +1,16 @@
+"use client"
+
 import {
   AlertTriangle,
   ArrowRight,
   ChevronDown,
   XCircle,
 } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 import type { TriageResponse } from "@/types/api"
-import { formatEUR, formatNumber, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters"
+import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters"
+import { useFormat } from "@/lib/use-format"
 import {
   NetBenefitRationale,
   RoutingRationale,
@@ -21,6 +25,8 @@ import {
 // Ebene 2: aufklappbare Herkunft -- die vier Berechnungs-Zeilen, das Aufwand-
 // Score-Detail, der Nutzen-Rechenweg und die tragenden Routing-Signale.
 function BerechnungExpander({ triage }: { triage: TriageResponse }) {
+  const t = useTranslations("result")
+  const te = useTranslations("enums")
   const rows = triage.berechnung
   const sb = triage.score_breakdown
   if (rows === null || rows === undefined) return null
@@ -34,7 +40,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
   return (
     <details className="group rounded-2xl border border-border bg-card">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 text-sm font-medium text-foreground marker:content-none">
-        Wie wurde das berechnet?
+        {t("howCalculated")}
         <ChevronDown
           aria-hidden
           className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
@@ -59,7 +65,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
         {/* Aufwand-Score im Detail (Komplexitaet / Kosten / Datenschutz). */}
         {sb !== null && sb !== undefined && (
           <div className="border-t border-border pt-4">
-            <p className="eyebrow">Aufwand-Score im Detail</p>
+            <p className="eyebrow">{t("effortScoreDetail")}</p>
             <ul className="mt-3 space-y-2.5">
               {sb.components.map((c) => (
                 <li
@@ -85,7 +91,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
         {/* Nutzen-Rechenweg (Faktoren) -- auf Ebene 2 zulaessig. */}
         {triage.roi !== null && (
           <div className="border-t border-border pt-4">
-            <p className="eyebrow mb-2">Nutzen-Rechenweg</p>
+            <p className="eyebrow mb-2">{t("benefitCalc")}</p>
             <NetBenefitRationale roi={triage.roi} />
           </div>
         )}
@@ -93,7 +99,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
         {/* Tragende Routing-Signale + Risiko-Signale. */}
         {hasSignals && routing !== null && (
           <div className="border-t border-border pt-4">
-            <p className="eyebrow mb-3">Wofür die Empfehlung spricht</p>
+            <p className="eyebrow mb-3">{t("whatSupports")}</p>
             <RoutingRationale
               recommendation={routing.recommendation}
               automationSignals={routing.automation_signals}
@@ -101,7 +107,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
             />
             {routing.risk_flags.length > 0 && (
               <div className="mt-4">
-                <p className="text-xs text-muted-foreground">Risiko-Signale</p>
+                <p className="text-xs text-muted-foreground">{t("riskSignals")}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {routing.risk_flags.map((flag, i) => (
                     <span
@@ -120,7 +126,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
         {/* Angaben-Qualitaet: nur zeigen, wenn strukturell etwas fehlt. */}
         {triage.feasibility !== null && !triage.feasibility.is_feasible && (
           <div className="border-t border-border pt-4">
-            <p className="eyebrow mb-2">Hinweis zur Angaben-Qualität</p>
+            <p className="eyebrow mb-2">{t("qualityHint")}</p>
             {triage.feasibility.recommendation !== null && (
               <p className="text-sm leading-relaxed text-foreground/85">
                 {triage.feasibility.recommendation}
@@ -133,7 +139,7 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
                     key={i}
                     className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground"
                   >
-                    {f}
+                    {te(`feasibilityFlag.${f}`)}
                   </span>
                 ))}
               </div>
@@ -150,6 +156,9 @@ function BerechnungExpander({ triage }: { triage: TriageResponse }) {
 // Aktions-Buttons. Die Klartext-Saetze (management/berechnung) kommen
 // deterministisch aus dem Backend, kein LLM.
 export function CaseResult({ triage }: { triage: TriageResponse }) {
+  const t = useTranslations("result")
+  const tz = useTranslations("zones")
+  const fmt = useFormat()
   const zone = triage.zone
   const zoneConfig = zone ? ZONE_CONFIG[zone.final_zone as ZoneKey] : null
   const mgmt = triage.management ?? null
@@ -163,7 +172,7 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
         <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm">
           <div className="flex items-center gap-2.5 font-medium text-destructive">
             <XCircle className="size-4 shrink-0" />
-            Vorfilter nicht bestanden
+            {t("prefilterFailed")}
           </div>
           {triage.vorfilter !== null &&
             triage.vorfilter.failed_criteria.length > 0 && (
@@ -195,9 +204,9 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
             aria-hidden
           />
           <div className="min-w-0">
-            <p className="eyebrow">Bewertungszone</p>
+            <p className="eyebrow">{t("zoneLabel")}</p>
             <h2 className={`mt-1.5 text-2xl font-bold tracking-tight ${zoneConfig.text}`}>
-              {zoneConfig.labelDE}
+              {tz(`${zone.final_zone}.label`)}
             </h2>
             <p className="mt-2 max-w-prose text-[0.9375rem] leading-relaxed text-foreground/90">
               {mgmt.zonen_satz}
@@ -207,7 +216,7 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
                 className={`mt-3 inline-flex items-center gap-1.5 rounded-full border border-current/25 px-2.5 py-1 text-[0.7rem] font-medium tracking-wide ${zoneConfig.text}`}
               >
                 <ArrowRight className="size-3" />
-                Hochgestuft wegen Handlungsdruck
+                {t("elevated")}
               </span>
             )}
           </div>
@@ -216,14 +225,14 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
 
       {/* Empfehlung als ganzer Satz (inkl. Belastbarkeit der Empfehlung). */}
       <section className="rounded-2xl border border-border bg-card px-6 py-5">
-        <p className="eyebrow">Empfehlung</p>
+        <p className="eyebrow">{t("recommendation")}</p>
         <p className="mt-2 max-w-prose text-[0.9375rem] leading-relaxed text-foreground">
           {mgmt.empfehlung_satz}
         </p>
         {triage.routing !== null && triage.routing.requires_human_review && (
           <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-sm font-medium text-[var(--zone-risk-fg)]">
             <AlertTriangle className="size-3.5" />
-            Menschliche Prüfung empfohlen
+            {t("humanReviewRecommended")}
           </p>
         )}
       </section>
@@ -232,18 +241,18 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
       {triage.roi !== null && (
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
           <div className="bg-card px-6 py-5">
-            <p className="eyebrow">Erwarteter Nettonutzen</p>
+            <p className="eyebrow">{t("netBenefit")}</p>
             <p className="stat-value mt-2.5 text-[1.75rem] text-foreground">
-              {formatEUR(triage.roi.net_expected_benefit_eur)}
+              {fmt.eur(triage.roi.net_expected_benefit_eur)}
             </p>
-            <p className="mt-1.5 text-xs text-muted-foreground">pro Jahr</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{t("perYear")}</p>
           </div>
           <div className="bg-card px-6 py-5">
-            <p className="eyebrow">Eingesparte Stunden</p>
+            <p className="eyebrow">{t("hoursSaved")}</p>
             <p className="stat-value mt-2.5 text-[1.75rem] text-foreground/80">
-              {formatNumber(triage.roi.hours_per_year)}
+              {fmt.number(triage.roi.hours_per_year)}
             </p>
-            <p className="mt-1.5 text-xs text-muted-foreground">pro Jahr</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{t("perYear")}</p>
           </div>
         </div>
       )}

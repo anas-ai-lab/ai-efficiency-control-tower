@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Loader2, Info } from "lucide-react"
 
 import { generateIdeas } from "@/app/actions"
@@ -27,12 +28,13 @@ function DraftCard({
   draft: IdeationDraft
   onAdopt: (draft: IdeationDraft) => void
 }) {
+  const t = useTranslations("ideation")
   const [expanded, setExpanded] = useState(false)
 
   const fields: { label: string; text: string }[] = [
-    { label: "Ist-Zustand", text: draft.current_state },
-    { label: "Soll-Zustand", text: draft.desired_state },
-    { label: "Beispielprozess", text: draft.example_process },
+    { label: t("fieldCurrentState"), text: draft.current_state },
+    { label: t("fieldDesiredState"), text: draft.desired_state },
+    { label: t("fieldExample"), text: draft.example_process },
   ]
 
   return (
@@ -66,7 +68,7 @@ function DraftCard({
         aria-expanded={expanded}
         className="mt-2 text-xs font-medium text-[var(--ink)] underline-offset-4 hover:underline"
       >
-        {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+        {expanded ? t("showLess") : t("showMore")}
       </button>
 
       <p className="mt-4 border-t border-border/60 pt-3 text-sm leading-relaxed text-muted-foreground">
@@ -76,7 +78,7 @@ function DraftCard({
       {draft.open_questions.length > 0 && (
         <div className="mt-4">
           <h4 className="text-xs font-semibold tracking-tight text-foreground">
-            Vor der Einreichung klären
+            {t("openQuestions")}
           </h4>
           <ul className="mt-1.5 space-y-1">
             {draft.open_questions.map((q, i) => (
@@ -99,7 +101,7 @@ function DraftCard({
           size="sm"
           onClick={() => onAdopt(draft)}
         >
-          In Einreichung übernehmen
+          {t("adopt")}
         </Button>
       </div>
     </article>
@@ -107,6 +109,8 @@ function DraftCard({
 }
 
 export function IdeationView() {
+  const t = useTranslations("ideation")
+  const tHint = useTranslations("llmAction")
   const router = useRouter()
 
   const [problem, setProblem] = useState("")
@@ -127,11 +131,7 @@ export function IdeationView() {
       const res = await generateIdeas(problem)
       setResult(res)
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Die Entwürfe konnten nicht erzeugt werden. Bitte erneut versuchen.",
-      )
+      setError(e instanceof Error ? e.message : t("error"))
     } finally {
       setIsLoading(false)
     }
@@ -160,15 +160,12 @@ export function IdeationView() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-12">
       <header className="mb-8">
-        <p className="eyebrow">Ideen-Assistent</p>
+        <p className="eyebrow">{t("eyebrow")}</p>
         <h1 className="mt-2 text-pretty text-[1.65rem] font-semibold leading-tight tracking-tight text-foreground">
-          Vom Problem zum Entwurf
+          {t("title")}
         </h1>
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-          Beschreibe ein Problem oder einen ineffizienten Ablauf — der Assistent
-          erzeugt daraus 1 bis 3 Use-Case-Entwürfe für die Einreichung. Entwürfe
-          enthalten bewusst keine Zahlen: Mengen, Zeiten und Evidenz ergänzt du
-          bei der Einreichung.
+          {t("lead")}
         </p>
       </header>
 
@@ -180,14 +177,12 @@ export function IdeationView() {
             maxLength={MAX_LEN}
             rows={6}
             disabled={isLoading}
-            placeholder="z. B. Anfragen aus dem Postfach werden manuell kategorisiert und weitergeleitet; das dauert lange und ist fehleranfällig."
-            aria-label="Problembeschreibung"
+            placeholder={t("placeholder")}
+            aria-label={t("ariaProblem")}
           />
           <div className="mt-1.5 flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              {tooShort
-                ? `Mindestens ${MIN_LEN} Zeichen.`
-                : "Je konkreter das Problem, desto tragfähiger die Entwürfe."}
+              {tooShort ? t("minChars", { min: MIN_LEN }) : t("hint")}
             </p>
             <p className="font-mono text-xs text-muted-foreground tabular-nums">
               {length} / {MAX_LEN}
@@ -212,7 +207,7 @@ export function IdeationView() {
           >
             <div className="flex items-center gap-2.5 px-5 pt-4 pb-3 text-sm font-medium text-foreground">
               <Loader2 className="size-4 animate-spin text-[var(--ink)]" />
-              Entwürfe werden erzeugt …
+              {t("generating")}
             </div>
             <div
               className="progress-bar relative h-0.5 w-full overflow-hidden bg-border/60"
@@ -224,7 +219,7 @@ export function IdeationView() {
               <Skeleton className="h-3 w-[78%]" />
             </div>
             <p className="px-5 pb-4 text-xs text-muted-foreground tnum">
-              Dauert in der Regel 5–30 Sekunden · LLM-Call
+              {tHint("durationHint")}
             </p>
           </div>
         ) : (
@@ -235,7 +230,7 @@ export function IdeationView() {
             disabled={!canSubmit}
             className="w-full"
           >
-            Entwürfe erzeugen
+            {t("generate")}
           </Button>
         )}
       </div>
@@ -245,17 +240,13 @@ export function IdeationView() {
           {result.flagged_input && (
             <p className="mb-4 flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
               <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <span>
-                Die Eingabe enthielt Muster, die wie Anweisungen an das System
-                aussehen — sie wurden als Daten behandelt.
-              </span>
+              <span>{t("flagged")}</span>
             </p>
           )}
 
           {result.drafts.length === 0 ? (
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Zu dieser Beschreibung ließen sich keine Entwürfe erzeugen. Bitte
-              das Problem etwas konkreter formulieren.
+              {t("emptyResult")}
             </p>
           ) : (
             <>
@@ -265,7 +256,7 @@ export function IdeationView() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-muted-foreground">
-                Entwürfe werden nicht gespeichert.
+                {t("notSaved")}
               </p>
             </>
           )}

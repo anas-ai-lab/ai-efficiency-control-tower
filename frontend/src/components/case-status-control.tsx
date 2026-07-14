@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import type { CaseStatus } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
@@ -37,6 +38,8 @@ export function CaseStatusControl({
   caseId: string;
   initialStatus: CaseStatus;
 }) {
+  const t = useTranslations("statusControl");
+  const ts = useTranslations("status");
   const [status, setStatus] = useState<CaseStatus>(initialStatus);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function CaseStatusControl({
     } catch (e) {
       setStatus(prev);
       setError(
-        e instanceof Error ? e.message : "Statuswechsel fehlgeschlagen.",
+        e instanceof Error ? e.message : t("error"),
       );
     } finally {
       setPending(false);
@@ -81,7 +84,7 @@ export function CaseStatusControl({
                   className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
                   aria-hidden
                 />
-                {STATUS_CONFIG[s].labelDE}
+                {ts(s)}
               </SelectItem>
             ))}
           </SelectContent>

@@ -1,6 +1,7 @@
 "use client"
 
 import { Check } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 
 export interface StepIndicatorProps {
@@ -14,16 +15,17 @@ export interface StepIndicatorProps {
 // visuell klar getrennt -- nicht nur eingefaerbter Text.
 export function StepIndicator({ steps, current }: StepIndicatorProps) {
   const total = steps.length
+  const t = useTranslations("intake")
 
   return (
-    <nav aria-label="Fortschritt" className="w-full">
+    <nav aria-label={t("progressAria")} className="w-full">
       {/* Mobile: kompakte Zeile statt gedraengter Knotenkette. */}
       <div className="flex items-baseline justify-between sm:hidden">
         <p className="text-sm font-medium text-foreground">
           {steps[current]?.label}
         </p>
         <p className="text-xs text-muted-foreground tnum">
-          Schritt {current + 1} / {total}
+          {t("progressStep", { current: current + 1, total })}
         </p>
       </div>
       <div

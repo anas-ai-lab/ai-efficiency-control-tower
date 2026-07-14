@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import {
@@ -9,15 +10,8 @@ import {
 } from "@/app/actions";
 import { LlmAction } from "@/components/llm-action";
 import { Button } from "@/components/ui/button";
+import { useFormat } from "@/lib/use-format";
 import type { ArchitectureSketchResponse } from "@/types/api";
-
-function formatGeneratedAt(iso: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
-}
 
 // Liest das aktive App-Theme aus der .dark-Klasse auf <html> und reagiert auf
 // Wechsel. Der ThemeToggle togglet nur diese Klasse (kein next-themes, kein
@@ -42,6 +36,7 @@ function useIsDark(): boolean {
 // Theme folgt dem App-Theme; bei Wechsel wird neu gezeichnet. Wirft mermaid
 // beim Parsen/Rendern, faellt die Anzeige auf den Quelltext zurueck (Zustand e).
 function MermaidDiagram({ source }: { source: string }) {
+  const t = useTranslations("sketch");
   const isDark = useIsDark();
   const rawId = useId();
   const [svg, setSvg] = useState<string | null>(null);
@@ -92,8 +87,7 @@ function MermaidDiagram({ source }: { source: string }) {
           </pre>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Die Skizze konnte nicht gezeichnet werden — hier der zugrunde liegende
-          Mermaid-Quelltext.
+          {t("renderFailed")}
         </p>
       </div>
     );
@@ -107,7 +101,7 @@ function MermaidDiagram({ source }: { source: string }) {
         className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-6 text-sm text-muted-foreground"
       >
         <Loader2 className="size-4 animate-spin text-[var(--ink)]" />
-        Skizze wird gezeichnet …
+        {t("drawing")}
       </div>
     );
   }
@@ -122,9 +116,10 @@ function MermaidDiagram({ source }: { source: string }) {
 }
 
 function SectionShell({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("sketch");
   return (
     <section className="mt-10">
-      <p className="eyebrow mb-3">Architektur-Skizze</p>
+      <p className="eyebrow mb-3">{t("section")}</p>
       {children}
     </section>
   );
@@ -152,6 +147,8 @@ export function SketchView({
   initialSketch,
   hasSolution,
 }: SketchViewProps) {
+  const t = useTranslations("sketch");
+  const fmt = useFormat();
   const [sketch, setSketch] = useState<ArchitectureSketchResponse | null>(
     initialSketch,
   );
@@ -160,12 +157,7 @@ export function SketchView({
   const [error, setError] = useState<string | null>(null);
 
   async function runGenerate(isRegen: boolean): Promise<void> {
-    if (
-      isRegen &&
-      !window.confirm(
-        "Die bestehende Skizze wird durch einen neuen Entwurf ersetzt. Fortfahren?",
-      )
-    ) {
+    if (isRegen && !window.confirm(t("confirmRegen"))) {
       return;
     }
     setIsLoading(true);
@@ -200,8 +192,7 @@ export function SketchView({
         <MermaidDiagram source={sketch.mermaid_source} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Erzeugt am {formatGeneratedAt(sketch.generated_at)} · KI-generierter
-            Entwurf — zu prüfen, kein verbindliches Zielbild.
+            {t("generatedAt", { date: fmt.dateShort(sketch.generated_at) })}
           </p>
           <Button
             type="button"
@@ -215,7 +206,7 @@ export function SketchView({
             ) : (
               <RefreshCw />
             )}
-            {isLoading ? "Wird neu erzeugt …" : "Neu erzeugen"}
+            {isLoading ? t("regenerating") : t("regenerate")}
           </Button>
         </div>
         {error !== null && (
@@ -238,17 +229,16 @@ export function SketchView({
       <SectionShell>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Eine Architektur-Skizze braucht einen übernommenen Lösungsvorschlag
-            als Grundlage — für diesen Use Case liegt keiner vor.
+            {t("noProposal")}
           </p>
           <Button
             type="button"
             size="xl"
             className="mt-4 w-full"
             disabled
-            title="Zuerst einen Lösungsvorschlag erzeugen und übernehmen."
+            title={t("noProposalTooltip")}
           >
-            Skizze erzeugen
+            {t("generate")}
           </Button>
         </div>
       </SectionShell>
@@ -262,15 +252,14 @@ export function SketchView({
   return (
     <SectionShell>
       <p className="mb-3 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Eine generische Architektur-Skizze aus dem Lösungsvorschlag — fünf
-        Bausteintypen als Entwurf, kein verbindliches Zielbild.
+        {t("intro")}
       </p>
       <LlmAction
         onAction={() => runGenerate(false)}
         isLoading={isLoading}
-        idleLabel="Skizze erzeugen"
-        loadingLabel="Skizze wird erzeugt …"
-        hint="Dauert einige Sekunden · LLM-Call"
+        idleLabel={t("generate")}
+        loadingLabel={t("generating")}
+        hint={t("hint")}
         error={error}
       />
     </SectionShell>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import {
   CartesianGrid,
@@ -18,8 +19,9 @@ import {
 } from "recharts";
 
 import type { CaseStatus, CaseSummary, TriageZone } from "@/types/api";
-import { formatEUR, formatNumber, ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
+import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
+import { useFormat } from "@/lib/use-format";
 import {
   Select,
   SelectContent,
@@ -86,13 +88,6 @@ function toPoint(c: CaseSummary): MatrixPoint | null {
   };
 }
 
-// Aufwand-Score mit einer Nachkommastelle, z. B. 6,5.
-function formatScore(value: number): string {
-  return new Intl.NumberFormat("de-DE", {
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
 // Chart-Farben aus den --zone-*-Tokens (und dezente Achsen-/Grid-Farben). Die
 // Tokens sind CSS custom properties; recharts setzt fill/stroke als
 // SVG-Attribut, wo var(--x) NICHT aufgeloest wird -- daher via getComputedStyle
@@ -141,6 +136,14 @@ function MatrixTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
+  return <TooltipBody p={p} />;
+}
+
+function TooltipBody({ p }: { p: MatrixPoint }) {
+  const t = useTranslations("board");
+  const tz = useTranslations("zones");
+  const ts = useTranslations("status");
+  const fmt = useFormat();
   const zone = ZONE_CONFIG[p.zone as ZoneKey];
   return (
     <div className="max-w-[16rem] rounded-lg border border-border bg-popover px-3 py-2.5 text-xs shadow-md">
@@ -148,24 +151,24 @@ function MatrixTooltip({
       <p className="mt-0.5 text-muted-foreground">{p.department}</p>
       <div className="mt-2 flex items-center gap-1.5">
         <span className={cn("size-1.5 rounded-full", zone.dot)} aria-hidden />
-        <span className={cn("font-medium", zone.text)}>{zone.labelDE}</span>
+        <span className={cn("font-medium", zone.text)}>{tz(`${p.zone}.label`)}</span>
       </div>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
-        <dt className="text-muted-foreground">Nettonutzen</dt>
+        <dt className="text-muted-foreground">{t("tipNet")}</dt>
         <dd className="text-right font-mono text-popover-foreground">
-          {formatEUR(p.x)}
+          {fmt.eur(p.x)}
         </dd>
-        <dt className="text-muted-foreground">Aufwand</dt>
+        <dt className="text-muted-foreground">{t("tipEffort")}</dt>
         <dd className="text-right font-mono text-popover-foreground">
-          {formatScore(p.y)} / 9
+          {fmt.score1(p.y)} / 9
         </dd>
-        <dt className="text-muted-foreground">Stunden/Jahr</dt>
+        <dt className="text-muted-foreground">{t("tipHours")}</dt>
         <dd className="text-right font-mono text-popover-foreground">
-          {formatNumber(p.z)}
+          {fmt.number(p.z)}
         </dd>
-        <dt className="text-muted-foreground">Status</dt>
+        <dt className="text-muted-foreground">{t("tipStatus")}</dt>
         <dd className="text-right text-popover-foreground">
-          {STATUS_CONFIG[p.status].labelDE}
+          {ts(p.status)}
         </dd>
       </dl>
     </div>
@@ -173,6 +176,10 @@ function MatrixTooltip({
 }
 
 export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
+  const t = useTranslations("board");
+  const ts = useTranslations("status");
+  const tz = useTranslations("zones");
+  const fmt = useFormat();
   const router = useRouter();
   const tokens = useThemeTokens();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -208,7 +215,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
       {/* Status-Filter */}
       <div className="mb-5 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="eyebrow">Status</span>
+          <span className="eyebrow">{t("status")}</span>
           <Select
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -217,14 +224,14 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
+              <SelectItem value="all">{t("allStatus")}</SelectItem>
               {STATUS_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>
                   <span
                     className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
                     aria-hidden
                   />
-                  {STATUS_CONFIG[s].labelDE}
+                  {ts(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -238,7 +245,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
           {points.length === 0 ? (
             <div className="flex h-[520px] items-center justify-center text-center">
               <p className="text-sm text-muted-foreground">
-                Keine bewerteten Use Cases für diesen Filter.
+                {t("emptyFiltered")}
               </p>
             </div>
           ) : (
@@ -258,7 +265,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                     transform: "rotate(180deg)",
                   }}
                 >
-                  Machbarkeit · leichter umsetzbar ↑
+                  {t("yAxisTitle")}
                 </span>
               </div>
 
@@ -278,7 +285,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                           domain={xDomain}
                           height={30}
                           tickMargin={8}
-                          tickFormatter={(v: number) => formatEUR(v)}
+                          tickFormatter={(v: number) => fmt.eur(v)}
                           tick={{ fontSize: 11, fill: tokens.muted }}
                           stroke={tokens.border}
                           tickLine={{ stroke: tokens.border }}
@@ -349,18 +356,18 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                       Hilfslinien aufspannen (oben = hohe Machbarkeit). Positionen
                       an die Margins + YAxis-Breite (links ~44px) angepasst. */}
                   <div className="pointer-events-none absolute inset-0 hidden select-none text-[10px] font-medium tracking-wide text-muted-foreground/70 uppercase sm:block">
-                    <span className="absolute top-2 left-14">Nice to have</span>
-                    <span className="absolute top-2 right-6">Quick Wins</span>
-                    <span className="absolute bottom-11 left-14">Vermeiden</span>
+                    <span className="absolute top-2 left-14">{t("quadNiceToHave")}</span>
+                    <span className="absolute top-2 right-6">{t("quadQuickWins")}</span>
+                    <span className="absolute bottom-11 left-14">{t("quadAvoid")}</span>
                     <span className="absolute right-6 bottom-11 text-right">
-                      Strategische Investitionen
+                      {t("quadStrategic")}
                     </span>
                   </div>
                 </div>
 
                 {/* Unteres Band: x-Achsentitel. */}
                 <p className="mt-1.5 text-center text-xs font-medium tracking-wide text-muted-foreground">
-                  Erwarteter Nettonutzen / Jahr
+                  {t("xAxisTitle")}
                 </p>
               </div>
             </div>
@@ -368,20 +375,18 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
 
           {/* Achsen-Untertitel + Blasen-Legende */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <span>Aufwand-Score 1–9, invertiert</span>
-            <span>Blasengröße = eingesparte Stunden/Jahr</span>
+            <span>{t("effortScoreNote")}</span>
+            <span>{t("bubbleNote")}</span>
           </div>
 
           {unscoredCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              {unscoredCount}{" "}
-              {unscoredCount === 1 ? "Fall" : "Faelle"} ohne Bewertung (Vorfilter
-              nicht bestanden).{" "}
+              {t("unscored", { count: unscoredCount })}{" "}
               <Link
                 href="/cases"
                 className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-2 hover:decoration-[var(--ink)]"
               >
-                In der Ideenliste ansehen
+                {t("viewInList")}
               </Link>
             </p>
           )}
@@ -395,7 +400,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
         >
           <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none">
             <span className="flex items-center justify-between gap-2">
-              Wie liest sich diese Matrix?
+              {t("howToRead")}
               <ChevronDown
                 aria-hidden
                 className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
@@ -404,26 +409,19 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
           </summary>
           <dl className="mt-4 space-y-3 leading-relaxed text-muted-foreground">
             <div>
-              <dt className="font-medium text-foreground">x-Achse</dt>
-              <dd>
-                Erwarteter Nettonutzen pro Jahr — theoretisches Potenzial x
-                Nutzungsfaktor x Evidenzfaktor, abzüglich Lizenzkosten.
-              </dd>
+              <dt className="font-medium text-foreground">{t("xAxis")}</dt>
+              <dd>{t("xAxisDesc")}</dd>
             </div>
             <div>
-              <dt className="font-medium text-foreground">y-Achse</dt>
-              <dd>
-                Machbarkeit — der Aufwand-Score (Komplexität 1–5 + Kosten 0–2 +
-                Datenschutz 0–2) invertiert: je höher der Punkt, desto geringer
-                der Umsetzungsaufwand.
-              </dd>
+              <dt className="font-medium text-foreground">{t("yAxis")}</dt>
+              <dd>{t("yAxisDesc")}</dd>
             </div>
             <div>
-              <dt className="font-medium text-foreground">Blase</dt>
-              <dd>Größe = eingesparte Arbeitsstunden pro Jahr.</dd>
+              <dt className="font-medium text-foreground">{t("bubble")}</dt>
+              <dd>{t("bubbleDesc")}</dd>
             </div>
             <div>
-              <dt className="font-medium text-foreground">Farbe</dt>
+              <dt className="font-medium text-foreground">{t("color")}</dt>
               <dd>
                 <ul className="mt-1 space-y-1">
                   {(
@@ -435,7 +433,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                         aria-hidden
                       />
                       <span className={ZONE_CONFIG[z].text}>
-                        {ZONE_CONFIG[z].labelDE}
+                        {tz(`${z}.label`)}
                       </span>
                     </li>
                   ))}

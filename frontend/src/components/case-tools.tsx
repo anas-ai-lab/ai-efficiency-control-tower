@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
 import type {
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
+  const t = useTranslations("caseTools");
   const [sharpenBusy, setSharpenBusy] = useState(false);
   const [sharpenError, setSharpenError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SharpenedCaseResponse | null>(null);
@@ -45,7 +47,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
     try {
       setDraft(await sharpenCase(caseId));
     } catch (e) {
-      setSharpenError(e instanceof Error ? e.message : "Schärfen fehlgeschlagen.");
+      setSharpenError(e instanceof Error ? e.message : t("sharpenError"));
     } finally {
       setSharpenBusy(false);
     }
@@ -66,7 +68,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
       setCompliance(await generateComplianceHints(caseId));
     } catch (e) {
       setComplianceError(
-        e instanceof Error ? e.message : "Compliance-Prüfung fehlgeschlagen.",
+        e instanceof Error ? e.message : t("complianceError"),
       );
     } finally {
       setComplianceBusy(false);
@@ -75,7 +77,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
 
   return (
     <section className="rounded-2xl border border-border bg-muted/30 p-5">
-      <p className="eyebrow">Admin-Werkzeuge</p>
+      <p className="eyebrow">{t("title")}</p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button
@@ -84,12 +86,12 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
           disabled={sharpenBusy || draft !== null}
         >
           {sharpenBusy && <Loader2 className="size-4 animate-spin" />}
-          Schärfen
+          {t("sharpen")}
         </Button>
         <SolutionModal caseId={caseId} hasSolution={hasSolution} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Schärfen und Lösung sind LLM-Aktionen · 5–30 Sekunden.
+        {t("llmHint")}
       </p>
 
       <ActionError message={sharpenError} className="mt-3" />
@@ -102,7 +104,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
 
       {/* Management-Teil: Compliance-Pruefung mit Inline-Ergebnis. */}
       <div className="mt-6 border-t border-border pt-5">
-        <p className="eyebrow">Management</p>
+        <p className="eyebrow">{t("management")}</p>
         <div className="mt-3">
           <Button
             variant="outline"
@@ -111,12 +113,12 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
           >
             {complianceBusy && <Loader2 className="size-4 animate-spin" />}
             {hasCompliance || compliance !== null
-              ? "Compliance neu prüfen"
-              : "Compliance-Prüfung"}
+              ? t("complianceReCheck")
+              : t("complianceCheck")}
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          RAG-gestützte Hinweise (EU AI Act Art. 50, ggf. DSGVO Art. 35) · LLM-Aktion.
+          {t("complianceHint")}
         </p>
 
         {complianceBusy && (
@@ -126,7 +128,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
             className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"
           >
             <Loader2 className="size-4 animate-spin text-[var(--ink)]" />
-            Compliance-Hinweise werden geprüft …
+            {t("complianceChecking")}
           </p>
         )}
 
@@ -140,7 +142,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Keine spezifischen Compliance-Hinweise für diesen Fall.
+                {t("complianceNone")}
               </p>
             )}
             {compliance.citations.length > 0 && (

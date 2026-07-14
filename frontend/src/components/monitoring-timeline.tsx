@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import type { MonitoringEntry } from "@/types/api";
 import { addMonitoringNote } from "@/app/actions";
@@ -9,16 +10,10 @@ import { ActionError } from "@/components/action-error";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormat } from "@/lib/use-format";
 import { cn } from "@/lib/utils";
 
 const NOTE_MAX = 2000;
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 // Monitoring-Zeitleiste im Case-Detail. Die API liefert Eintraege chronologisch
 // AUFSTEIGEND; hier absteigend dargestellt (neuestes oben). Neue Notizen werden
@@ -33,6 +28,8 @@ export function MonitoringTimeline({
   caseId: string;
   initialEntries: MonitoringEntry[];
 }) {
+  const t = useTranslations("monitoring");
+  const fmt = useFormat();
   // Anzeige absteigend: initiale (aufsteigende) Liste einmal umdrehen.
   const [entries, setEntries] = useState<MonitoringEntry[]>(() =>
     [...initialEntries].reverse(),
@@ -52,11 +49,7 @@ export function MonitoringTimeline({
       setEntries((prev) => [entry, ...prev]);
       setNote("");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Der Eintrag konnte nicht gespeichert werden.",
-      );
+      setError(e instanceof Error ? e.message : t("noteSaveError"));
     } finally {
       setPending(false);
     }
@@ -64,12 +57,12 @@ export function MonitoringTimeline({
 
   return (
     <section>
-      <p className="eyebrow mb-3">Monitoring-Zeitleiste</p>
+      <p className="eyebrow mb-3">{t("timelineTitle")}</p>
 
       {/* Notiz hinzufuegen */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
         <Textarea
-          placeholder="Beobachtung, Fortschritt oder Entscheidung notieren …"
+          placeholder={t("notePlaceholder")}
           value={note}
           onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
           maxLength={NOTE_MAX}
@@ -84,7 +77,7 @@ export function MonitoringTimeline({
             onClick={handleAdd}
             disabled={pending || note.trim().length === 0}
           >
-            {pending ? "Wird gespeichert …" : "Eintrag hinzufügen"}
+            {pending ? t("saving") : t("addEntry")}
           </Button>
         </div>
         <ActionError message={error} className="mt-3" />
@@ -93,7 +86,7 @@ export function MonitoringTimeline({
       {/* Zeitleiste */}
       {entries.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">
-          Noch keine Monitoring-Einträge.
+          {t("noEntries")}
         </p>
       ) : (
         <ol className="relative mt-6 space-y-6 border-l border-border pl-6">
@@ -109,7 +102,7 @@ export function MonitoringTimeline({
               />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <time className="text-xs text-muted-foreground tabular-nums">
-                  {formatDateTime(e.created_at)}
+                  {fmt.dateTime(e.created_at)}
                 </time>
                 <StatusBadge status={e.status_snapshot} />
               </div>

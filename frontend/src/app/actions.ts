@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import type {
   ArchitectureSketchEnvelope,
@@ -72,35 +72,26 @@ const RULE_TIMEOUT_MS = 15_000;
 const LLM_TIMEOUT_MS = 75_000;
 const LLM_TOOL_LOOP_TIMEOUT_MS = 135_000;
 
-// Bekannte englische Backend-Details (generische Fehler wie "Case not found",
-// die im API-Vertrag englisch bleiben) werden hier auf Deutsch gemappt. Die
-// aktionsspezifischen Details (z. B. "Kein offener Loesungs-Entwurf ...") liefert
-// das Backend bereits deutsch und erklaerend -- sie werden direkt gerendert
-// (V4.1-S5 Task D). Nicht-String- oder fehlende Details fallen auf eine deutsche
-// Status-Meldung zurueck -- nie ein roher Status/kein rohes Englisch in der UI.
-const ERROR_MESSAGES_DE: Record<string, string> = {
-  "Case not found":
-    "Der Fall wurde nicht gefunden. Bitte die Triage erneut starten.",
-  "Invalid or missing admin credentials":
-    "Nicht angemeldet — bitte als Admin einloggen, um diese Aktion auszuführen.",
-  "Invalid or missing API key":
-    "Nicht angemeldet — bitte als Admin einloggen, um diese Aktion auszuführen.",
-  "Admin auth not configured on server":
-    "Server-Konfiguration unvollständig: Auf dem Backend ist kein Admin-Zugang hinterlegt.",
-  "API key not configured on server":
-    "Server-Konfiguration unvollständig: Auf dem Backend ist kein Admin-Zugang hinterlegt.",
-  "Request with this Idempotency-Key is already in progress":
-    "Diese Einreichung wird bereits verarbeitet. Einen Moment warten und erneut versuchen.",
-  "Token budget exceeded for this API key":
-    "Stundenbudget für Sprachmodell-Anfragen ist erreicht. Bitte kurz warten und erneut versuchen.",
-  "Internal error": "Interner Serverfehler. Bitte später erneut versuchen.",
+// Bekannte englische Backend-Details (generische Vertrags-Fehler wie
+// "Case not found", die im API-Vertrag englisch bleiben) -> stabiler
+// apiErrors-Katalogschluessel (V4.1-S6, sprachabhaengig). Aktionsspezifische
+// Details (z. B. "Kein offener Loesungs-Entwurf ...") liefert das Backend bereits
+// in der angeforderten Sprache (lang) und erklaerend -- sie werden direkt
+// gerendert. Nicht-String/fehlende Details fallen auf eine Status-Meldung zurueck.
+const ERROR_KEY_BY_DETAIL: Record<string, string> = {
+  "Case not found": "caseNotFound",
+  "Invalid or missing admin credentials": "notLoggedIn",
+  "Invalid or missing API key": "notLoggedIn",
+  "Admin auth not configured on server": "adminNotConfigured",
+  "API key not configured on server": "adminNotConfigured",
+  "Request with this Idempotency-Key is already in progress": "alreadyProcessing",
+  "Token budget exceeded for this API key": "tokenBudget",
+  "Internal error": "internalError",
 };
 
 // ApiError traegt den HTTP-Status, damit Aufrufer, die zwischen Status-Codes
 // unterscheiden muessen (Architektur-Skizze: 409 = kein Loesungsvorschlag,
-// 5xx = KI-Dienst nicht erreichbar), das serverseitig tun koennen. Extends
-// Error -> bestehende `e instanceof Error`-Pfade und e.message-Anzeigen bleiben
-// unveraendert; der Status ist ein zusaetzliches Feld.
+// 5xx = KI-Dienst nicht erreichbar), das serverseitig tun koennen.
 class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -111,37 +102,36 @@ class ApiError extends Error {
   }
 }
 
-function statusMessageDE(status: number): string {
-  if (status === 401 || status === 403) {
-    return "Zugriff verweigert — Authentifizierung prüfen.";
-  }
-  if (status === 404) {
-    return "Die angeforderte Ressource wurde nicht gefunden.";
-  }
-  if (status === 409) {
-    return "Konflikt: Die Anfrage kollidiert mit einer laufenden Verarbeitung.";
-  }
-  if (status === 422) {
-    return "Die Eingabe ist ungültig oder unvollständig.";
-  }
-  if (status === 429) {
-    return "Zu viele Anfragen — bitte kurz warten und erneut versuchen.";
-  }
-  if (status >= 500) {
-    return "Serverfehler. Bitte später erneut versuchen.";
-  }
-  return `Anfrage fehlgeschlagen (HTTP ${status}).`;
+// Schmaler Aufruf-Typ fuer den apiErrors-Translator (key + optionale Werte) --
+// vermeidet die strikten next-intl-Key-Generics in den Fehler-Helfern.
+type ApiErrorT = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
+
+function statusMessageKey(status: number): string {
+  if (status === 401 || status === 403) return "status401";
+  if (status === 404) return "status404";
+  if (status === 409) return "status409";
+  if (status === 422) return "status422";
+  if (status === 429) return "status429";
+  if (status >= 500) return "status5xx";
+  return "statusDefault";
 }
 
-// Leitet die anzuzeigende deutsche Fehlermeldung aus dem Backend-detail ab
-// (Task D). String-Details: bekannte englische auf Deutsch mappen, alles andere
-// (bereits deutsche, aktionsspezifische Texte) direkt uebernehmen. Strukturierte
-// Guard-Details ({reason, message, violations}) tragen die Begruendung im
-// message-Feld. Nicht-String/fehlend -> deutsche Status-Meldung (nie roher
-// Status).
-function messageFromDetail(detail: unknown, status: number): string {
+// Leitet die anzuzeigende (sprachabhaengige) Fehlermeldung aus dem Backend-detail
+// ab. String-Details: bekannte englische Vertrags-Fehler auf den Katalog mappen,
+// alles andere (bereits lokalisierte, aktionsspezifische Backend-Texte) direkt
+// uebernehmen. Strukturierte Guard-Details ({reason, message, violations}) tragen
+// die (lokalisierte) Begruendung im message-Feld. Nicht-String/fehlend -> Status.
+function messageFromDetail(
+  detail: unknown,
+  status: number,
+  t: ApiErrorT,
+): string {
   if (typeof detail === "string" && detail.length > 0) {
-    return ERROR_MESSAGES_DE[detail] ?? detail;
+    const key = ERROR_KEY_BY_DETAIL[detail];
+    return key ? t(key) : detail;
   }
   if (
     detail !== null &&
@@ -151,11 +141,12 @@ function messageFromDetail(detail: unknown, status: number): string {
   ) {
     return (detail as { message: string }).message;
   }
-  return statusMessageDE(status);
+  return t(statusMessageKey(status), { status });
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    const t = (await getTranslations("apiErrors")) as unknown as ApiErrorT;
     let detail: unknown;
     try {
       const body = (await res.json()) as { detail?: unknown };
@@ -163,7 +154,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
     } catch {
       // JSON-Parsing gescheitert, HTTP-Status reicht als Fehlermeldung
     }
-    throw new ApiError(res.status, messageFromDetail(detail, res.status));
+    throw new ApiError(res.status, messageFromDetail(detail, res.status, t));
   }
   return res.json() as Promise<T>;
 }
@@ -204,14 +195,11 @@ async function apiFetch<T>(
   } catch (e) {
     // AbortSignal.timeout wirft DOMException name="TimeoutError" (F-014);
     // alles andere ist ein Verbindungsfehler (Backend nicht erreichbar).
+    const t = await getTranslations("apiErrors");
     if (e instanceof Error && e.name === "TimeoutError") {
-      throw new Error(
-        "Zeitüberschreitung: Der Server hat nicht rechtzeitig geantwortet. Bitte erneut versuchen.",
-      );
+      throw new Error(t("timeout"));
     }
-    throw new Error(
-      "Verbindung zum Backend fehlgeschlagen. Läuft der API-Server (uvicorn, Port 8000)?",
-    );
+    throw new Error(t("connectionFailed"));
   }
   return handleResponse<T>(res);
 }
@@ -508,12 +496,10 @@ export async function generateArchitectureSketch(
     }
     // Timeout/Verbindungsfehler (apiFetch wirft hier ein einfaches Error):
     // wie "Dienst nicht erreichbar" behandeln -> Retry anbieten.
+    const t = await getTranslations("apiErrors");
     return {
       kind: "unavailable",
-      message:
-        e instanceof Error
-          ? e.message
-          : "KI-Dienst derzeit nicht erreichbar — bitte später erneut versuchen.",
+      message: e instanceof Error ? e.message : t("aiUnavailable"),
     };
   }
 }
@@ -529,6 +515,7 @@ export async function generateArchitectureSketch(
 export async function login(
   password: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const t = (await getTranslations("apiErrors")) as unknown as ApiErrorT;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}/auth/login`, {
@@ -539,31 +526,21 @@ export async function login(
       signal: AbortSignal.timeout(RULE_TIMEOUT_MS),
     });
   } catch {
-    return {
-      ok: false,
-      error:
-        "Verbindung zum Backend fehlgeschlagen. Läuft der API-Server (Port 8000)?",
-    };
+    return { ok: false, error: t("connectionFailed") };
   }
   if (!res.ok) {
-    if (res.status === 401) return { ok: false, error: "Falsches Passwort." };
+    if (res.status === 401) return { ok: false, error: t("wrongPassword") };
     if (res.status === 503) {
-      return {
-        ok: false,
-        error: "Admin-Login ist auf dem Server nicht eingerichtet.",
-      };
+      return { ok: false, error: t("loginNotConfigured") };
     }
     if (res.status === 429) {
-      return {
-        ok: false,
-        error: "Zu viele Login-Versuche — bitte kurz warten und erneut versuchen.",
-      };
+      return { ok: false, error: t("tooManyLogins") };
     }
-    return { ok: false, error: statusMessageDE(res.status) };
+    return { ok: false, error: t(statusMessageKey(res.status), { status: res.status }) };
   }
   const token = extractSessionToken(res);
   if (token === null) {
-    return { ok: false, error: "Login-Antwort ohne Session-Token." };
+    return { ok: false, error: t("noSessionToken") };
   }
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,

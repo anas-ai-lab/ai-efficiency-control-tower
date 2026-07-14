@@ -1,24 +1,26 @@
 import type { Metadata } from "next"
+import { getTranslations } from "next-intl/server"
 
 import { IntakeWizard } from "@/components/intake-wizard"
 
-export const metadata: Metadata = {
-  title: "Use Case einreichen | AECT",
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("intake.page")
+  return { title: t("metaTitle") }
 }
 
 // Einreichen-Wizard (V4-P7): public. Mehrschritt-Formular ohne Score-/
 // Zonen-Vorschau -- das Ergebnis lebt auf der Fall-Detailseite.
-export default function EinreichenPage() {
+export default async function EinreichenPage() {
+  const t = await getTranslations("intake.page")
   return (
     <main className="mx-auto max-w-2xl px-5 py-10 sm:px-6 sm:py-12">
       <header className="mb-8">
-        <p className="eyebrow">Erfassung</p>
+        <p className="eyebrow">{t("eyebrow")}</p>
         <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-foreground">
-          Use Case einreichen
+          {t("title")}
         </h1>
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-          Beschreibe deinen Use Case in wenigen Schritten. AECT bewertet ihn
-          anschließend automatisch.
+          {t("lead")}
         </p>
       </header>
 

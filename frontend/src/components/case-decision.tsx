@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle, XCircle } from "lucide-react";
 
 import type { ReviewerDecision } from "@/types/api";
@@ -23,14 +24,15 @@ interface Props {
 
 const DECISION_VIEW: Record<
   ReviewerDecision,
-  { label: string; icon: React.ComponentType<{ className?: string }>; tone: string }
+  { icon: React.ComponentType<{ className?: string }>; tone: string }
 > = {
-  approved: { label: "Freigegeben", icon: CheckCircle2, tone: "text-[var(--zone-win)]" },
-  rejected: { label: "Abgelehnt", icon: XCircle, tone: "text-destructive" },
-  pending: { label: "Ausstehend", icon: Circle, tone: "text-muted-foreground" },
+  approved: { icon: CheckCircle2, tone: "text-[var(--zone-win)]" },
+  rejected: { icon: XCircle, tone: "text-destructive" },
+  pending: { icon: Circle, tone: "text-muted-foreground" },
 };
 
 export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) {
+  const t = useTranslations("decision");
   const [note, setNote] = useState(reviewerNote ?? "");
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
       await recordDecision(caseId, decision, trimmed.length > 0 ? trimmed : null);
       hardRefresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Entscheidung fehlgeschlagen.");
+      setError(e instanceof Error ? e.message : t("error"));
       setBusy(null);
     }
   }
@@ -55,11 +57,11 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
     <div className="rounded-2xl border border-border bg-muted/30 p-5">
       <div className="flex items-center gap-2">
         <Icon className={`size-4 ${view.tone}`} />
-        <span className="text-sm font-medium text-foreground">{view.label}</span>
+        <span className="text-sm font-medium text-foreground">{t(reviewerDecision)}</span>
       </div>
       <Textarea
         className="mt-3"
-        placeholder="Optionale Begründung"
+        placeholder={t("notePlaceholder")}
         value={note}
         onChange={(e) => setNote(e.target.value)}
         maxLength={2000}
@@ -69,14 +71,14 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
       <ActionError message={error} className="mt-3" />
       <div className="mt-3 flex gap-2">
         <Button onClick={() => handleDecide("approved")} disabled={busy !== null}>
-          {busy === "approved" ? "Wird gespeichert …" : "Freigeben"}
+          {busy === "approved" ? t("saving") : t("approve")}
         </Button>
         <Button
           variant="destructive"
           onClick={() => handleDecide("rejected")}
           disabled={busy !== null}
         >
-          {busy === "rejected" ? "Wird gespeichert …" : "Ablehnen"}
+          {busy === "rejected" ? t("saving") : t("reject")}
         </Button>
       </div>
     </div>

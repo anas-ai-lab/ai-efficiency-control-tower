@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesTable } from "@/components/cases-table";
 import { RetryButton } from "@/components/retry-button";
 import type { CaseSummary, SimilarityPair } from "@/types/api";
 
-export const metadata: Metadata = {
-  title: "Ideenliste | AECT",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("cases");
+  return { title: t("metaTitle") };
+}
 
 // Immer frisch laden: nach einem Statuswechsel + Reload muss der neue Stand
 // erscheinen (listCases nutzt cache: "no-store"; force-dynamic verhindert
@@ -15,6 +17,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CasesPage() {
+  const t = await getTranslations("cases");
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   let pairs: SimilarityPair[] = [];
@@ -34,8 +37,7 @@ export default async function CasesPage() {
     cases = await listCases();
   } catch (e) {
     cases = [];
-    loadError =
-      e instanceof Error ? e.message : "Die Liste konnte nicht geladen werden.";
+    loadError = e instanceof Error ? e.message : t("loadErrorFallback");
   }
 
   pairs = (await pairsPromise)?.pairs ?? [];
@@ -46,14 +48,12 @@ export default async function CasesPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
-      <p className="eyebrow">Ideenliste</p>
+      <p className="eyebrow">{t("pageEyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        Alle eingereichten Use Cases
+        {t("pageTitle")}
       </h1>
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        Das gesamte Portfolio auf einen Blick: filtern nach Status und Zone,
-        sortieren nach Nettonutzen oder Einreichdatum, den Lifecycle-Status
-        direkt in der Zeile setzen.
+        {t("pageLead")}
       </p>
 
       <div className="mt-8">

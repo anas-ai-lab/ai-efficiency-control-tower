@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { ChevronDown, Loader2 } from "lucide-react"
 
 import type { CaseSummary, MonitoringEntry } from "@/types/api"
@@ -9,7 +10,7 @@ import { listMonitoringEntries } from "@/app/actions"
 import { CaseStatusControl } from "@/components/case-status-control"
 import { MonitoringTimeline } from "@/components/monitoring-timeline"
 import { ZoneBadge } from "@/components/status-badge"
-import { formatEUR } from "@/lib/formatters"
+import { useFormat } from "@/lib/use-format"
 import { cn } from "@/lib/utils"
 
 // Monitoring-Bereich (V4-P7): eine Zeile pro freigegebenem/umgesetztem Case mit
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils"
 // die Fall-Detailseite (nicht die Ideenliste).
 
 function MonitoringRow({ c }: { c: CaseSummary }) {
+  const t = useTranslations("monitoring")
+  const fmt = useFormat()
   const [expanded, setExpanded] = useState(false)
   const [entries, setEntries] = useState<MonitoringEntry[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -34,11 +37,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
       try {
         setEntries(await listMonitoringEntries(c.id))
       } catch (e) {
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Die Einträge konnten nicht geladen werden.",
-        )
+        setError(e instanceof Error ? e.message : t("entriesLoadError"))
       } finally {
         setLoading(false)
       }
@@ -63,7 +62,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
         <div className="hidden font-mono text-sm tabular-nums text-foreground/85 md:block">
           {c.net_expected_benefit_eur === null
             ? "—"
-            : formatEUR(c.net_expected_benefit_eur)}
+            : fmt.eur(c.net_expected_benefit_eur)}
         </div>
         <CaseStatusControl caseId={c.id} initialStatus={c.status} />
         <button
@@ -72,7 +71,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
           aria-expanded={expanded}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--ink)] outline-none transition-colors hover:bg-[var(--ink-subtle)] focus-visible:ring-2 focus-visible:ring-ring/40"
         >
-          Verlauf
+          {t("history")}
           <ChevronDown
             className={cn(
               "size-3.5 transition-transform",
@@ -87,7 +86,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
           {loading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              Verlauf wird geladen …
+              {t("historyLoading")}
             </p>
           ) : error !== null ? (
             <p
@@ -106,13 +105,11 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
 }
 
 export function MonitoringBoard({ cases }: { cases: CaseSummary[] }) {
+  const t = useTranslations("monitoring")
   if (cases.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
-        <p className="text-sm text-muted-foreground">
-          Noch keine freigegebenen oder umgesetzten Use Cases. Freigaben erfolgen
-          im Report der Fall-Detailseite.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("empty")}</p>
       </div>
     )
   }
