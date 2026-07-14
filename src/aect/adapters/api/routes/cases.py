@@ -113,6 +113,10 @@ class CaseSummary(BaseModel):
     # geprueft" statt "—"; das "—" bleibt dem echten Vorfilter-Fail vorbehalten
     # (zone/net auch fuer Admins None). Fuer Admins immer True.
     assessment_visible: bool
+    # discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
+    # aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle. Fuer alle
+    # Aufrufer sichtbar (analog status) -- kein Bewertungsfeld.
+    discontinued: bool
 
 
 @router.get("", response_model=list[CaseSummary])
@@ -174,6 +178,7 @@ async def list_cases(
                 ),
                 feasibility_definition=FEASIBILITY_DEFINITION[lang],
                 assessment_visible=visible,
+                discontinued=case.discontinued,
             )
         )
     return summaries
@@ -408,6 +413,69 @@ async def update_status(
         status=case.status.value,
         updated_at=case.status_updated_at,
     )
+
+
+class DiscontinuedResponse(BaseModel):
+    """Aktueller discontinued-Zustand eines Case nach POST /discontinue bzw.
+    /reinstate (Monitoring, V4.1-S7)."""
+
+    case_id: str
+    discontinued: bool
+
+
+@router.post("/{case_id}/discontinue", response_model=DiscontinuedResponse)
+@limiter.limit("10/minute")
+async def discontinue_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> DiscontinuedResponse:
+    """Markiert einen Case als eingestellt (Monitoring, V4.1-S7).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
+
+    Reines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein
+    LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = await service.set_discontinued(case_id, True)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return DiscontinuedResponse(case_id=case.id, discontinued=case.discontinued)
+
+
+@router.post("/{case_id}/reinstate", response_model=DiscontinuedResponse)
+@limiter.limit("10/minute")
+async def reinstate_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> DiscontinuedResponse:
+    """Hebt die "eingestellt"-Markierung eines Case auf (Monitoring, V4.1-S7).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
+
+    Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    case = await service.set_discontinued(case_id, False)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return DiscontinuedResponse(case_id=case.id, discontinued=case.discontinued)
 
 
 class SetImplementationApproachRequest(BaseModel):
@@ -1446,6 +1514,9 @@ class CaseDetailResponse(BaseModel):
     id: str
     submitted_at: datetime
     status: str
+    # discontinued (Monitoring, V4.1-S7): reines Zusatzflag, unabhaengig vom
+    # Lifecycle-Status -- fuer alle Aufrufer sichtbar (analog status).
+    discontinued: bool
     # Vor-Bewertungs-Zustand (V4.1, ADR-0050): der Case wurde ohne
     # implementation_approach eingereicht -- triage/report sind dann immer null
     # (auch fuer Admins, es gibt nichts zu zeigen), unabhaengig von der Board-
@@ -1522,6 +1593,7 @@ async def get_case_detail(
         id=case.id,
         submitted_at=case.submitted_at,
         status=case.status.value,
+        discontinued=case.discontinued,
         evaluation_pending=is_pending,
         # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) -- reines
         # Lesen, keine Projektion. Erklaerbarkeit: pruefbar gegen die erfassten

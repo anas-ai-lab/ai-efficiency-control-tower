@@ -87,6 +87,14 @@ class InMemoryRepository:
         case.status = status
         case.status_updated_at = updated_at
 
+    def set_discontinued(self, case_id: str, discontinued: bool) -> None:
+        """Setzt das discontinued-Flag (Monitoring, V4.1-S7). No-op bei
+        unbekannter case_id (analog delete/update_field/update_status)."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.discontinued = discontinued
+
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None:
@@ -150,6 +158,9 @@ class InMemoryRepository:
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None:
         self.reevaluate(case_id, use_case, result)
+
+    async def set_discontinued_async(self, case_id: str, discontinued: bool) -> None:
+        self.set_discontinued(case_id, discontinued)
 
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
         self.add_monitoring_entry(entry)

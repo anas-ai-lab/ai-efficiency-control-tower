@@ -8,6 +8,7 @@ import { ChevronDown, Loader2 } from "lucide-react"
 import type { CaseSummary, MonitoringEntry } from "@/types/api"
 import { listMonitoringEntries } from "@/app/actions"
 import { CaseStatusControl } from "@/components/case-status-control"
+import { DiscontinueControl } from "@/components/discontinue-control"
 import { MonitoringTimeline } from "@/components/monitoring-timeline"
 import { ZoneBadge } from "@/components/status-badge"
 import { useFormat } from "@/lib/use-format"
@@ -26,6 +27,10 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
   const [entries, setEntries] = useState<MonitoringEntry[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // discontinued (V4.1-S7): eigener State statt direktem c.discontinued-Zugriff,
+  // damit DiscontinueControl den Wert optimistisch aktualisieren kann -- die
+  // rote Hervorhebung unten liest denselben State.
+  const [discontinued, setDiscontinued] = useState(c.discontinued)
 
   async function toggle() {
     const next = !expanded
@@ -45,7 +50,12 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
   }
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div
+      className={cn(
+        "border-b border-border last:border-b-0",
+        discontinued && "border-l-2 border-l-destructive/60 bg-destructive/5",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
         <div className="min-w-0 flex-1">
           <Link
@@ -54,7 +64,14 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
           >
             {c.title}
           </Link>
-          <p className="mt-0.5 text-xs text-muted-foreground">{c.department}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {c.department}
+            {discontinued && (
+              <span className="ml-2 font-medium text-destructive">
+                {t("discontinuedBadge")}
+              </span>
+            )}
+          </p>
         </div>
         <div className="hidden sm:block">
           <ZoneBadge zone={c.zone} />
@@ -65,6 +82,11 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
             : fmt.eur(c.net_expected_benefit_eur)}
         </div>
         <CaseStatusControl caseId={c.id} initialStatus={c.status} />
+        <DiscontinueControl
+          caseId={c.id}
+          discontinued={discontinued}
+          onDiscontinuedChange={setDiscontinued}
+        />
         <button
           type="button"
           onClick={toggle}

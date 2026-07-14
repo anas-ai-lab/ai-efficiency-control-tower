@@ -315,6 +315,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/discontinue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discontinue Case
+         * @description Markiert einen Case als eingestellt (Monitoring, V4.1-S7).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
+         *
+         *     Reines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein
+         *     LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["discontinue_case_cases__case_id__discontinue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/reinstate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reinstate Case
+         * @description Hebt die "eingestellt"-Markierung eines Case auf (Monitoring, V4.1-S7).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
+         *
+         *     Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["reinstate_case_cases__case_id__reinstate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/implementation-approach": {
         parameters: {
             query?: never;
@@ -967,6 +1026,8 @@ export interface components {
             submitted_at: string;
             /** Status */
             status: string;
+            /** Discontinued */
+            discontinued: boolean;
             /** Evaluation Pending */
             evaluation_pending: boolean;
             eingaben: components["schemas"]["UseCaseInput"];
@@ -1018,6 +1079,8 @@ export interface components {
             feasibility_definition: string;
             /** Assessment Visible */
             assessment_visible: boolean;
+            /** Discontinued */
+            discontinued: boolean;
         };
         /**
          * ComplianceCitationResponse
@@ -1177,6 +1240,17 @@ export interface components {
             reviewer_note: string | null;
             /** Decided At */
             decided_at: string | null;
+        };
+        /**
+         * DiscontinuedResponse
+         * @description Aktueller discontinued-Zustand eines Case nach POST /discontinue bzw.
+         *     /reinstate (Monitoring, V4.1-S7).
+         */
+        DiscontinuedResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Discontinued */
+            discontinued: boolean;
         };
         /**
          * EmployeeCategory
@@ -2274,6 +2348,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discontinue_case_cases__case_id__discontinue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscontinuedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reinstate_case_cases__case_id__reinstate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscontinuedResponse"];
                 };
             };
             /** @description Validation Error */

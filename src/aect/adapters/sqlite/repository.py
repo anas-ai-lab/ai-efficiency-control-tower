@@ -69,6 +69,13 @@ Kaskade in delete() (Art. 17, ADR-0038), die die Eintraege eines Case
 mit-loescht. list_monitoring_entries sortiert ORDER BY created_at, id (der
 Sekundaerschluessel id haelt die Reihenfolge stabil, wenn zwei Eintraege in
 dieselbe sekundengenaue ISO-Zeit fallen).
+
+discontinued (Monitoring, V4.1-S7): nullable-freie INTEGER-Spalte NOT NULL
+DEFAULT 0 (SQLite kennt kein natives BOOLEAN -- 0/1, analog contains_pii im
+Pydantic-Modell aber hier auf Spaltenebene). Geschrieben ueber
+set_discontinued() -- dediziertes UPDATE (F-011-Muster, analog update_status),
+kein INSERT OR REPLACE der ganzen Zeile. Dieselbe PRAGMA-Migrationsstrategie
+wie embedding/status/architecture_sketch.
 """
 
 from __future__ import annotations
@@ -112,7 +119,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     architecture_sketch     TEXT,
     sharpening_draft        TEXT,
     solution_business       TEXT,
-    solution_draft          TEXT
+    solution_draft          TEXT,
+    discontinued            INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -138,15 +146,17 @@ _INSERT_SQL = (
     "(id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business, solution_draft) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
+    "discontinued) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business, solution_draft "
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
+    "discontinued "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -154,7 +164,8 @@ _SELECT_ALL_SQL = (
     "SELECT id, submitted_at, use_case_json, result_json, "
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
-    "architecture_sketch, sharpening_draft, solution_business, solution_draft "
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
+    "discontinued "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -200,6 +211,11 @@ _RECORD_DECISION_SQL = (
 _UPDATE_STATUS_SQL = (
     "UPDATE submitted_cases SET status = ?, status_updated_at = ? WHERE id = ?"
 )
+
+# set_discontinued (Monitoring, V4.1-S7): dediziertes UPDATE der einen Spalte,
+# analog _UPDATE_STATUS_SQL (F-011). Kein Eintrag in _UPDATE_FIELD_SQL, weil
+# der Wert ein bool ist (int 0/1), nicht der str | None-Vertrag von update_field.
+_SET_DISCONTINUED_SQL = "UPDATE submitted_cases SET discontinued = ? WHERE id = ?"
 
 # reevaluate (ADR-0050): dediziertes UPDATE beider zusammengehoeriger Blob-
 # Spalten (use_case_json + result_json) in einem Statement, analog
@@ -383,7 +399,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (16-Tupel) -> SubmittedCase."""
+    """SQLite-Row (17-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -402,6 +418,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         sharpening_draft,
         solution_business,
         solution_draft,
+        discontinued_int,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -444,6 +461,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
             str(solution_business) if solution_business is not None else None
         ),
         solution_draft=(str(solution_draft) if solution_draft is not None else None),
+        discontinued=bool(discontinued_int),
     )
 
 
@@ -535,6 +553,11 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN solution_draft TEXT"
                 )
+            if "discontinued" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN discontinued "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
             # ADR-0051: der Lifecycle-Status 'integrated' wurde entfernt.
             # Bestehende Rows idempotent auf 'implemented' heben -- sonst wirft
             # CaseStatus('integrated') beim Lesen ValueError (fail loud).
@@ -579,6 +602,7 @@ class SQLiteRepository:
                     case.sharpening_draft,
                     case.solution_business,
                     case.solution_draft,
+                    int(case.discontinued),
                 ),
             )
 
@@ -659,6 +683,16 @@ class SQLiteRepository:
             conn.execute(
                 _UPDATE_STATUS_SQL, (status.value, updated_at.isoformat(), case_id)
             )
+
+    def set_discontinued(self, case_id: str, discontinued: bool) -> None:
+        """Setzt das discontinued-Flag (Monitoring, V4.1-S7).
+
+        Dediziertes UPDATE der einen Spalte -- kein INSERT OR REPLACE der
+        ganzen Zeile (F-011-Lost-Update-Muster, analog update_status). No-op
+        bei unbekannter case_id (analog delete/update_field).
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(_SET_DISCONTINUED_SQL, (int(discontinued), case_id))
 
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
@@ -750,6 +784,10 @@ class SQLiteRepository:
     ) -> None:
         """Async-Wrapper um update_status() via asyncio.to_thread (Lifecycle-ADR)."""
         await asyncio.to_thread(self.update_status, case_id, status, updated_at)
+
+    async def set_discontinued_async(self, case_id: str, discontinued: bool) -> None:
+        """Async-Wrapper um set_discontinued() via asyncio.to_thread (V4.1-S7)."""
+        await asyncio.to_thread(self.set_discontinued, case_id, discontinued)
 
     async def reevaluate_async(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
