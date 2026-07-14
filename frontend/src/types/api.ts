@@ -405,6 +405,9 @@ export interface CaseDetailResponse {
   id: string;
   submitted_at: string;
   status: CaseStatus;
+  // discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
+  // aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle.
+  discontinued: boolean;
   // Vor-Bewertungs-Zustand (V4.1, ADR-0050): ohne Implementierungsansatz sind
   // triage/report immer null (auch fuer Admins). Ein Admin ergaenzt den Ansatz.
   evaluation_pending: boolean;
@@ -438,6 +441,9 @@ export interface CaseSummary {
   // Board-Entscheidung ausstehend) -> "wird geprueft" statt "—" (das "—" bleibt
   // dem echten Vorfilter-Fail vorbehalten). Fuer Admins immer True.
   assessment_visible: boolean;
+  // discontinued (Monitoring, V4.1-S7): reines Zusatzflag, unabhaengig vom
+  // CaseStatus-Lifecycle. Fuer alle Aufrufer sichtbar (analog status).
+  discontinued: boolean;
 }
 
 // ---- Decision Response (/cases/{id}/decision POST) -------------------------
@@ -459,6 +465,13 @@ export interface StatusUpdateResponse {
   case_id: string;
   status: CaseStatus;
   updated_at: string | null;
+}
+
+// ---- discontinued-Flag (/cases/{id}/discontinue|reinstate POST, V4.1-S7) ---
+
+export interface DiscontinuedResponse {
+  case_id: string;
+  discontinued: boolean;
 }
 
 // ---- Monitoring-Zeitleiste (/cases/{id}/monitoring, P3) --------------------

@@ -358,6 +358,13 @@
     "saving": "Wird gespeichert …",
     "addEntry": "Eintrag hinzufügen",
     "noteSaveError": "Der Eintrag konnte nicht gespeichert werden.",
+    "discontinue": "Use Case eingestellt",
+    "discontinueTooltip": "Markiert den Use Case als nicht mehr aktiv beobachtet — der Lifecycle-Status bleibt unverändert.",
+    "reinstate": "Reaktivieren",
+    "reinstateTooltip": "Hebt die Markierung „eingestellt“ auf — der Use Case gilt wieder als aktiv beobachtet.",
+    "discontinuedBadge": "Eingestellt",
+    "discontinueError": "Der Use Case konnte nicht als eingestellt markiert werden.",
+    "reinstateError": "Der Use Case konnte nicht reaktiviert werden.",
     "noEntries": "Noch keine Monitoring-Einträge."
   },
   "board": {

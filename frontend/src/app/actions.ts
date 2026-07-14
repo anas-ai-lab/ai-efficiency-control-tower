@@ -12,6 +12,7 @@ import type {
   CaseSummary,
   ComplianceHintsResponse,
   DecisionResponse,
+  DiscontinuedResponse,
   IdeationResponse,
   ImplementationApproach,
   MonitoringEntry,
@@ -401,6 +402,31 @@ export async function updateCaseStatus(
     `/cases/${caseId}/status`,
     RULE_TIMEOUT_MS,
     JSON.stringify({ status }),
+  );
+  revalidateCase(caseId);
+  return res;
+}
+
+// discontinued-Flag (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
+// aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle. Kein Request-Body
+// (analog sharpen/accept) -- der Endpoint-Name traegt die Bedeutung.
+export async function discontinueCase(
+  caseId: string,
+): Promise<DiscontinuedResponse> {
+  const res = await apiFetch<DiscontinuedResponse>(
+    `/cases/${caseId}/discontinue`,
+    RULE_TIMEOUT_MS,
+  );
+  revalidateCase(caseId);
+  return res;
+}
+
+export async function reinstateCase(
+  caseId: string,
+): Promise<DiscontinuedResponse> {
+  const res = await apiFetch<DiscontinuedResponse>(
+    `/cases/${caseId}/reinstate`,
+    RULE_TIMEOUT_MS,
   );
   revalidateCase(caseId);
   return res;

@@ -157,6 +157,14 @@ class SubmittedCase:
     -- der Freigabe-Akt darf einen manuell gesetzten Status ueberschreiben
     (Lifecycle-ADR).
 
+    discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr aktiv
+    beobachtet", UNABHAENGIG vom sechsstufigen CaseStatus-Lifecycle (kein neuer
+    CaseStatus-Member -- ein eingestellter Case behaelt seinen Lifecycle-Status,
+    z. B. weiterhin APPROVED). Default False. Setzbar ueber POST
+    /cases/{id}/discontinue (True) bzw. /cases/{id}/reinstate (False),
+    TriageService.set_discontinued() -- dediziertes Per-Feld-UPDATE (F-011),
+    kein save() der ganzen Zeile.
+
     IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
@@ -196,6 +204,7 @@ class SubmittedCase:
     decided_at: datetime | None = None
     status: CaseStatus = CaseStatus.SUBMITTED
     status_updated_at: datetime | None = None
+    discontinued: bool = False
 
 
 @dataclass(frozen=True)

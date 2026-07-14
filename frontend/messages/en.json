@@ -358,6 +358,13 @@
     "saving": "Saving …",
     "addEntry": "Add entry",
     "noteSaveError": "The entry could not be saved.",
+    "discontinue": "Mark as discontinued",
+    "discontinueTooltip": "Marks the use case as no longer actively monitored — the lifecycle status stays unchanged.",
+    "reinstate": "Reinstate",
+    "reinstateTooltip": "Clears the \"discontinued\" mark — the use case counts as actively monitored again.",
+    "discontinuedBadge": "Discontinued",
+    "discontinueError": "The use case could not be marked as discontinued.",
+    "reinstateError": "The use case could not be reinstated.",
     "noEntries": "No monitoring entries yet."
   },
   "board": {

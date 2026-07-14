@@ -1053,6 +1053,41 @@ class TriageService:
         )
         return case
 
+    async def set_discontinued(
+        self, case_id: str, discontinued: bool
+    ) -> SubmittedCase | None:
+        """Setzt das discontinued-Flag eines Case (Monitoring, V4.1-S7).
+
+        Reines Zusatzflag, unabhaengig vom CaseStatus-Lifecycle (kein neuer
+        CaseStatus-Member) -- ein eingestellter Case behaelt seinen Status.
+
+        Persistenz: dediziertes UPDATE ueber RepositoryPort.set_discontinued_
+        async (F-011-Muster, analog update_status) statt save() der ganzen
+        Zeile -- kein Lost-Update gegenueber parallelen LLM-Feld-
+        Schreibvorgaengen (sharpen/propose/compliance) auf demselben Case.
+
+        Audit-Trail: case_discontinued_changed wird geloggt (case_id,
+        discontinued) -- reine Allowlist-Felder, kein Freitext
+        (PII-Allowlist-konform, analog case_status_changed).
+
+        Returns:
+            None wenn case_id nicht existiert (Route mapped das auf 404).
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+
+        await self._repository.set_discontinued_async(case_id, discontinued)
+        case.discontinued = discontinued
+
+        logger = structlog.get_logger()
+        logger.info(
+            "case_discontinued_changed",
+            case_id=case_id,
+            discontinued=discontinued,
+        )
+        return case
+
     async def add_monitoring_note(
         self, case_id: str, note: str
     ) -> MonitoringEntry | None:

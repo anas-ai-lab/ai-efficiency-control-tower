@@ -1382,6 +1382,91 @@ class TestTriageServiceUpdateStatus:
 
 
 # ---------------------------------------------------------------------------
+# discontinued-Flag (Monitoring, V4.1-S7)
+# ---------------------------------------------------------------------------
+
+
+class TestTriageServiceSetDiscontinued:
+    async def test_default_is_false(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.discontinued is False
+
+    async def test_set_discontinued_true_sets_field_on_returned_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        updated = await service.set_discontinued(case.id, True)
+
+        assert updated is not None
+        assert updated.discontinued is True
+
+    async def test_set_discontinued_persists_to_repository(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.set_discontinued(case.id, True)
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.discontinued is True
+
+    async def test_set_discontinued_back_to_false(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.set_discontinued(case.id, True)
+        await service.set_discontinued(case.id, False)
+
+        persisted = repo.get(case.id)
+        assert persisted is not None
+        assert persisted.discontinued is False
+
+    async def test_set_discontinued_does_not_change_lifecycle_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Reines Zusatzflag: der CaseStatus-Lifecycle bleibt unberuehrt.
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED)
+
+        updated = await service.set_discontinued(case.id, True)
+
+        assert updated is not None
+        assert updated.status == CaseStatus.APPROVED
+        assert updated.discontinued is True
+
+    async def test_set_discontinued_missing_case_returns_none(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        result = await service.set_discontinued("does-not-exist", True)
+        assert result is None
+
+    async def test_set_discontinued_emits_audit_log_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.set_discontinued(case.id, True)
+
+        events = [e for e in logs if e.get("event") == "case_discontinued_changed"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["discontinued"] is True
+
+
+# ---------------------------------------------------------------------------
 # Monitoring-Zeitleiste (append-only, Monitoring-ADR)
 # ---------------------------------------------------------------------------
 

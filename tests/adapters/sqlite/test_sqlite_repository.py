@@ -932,3 +932,78 @@ class TestSharpeningDraftColumn:
 
         assert migrated is not None
         assert migrated.status is CaseStatus.IMPLEMENTED
+
+
+class TestDiscontinuedColumn:
+    """Monitoring (V4.1-S7): discontinued als bool-Flag, unabhaengig vom
+    CaseStatus-Lifecycle."""
+
+    def test_defaults_to_false_on_save(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.discontinued is False
+
+    def test_set_discontinued_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+
+        repo.set_discontinued(sample_case.id, True)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.discontinued is True
+
+    def test_set_discontinued_back_to_false(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        repo.set_discontinued(sample_case.id, True)
+        repo.set_discontinued(sample_case.id, False)
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.discontinued is False
+
+    def test_set_discontinued_is_noop_for_unknown_case_id(
+        self, repo: SQLiteRepository
+    ) -> None:
+        # Analog delete/update_field/update_status: kein Fehler.
+        repo.set_discontinued("never-existed", True)
+
+    def test_set_discontinued_does_not_touch_other_fields(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.proposal_text = "Bestehender Vorschlag"
+        repo.save(sample_case)
+
+        repo.set_discontinued(sample_case.id, True)
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.proposal_text == "Bestehender Vorschlag"
+        assert loaded.status == CaseStatus.SUBMITTED
+
+    def test_migration_adds_column_to_legacy_table(self, db_path: Path) -> None:
+        """Alte DB ohne discontinued-Spalte -> _init_db ergaenzt sie
+        (analog sharpening_draft/architecture_sketch)."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL)"
+            )
+
+        SQLiteRepository(db_path)
+
+        with connect(db_path) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
+            }
+        assert "discontinued" in columns
