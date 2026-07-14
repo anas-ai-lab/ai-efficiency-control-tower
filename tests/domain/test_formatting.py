@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from aect.domain import evaluate_use_case
 from aect.domain.explainability import build_recommendation_text, build_score_breakdown
-from aect.domain.formatting import format_de
+from aect.domain.formatting import format_de, format_number
 from aect.domain.models import UseCaseInput
 from aect.domain.roi import load_roi_config
 
@@ -90,3 +90,33 @@ def test_generated_texts_use_german_thousands() -> None:
     for text in (recommendation, zone_reason, cost_reason):
         assert not _ENGLISH_THOUSANDS.search(text), f"englisches Format: {text}"
         assert _GERMAN_THOUSANDS.search(text), f"kein Tausenderwert: {text}"
+
+
+def test_format_number_is_language_dependent() -> None:
+    # Gleicher Wert, andere Tausendertrennung je Sprache (V4.1-S6).
+    assert format_number(259200, "de", "EUR") == "259.200 EUR"
+    assert format_number(259200, "en", "EUR") == "259,200 EUR"
+    assert format_number(6000, "en") == "6,000"
+    assert format_number(6000, "de") == "6.000"
+    assert format_number(999, "en") == "999"  # unter 1000 kein Trenner
+    assert format_number(Decimal("87139.2"), "en", "EUR") == "87,139 EUR"
+    # DE-Variante identisch zu format_de (kein Verhaltenswechsel fuer de).
+    assert format_number(1_234_567, "de", "EUR") == format_de(1_234_567, "EUR")
+
+
+def test_en_recommendation_uses_english_thousands() -> None:
+    # Derselbe bewertete Case, einmal DE, einmal EN: der Empfehlungssatz traegt
+    # dieselben Zahlen, aber die Tausendertrennung folgt der Sprache
+    # ("259.200 EUR" vs "259,200 EUR").
+    uc = UseCaseInput(**_HIGH_VOLUME)
+    result = evaluate_use_case(uc, load_roi_config())
+    assert result.passed_vorfilter
+
+    de_text = build_recommendation_text(result, uc, "de")
+    en_text = build_recommendation_text(result, uc, "en")
+
+    assert _GERMAN_THOUSANDS.search(de_text), f"DE ohne Tausenderwert: {de_text}"
+    assert not _ENGLISH_THOUSANDS.search(de_text), f"DE englisch formatiert: {de_text}"
+
+    assert _ENGLISH_THOUSANDS.search(en_text), f"EN ohne Tausenderwert: {en_text}"
+    assert not _GERMAN_THOUSANDS.search(en_text), f"EN deutsch formatiert: {en_text}"

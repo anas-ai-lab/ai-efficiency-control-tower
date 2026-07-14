@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from aect.domain.formatting import format_de
+from aect.domain.formatting import format_number
 from aect.domain.i18n import (
     APPROACH_LABEL,
     BASIS_EINSTUFUNG_ERKLAERUNG,
@@ -283,9 +283,9 @@ def _cost_point_reason(
     key = "cost_point_plus" if cost_eur >= threshold_eur else "cost_point_none"
     return text[key].format(
         label=label,
-        cost=format_de(cost_eur, "EUR"),
+        cost=format_number(cost_eur, lang, "EUR"),
         suffix=suffix,
-        threshold=format_de(threshold_eur, "EUR"),
+        threshold=format_number(threshold_eur, lang, "EUR"),
     )
 
 
@@ -492,8 +492,8 @@ def build_recommendation_text(
     ):
         template = RECOMMENDATION_TEMPLATES[lang][result.routing.recommendation.value]
         return template.format(
-            h=format_de(result.roi.hours_per_year),
-            netto=format_de(result.roi.net_expected_benefit_eur),
+            h=format_number(result.roi.hours_per_year, lang),
+            netto=format_number(result.roi.net_expected_benefit_eur, lang),
             x=result.composite.total,
             dp=DATA_CLASSIFICATION_CLARTEXT[lang][use_case.data_classification],
         )
@@ -593,7 +593,7 @@ def build_management_view(
     text = EXPLAIN_TEXT[lang]
     level_display = CONFIDENCE_LEVEL_DISPLAY[lang][confidence_level]
     zonen_satz = text["zonen_satz"].format(
-        eur=format_de(net_expected_benefit_eur, "€"),
+        eur=format_number(net_expected_benefit_eur, lang, "€"),
         adjektiv=EFFORT_ADJEKTIV[lang][effort_label],
         bel_zone=BELASTBARKEIT_ZONE_SATZ[lang][evidence_level],
         level=level_display,
@@ -642,7 +642,7 @@ def build_berechnung(
         BerechnungsZeile(
             label=labels["benefit"],
             wert=text["benefit_per_year"].format(
-                eur=format_de(net_expected_benefit_eur, "€")
+                eur=format_number(net_expected_benefit_eur, lang, "€")
             ),
             erklaerung=NUTZEN_FORMEL_WORTE[lang],
         ),
