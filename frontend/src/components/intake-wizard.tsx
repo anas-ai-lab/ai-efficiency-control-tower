@@ -20,6 +20,7 @@ import {
   IMPLEMENTATION_APPROACH_OPTIONS,
 } from "@/lib/labels"
 import { StepIndicator } from "@/components/step-indicator"
+import { useReportUnsaved } from "@/components/unsaved-guard"
 import {
   Form,
   FormField,
@@ -248,6 +249,13 @@ export function IntakeWizard() {
       notes: "",
     },
   })
+
+  // Datenverlust-Schutz beim Sprachwechsel (Task 8): meldet dem Ungespeichert-
+  // Waechter, ob das Formular Eingaben traegt (isDirty). Nach dem Absenden
+  // (submitted gesetzt) ist der Case persistiert -> nichts geht verloren, also
+  // kein Warndialog mehr. Der Sprachumschalter fragt diesen Zustand vor dem
+  // harten Reload ab.
+  useReportUnsaved(submitted === null && form.formState.isDirty)
 
   // P14-Prefill (D16/D17): einmalig beim Mount lesen, nur qualitative Felder
   // uebernehmen, Key sofort loeschen (read-once). Defensiver JSON.parse.

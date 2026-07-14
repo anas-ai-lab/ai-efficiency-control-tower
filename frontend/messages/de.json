@@ -12,7 +12,10 @@
     "next": "Weiter",
     "save": "Speichern",
     "close": "Schließen",
-    "optional": "optional"
+    "optional": "optional",
+    "langSwitchConfirmTitle": "Sprache wechseln?",
+    "langSwitchConfirmBody": "Eingaben im Formular gehen verloren.",
+    "langSwitchConfirmContinue": "Weiter"
   },
   "apiErrors": {
     "caseNotFound": "Der Fall wurde nicht gefunden. Bitte die Triage erneut starten.",

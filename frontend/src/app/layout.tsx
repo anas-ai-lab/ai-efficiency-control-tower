@@ -6,6 +6,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LangToggle } from "@/components/lang-toggle";
+import { UnsavedGuardProvider } from "@/components/unsaved-guard";
 import { MainNav } from "@/components/main-nav";
 import { AuthControl } from "@/components/auth-control";
 import { checkAuth } from "@/app/actions";
@@ -72,6 +73,7 @@ export default async function RootLayout({
       </head>
       <body className="flex min-h-full flex-col bg-background">
         <NextIntlClientProvider messages={messages}>
+        <UnsavedGuardProvider>
         <header className="sticky top-0 z-40 border-b border-border/70 bg-background">
           <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-5 sm:px-6">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
@@ -114,6 +116,7 @@ export default async function RootLayout({
             </p>
           </div>
         </footer>
+        </UnsavedGuardProvider>
         </NextIntlClientProvider>
       </body>
     </html>

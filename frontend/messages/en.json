@@ -12,7 +12,10 @@
     "next": "Next",
     "save": "Save",
     "close": "Close",
-    "optional": "optional"
+    "optional": "optional",
+    "langSwitchConfirmTitle": "Switch language?",
+    "langSwitchConfirmBody": "Your form entries will be lost.",
+    "langSwitchConfirmContinue": "Continue"
   },
   "apiErrors": {
     "caseNotFound": "The case was not found. Please start the triage again.",
