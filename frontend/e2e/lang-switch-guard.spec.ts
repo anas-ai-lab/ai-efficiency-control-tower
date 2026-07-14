@@ -74,3 +74,44 @@ test("Sprachwechsel bei befuelltem Wizard zeigt Bestaetigungsdialog", async ({
   await dialog.getByRole("button", { name: "Weiter" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
+
+test("Sprachwechsel nach Ideation-Prefill zeigt Dialog (isDirty=false)", async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    !(await serverUp(request, FRONTEND_URL)),
+    `Frontend unter ${FRONTEND_URL} nicht erreichbar (npm run dev).`,
+  );
+
+  // Uebernommener Entwurf im sessionStorage -- Key/Felder gespiegelt aus
+  // src/lib/ideation-prefill.ts (IDEATION_PREFILL_KEY + qualitative Felder).
+  const draftTitle = "Aus Ideation uebernommener Entwurf";
+  await page.goto("/einreichen");
+  await page.evaluate(
+    ([key, title]) => {
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          title,
+          current_state:
+            "Der aktuelle Prozess wurde im Ideen-Assistenten beschrieben.",
+          desired_state:
+            "Der Zielzustand wurde im Ideen-Assistenten beschrieben.",
+          example_process: "Ein Beispielvorgang aus dem Assistenten.",
+        }),
+      );
+    },
+    ["aect_ideation_prefill", draftTitle],
+  );
+  // Der Wizard liest den Entwurf beim Mount -> Reload triggert die Uebernahme.
+  await page.reload();
+  await expect(page.getByLabel("Titel")).toHaveValue(draftTitle);
+
+  // Der Nutzer hat nichts selbst getippt (isDirty=false), aber der Entwurf
+  // traegt Inhalt: Sprachwechsel muss trotzdem den Bestaetigungsdialog zeigen.
+  await page.getByRole("button", { name: "EN", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Sprache wechseln?")).toBeVisible();
+});

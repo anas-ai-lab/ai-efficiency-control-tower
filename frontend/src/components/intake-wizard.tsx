@@ -219,6 +219,9 @@ export function IntakeWizard() {
   const [isPending, startTransition] = useTransition()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState<TriageResponse | null>(null)
+  // Ein uebernommener Ideation-Entwurf traegt Inhalt, aber form.reset() setzt
+  // isDirty wieder auf false -- darum ein eigener Marker fuer den Waechter.
+  const [prefilled, setPrefilled] = useState(false)
 
   // Schema an die aktive Sprache gebunden (Enum-Fehlertexte). Bei einem
   // Sprachwechsel mitten im Formular bleiben die zod-Meldungen bis zum naechsten
@@ -251,11 +254,13 @@ export function IntakeWizard() {
   })
 
   // Datenverlust-Schutz beim Sprachwechsel (Task 8): meldet dem Ungespeichert-
-  // Waechter, ob das Formular Eingaben traegt (isDirty). Nach dem Absenden
-  // (submitted gesetzt) ist der Case persistiert -> nichts geht verloren, also
-  // kein Warndialog mehr. Der Sprachumschalter fragt diesen Zustand vor dem
-  // harten Reload ab.
-  useReportUnsaved(submitted === null && form.formState.isDirty)
+  // Waechter, ob das Formular Inhalt traegt. Zwei Quellen: eigene Eingaben
+  // (isDirty) ODER ein uebernommener Ideation-Entwurf (prefilled) -- letzterer
+  // laesst isDirty nach form.reset() bei false, traegt aber Inhalt. Nach dem
+  // Absenden (submitted gesetzt) ist der Case persistiert -> nichts geht
+  // verloren, also kein Warndialog mehr. Der Sprachumschalter fragt diesen
+  // Zustand vor dem harten Reload ab.
+  useReportUnsaved(submitted === null && (prefilled || form.formState.isDirty))
 
   // P14-Prefill (D16/D17): einmalig beim Mount lesen, nur qualitative Felder
   // uebernehmen, Key sofort loeschen (read-once). Defensiver JSON.parse.
@@ -277,6 +282,7 @@ export function IntakeWizard() {
       }
       if (Object.keys(prefill).length > 0) {
         form.reset({ ...form.getValues(), ...prefill })
+        setPrefilled(true)
       }
     } catch {
       // kaputter/manipulierter Wert -- still ohne Prefill starten.
