@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { checkAuth, listCases } from "@/app/actions";
 import { MonitoringBoard } from "@/components/monitoring-board";
 import { RetryButton } from "@/components/retry-button";
+import { adminSummaries } from "@/lib/case-view";
 import type { CaseSummary } from "@/types/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,7 +27,8 @@ export default async function MonitoringPage() {
   let cases: CaseSummary[] = [];
   let loadError: string | null = null;
   try {
-    cases = await listCases();
+    // Admin-Seite: die volle Sicht ist Voraussetzung, nicht Option (V4.1-S8).
+    cases = adminSummaries(await listCases());
   } catch (e) {
     loadError = e instanceof Error ? e.message : t("loadErrorFallback");
   }

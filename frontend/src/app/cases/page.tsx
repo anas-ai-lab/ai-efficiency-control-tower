@@ -3,8 +3,9 @@ import { getTranslations } from "next-intl/server";
 
 import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesTable } from "@/components/cases-table";
+import { ContactCard } from "@/components/contact-card";
 import { RetryButton } from "@/components/retry-button";
-import type { CaseSummary, SimilarityPair } from "@/types/api";
+import type { CaseSummaryView, SimilarityPair } from "@/types/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("cases");
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CasesPage() {
   const t = await getTranslations("cases");
-  let cases: CaseSummary[] = [];
+  let cases: CaseSummaryView[] = [];
   let loadError: string | null = null;
   let pairs: SimilarityPair[] = [];
 
@@ -48,12 +49,15 @@ export default async function CasesPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
+      <ContactCard />
       <p className="eyebrow">{t("pageEyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
         {t("pageTitle")}
       </h1>
+      {/* Der Admin-Lead nennt Zonenfilter, Netto-Sortierung und Statuswechsel in
+          der Zeile -- alles drei gibt es in der anonymen Sicht nicht (V4.1-S8). */}
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        {t("pageLead")}
+        {authenticated ? t("pageLead") : t("pageLeadPublic")}
       </p>
 
       <div className="mt-8">

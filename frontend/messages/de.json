@@ -90,7 +90,7 @@
     "metaTitle": "Admin-Login | AECT",
     "eyebrow": "Admin",
     "title": "Anmelden",
-    "intro": "Einreichung, Ideen-Assistent und Ideenliste sind ohne Anmeldung nutzbar. Der Login schaltet die Admin-Funktionen frei (Board, Monitoring, Schärfen, Lösung, Compliance, Report, Statuswechsel).",
+    "intro": "Admin-Anmeldung. Bitte mit dem Admin-Passwort anmelden.",
     "passwordLabel": "Admin-Passwort",
     "showPassword": "Passwort anzeigen",
     "hidePassword": "Passwort verbergen",
@@ -430,7 +430,6 @@
     "pageTitle": "Alle eingereichten Use Cases",
     "pageLead": "Das gesamte Portfolio auf einen Blick: filtern nach Status und Zone, sortieren nach Nettonutzen oder Einreichdatum, den Lifecycle-Status direkt in der Zeile setzen.",
     "loadErrorFallback": "Die Liste konnte nicht geladen werden.",
-    "underReview": "wird geprüft",
     "similarTo": "Ähnlich zu: {titles}",
     "nSimilar": "{n} ähnlich",
     "sortBy": "Nach {label} sortieren",
@@ -450,7 +449,8 @@
     "colStatus": "Status",
     "statusError": "Statuswechsel fehlgeschlagen.",
     "emptyFiltered": "Keine Use Cases entsprechen den Filtern.",
-    "count": "{count, plural, one {# Use Case} other {# Use Cases}} · {filtered} gefiltert"
+    "count": "{count, plural, one {# Use Case} other {# Use Cases}} · {filtered} gefiltert",
+    "pageLeadPublic": "Alle eingereichten Use Cases auf einen Blick: filtern nach Status, sortieren nach Einreichdatum."
   },
   "similarCases": {
     "title": "Ähnliche Use Cases",
@@ -459,7 +459,6 @@
   },
   "caseInputs": {
     "title": "Erfasste Eingaben",
-    "intro": "Die beim Einreichen erfassten Rohdaten — Grundlage der Bewertung. So ist nachvollziehbar, worauf Zone, Nutzen und Aufwand beruhen.",
     "groupDescription": "Beschreibung",
     "groupMaster": "Stammdaten",
     "groupTime": "Zeit & Häufigkeit",
@@ -540,8 +539,9 @@
     "areaDecision": "Entscheidung & Report",
     "pendingBody": "Für diesen Fall wurde noch kein Implementierungsansatz gewählt. Sobald ein Admin ihn oben ergänzt, wird der Fall vollständig bewertet (Nutzen, Aufwand, Risiko).",
     "reviewingHeading": "Wird vom AI Board geprüft",
-    "reviewingBody": "Eingereicht am {date}. Die Bewertung (Nutzen, Aufwand, Risiko) wird sichtbar, sobald das AI Board über den Use Case entschieden hat.",
-    "report": "Report"
+    "reviewingBody": "Eingereicht am {date}. Die Entscheidung des AI Board erscheint hier, sobald sie getroffen wurde.",
+    "report": "Report",
+    "areaBoardDecision": "Entscheidung des AI Board"
   },
   "rationale": {
     "sentence": "Vom theoretischen Potenzial ({potential}) bleiben <netTag>{net}</netTag>: Nutzung <usageTag>{usage}</usageTag> × Evidenz <evidenceTag>{evidence}</evidenceTag>.",
@@ -669,5 +669,14 @@
       "label": "Geringer Nutzen",
       "summary": "Nutzen steht in keinem klaren Verhältnis zum Aufwand."
     }
+  },
+  "contact": {
+    "role": "Ansprechpartner AI Admin",
+    "hint": "Fragen zur Einreichung oder zum Verfahren? Melde dich gerne."
+  },
+  "boardDecision": {
+    "decidedOn": "Entschieden am {date}",
+    "rationale": "Begründung",
+    "noRationale": "Das AI Board hat keine Begründung hinterlegt."
   }
 }

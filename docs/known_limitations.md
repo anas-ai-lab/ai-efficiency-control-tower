@@ -567,25 +567,32 @@ neun Laender fehlen im Fresh Clone ganz (dort Stundensatz 0 -> Vorfilter-Fail).
 
 ---
 
-## 30. Anonyme Sichtbarkeit von Score/Report an ReviewerDecision != PENDING gekoppelt
+## 30. Die Bewertung ist Admin-Material -- Nicht-Admins sehen nur die Entscheidung
 
-**Was:** `GET /cases` (Liste) und `GET /cases/{id}` (Detail) geben Zone, ROI und
-Report fuer **anonyme** Aufrufer erst frei, wenn das Board entschieden hat
-(`reviewer_decision != PENDING`); Admins sehen immer alles. Davor sind nur die
-rohen Eingaben sichtbar, die Ansicht zeigt "Wird vom AI Board geprueft".
+**Was:** `GET /cases` (Liste) und `GET /cases/{id}` (Detail) antworten mit
+**zwei verschiedenen Schemas**. Nicht-Admins bekommen `PublicCaseSummary` bzw.
+`PublicCaseDetailResponse`: Grunddaten des Einreichens, Lifecycle-Status und --
+im Detail -- die Board-Entscheidung samt Begruendung. Zone, Nettonutzen, Scores,
+Machbarkeit, Analyse/Empfehlung, Loesungsvorschlag, Compliance und Report stehen
+in diesen Antworten **nicht** -- auch nicht als `null`. Admins (Session ODER
+X-API-Key) bekommen unveraendert die vollen Schemas.
 
-**Warum:** bewusste **Korrektur einer Zwischenversion** (V4-P7, Commits
-`2c1d440` + `5dfc58e`), in der die Bewertung sofort anonym sichtbar war. Das
-Rollenmodell aus SDR-0003 (Entscheidung 7) will, dass der Einreicher die Bewertung
-nicht vor dem Board sieht -- die Sichtbarkeit ist an die **Entscheidung**
-gekoppelt, nicht an den Lifecycle-Status.
+**Warum:** zweite **Korrektur derselben Stelle**. V4-P7 (`2c1d440`/`5dfc58e`)
+machte die Bewertung sofort anonym sichtbar; die erste Korrektur koppelte sie an
+`reviewer_decision != PENDING` -- nach der Entscheidung war der volle Score also
+weiterhin anonym lesbar, inkl. `assessment_visible` als Verraeter der verborgenen
+Groessen. Das Rollenmodell aus SDR-0003 (Entscheidung 7) will, dass der
+Einreicher **das Ergebnis** kennt, nicht dessen Herleitung: die Bewertung ist
+Entscheidungsgrundlage des Boards, kein Feedback an den Einreicher.
 
-**Konsequenz:** Ein eingereichter, aber unentschiedener Case leakt anonym keinen
-Score. Ein Vorfilter-Fail (`predicted=None`) ist davon zu unterscheiden --
-`CaseSummary.assessment_visible` trennt "wird geprueft" (pending) von "—"
-(Vorfilter). Kehrseite: solange niemand mit Admin-Rechten entscheidet, bleibt ein
-valider Case fuer Anonyme dauerhaft ohne sichtbare Bewertung (gewollt im
-Demo-Build, waere im Self-Service-Betrieb eine UX-Frage).
+**Konsequenz:** Ein Bewertungs-Leak ueber diese Routen ist nicht mehr eine Frage
+der Bedingung, sondern strukturell ausgeschlossen -- die Public-Klassen fuehren
+die Felder nicht, `extra="forbid"` laesst ein versehentlich durchgereichtes Feld
+laut scheitern. Kehrseite: der Einreicher erfaehrt nie, *warum* sein Case
+abgelehnt wurde, ausser das Board schreibt es in die Begruendung
+(`reviewer_note`). Die Qualitaet dieser Freitext-Begruendung traegt damit die
+gesamte Rueckmeldung -- im Demo-Build gewollt, im Self-Service-Betrieb waere ein
+strukturierteres Feedback die naechste Frage.
 
 ---
 

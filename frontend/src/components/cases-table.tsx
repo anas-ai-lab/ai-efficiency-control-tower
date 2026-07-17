@@ -8,11 +8,12 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, Clock, Download } from "lucide-reac
 
 import type {
   CaseStatus,
-  CaseSummary,
+  CaseSummaryView,
   SimilarityPair,
   TriageZone,
 } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
+import { isAdminSummary } from "@/lib/case-view";
 import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
 import { useFormat } from "@/lib/use-format";
@@ -62,14 +63,6 @@ function compareNullable(a: number | null, b: number | null, dir: SortDir): numb
   if (bNull) return -1;
   const cmp = a - b;
   return dir === "asc" ? cmp : -cmp;
-}
-
-// Platzhalter fuer verborgene Bewertungszellen (V4-P7): Zone/Nettonutzen sind
-// fuer Anonyme erst nach der Board-Entscheidung sichtbar. Bewusst NICHT "—" (das
-// steht fuer den echten Vorfilter-Fail), sondern ein ruhiger "wird geprueft".
-function PendingCell() {
-  const t = useTranslations("cases");
-  return <span className="text-xs text-muted-foreground">{t("underReview")}</span>;
 }
 
 // Vor-Bewertungs-Zustand (evaluation_pending): eigene, eindeutige
@@ -233,11 +226,15 @@ export function CasesTable({
   pairs = [],
   authenticated = false,
 }: {
-  cases: CaseSummary[];
+  cases: CaseSummaryView[];
   pairs?: SimilarityPair[];
   // V4-P-Auth: der Statuswechsel ist eine Admin-Aktion. Anonyme sehen den Status
   // read-only als Badge, kein Select (das Backend wuerde POST /status ohnehin
   // mit 401 ablehnen).
+  // V4.1-S8: steuert zusaetzlich die Bewertungs-Spalten (Zone/Nettonutzen) samt
+  // Zonenfilter, Netto-Sortierung und CSV-Spalten. Die Daten dazu liefert das
+  // Backend Anonymen ohnehin nicht mehr -- die Flag entscheidet nur, ob die
+  // Spalten ueberhaupt gebaut werden, nicht ob Werte gezeigt werden duerfen.
   authenticated?: boolean;
 }) {
   const t = useTranslations("cases");
@@ -245,7 +242,7 @@ export function CasesTable({
   const tz = useTranslations("zones");
   const fmt = useFormat();
   const router = useRouter();
-  const [rows, setRows] = useState<CaseSummary[]>(cases);
+  const [rows, setRows] = useState<CaseSummaryView[]>(cases);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -258,6 +255,9 @@ export function CasesTable({
   const visible = useMemo(() => {
     const filtered = rows.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      // Zonen-Filter greift nur auf der Admin-Sicht -- die schmale Sicht fuehrt
+      // keine Zone, also gibt es auch nichts zu filtern.
+      if (!isAdminSummary(c)) return true;
       // Pending: nur Faelle im Vor-Bewertungs-Zustand.
       if (zoneFilter === "pending") return c.evaluation_pending;
       // Ohne Bewertung: echter Vorfilter-Fail -- zone === null, aber NICHT pending.
@@ -268,8 +268,8 @@ export function CasesTable({
     const sorted = [...filtered].sort((a, b) => {
       if (sortKey === "net") {
         return compareNullable(
-          a.net_expected_benefit_eur,
-          b.net_expected_benefit_eur,
+          isAdminSummary(a) ? a.net_expected_benefit_eur : null,
+          isAdminSummary(b) ? b.net_expected_benefit_eur : null,
           sortDir,
         );
       }
@@ -363,31 +363,34 @@ export function CasesTable({
           </Select>
         </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="eyebrow">{t("zone")}</span>
-          <Select
-            value={zoneFilter}
-            onValueChange={(v) => setZoneFilter(v as ZoneFilter)}
-          >
-            <SelectTrigger size="sm" className="w-[11rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("allZones")}</SelectItem>
-              {ZONE_ORDER.map((z) => (
-                <SelectItem key={z} value={z}>
-                  <span
-                    className={cn("size-1.5 rounded-full", ZONE_CONFIG[z].dot)}
-                    aria-hidden
-                  />
-                  {tz(`${z}.label`)}
-                </SelectItem>
-              ))}
-              <SelectItem value="none">{t("noAssessment")}</SelectItem>
-              <SelectItem value="pending">{ts("evaluationPending")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
+        {/* Zonenfilter ist Bewertungs-UI -> nur Admin (V4.1-S8). */}
+        {authenticated && (
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">{t("zone")}</span>
+            <Select
+              value={zoneFilter}
+              onValueChange={(v) => setZoneFilter(v as ZoneFilter)}
+            >
+              <SelectTrigger size="sm" className="w-[11rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("allZones")}</SelectItem>
+                {ZONE_ORDER.map((z) => (
+                  <SelectItem key={z} value={z}>
+                    <span
+                      className={cn("size-1.5 rounded-full", ZONE_CONFIG[z].dot)}
+                      aria-hidden
+                    />
+                    {tz(`${z}.label`)}
+                  </SelectItem>
+                ))}
+                <SelectItem value="none">{t("noAssessment")}</SelectItem>
+                <SelectItem value="pending">{ts("evaluationPending")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+        )}
 
         {/* Export der AKTUELL gefilterten und sortierten Sicht (visible),
             client-seitig, ohne Dependency. */}
@@ -396,7 +399,7 @@ export function CasesTable({
           variant="outline"
           size="sm"
           className="ml-auto"
-          onClick={() => downloadCasesCsv(visible)}
+          onClick={() => downloadCasesCsv(visible, authenticated)}
           disabled={visible.length === 0}
         >
           <Download aria-hidden />
@@ -423,18 +426,23 @@ export function CasesTable({
                   onClick={() => toggleSort("date")}
                 />
               </th>
-              <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                {t("colZone")}
-              </th>
-              <th className="px-4 py-3 text-right">
-                <SortableHeader
-                  label={t("colNet")}
-                  active={sortKey === "net"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("net")}
-                  align="right"
-                />
-              </th>
+              {/* Zone + Nettonutzen sind Bewertung -> Admin-only (V4.1-S8). */}
+              {authenticated && (
+                <>
+                  <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {t("colZone")}
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <SortableHeader
+                      label={t("colNet")}
+                      active={sortKey === "net"}
+                      dir={sortDir}
+                      onClick={() => toggleSort("net")}
+                      align="right"
+                    />
+                  </th>
+                </>
+              )}
               <th className="px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 {t("colStatus")}
               </th>
@@ -471,26 +479,26 @@ export function CasesTable({
                 <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
                   {fmt.dateShort(c.submitted_at)}
                 </td>
-                <td className="px-4 py-3">
-                  {c.evaluation_pending ? (
-                    <PendingEvaluationBadge />
-                  ) : c.assessment_visible ? (
-                    <ZoneBadge zone={c.zone} />
-                  ) : (
-                    <PendingCell />
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-foreground tabular-nums">
-                  {c.evaluation_pending ? (
-                    <PendingEvaluationBadge />
-                  ) : !c.assessment_visible ? (
-                    <PendingCell />
-                  ) : c.net_expected_benefit_eur === null ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : (
-                    fmt.eur(c.net_expected_benefit_eur)
-                  )}
-                </td>
+                {isAdminSummary(c) && (
+                  <>
+                    <td className="px-4 py-3">
+                      {c.evaluation_pending ? (
+                        <PendingEvaluationBadge />
+                      ) : (
+                        <ZoneBadge zone={c.zone} />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-foreground tabular-nums">
+                      {c.evaluation_pending ? (
+                        <PendingEvaluationBadge />
+                      ) : c.net_expected_benefit_eur === null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        fmt.eur(c.net_expected_benefit_eur)
+                      )}
+                    </td>
+                  </>
+                )}
                 {/* Status-Zelle: Klick/Tastatur hier navigiert NICHT (stopPropagation).
                     Nur Admins wechseln den Status; Anonyme sehen die Badge. */}
                 <td
@@ -523,7 +531,7 @@ export function CasesTable({
             {visible.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={authenticated ? 6 : 4}
                   className="px-4 py-10 text-center text-sm text-muted-foreground"
                 >
                   {t("emptyFiltered")}

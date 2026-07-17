@@ -90,7 +90,7 @@
     "metaTitle": "Admin login | AECT",
     "eyebrow": "Admin",
     "title": "Sign in",
-    "intro": "Submission, Idea Assistant and Idea List are usable without signing in. Signing in unlocks the admin functions (Board, Monitoring, Refine, Propose Solution, Compliance Check, Report, status changes).",
+    "intro": "Admin sign-in. Please sign in with the admin password.",
     "passwordLabel": "Admin password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
@@ -430,7 +430,6 @@
     "pageTitle": "All submitted use cases",
     "pageLead": "The entire portfolio at a glance: filter by status and zone, sort by net benefit or submission date, set the lifecycle status right in the row.",
     "loadErrorFallback": "The list could not be loaded.",
-    "underReview": "under review",
     "similarTo": "Similar to: {titles}",
     "nSimilar": "{n} similar",
     "sortBy": "Sort by {label}",
@@ -450,7 +449,8 @@
     "colStatus": "Status",
     "statusError": "Status change failed.",
     "emptyFiltered": "No use cases match the filters.",
-    "count": "{count, plural, one {# use case} other {# use cases}} · {filtered} filtered"
+    "count": "{count, plural, one {# use case} other {# use cases}} · {filtered} filtered",
+    "pageLeadPublic": "All submitted use cases at a glance: filter by status, sort by submission date."
   },
   "similarCases": {
     "title": "Similar use cases",
@@ -459,7 +459,6 @@
   },
   "caseInputs": {
     "title": "Captured inputs",
-    "intro": "The raw data captured at submission — the basis of the assessment. This makes it traceable what zone, benefit and effort rest on.",
     "groupDescription": "Description",
     "groupMaster": "Master data",
     "groupTime": "Time & frequency",
@@ -540,8 +539,9 @@
     "areaDecision": "Decision & Report",
     "pendingBody": "No implementation approach has been chosen for this case yet. Once an admin adds it above, the case is fully assessed (benefit, effort, risk).",
     "reviewingHeading": "Under review by the AI Board",
-    "reviewingBody": "Submitted on {date}. The assessment (benefit, effort, risk) becomes visible once the AI Board has decided on the use case.",
-    "report": "Report"
+    "reviewingBody": "Submitted on {date}. The AI Board's decision appears here once it has been made.",
+    "report": "Report",
+    "areaBoardDecision": "AI Board decision"
   },
   "rationale": {
     "sentence": "Of the theoretical potential ({potential}), <netTag>{net}</netTag> remains: usage <usageTag>{usage}</usageTag> × evidence <evidenceTag>{evidence}</evidenceTag>.",
@@ -669,5 +669,14 @@
       "label": "Marginal gain",
       "summary": "Benefit is out of proportion to the effort."
     }
+  },
+  "contact": {
+    "role": "Contact AI Admin",
+    "hint": "Questions about a submission or the process? Get in touch."
+  },
+  "boardDecision": {
+    "decidedOn": "Decided on {date}",
+    "rationale": "Rationale",
+    "noRationale": "The AI Board did not record a rationale."
   }
 }

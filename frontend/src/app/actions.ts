@@ -7,9 +7,9 @@ import { getLocale, getTranslations } from "next-intl/server";
 import type {
   ArchitectureSketchEnvelope,
   ArchitectureSketchResponse,
-  CaseDetailResponse,
+  CaseDetailView,
   CaseStatus,
-  CaseSummary,
+  CaseSummaryView,
   ComplianceHintsResponse,
   DecisionResponse,
   DiscontinuedResponse,
@@ -348,10 +348,13 @@ export async function recordDecision(
 // ERROR_MESSAGES_DE bzw. statusMessageDE auf Deutsch gemappt (z. B. "Case not
 // found" -> deutscher Text, 422 -> "Die Eingabe ist ungueltig...").
 
-export async function listCases(): Promise<CaseSummary[]> {
+export async function listCases(): Promise<CaseSummaryView[]> {
   // GET ohne Body. cache: "no-store" (apiFetch) haelt die Liste nach einem
   // Statuswechsel + router.refresh sofort aktuell.
-  return apiFetch<CaseSummary[]>("/cases", RULE_TIMEOUT_MS, undefined, "GET");
+  // Schema-Split (V4.1-S8): mit Session-Cookie kommt CaseSummary (inkl.
+  // Bewertung), ohne PublicCaseSummary (Grunddaten + Status). Welche der beiden
+  // vorliegt, klaeren die Guards in lib/case-view -- nicht diese Action.
+  return apiFetch<CaseSummaryView[]>("/cases", RULE_TIMEOUT_MS, undefined, "GET");
 }
 
 // GET /stats (public, V4-P7): aggregierte Portfolio-Kennzahlen fuer die
@@ -360,14 +363,16 @@ export async function getStats(): Promise<StatsResponse> {
   return apiFetch<StatsResponse>("/stats", RULE_TIMEOUT_MS, undefined, "GET");
 }
 
-// GET /cases/{id} (public, E9/SDR-0003): vollstaendiger read-only
-// Bewertungsstand (Triage + Report). 404 -> null, damit die Detailseite eine
-// NotFound-Ansicht zeigt statt zu werfen; andere Fehler propagieren.
+// GET /cases/{id} (public, E9/SDR-0003): read-only Sicht auf einen Case.
+// Schema-Split (V4.1-S8): mit Session-Cookie CaseDetailResponse (inkl. triage +
+// report), ohne PublicCaseDetailResponse (Grunddaten, Status, Board-
+// Entscheidung). 404 -> null, damit die Detailseite eine NotFound-Ansicht zeigt
+// statt zu werfen; andere Fehler propagieren.
 export async function getCaseDetail(
   caseId: string,
-): Promise<CaseDetailResponse | null> {
+): Promise<CaseDetailView | null> {
   try {
-    return await apiFetch<CaseDetailResponse>(
+    return await apiFetch<CaseDetailView>(
       `/cases/${caseId}`,
       RULE_TIMEOUT_MS,
       undefined,

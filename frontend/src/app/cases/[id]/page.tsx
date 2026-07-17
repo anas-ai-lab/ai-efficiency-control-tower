@@ -10,6 +10,8 @@ import {
   listSimilarityPairs,
 } from "@/app/actions";
 import { bindFormat } from "@/lib/format";
+import { isAdminDetail } from "@/lib/case-view";
+import { BoardDecisionNotice } from "@/components/board-decision-notice";
 import { CaseDecision } from "@/components/case-decision";
 import { CaseInputs } from "@/components/case-inputs";
 import { CaseReport } from "@/components/case-report";
@@ -23,7 +25,7 @@ import { SketchView } from "@/components/sketch-view";
 import { StatusBadge } from "@/components/status-badge";
 import type {
   ArchitectureSketchResponse,
-  CaseDetailResponse,
+  CaseDetailView,
   SimilarityPair,
 } from "@/types/api";
 
@@ -104,9 +106,11 @@ export default async function CaseDetailPage({
   const ts = await getTranslations("status");
   const fmt = bindFormat(await getFormatter());
 
-  // GET /cases/{id} (public): vollstaendiger read-only Bewertungsstand. 404 ->
-  // null -> NotFound. Andere Fehler propagieren (Next.js-Error-Boundary).
-  let detail: CaseDetailResponse | null;
+  // GET /cases/{id}: read-only Sicht auf den Case. Schema-Split (V4.1-S8) --
+  // ohne Session kommt die schmale Sicht (Grunddaten, Status, Board-
+  // Entscheidung), mit Session die volle. 404 -> null -> NotFound. Andere Fehler
+  // propagieren (Next.js-Error-Boundary).
+  let detail: CaseDetailView | null;
   try {
     detail = await getCaseDetail(id);
   } catch (e) {
@@ -130,10 +134,10 @@ export default async function CaseDetailPage({
   }
 
   const authenticated = await checkAuth();
-  // Bewertung ist bedingt sichtbar (V4-P7): das Backend liefert triage/report
-  // erst nach der Board-Entscheidung -- oder fuer Admins. Davor beide null ->
-  // ruhiger Zwischenzustand statt Score/Report.
-  const { eingaben, triage, report } = detail;
+  const { eingaben } = detail;
+  // Admin-Sicht? Entscheidet die Antwort, nicht der Login-Zustand: nur wenn das
+  // Backend die Bewertungsfelder mitgeliefert hat, gibt es hier etwas zu zeigen.
+  const admin = isAdminDetail(detail) ? detail : null;
 
   // Admin-Panels nur fuer Angemeldete laden -- die Endpoints sind require_admin.
   let similarityPairs: SimilarityPair[] = [];
@@ -152,7 +156,9 @@ export default async function CaseDetailPage({
     }
   }
 
-  const evaluated = !detail.evaluation_pending;
+  const report = admin?.report ?? null;
+  const triage = admin?.triage ?? null;
+  const evaluated = admin !== null && !admin.evaluation_pending;
   const summary = report?.business_summary ?? null;
 
   // LlmBusyProvider klammert Bereich 2 (Werkzeuge) und Bereich 3
@@ -184,45 +190,60 @@ export default async function CaseDetailPage({
           <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
         </AreaSection>
 
-        {/* ===== Bereich 2: Analyse & Empfehlung ===== */}
-        <AreaSection title={t("areaAnalysis")}>
-          {detail.evaluation_pending ? (
-            <StatusBox
-              heading={ts("evaluationPending")}
-              body={t("pendingBody")}
-            />
-          ) : triage !== null ? (
-            <CaseResult triage={triage} />
-          ) : (
-            <StatusBox
-              heading={t("reviewingHeading")}
-              body={t("reviewingBody", { date: fmt.dateShort(detail.submitted_at) })}
-            />
-          )}
-
-          {/* Admin-Werkzeuge + Skizze nur fuer angemeldete Admins mit
-              ausgewertetem Case (report != null). */}
-          {authenticated && evaluated && report !== null && summary !== null && (
-            <div className="mt-8 space-y-6">
-              <CaseTools
-                caseId={detail.id}
-                hasSolution={summary.solution_business !== null}
-                hasCompliance={summary.compliance_hint_text !== null}
+        {/* ===== Bereich 2: Analyse & Empfehlung -- NUR Admin (V4.1-S8) =====
+            Die Bewertung ist Board-Material. Der Einreicher bekommt statt der
+            Herleitung die Entscheidung (Bereich 3). */}
+        {admin !== null && (
+          <AreaSection title={t("areaAnalysis")}>
+            {admin.evaluation_pending ? (
+              <StatusBox
+                heading={ts("evaluationPending")}
+                body={t("pendingBody")}
               />
-              <SketchView
-                caseId={detail.id}
-                initialSketch={initialSketch}
-                hasSolution={summary.solution_business !== null}
-              />
-            </div>
-          )}
+            ) : (
+              triage !== null && <CaseResult triage={triage} />
+            )}
 
-          {authenticated && (
+            {/* Admin-Werkzeuge + Skizze nur bei ausgewertetem Case
+                (report != null). */}
+            {evaluated && report !== null && summary !== null && (
+              <div className="mt-8 space-y-6">
+                <CaseTools
+                  caseId={detail.id}
+                  hasSolution={summary.solution_business !== null}
+                  hasCompliance={summary.compliance_hint_text !== null}
+                />
+                <SketchView
+                  caseId={detail.id}
+                  initialSketch={initialSketch}
+                  hasSolution={summary.solution_business !== null}
+                />
+              </div>
+            )}
+
             <div className="mt-8">
               <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
             </div>
-          )}
-        </AreaSection>
+          </AreaSection>
+        )}
+
+        {/* ===== Bereich 3 (public): Entscheidung des AI Board =====
+            Das einzige Board-Ergebnis, das der Einreicher sieht. Vor der
+            Entscheidung ein ruhiger Wartezustand statt einer leeren Sektion. */}
+        {admin === null && (
+          <AreaSection title={t("areaBoardDecision")}>
+            {detail.decision !== null ? (
+              <BoardDecisionNotice decision={detail.decision} />
+            ) : (
+              <StatusBox
+                heading={t("reviewingHeading")}
+                body={t("reviewingBody", {
+                  date: fmt.dateShort(detail.submitted_at),
+                })}
+              />
+            )}
+          </AreaSection>
+        )}
 
         {/* ===== Bereich 3: Entscheidung & Report ===== */}
         {report !== null && summary !== null && (

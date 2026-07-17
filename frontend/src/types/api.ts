@@ -394,39 +394,62 @@ export interface ReportResponse {
   technical_detail: TechnicalDetail;
 }
 
-// ---- Case-Detail (GET /cases/{id}, public read-only, E9/SDR-0003) ----------
-// Read-only Bewertungsstand mit ABGESTUFTER Sichtbarkeit (V4-P7-Korrektur):
-// eingaben (rohe Felder) sind immer da; triage + report liefert das Backend nur
-// nach der Board-Entscheidung (ReviewerDecision != PENDING) -- oder wenn der
-// Aufrufer selbst Admin ist. Davor sind beide null ("wird vom AI Board
-// geprueft"). status ist stets ein CaseStatus-Wert (Backend liefert String,
-// hier verengt).
-export interface CaseDetailResponse {
+// ---- Case-Detail (GET /cases/{id}, read-only, E9/SDR-0003) -----------------
+// Schema-Split public/admin (V4.1-S8): das Backend liefert je nach Aufrufer ein
+// ANDERES Schema -- fuer Nicht-Admins PublicCaseDetailResponse (Grunddaten,
+// Status, Board-Entscheidung), fuer Admins CaseDetailResponse (zusaetzlich
+// triage + report). Die Bewertungsfelder fehlen im anonymen JSON komplett; sie
+// sind dort nicht null, sondern nicht vorhanden. Darum zwei Typen und kein
+// Typ mit optionalen Feldern: der Compiler soll erzwingen, dass eine Ansicht
+// erst beweist, dass sie die Admin-Sicht hat, bevor sie Bewertung liest.
+// status ist stets ein CaseStatus-Wert (Backend liefert String, hier verengt).
+
+// Board-Entscheidung + Begruendung -- null, solange nicht entschieden.
+export interface CaseDecision {
+  reviewer_decision: ReviewerDecision;
+  reviewer_note: string | null;
+  decided_at: string | null;
+}
+
+export interface PublicCaseDetailResponse {
   id: string;
   submitted_at: string;
   status: CaseStatus;
   // discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
   // aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle.
   discontinued: boolean;
+  eingaben: UseCaseInput;
+  decision: CaseDecision | null;
+}
+
+export interface CaseDetailResponse extends PublicCaseDetailResponse {
   // Vor-Bewertungs-Zustand (V4.1, ADR-0050): ohne Implementierungsansatz sind
   // triage/report immer null (auch fuer Admins). Ein Admin ergaenzt den Ansatz.
   evaluation_pending: boolean;
-  eingaben: UseCaseInput;
   triage: TriageResponse | null;
   report: ReportResponse | null;
 }
 
-// Portfolio-Read (P2): erweiterte Listansicht. zone/net_expected_benefit_eur/
-// composite_total/hours_per_year sind null bei Vorfilter-Fail (gleiche
-// None-Semantik wie TriageResponse). feasibility_score = 10 - composite_total
-// (V4-P6, null bei Vorfilter-Fail); feasibility_definition ist der zentrale
-// Definitions-String.
-export interface CaseSummary {
+export type CaseDetailView = CaseDetailResponse | PublicCaseDetailResponse;
+
+// Portfolio-Read (P2): erweiterte Listansicht -- ebenfalls gesplittet (V4.1-S8).
+// Anonyme bekommen PublicCaseSummary (Grunddaten + Status), Admins CaseSummary.
+// Bei Admins gilt weiter: zone/net_expected_benefit_eur/composite_total/
+// hours_per_year sind null bei Vorfilter-Fail (gleiche None-Semantik wie
+// TriageResponse). feasibility_score = 10 - composite_total (V4-P6, null bei
+// Vorfilter-Fail); feasibility_definition ist der zentrale Definitions-String.
+export interface PublicCaseSummary {
   id: string;
   submitted_at: string;
   title: string;
   department: string;
   status: CaseStatus;
+  // discontinued (Monitoring, V4.1-S7): reines Zusatzflag, unabhaengig vom
+  // CaseStatus-Lifecycle. Fuer alle Aufrufer sichtbar (analog status).
+  discontinued: boolean;
+}
+
+export interface CaseSummary extends PublicCaseSummary {
   zone: TriageZone | null;
   net_expected_benefit_eur: number | null;
   composite_total: number | null;
@@ -437,14 +460,9 @@ export interface CaseSummary {
   evaluation_pending: boolean;
   feasibility_score: number | null;
   feasibility_definition: string;
-  // V4-P7: False, wenn zone/net fuer diesen Aufrufer verborgen sind (anonym +
-  // Board-Entscheidung ausstehend) -> "wird geprueft" statt "—" (das "—" bleibt
-  // dem echten Vorfilter-Fail vorbehalten). Fuer Admins immer True.
-  assessment_visible: boolean;
-  // discontinued (Monitoring, V4.1-S7): reines Zusatzflag, unabhaengig vom
-  // CaseStatus-Lifecycle. Fuer alle Aufrufer sichtbar (analog status).
-  discontinued: boolean;
 }
+
+export type CaseSummaryView = CaseSummary | PublicCaseSummary;
 
 // ---- Decision Response (/cases/{id}/decision POST) -------------------------
 

@@ -5,9 +5,13 @@ import { bindFormat } from "@/lib/format"
 import { ImplementationApproachEditor } from "@/components/implementation-approach-editor"
 
 // Rohe Eingaben des Einreichers (UseCaseInput) read-only auf der Fall-
-// Detailseite. Erklaerbarkeit: sichtbar machen, auf welchen Daten die Bewertung
-// beruht. Alle Enum-Anzeigen laufen ueber die zentrale Label-Map -- nie ein
-// roher Enum-Wert im UI. Server-sichere Praesentationskomponente (kein State).
+// Detailseite -- fuer jeden Aufrufer sichtbar: es sind seine eigenen Angaben.
+// Alle Enum-Anzeigen laufen ueber die zentrale Label-Map -- nie ein roher
+// Enum-Wert im UI. Server-sichere Praesentationskomponente (kein State).
+//
+// Bewusst ohne Erklaertext: der frueher hier stehende Satz begruendete die
+// Eingaben als "Grundlage der Bewertung" und nannte Zone/Nutzen/Aufwand --
+// Groessen, die Nicht-Admins seit V4.1-S8 gar nicht mehr sehen.
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -60,11 +64,8 @@ export async function CaseInputs({
   return (
     <section>
       <p className="eyebrow mb-3">{t("title")}</p>
-      <p className="mb-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
-        {t("intro")}
-      </p>
 
-      <div className="divide-y divide-border rounded-xl border border-border bg-card py-1">
+      <div className="mt-4 divide-y divide-border rounded-xl border border-border bg-card py-1">
         <Group title={t("groupDescription")}>
           <Row label={t("rowTitle")} value={e.title} />
           <Row label={t("rowCurrentState")} value={e.current_state} />

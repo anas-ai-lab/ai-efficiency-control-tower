@@ -155,13 +155,12 @@ export interface paths {
          *
          *     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
          *     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind
-         *     abgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und
-         *     net_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der
-         *     Board-Entscheidung (ReviewerDecision != PENDING); davor null +
-         *     assessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber
-         *     einen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss
-         *     priorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
+         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber das SCHEMA haengt am
+         *     Aufrufer (V4.1-S8, konsistent mit GET /cases/{id}): Anonyme erhalten
+         *     PublicCaseSummary (Grunddaten + Status, KEINE Bewertungsfelder im JSON),
+         *     Admins CaseSummary. Frueher (V4-P7) trug die anonyme Zeile zone/net als
+         *     null + assessment_visible -- die Groessen standen also weiter im Vertrag.
+         *     status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
          *     Rate Limit: 60 Requests/Minute pro Aufrufer.
          *
          *     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
@@ -214,18 +213,19 @@ export interface paths {
         };
         /**
          * Get Case Detail
-         * @description Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.
+         * @description Gibt die read-only Sicht auf einen Case zurueck -- Schema je Aufrufer.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber der INHALT ist
-         *     abgestuft (V4-P7-Korrektur, E9/SDR-0003): eingaben (rohe Felder) sind immer
-         *     sichtbar; triage + report (Score-Herkunft, Konfidenz, decision_report,
-         *     technical_report) liefert die Response nur, wenn der Fall vom AI Board
-         *     entschieden wurde (ReviewerDecision != PENDING) ODER der Aufrufer selbst ein
-         *     Admin ist (Session/Key). So sieht der anonyme Einreicher vor der Entscheidung
-         *     nur den Status ("wird geprueft"), das Board aber jederzeit die Bewertung --
-         *     sonst koennte es nicht entscheiden. Kein Trigger, kein LLM-Call
-         *     (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+         *     Auth: PUBLIC im Zugriff (kein require_admin) -- aber das SCHEMA haengt am
+         *     Aufrufer (V4.1-S8, E9/SDR-0003):
+         *     - Nicht-Admin -> PublicCaseDetailResponse: Grunddaten (eingaben), Status und
+         *       die Board-Entscheidung + Begruendung. Bewertung, Report, Loesung und
+         *       Compliance stehen NICHT im JSON -- auch nicht als null.
+         *     - Admin (Session/Key) -> CaseDetailResponse: zusaetzlich triage + report.
+         *     Frueher (V4-P7) bekam der Anonyme nach der Board-Entscheidung die volle
+         *     Bewertung; die Entscheidung selbst genuegt ihm.
+         *     Kein Trigger, kein LLM-Call (generate_report ist reine Regel-Schicht ueber
+         *     persistierten Feldern).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
          *
          *     Raises:
@@ -991,33 +991,49 @@ export interface components {
             decided_at: string | null;
         };
         /**
-         * CaseDetailResponse
-         * @description Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).
+         * CaseDecisionResponse
+         * @description Die AI-Board-Entscheidung samt Begruendung (V4.1-S8).
          *
-         *     Public GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
+         *     Das EINZIGE Ergebnis der Board-Arbeit, das ein Nicht-Admin sehen darf: was
+         *     entschieden wurde und warum -- nicht, auf welchen Zahlen die Entscheidung
+         *     beruht. reviewer_note ist die vom Board erfasste Begruendung (optional).
+         *
+         *     Nur vorhanden, wenn tatsaechlich entschieden wurde: im Zustand PENDING
+         *     liefert die Detail-Response decision=null (nichts zu zeigen), nicht etwa ein
+         *     Objekt mit reviewer_decision="pending".
+         */
+        CaseDecisionResponse: {
+            /** Reviewer Decision */
+            reviewer_decision: string;
+            /** Reviewer Note */
+            reviewer_note: string | null;
+            /** Decided At */
+            decided_at: string | null;
+        };
+        /**
+         * CaseDetailResponse
+         * @description Vollstaendiger, read-only Bewertungsstand eines Case -- ADMIN (E9, SDR-0003).
+         *
+         *     Read-only Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
          *     bereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,
-         *     kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
-         *     seines eigenen Case.
+         *     kein Trigger.
          *
          *     eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
-         *     unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Immer
-         *     vorhanden (auch vor der Board-Entscheidung). Dieselbe Schema-Klasse wie der
-         *     POST /triage-Body.
+         *     unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM.
+         *     Dieselbe Schema-Klasse wie der POST /triage-Body.
          *
-         *     triage/report: BEDINGT sichtbar (V4-P7-Korrektur). Das AI Board soll den
-         *     Fall zuerst pruefen -- der anonyme Einreicher sieht die Bewertung
-         *     (Score-Herkunft, Konfidenz, decision_report, technical_report) erst NACH der
-         *     Board-Entscheidung (ReviewerDecision != PENDING). Davor sind triage UND
-         *     report null (dieselbe "nicht ausgeloest -> null"-Konvention wie
-         *     sharpened_text/solution/compliance). Ein authentifizierter Admin sieht die
-         *     Bewertung immer -- sonst koennte das Board nicht entscheiden. Der aktuelle
-         *     Zustand ist an `status` ablesbar (submitted/in_review -> "wird geprueft").
+         *     triage/report: nur in dieser Admin-Schicht (V4.1-S8). Die Bewertung ist
+         *     Board-Material -- der Einreicher bekommt die Entscheidung, nicht ihre
+         *     Herleitung. Frueher (V4-P7) wurden beide nach der Board-Entscheidung auch
+         *     anonym ausgeliefert; genau das ist jetzt geschlossen.
          *     - triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,
          *       Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).
          *     - report: der zweischichtige Report (Entscheider- + technische Sicht).
+         *     Beide sind null, solange der Case im Vor-Bewertungs-Zustand steht
+         *     (evaluation_pending) -- dann gibt es auch fuer Admins nichts zu zeigen.
          *
-         *     Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
-         *     Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
+         *     Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie hat einen eigenen
+         *     Admin-Endpoint (GET wie POST require_admin).
          */
         CaseDetailResponse: {
             /** Id */
@@ -1031,21 +1047,25 @@ export interface components {
             status: string;
             /** Discontinued */
             discontinued: boolean;
+            eingaben: components["schemas"]["UseCaseInput"];
+            decision: components["schemas"]["CaseDecisionResponse"] | null;
             /** Evaluation Pending */
             evaluation_pending: boolean;
-            eingaben: components["schemas"]["UseCaseInput"];
             triage: components["schemas"]["TriageResponse"] | null;
             report: components["schemas"]["ReportResponse"] | null;
         };
         /**
          * CaseSummary
-         * @description Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.
+         * @description Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht -- ADMIN.
          *
          *     Genug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den
          *     vollen Report je Case zu laden. zone/net_expected_benefit_eur/
          *     composite_total/hours_per_year sind None, wenn der Vorfilter nicht bestanden
          *     wurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone
          *     None bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).
+         *
+         *     Nur Admins erhalten dieses Schema (Board/Monitoring muessen priorisieren
+         *     koennen). Anonyme bekommen PublicCaseSummary.
          *
          *     Filter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines
          *     privaten Portfolio-Builds braucht keine serverseitige Pagination (v3).
@@ -1064,6 +1084,8 @@ export interface components {
             department: string;
             /** Status */
             status: string;
+            /** Discontinued */
+            discontinued: boolean;
             /** Zone */
             zone: string | null;
             /** Net Expected Benefit Eur */
@@ -1080,10 +1102,6 @@ export interface components {
             feasibility_score: number | null;
             /** Feasibility Definition */
             feasibility_definition: string;
-            /** Assessment Visible */
-            assessment_visible: boolean;
-            /** Discontinued */
-            discontinued: boolean;
         };
         /**
          * ComplianceCitationResponse
@@ -1443,6 +1461,63 @@ export interface components {
         MonitoringNoteRequest: {
             /** Note */
             note: string;
+        };
+        /**
+         * PublicCaseDetailResponse
+         * @description Fall-Detailsicht fuer Nicht-Admins (V4.1-S8).
+         *
+         *     Traegt AUSSCHLIESSLICH: die beim Einreichen erfassten Grunddaten
+         *     (eingaben), den Lifecycle-Status und die Board-Entscheidung mit Begruendung
+         *     (decision, null solange nicht entschieden). Bewertung, Report, Loesungs-
+         *     vorschlag und Compliance-Ergebnisse sind hier keine null-Felder -- die
+         *     Klasse fuehrt sie schlicht nicht (siehe Modul-Docstring).
+         *
+         *     Read-only, kein Trigger, kein LLM-Call.
+         */
+        PublicCaseDetailResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Status */
+            status: string;
+            /** Discontinued */
+            discontinued: boolean;
+            eingaben: components["schemas"]["UseCaseInput"];
+            decision: components["schemas"]["CaseDecisionResponse"] | null;
+        };
+        /**
+         * PublicCaseSummary
+         * @description Ideenlisten-Zeile fuer Nicht-Admins (V4.1-S8).
+         *
+         *     Enthaelt AUSSCHLIESSLICH Grunddaten des Einreichens + Lifecycle-Status --
+         *     keine Zone, keinen Nettonutzen, keine Scores, keine Machbarkeit. Die Felder
+         *     existieren auf dieser Klasse nicht; es gibt also nichts, was ein Mapping
+         *     versehentlich fuellen koennte.
+         *
+         *     extra="forbid" ist hier load-bearing (siehe Modul-Docstring): es haelt die
+         *     Union-Serialisierung der Route eindeutig und laesst ein durchgereichtes
+         *     Bewertungsfeld laut scheitern.
+         */
+        PublicCaseSummary: {
+            /** Id */
+            id: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Title */
+            title: string;
+            /** Department */
+            department: string;
+            /** Status */
+            status: string;
+            /** Discontinued */
+            discontinued: boolean;
         };
         /** ROIResponse */
         ROIResponse: {
@@ -2198,7 +2273,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CaseSummary"][];
+                    "application/json": components["schemas"]["CaseSummary"][] | components["schemas"]["PublicCaseSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -2251,7 +2326,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CaseDetailResponse"];
+                    "application/json": components["schemas"]["CaseDetailResponse"] | components["schemas"]["PublicCaseDetailResponse"];
                 };
             };
             /** @description Validation Error */

@@ -142,11 +142,12 @@ async def test_list_cases_stays_a_bare_list() -> None:
     assert isinstance(listed.json(), list)
 
 
-async def test_list_cases_hides_assessment_from_anonymous_until_decision() -> None:
-    """V4-P7 (konsistent mit GET /cases/{id}): die Ideenliste verbirgt zone +
-    net_expected_benefit_eur fuer Anonyme, solange das Board nicht entschieden
-    hat -- sonst unterliefe die Liste den Detail-Schutz. Der Admin sieht alles,
-    status bleibt fuer alle sichtbar."""
+async def test_list_cases_hides_assessment_from_anonymous() -> None:
+    """Erfolgskriterium (V4.1-S8): die anonyme Ideenliste enthaelt KEINES der
+    Bewertungsfelder -- weder als Wert noch als null. Auch nicht nach der
+    Board-Entscheidung: bis V4.1-S7 wurde zone/net dann faelschlich freigegeben
+    (die Liste unterlief damit den Detail-Schutz ueber einen anderen Pfad).
+    Der Admin sieht die Liste voll, status bleibt fuer alle sichtbar."""
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -167,23 +168,24 @@ async def test_list_cases_hides_assessment_from_anonymous_until_decision() -> No
         anon = (await client.get("/cases")).json()  # anonym
         admin = (await client.get("/cases", headers=_AUTH)).json()
 
+    assert len(anon) == 2
+    for c in anon:
+        # Exakt die Grunddaten + Status -- kein Bewertungsfeld, auch nicht beim
+        # freigegebenen Case.
+        assert set(c) == {
+            "id",
+            "submitted_at",
+            "title",
+            "department",
+            "status",
+            "discontinued",
+        }
+    # Lifecycle-Transparenz: der Status bleibt anonym lesbar.
     anon_by_id = {c["id"]: c for c in anon}
-    # Entschiedener Case: Bewertung sichtbar.
-    d = anon_by_id[decided_id]
-    assert d["assessment_visible"] is True
-    assert d["zone"] is not None
-    assert d["net_expected_benefit_eur"] is not None
+    assert anon_by_id[decided_id]["status"] == "approved"
 
-    # PENDING-Case: Bewertung verborgen, aber Status bleibt (Lifecycle-Transparenz).
-    pending = [c for c in anon if c["id"] != decided_id]
-    assert len(pending) == 1
-    assert pending[0]["assessment_visible"] is False
-    assert pending[0]["zone"] is None
-    assert pending[0]["net_expected_benefit_eur"] is None
-    assert pending[0]["status"] == "submitted"
-
-    # Admin sieht die Liste immer voll.
+    # Admin sieht die Liste voll.
     for c in admin:
-        assert c["assessment_visible"] is True
         assert c["zone"] is not None
         assert c["net_expected_benefit_eur"] is not None
+        assert c["feasibility_score"] is not None

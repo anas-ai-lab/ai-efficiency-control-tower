@@ -1,4 +1,5 @@
-import type { CaseSummary } from "@/types/api";
+import type { CaseSummaryView } from "@/types/api";
+import { isAdminSummary } from "@/lib/case-view";
 import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
 
@@ -15,12 +16,12 @@ const DELIMITER = ";";
 const NEWLINE = "\r\n";
 const BOM = "﻿";
 
-const COLUMNS = [
-  "id",
-  "Titel",
-  "Abteilung",
-  "Eingereicht",
-  "Status",
+// Grundspalten -- in jedem Export. Die Bewertungsspalten dahinter kommen nur in
+// den Admin-Export (V4.1-S8): der anonymen Ideenliste liefert das Backend die
+// Werte gar nicht, ein Export mit leeren Zone-/Nutzen-Spalten waere nur eine
+// Einladung, sie fuer "noch nicht berechnet" zu halten.
+const BASE_COLUMNS = ["id", "Titel", "Abteilung", "Eingereicht", "Status"] as const;
+const ASSESSMENT_COLUMNS = [
   "Zone",
   "Nettonutzen EUR",
   "Aufwand (2-10)",
@@ -80,13 +81,17 @@ function isoDate(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
-function rowFor(c: CaseSummary): string[] {
-  return [
+function rowFor(c: CaseSummaryView, withAssessment: boolean): string[] {
+  const base = [
     c.id,
     c.title,
     c.department,
     isoDate(c.submitted_at),
     STATUS_CONFIG[c.status].labelDE,
+  ];
+  if (!withAssessment || !isAdminSummary(c)) return base;
+  return [
+    ...base,
     c.zone === null ? "" : ZONE_CONFIG[c.zone as ZoneKey].labelDE,
     numberField(c.net_expected_benefit_eur),
     numberField(c.composite_total),
@@ -96,11 +101,17 @@ function rowFor(c: CaseSummary): string[] {
 
 // Erzeugt den vollstaendigen CSV-Text (inkl. BOM) fuer die uebergebene --
 // bereits gefilterte und sortierte -- Sicht. Reihenfolge der Zeilen bleibt
-// unveraendert.
-export function buildCasesCsv(cases: CaseSummary[]): string {
-  const lines = [COLUMNS.join(DELIMITER)];
+// unveraendert. withAssessment: Bewertungsspalten mitschreiben (Admin-Export).
+export function buildCasesCsv(
+  cases: CaseSummaryView[],
+  withAssessment: boolean,
+): string {
+  const columns = withAssessment
+    ? [...BASE_COLUMNS, ...ASSESSMENT_COLUMNS]
+    : BASE_COLUMNS;
+  const lines = [columns.join(DELIMITER)];
   for (const c of cases) {
-    lines.push(rowFor(c).map(escapeCsvField).join(DELIMITER));
+    lines.push(rowFor(c, withAssessment).map(escapeCsvField).join(DELIMITER));
   }
   return BOM + lines.join(NEWLINE) + NEWLINE;
 }
@@ -114,8 +125,11 @@ export function csvFilename(now: Date = new Date()): string {
 }
 
 // Loest den Download client-seitig aus (Blob + Object-URL + Klick).
-export function downloadCasesCsv(cases: CaseSummary[]): void {
-  const csv = buildCasesCsv(cases);
+export function downloadCasesCsv(
+  cases: CaseSummaryView[],
+  withAssessment: boolean,
+): void {
+  const csv = buildCasesCsv(cases, withAssessment);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

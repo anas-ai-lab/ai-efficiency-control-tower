@@ -2,13 +2,29 @@
 
 Security (aect-security-checklist v2.1, Phase B; V4-P-Auth):
   Auth-Matrix: PUBLIC sind GET /cases (Liste/Ideenliste) und GET /cases/{id}
-  (vollstaendiger read-only Bewertungsstand -- E9/SDR-0003: der anonyme
-  Einreicher liest den gespeicherten Stand seines Case, ohne etwas auszuloesen).
+  (read-only Sicht des eigenen Case -- E9/SDR-0003: der anonyme Einreicher
+  liest den gespeicherten Stand, ohne etwas auszuloesen).
   Alle uebrigen Routen dieses Moduls verlangen require_admin (Session-Cookie
   ODER X-API-Key) -- inkl. der lesenden Admin-Sichten (similarity-pairs,
   monitoring, architecture-sketch GET) und aller POST-Trigger.
-  Schichttrennung: CaseSummary (Liste) serialisiert nur Uebersichtsfelder;
-  CaseDetailResponse (Detail) buendelt Triage-Ergebnis + Report read-only.
+
+Schema-Split public/admin (V4.1-S8, load-bearing):
+  Beide public GETs haben ZWEI Response-Schemas. Nicht-Admins bekommen
+  PublicCaseSummary bzw. PublicCaseDetailResponse -- Klassen, die die
+  Bewertungsfelder GAR NICHT FUEHREN (Zone, Nettonutzen, Scores, Machbarkeit,
+  Analyse/Empfehlung, Loesungsvorschlag, Compliance, Report). Sie sehen
+  ausschliesslich die beim Einreichen erfassten Grunddaten, den Status und die
+  AI-Board-Entscheidung samt Begruendung. Admins (Session ODER Key) bekommen
+  unveraendert CaseSummary bzw. CaseDetailResponse.
+
+  Bewusst kein "Feld auf null setzen": ein null-Feld steht weiter im JSON und
+  verraet, dass es die Groesse gibt -- und ein spaeter ergaenztes Feld waere
+  automatisch mit im public Vertrag. Das Weglassen der Attribute macht ein Leck
+  strukturell unmoeglich statt nur unwahrscheinlich. extra="forbid" auf den
+  Public-Klassen ist dabei nicht Kosmetik: es haelt die Union-Serialisierung
+  eindeutig (ein Admin-Dict kann NICHT als Public-Schema validieren) und laesst
+  einen versehentlich durchgereichten Bewertungswert laut scheitern statt still
+  mitzuwandern.
 """
 
 from __future__ import annotations
@@ -73,8 +89,34 @@ def _guard_not_pending(case: SubmittedCase | None) -> None:
         )
 
 
-class CaseSummary(BaseModel):
-    """Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht.
+class PublicCaseSummary(BaseModel):
+    """Ideenlisten-Zeile fuer Nicht-Admins (V4.1-S8).
+
+    Enthaelt AUSSCHLIESSLICH Grunddaten des Einreichens + Lifecycle-Status --
+    keine Zone, keinen Nettonutzen, keine Scores, keine Machbarkeit. Die Felder
+    existieren auf dieser Klasse nicht; es gibt also nichts, was ein Mapping
+    versehentlich fuellen koennte.
+
+    extra="forbid" ist hier load-bearing (siehe Modul-Docstring): es haelt die
+    Union-Serialisierung der Route eindeutig und laesst ein durchgereichtes
+    Bewertungsfeld laut scheitern.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    submitted_at: datetime
+    title: str
+    department: str
+    status: str
+    # discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
+    # aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle. Fuer alle
+    # Aufrufer sichtbar (analog status) -- kein Bewertungsfeld.
+    discontinued: bool
+
+
+class CaseSummary(PublicCaseSummary):
+    """Komprimiertes Case-Ergebnis fuer die Portfolio-Listansicht -- ADMIN.
 
     Genug Felder fuer eine Uebersichts-/Filter-Ansicht im Frontend, ohne den
     vollen Report je Case zu laden. zone/net_expected_benefit_eur/
@@ -82,15 +124,13 @@ class CaseSummary(BaseModel):
     wurde -- exakt dieselbe None-Semantik wie TriageResponse (roi/composite/zone
     None bei Vorfilter-Fail, siehe routes/triage.py _to_triage_response).
 
+    Nur Admins erhalten dieses Schema (Board/Monitoring muessen priorisieren
+    koennen). Anonyme bekommen PublicCaseSummary.
+
     Filter und Sortierung sind bewusst Frontend-Konzern: die Datenmenge eines
     privaten Portfolio-Builds braucht keine serverseitige Pagination (v3).
     """
 
-    id: str
-    submitted_at: datetime
-    title: str
-    department: str
-    status: str
     zone: str | None
     net_expected_benefit_eur: float | None
     composite_total: int | None
@@ -107,19 +147,9 @@ class CaseSummary(BaseModel):
     # ist der ueberall referenzierte Definitions-String.
     feasibility_score: int | None
     feasibility_definition: str
-    # Sichtbarkeit der Bewertung (V4-P7, konsistent mit GET /cases/{id}): False,
-    # wenn zone/net_expected_benefit_eur fuer diesen Aufrufer verborgen sind
-    # (anonym + Board-Entscheidung ausstehend). Das Frontend zeigt dann "wird
-    # geprueft" statt "—"; das "—" bleibt dem echten Vorfilter-Fail vorbehalten
-    # (zone/net auch fuer Admins None). Fuer Admins immer True.
-    assessment_visible: bool
-    # discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
-    # aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle. Fuer alle
-    # Aufrufer sichtbar (analog status) -- kein Bewertungsfeld.
-    discontinued: bool
 
 
-@router.get("", response_model=list[CaseSummary])
+@router.get("", response_model=list[CaseSummary] | list[PublicCaseSummary])
 @limiter.limit("60/minute")
 async def list_cases(
     request: Request,
@@ -127,29 +157,41 @@ async def list_cases(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     is_admin: bool = Depends(is_admin_request),
     lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
-) -> list[CaseSummary]:
+) -> list[CaseSummary] | list[PublicCaseSummary]:
     """Gibt alle eingereichten Use Cases als komprimierte Liste zurueck.
 
     request: Request -- von slowapi benoetigt fuer Rate-Limit-Key-Extraktion.
     response: Response -- von slowapi benoetigt fuer Header-Injektion.
-    Auth: PUBLIC im Zugriff (kein require_admin) -- aber Bewertungsfelder sind
-    abgestuft (V4-P7, konsistent mit GET /cases/{id}): zone und
-    net_expected_benefit_eur liefert die Liste fuer Anonyme nur nach der
-    Board-Entscheidung (ReviewerDecision != PENDING); davor null +
-    assessment_visible=False (sonst unterliefe die Liste den Detail-Schutz ueber
-    einen anderen Pfad). Ein Admin sieht die Liste immer voll -- das Board muss
-    priorisieren koennen. status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
+    Auth: PUBLIC im Zugriff (kein require_admin) -- aber das SCHEMA haengt am
+    Aufrufer (V4.1-S8, konsistent mit GET /cases/{id}): Anonyme erhalten
+    PublicCaseSummary (Grunddaten + Status, KEINE Bewertungsfelder im JSON),
+    Admins CaseSummary. Frueher (V4-P7) trug die anonyme Zeile zone/net als
+    null + assessment_visible -- die Groessen standen also weiter im Vertrag.
+    status bleibt fuer alle sichtbar (Lifecycle-Transparenz).
     Rate Limit: 60 Requests/Minute pro Aufrufer.
 
     Mapping-Muster identisch zu TriageResponse (routes/triage.py): Decimal ->
     float, StrEnum -> .value, None bei Vorfilter-Fail. Response bleibt eine
     Liste (kein Envelope) -- Abwaertskompatibilitaet.
     """
+    cases = service.list_cases()
+
+    if not is_admin:
+        return [
+            PublicCaseSummary(
+                id=case.id,
+                submitted_at=case.submitted_at,
+                title=case.use_case.title,
+                department=case.use_case.department,
+                status=case.status.value,
+                discontinued=case.discontinued,
+            )
+            for case in cases
+        ]
+
     summaries: list[CaseSummary] = []
-    for case in service.list_cases():
+    for case in cases:
         r = case.result
-        # Bewertung sichtbar: Admin immer, Anonyme erst nach Board-Entscheidung.
-        visible = is_admin or case.reviewer_decision is not ReviewerDecision.PENDING
         summaries.append(
             CaseSummary(
                 id=case.id,
@@ -157,13 +199,9 @@ async def list_cases(
                 title=case.use_case.title,
                 department=case.use_case.department,
                 status=case.status.value,
-                zone=(
-                    r.zone.final_zone.value if visible and r.zone is not None else None
-                ),
+                zone=(r.zone.final_zone.value if r.zone is not None else None),
                 net_expected_benefit_eur=(
-                    float(r.roi.net_expected_benefit_eur)
-                    if visible and r.roi is not None
-                    else None
+                    float(r.roi.net_expected_benefit_eur) if r.roi is not None else None
                 ),
                 composite_total=(
                     r.composite.total if r.composite is not None else None
@@ -177,7 +215,6 @@ async def list_cases(
                     else None
                 ),
                 feasibility_definition=FEASIBILITY_DEFINITION[lang],
-                assessment_visible=visible,
                 discontinued=case.discontinued,
             )
         )
@@ -1486,34 +1523,38 @@ async def get_architecture_sketch(
     )
 
 
-class CaseDetailResponse(BaseModel):
-    """Vollstaendiger, read-only Bewertungsstand eines Case (E9, SDR-0003).
+class CaseDecisionResponse(BaseModel):
+    """Die AI-Board-Entscheidung samt Begruendung (V4.1-S8).
 
-    Public GET-Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
-    bereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,
-    kein Trigger. Ein anonymer Einreicher sieht damit den kompletten Stand
-    seines eigenen Case.
+    Das EINZIGE Ergebnis der Board-Arbeit, das ein Nicht-Admin sehen darf: was
+    entschieden wurde und warum -- nicht, auf welchen Zahlen die Entscheidung
+    beruht. reviewer_note ist die vom Board erfasste Begruendung (optional).
 
-    eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
-    unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM. Immer
-    vorhanden (auch vor der Board-Entscheidung). Dieselbe Schema-Klasse wie der
-    POST /triage-Body.
-
-    triage/report: BEDINGT sichtbar (V4-P7-Korrektur). Das AI Board soll den
-    Fall zuerst pruefen -- der anonyme Einreicher sieht die Bewertung
-    (Score-Herkunft, Konfidenz, decision_report, technical_report) erst NACH der
-    Board-Entscheidung (ReviewerDecision != PENDING). Davor sind triage UND
-    report null (dieselbe "nicht ausgeloest -> null"-Konvention wie
-    sharpened_text/solution/compliance). Ein authentifizierter Admin sieht die
-    Bewertung immer -- sonst koennte das Board nicht entscheiden. Der aktuelle
-    Zustand ist an `status` ablesbar (submitted/in_review -> "wird geprueft").
-    - triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,
-      Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).
-    - report: der zweischichtige Report (Entscheider- + technische Sicht).
-
-    Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie ist eine
-    Admin-Ansicht (GET wie POST require_admin), nicht Teil des public Read.
+    Nur vorhanden, wenn tatsaechlich entschieden wurde: im Zustand PENDING
+    liefert die Detail-Response decision=null (nichts zu zeigen), nicht etwa ein
+    Objekt mit reviewer_decision="pending".
     """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reviewer_decision: str
+    reviewer_note: str | None
+    decided_at: datetime | None
+
+
+class PublicCaseDetailResponse(BaseModel):
+    """Fall-Detailsicht fuer Nicht-Admins (V4.1-S8).
+
+    Traegt AUSSCHLIESSLICH: die beim Einreichen erfassten Grunddaten
+    (eingaben), den Lifecycle-Status und die Board-Entscheidung mit Begruendung
+    (decision, null solange nicht entschieden). Bewertung, Report, Loesungs-
+    vorschlag und Compliance-Ergebnisse sind hier keine null-Felder -- die
+    Klasse fuehrt sie schlicht nicht (siehe Modul-Docstring).
+
+    Read-only, kein Trigger, kein LLM-Call.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     submitted_at: datetime
@@ -1521,13 +1562,41 @@ class CaseDetailResponse(BaseModel):
     # discontinued (Monitoring, V4.1-S7): reines Zusatzflag, unabhaengig vom
     # Lifecycle-Status -- fuer alle Aufrufer sichtbar (analog status).
     discontinued: bool
-    # Vor-Bewertungs-Zustand (V4.1, ADR-0050): der Case wurde ohne
-    # implementation_approach eingereicht -- triage/report sind dann immer null
-    # (auch fuer Admins, es gibt nichts zu zeigen), unabhaengig von der Board-
-    # Entscheidung. Ein Admin traegt den Ansatz ueber
-    # POST /cases/{id}/implementation-approach nach.
-    evaluation_pending: bool
     eingaben: UseCaseInput
+    decision: CaseDecisionResponse | None
+
+
+class CaseDetailResponse(PublicCaseDetailResponse):
+    """Vollstaendiger, read-only Bewertungsstand eines Case -- ADMIN (E9, SDR-0003).
+
+    Read-only Gegenstueck zu den Admin-POST-Triggern: liefert, was der Admin
+    bereits ausgeloest und persistiert hat -- KEIN neuer Berechnungs-/LLM-Pfad,
+    kein Trigger.
+
+    eingaben: die rohen, beim Einreichen erfassten Felder (UseCaseInput) --
+    unveraendert aus der Persistenz gelesen, keine Neuberechnung, kein LLM.
+    Dieselbe Schema-Klasse wie der POST /triage-Body.
+
+    triage/report: nur in dieser Admin-Schicht (V4.1-S8). Die Bewertung ist
+    Board-Material -- der Einreicher bekommt die Entscheidung, nicht ihre
+    Herleitung. Frueher (V4-P7) wurden beide nach der Board-Entscheidung auch
+    anonym ausgeliefert; genau das ist jetzt geschlossen.
+    - triage: das beim Intake berechnete Ergebnis (Composite inkl. Subscores,
+      Zonen-Konfidenz, ROI, Routing, Machbarkeit, Vorfilter).
+    - report: der zweischichtige Report (Entscheider- + technische Sicht).
+    Beide sind null, solange der Case im Vor-Bewertungs-Zustand steht
+    (evaluation_pending) -- dann gibt es auch fuer Admins nichts zu zeigen.
+
+    Die Architektur-Skizze bleibt bewusst AUSSEN vor -- sie hat einen eigenen
+    Admin-Endpoint (GET wie POST require_admin).
+    """
+
+    # Vor-Bewertungs-Zustand (V4.1, ADR-0050): der Case wurde ohne
+    # implementation_approach eingereicht -- triage/report sind dann immer null,
+    # unabhaengig von der Board-Entscheidung. Ein Admin traegt den Ansatz ueber
+    # POST /cases/{id}/implementation-approach nach. Kein Feld der Public-Sicht:
+    # dort gibt es keine Bewertung, deren Ausstehen es zu erklaeren gaebe.
+    evaluation_pending: bool
     triage: TriageResponse | None
     report: ReportResponse | None
 
@@ -1537,7 +1606,7 @@ class CaseDetailResponse(BaseModel):
 # "/cases/similarity-pairs" als case_id="similarity-pairs" hier landen. Die
 # zwei-segmentigen /cases/{case_id}/... -Routen sind unabhaengig (andere
 # Pfadtiefe, kein Shadowing).
-@router.get("/{case_id}", response_model=CaseDetailResponse)
+@router.get("/{case_id}", response_model=CaseDetailResponse | PublicCaseDetailResponse)
 @limiter.limit("60/minute")
 async def get_case_detail(
     case_id: str,
@@ -1546,19 +1615,20 @@ async def get_case_detail(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     is_admin: bool = Depends(is_admin_request),
     lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
-) -> CaseDetailResponse:
-    """Gibt den read-only Bewertungsstand eines Case zurueck -- Bewertung bedingt.
+) -> CaseDetailResponse | PublicCaseDetailResponse:
+    """Gibt die read-only Sicht auf einen Case zurueck -- Schema je Aufrufer.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: PUBLIC im Zugriff (kein require_admin) -- aber der INHALT ist
-    abgestuft (V4-P7-Korrektur, E9/SDR-0003): eingaben (rohe Felder) sind immer
-    sichtbar; triage + report (Score-Herkunft, Konfidenz, decision_report,
-    technical_report) liefert die Response nur, wenn der Fall vom AI Board
-    entschieden wurde (ReviewerDecision != PENDING) ODER der Aufrufer selbst ein
-    Admin ist (Session/Key). So sieht der anonyme Einreicher vor der Entscheidung
-    nur den Status ("wird geprueft"), das Board aber jederzeit die Bewertung --
-    sonst koennte es nicht entscheiden. Kein Trigger, kein LLM-Call
-    (generate_report ist reine Regel-Schicht ueber persistierten Feldern).
+    Auth: PUBLIC im Zugriff (kein require_admin) -- aber das SCHEMA haengt am
+    Aufrufer (V4.1-S8, E9/SDR-0003):
+    - Nicht-Admin -> PublicCaseDetailResponse: Grunddaten (eingaben), Status und
+      die Board-Entscheidung + Begruendung. Bewertung, Report, Loesung und
+      Compliance stehen NICHT im JSON -- auch nicht als null.
+    - Admin (Session/Key) -> CaseDetailResponse: zusaetzlich triage + report.
+    Frueher (V4-P7) bekam der Anonyme nach der Board-Entscheidung die volle
+    Bewertung; die Entscheidung selbst genuegt ihm.
+    Kein Trigger, kein LLM-Call (generate_report ist reine Regel-Schicht ueber
+    persistierten Feldern).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
 
     Raises:
@@ -1568,21 +1638,37 @@ async def get_case_detail(
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Vor-Bewertungs-Zustand (ADR-0050): kein Umsetzungsansatz -> es gibt keine
-    # Bewertung. triage/report bleiben null (auch fuer Admins), evaluation_pending
-    # macht den Zustand explizit. Kein Aufruf von generate_report/explain_case
-    # (die auf die None-Schichten zugreifen wuerden).
-    is_pending = case.result.evaluation_pending
+    # Board-Entscheidung: fuer beide Schichten dasselbe Feld. PENDING heisst
+    # "noch nichts entschieden" -> null statt eines Pseudo-Objekts.
+    decision: CaseDecisionResponse | None = None
+    if case.reviewer_decision is not ReviewerDecision.PENDING:
+        decision = CaseDecisionResponse(
+            reviewer_decision=case.reviewer_decision.value,
+            reviewer_note=case.reviewer_note,
+            decided_at=case.decided_at,
+        )
 
-    # Sichtbarkeit der Bewertung: Admin sieht sie immer, der anonyme Einreicher
-    # erst nach der Board-Entscheidung. Davor bleiben triage/report null.
-    bewertung_sichtbar = not is_pending and (
-        is_admin or case.reviewer_decision is not ReviewerDecision.PENDING
-    )
+    if not is_admin:
+        return PublicCaseDetailResponse(
+            id=case.id,
+            submitted_at=case.submitted_at,
+            status=case.status.value,
+            discontinued=case.discontinued,
+            # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) --
+            # reines Lesen, keine Projektion.
+            eingaben=case.use_case,
+            decision=decision,
+        )
+
+    # Vor-Bewertungs-Zustand (ADR-0050): kein Umsetzungsansatz -> es gibt keine
+    # Bewertung. triage/report bleiben null, evaluation_pending macht den Zustand
+    # explizit. Kein Aufruf von generate_report/explain_case (die auf die
+    # None-Schichten zugreifen wuerden).
+    is_pending = case.result.evaluation_pending
 
     triage: TriageResponse | None = None
     report: ReportResponse | None = None
-    if bewertung_sichtbar:
+    if not is_pending:
         # Kein Override -> die persistierten Werte (sharpened_content_json/
         # proposal_text/compliance_hints_json + result) werden gelesen und
         # zusammengesetzt. get_case lieferte den Case, daher ist report hier nicht
@@ -1598,11 +1684,9 @@ async def get_case_detail(
         submitted_at=case.submitted_at,
         status=case.status.value,
         discontinued=case.discontinued,
-        evaluation_pending=is_pending,
-        # Rohe Eingaben unveraendert aus der Persistenz (case.use_case) -- reines
-        # Lesen, keine Projektion. Erklaerbarkeit: pruefbar gegen die erfassten
-        # Daten, auch vor der Board-Entscheidung.
         eingaben=case.use_case,
+        decision=decision,
+        evaluation_pending=is_pending,
         triage=triage,
         report=report,
     )

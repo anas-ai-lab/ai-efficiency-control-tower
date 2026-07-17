@@ -1,13 +1,18 @@
-"""Tests fuer den public GET /cases/{id} -- read-only Bewertungsstand (E9/SDR-0003).
+"""Tests fuer den public GET /cases/{id} -- read-only Sicht (E9/SDR-0003).
 
-Der anonyme Einreicher muss den vollstaendigen gespeicherten Stand seines Case
-lesen koennen (Composite inkl. Subscores, Konfidenz, akzeptierte Schaerfung,
-Loesung, Compliance, Report) -- ohne etwas auszuloesen. Diese Tests belegen den
-public Zugriff, das 404 fuer fehlende Cases, das Durchreichen bereits
-admin-ausgeloester Ergebnisse und die Routing-Ordnung gegen similarity-pairs.
+Schema-Split (V4.1-S8): der anonyme Einreicher liest die beim Einreichen
+erfassten Grunddaten, den Status und die Board-Entscheidung samt Begruendung --
+sonst nichts. Die Bewertung (Zone, Nettonutzen, Scores, Analyse/Empfehlung,
+Loesung, Compliance, Report) ist Admin-Material und steht im anonymen JSON
+ueberhaupt nicht, auch nicht als null. Diese Tests belegen den public Zugriff,
+den Schema-Split in beide Richtungen, das 404 fuer fehlende Cases, das
+Durchreichen admin-ausgeloester Ergebnisse an Admins und die Routing-Ordnung
+gegen similarity-pairs.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -81,10 +86,65 @@ async def _submit_public(client: AsyncClient) -> str:
     return created.json()["id"]
 
 
+# Jeder Schluessel, der eine Bewertungsgroesse traegt oder ihre Existenz
+# verraet. Die Liste ist bewusst breiter als das aktuelle Schema (z. B.
+# assessment_visible aus V4-P7): faellt eine dieser Groessen je wieder in eine
+# Public-Response, schlaegt der Test an -- auch wenn sie unter einem alten Namen
+# zurueckkehrt.
+ASSESSMENT_KEYS = frozenset(
+    {
+        "triage",
+        "report",
+        "zone",
+        "net_expected_benefit_eur",
+        "composite",
+        "composite_total",
+        "hours_per_year",
+        "is_actionable",
+        "feasibility_score",
+        "feasibility_definition",
+        "assessment_visible",
+        "evaluation_pending",
+        "score_breakdown",
+        "roi",
+        "routing",
+        "vorfilter",
+        "decision_report",
+        "technical_report",
+        "business_summary",
+        "technical_detail",
+        "solution_business",
+        "proposal_text",
+        "sharpened_text",
+        "compliance_hint_text",
+        "compliance_citations",
+        "recommendation",
+        "empfehlung_satz",
+    }
+)
+
+
+def _all_keys(node: Any) -> set[str]:
+    """Sammelt ALLE Schluessel rekursiv -- auch aus verschachtelten Objekten.
+
+    Ein Bewertungsfeld waere sonst nur auf der obersten Ebene widerlegt; ein in
+    einem Unterobjekt mitgereichter Score bliebe unentdeckt.
+    """
+    keys: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            keys.add(key)
+            keys |= _all_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            keys |= _all_keys(item)
+    return keys
+
+
 async def test_case_detail_anonymous_before_decision_hides_assessment() -> None:
-    """V4-P7-Korrektur: vor der Board-Entscheidung sieht der anonyme Einreicher
-    NUR die rohen Eingaben + Status -- triage/report bleiben null (das Board
-    soll zuerst pruefen). Frueher (E9/P5-P7) war das faelschlich voll sichtbar."""
+    """V4.1-S8: vor der Board-Entscheidung sieht der anonyme Einreicher NUR die
+    rohen Eingaben + Status. Kein Bewertungsfeld im JSON -- auch nicht als null
+    (frueher trugen triage/report null und verrieten damit ihre Existenz)."""
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -96,10 +156,77 @@ async def test_case_detail_anonymous_before_decision_hides_assessment() -> None:
     body = response.json()
     assert body["id"] == case_id
     assert body["status"] == "submitted"
-    # Eingaben immer sichtbar (Erklaerbarkeit), Bewertung noch nicht.
+    # Eingaben immer sichtbar (Erklaerbarkeit), Bewertung nie.
     assert body["eingaben"]["title"] == VALID_PAYLOAD["title"]
-    assert body["triage"] is None
-    assert body["report"] is None
+    # Noch nicht entschieden -> kein Entscheidungs-Objekt.
+    assert body["decision"] is None
+    assert set(body) == {
+        "id",
+        "submitted_at",
+        "status",
+        "discontinued",
+        "eingaben",
+        "decision",
+    }
+
+
+async def test_case_detail_anonymous_carries_no_assessment_field() -> None:
+    """Erfolgskriterium (V4.1-S8): der anonyme Detail-Read enthaelt KEINES der
+    Bewertungsfelder -- geprueft rekursiv ueber das gesamte JSON, im schaerfsten
+    Zustand: Case ist bewertet, geschaerft, geloest UND vom Board freigegeben.
+    Gaebe es einen Pfad, ueber den eine Bewertungsgroesse anonym sichtbar wird,
+    liefe er hier auf."""
+    app = _make_app()
+    auth = {"X-API-Key": TEST_API_KEY}
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        # Alles, was ein Admin ausloesen kann, wird ausgeloest und uebernommen.
+        assert (
+            await client.post(f"/cases/{case_id}/sharpen", headers=auth)
+        ).status_code == 200
+        assert (
+            await client.post(f"/cases/{case_id}/sharpen/accept", headers=auth)
+        ).status_code == 200
+        assert (
+            await client.post(f"/cases/{case_id}/propose-solution", headers=auth)
+        ).status_code == 200
+        assert (
+            await client.post(f"/cases/{case_id}/propose-solution/accept", headers=auth)
+        ).status_code == 200
+        assert (
+            await client.post(
+                f"/cases/{case_id}/decision",
+                json={"decision": "approved", "note": "Tragfaehig, Board-Freigabe."},
+                headers=auth,
+            )
+        ).status_code == 200
+
+        body = (await client.get(f"/cases/{case_id}")).json()  # anonym
+
+    leaked = _all_keys(body) & ASSESSMENT_KEYS
+    assert leaked == set(), f"Bewertungsfelder im anonymen JSON: {sorted(leaked)}"
+
+
+async def test_case_detail_anonymous_sees_board_decision_with_rationale() -> None:
+    """Was der Anonyme statt der Bewertung bekommt: die Board-Entscheidung mit
+    Begruendung -- das Ergebnis, nicht die Herleitung."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _submit_public(client)
+        await client.post(
+            f"/cases/{case_id}/decision",
+            json={"decision": "rejected", "note": "Aufwand steht nicht zum Nutzen."},
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        body = (await client.get(f"/cases/{case_id}")).json()  # anonym
+
+    assert body["decision"]["reviewer_decision"] == "rejected"
+    assert body["decision"]["reviewer_note"] == "Aufwand steht nicht zum Nutzen."
+    assert body["decision"]["decided_at"] is not None
 
 
 async def test_case_detail_admin_sees_assessment_before_decision() -> None:
@@ -120,11 +247,13 @@ async def test_case_detail_admin_sees_assessment_before_decision() -> None:
     assert body["report"]["business_summary"]["decision_report"]["empfehlung_satz"]
 
 
-async def test_case_detail_public_full_after_board_decision() -> None:
-    """Nach der Board-Entscheidung liefert der public GET die volle Bewertung:
-    Composite inkl. Subscores, Konfidenz-Begruendung, decision_report,
-    technical_report -- anonym lesbar."""
+async def test_case_detail_admin_full_after_board_decision() -> None:
+    """Der Admin-Read liefert die volle Bewertung: Composite inkl. Subscores,
+    Konfidenz-Begruendung, decision_report, technical_report. Bis V4.1-S7 war
+    das nach der Board-Entscheidung auch anonym lesbar -- jetzt Admin-only, die
+    Inhalte selbst bleiben unveraendert."""
     app = _make_app()
+    auth = {"X-API-Key": TEST_API_KEY}
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -132,10 +261,10 @@ async def test_case_detail_public_full_after_board_decision() -> None:
         decision_resp = await client.post(
             f"/cases/{case_id}/decision",
             json={"decision": "approved", "note": None},
-            headers={"X-API-Key": TEST_API_KEY},
+            headers=auth,
         )
         assert decision_resp.status_code == 200
-        body = (await client.get(f"/cases/{case_id}")).json()  # anonym
+        body = (await client.get(f"/cases/{case_id}", headers=auth)).json()
 
     triage = body["triage"]
     assert triage is not None
@@ -223,9 +352,9 @@ async def test_case_detail_missing_returns_404() -> None:
 
 
 async def test_case_detail_reflects_admin_triggered_sharpening() -> None:
-    """Was der Admin ausloest und akzeptiert, liest der anonyme Detail-Read NACH
-    der Board-Entscheidung: sharpen + accept + decision -> anonym traegt
-    report.business_summary.sharpened_text den Text (V4-P7-Sichtbarkeit)."""
+    """Was der Admin ausloest und akzeptiert, liest der Admin-Detail-Read
+    zurueck: sharpen + accept -> report.business_summary.sharpened_text traegt
+    den Text (Read-Pfad liest die Persistenz, kein erneuter Trigger)."""
     app = _make_app()
     auth = {"X-API-Key": TEST_API_KEY}
     async with AsyncClient(
@@ -238,15 +367,8 @@ async def test_case_detail_reflects_admin_triggered_sharpening() -> None:
         assert sharpen.status_code == 200
         accept = await client.post(f"/cases/{case_id}/sharpen/accept", headers=auth)
         assert accept.status_code == 200
-        decision = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": None},
-            headers=auth,
-        )
-        assert decision.status_code == 200
-
-        # Anonymer Detail-Read spiegelt jetzt den persistierten Stand.
-        after = (await client.get(f"/cases/{case_id}")).json()
+        # Admin-Detail-Read spiegelt den persistierten Stand.
+        after = (await client.get(f"/cases/{case_id}", headers=auth)).json()
 
     assert after["report"]["business_summary"]["sharpened_text"] is not None
 

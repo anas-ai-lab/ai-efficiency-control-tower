@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { Loader2, Info } from "lucide-react"
 
 import { generateIdeas } from "@/app/actions"
+import { ContactCard } from "@/components/contact-card"
 import type { IdeationDraft, IdeationResponse } from "@/types/api"
 import {
   IDEATION_PREFILL_KEY,
@@ -159,6 +160,7 @@ export function IdeationView() {
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-12">
+      <ContactCard />
       <header className="mb-8">
         <p className="eyebrow">{t("eyebrow")}</p>
         <h1 className="mt-2 text-pretty text-[1.65rem] font-semibold leading-tight tracking-tight text-foreground">
