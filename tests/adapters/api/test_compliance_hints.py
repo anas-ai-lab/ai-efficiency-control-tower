@@ -182,6 +182,61 @@ async def test_sensitive_case_with_mock_retriever_fails_loud() -> None:
     assert all(not c["source_id"].startswith("mock") for c in data["citations"])
 
 
+async def test_kb_unavailable_hint_follows_lang_query() -> None:
+    """lang=en liefert den Fail-loud-Hinweis englisch (V4.1).
+
+    Der Text lag als deutschsprachige Modul-Konstante in der Application-Schicht
+    und ignorierte die lang-Query, die das Frontend ohnehin mitschickt -- bei
+    EN-Oberflaeche erschien er trotzdem deutsch. Jetzt aus COMPLIANCE_TEXT.
+    """
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_SENSITIVE_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        en = await client.post(
+            f"/cases/{case_id}/compliance-hints?lang=en",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        de = await client.post(
+            f"/cases/{case_id}/compliance-hints?lang=de",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert en.status_code == 200
+    assert de.status_code == 200
+    en_text = en.json()["hint_text"]
+    de_text = de.json()["hint_text"]
+    assert en_text is not None and de_text is not None
+    assert "Knowledge base unavailable" in en_text
+    # Kein deutscher Rest im EN-Pfad (das war der Befund).
+    assert "verfügbar" not in en_text
+    assert "nicht verfügbar" in de_text
+
+
+async def test_kb_unavailable_hint_rejects_invalid_lang() -> None:
+    """Ungueltige Sprache -> 422 (fail loud, wie die uebrigen lang-Endpoints)."""
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_SENSITIVE_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+
+        response = await client.post(
+            f"/cases/{case_id}/compliance-hints?lang=fr",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert response.status_code == 422
+
+
 async def test_sensitive_case_with_real_kb_returns_real_citation() -> None:
     """Erfolgspfad: gegen die echte (geseedete) Wissensbasis -- der _Curated-
     Retriever liefert eine reale Quelle (dsgvo-art-35-dsfa). LLM-Call + echte

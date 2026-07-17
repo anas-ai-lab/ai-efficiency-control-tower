@@ -795,3 +795,29 @@ TECHNICAL_REPORT: dict[Lang, dict[str, str]] = {
         "offene_none": "No open technical questions identified.",
     },
 }
+
+# ---------------------------------------------------------------------------
+# 8. Deterministische Compliance-Texte
+# ---------------------------------------------------------------------------
+
+#: Compliance-Bausteine, die die Regel-Schicht selbst formuliert (KEIN
+#: LLM-Ergebnis). ``kb_unavailable`` ist die ehrliche Fail-loud-Antwort, wenn
+#: das Retrieval nur mock-praefigierte Quellen liefert -- die echte Wissensbasis
+#: ist dann nicht verdrahtet (s. service.generate_compliance_hints). Lag bis
+#: V4.1 als deutschsprachige Modul-Konstante in der Application-Schicht und war
+#: damit der einzige nutzerseitige Text ausserhalb der Kataloge -- bei lang=en
+#: erschien er trotzdem auf Deutsch.
+COMPLIANCE_TEXT: dict[Lang, dict[str, str]] = {
+    "de": {
+        "kb_unavailable": (
+            "Wissensbasis nicht verfügbar -- keine belegten Compliance-Hinweise "
+            "möglich."
+        ),
+    },
+    "en": {
+        "kb_unavailable": (
+            "Knowledge base unavailable -- no evidence-backed compliance hints "
+            "possible."
+        ),
+    },
+}

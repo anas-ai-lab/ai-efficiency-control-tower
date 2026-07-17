@@ -84,6 +84,7 @@ from aect.domain.explainability import COMPOSITE_MAX_TOTAL
 from aect.domain.feasibility import build_feasibility_recommendation
 from aect.domain.i18n import (
     ADOPTION_LABELS,
+    COMPLIANCE_TEXT,
     DATA_CLASSIFICATION_CLARTEXT,
     DEFAULT_LANG,
     EVIDENCE_LABELS,
@@ -109,11 +110,9 @@ _TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
 # ein solcher Chunk auf, ist die echte Wissensbasis nicht verdrahtet
 # (AECT_CHROMA_HOST leer -> resolve_retriever() faellt auf MockRetriever zurueck).
 # Dann liefert der Compliance-Teil eine ehrliche "nicht verfuegbar"-Antwort statt
-# Mock-Zitaten. Mock-Fixtures sind ausschliesslich in Tests zulaessig.
+# Mock-Zitaten (Wortlaut: COMPLIANCE_TEXT[lang]["kb_unavailable"]). Mock-Fixtures
+# sind ausschliesslich in Tests zulaessig.
 _MOCK_SOURCE_PREFIX = "mock-"
-_KB_UNAVAILABLE_HINT = (
-    "Wissensbasis nicht verfügbar -- keine belegten Compliance-Hinweise möglich."
-)
 
 # Dedup-Schwellen (L-3, ADR-0039). Generische Cosinus-Aehnlichkeitsgrenzen,
 # KEINE firmenspezifischen Werte (anders als ROI-/Zonen-Schwellen in config/):
@@ -1655,7 +1654,7 @@ class TriageService:
         return await self._repository.get_async(case.id)
 
     async def generate_compliance_hints(
-        self, case_id: str, prompt_version: str = "v1"
+        self, case_id: str, prompt_version: str = "v1", lang: Lang = DEFAULT_LANG
     ) -> ComplianceHintsResult | None:
         """RAG-gegruendete Compliance-Hinweise fuer einen persistierten Case.
 
@@ -1697,6 +1696,11 @@ class TriageService:
         Chunk ueber beide Queries zurueckkommt -- bei der heutigen, kleinen
         Wissensbasis nicht relevant, Folge-Punkt sobald sie waechst.
 
+        lang steuert den deterministischen "Wissensbasis nicht verfuegbar"-Text
+        (COMPLIANCE_TEXT). Er wird -- wie der LLM-Hinweistext auch -- in der
+        Sprache PERSISTIERT, in der er erzeugt wurde; der Report gibt den
+        gespeicherten Stand unveraendert wieder (_render_compliance_hints).
+
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
         """
@@ -1727,14 +1731,15 @@ class TriageService:
                 case_id=case.id,
                 retrieved_source_ids=[chunk.source_id for chunk in retrieved],
             )
+            kb_unavailable = COMPLIANCE_TEXT[lang]["kb_unavailable"]
             await self._repository.update_field_async(
                 case.id,
                 "compliance_hints_json",
-                json.dumps({"hint_text": _KB_UNAVAILABLE_HINT, "citations": []}),
+                json.dumps({"hint_text": kb_unavailable, "citations": []}),
             )
             return ComplianceHintsResult(
                 case_id=case.id,
-                hint_text=_KB_UNAVAILABLE_HINT,
+                hint_text=kb_unavailable,
                 citations=(),
                 prompt_version=prompt_version,
             )

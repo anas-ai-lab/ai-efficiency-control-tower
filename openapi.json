@@ -1195,7 +1195,7 @@
           "cases"
         ],
         "summary": "Compliance Hints",
-        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
+        "description": "Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- LLM-Endpoint, analog /sharpen und\n/propose-solution (aect-security-checklist v2.1, Phase B: \"LLM-Endpoints\nstrenger\").\nToken-Budget: require_token_budget prueft VOR dem LLM-Call das\nstuendliche Token-Budget des API-Keys (Phase G).\nlang: steuert den deterministischen \"Wissensbasis nicht verfuegbar\"-Text\n(COMPLIANCE_TEXT). Das Frontend haengt die Query ohnehin an jeden Aufruf --\nbis V4.1 lief sie hier ins Leere und der Hinweis kam stets deutsch.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 429: Token-Budget des API-Keys erschoepft.",
         "operationId": "compliance_hints_cases__case_id__compliance_hints_post",
         "security": [
           {
@@ -1210,6 +1210,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],

@@ -697,6 +697,9 @@ export interface paths {
          *     strenger").
          *     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
          *     stuendliche Token-Budget des API-Keys (Phase G).
+         *     lang: steuert den deterministischen "Wissensbasis nicht verfuegbar"-Text
+         *     (COMPLIANCE_TEXT). Das Frontend haengt die Query ohnehin an jeden Aufruf --
+         *     bis V4.1 lief sie hier ins Leere und der Hinweis kam stets deutsch.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
@@ -2763,7 +2766,9 @@ export interface operations {
     };
     compliance_hints_cases__case_id__compliance_hints_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;

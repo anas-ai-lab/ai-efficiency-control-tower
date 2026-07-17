@@ -427,10 +427,13 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
 # echte ReviewerDecision, damit sie als "bewertet" zaehlen und ihre Bewertung
 # fuer Anonyme freigegeben ist. Nicht gelistete Status (submitted, in_review,
 # already_exists) bleiben PENDING.
+#
+# ADR-0051: 'integrated' ist als Lifecycle-Status entfallen und in IMPLEMENTED
+# aufgegangen -- der Eintrag dafuer ist ersatzlos weg (IMPLEMENTED traegt die
+# Freigabe bereits), nicht auf einen anderen Wert umgebogen.
 _DECISION_BY_STATUS: dict[CaseStatus, ReviewerDecision] = {
     CaseStatus.APPROVED: ReviewerDecision.APPROVED,
     CaseStatus.IMPLEMENTED: ReviewerDecision.APPROVED,
-    CaseStatus.INTEGRATED: ReviewerDecision.APPROVED,
     CaseStatus.REJECTED: ReviewerDecision.REJECTED,
 }
 

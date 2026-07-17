@@ -1260,6 +1260,7 @@ async def compliance_hints(
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
     __: None = Depends(require_token_budget),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> ComplianceHintsResponse:
     """Erstellt RAG-gegruendete Compliance-Hinweise fuer einen bestehenden Case.
 
@@ -1270,6 +1271,9 @@ async def compliance_hints(
     strenger").
     Token-Budget: require_token_budget prueft VOR dem LLM-Call das
     stuendliche Token-Budget des API-Keys (Phase G).
+    lang: steuert den deterministischen "Wissensbasis nicht verfuegbar"-Text
+    (COMPLIANCE_TEXT). Das Frontend haengt die Query ohnehin an jeden Aufruf --
+    bis V4.1 lief sie hier ins Leere und der Hinweis kam stets deutsch.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
@@ -1279,7 +1283,7 @@ async def compliance_hints(
     # result.routing.risk_flags -- ohne Bewertung 409 statt AttributeError.
     _guard_not_pending(service.get_case(case_id))
 
-    result = await service.generate_compliance_hints(case_id)
+    result = await service.generate_compliance_hints(case_id, lang=lang)
     if result is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
