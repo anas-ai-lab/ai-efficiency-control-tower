@@ -30,11 +30,11 @@ Schema-Split public/admin (V4.1-S8, load-bearing):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from starlette.responses import Response
 
 from aect.adapters.api.dependencies import (
@@ -61,7 +61,12 @@ from aect.application.service import (
     TriageService,
 )
 from aect.application.structured_output import InvalidLLMOutputError
-from aect.domain import CaseStatus, ImplementationApproach, ReviewerDecision
+from aect.domain import (
+    CaseStatus,
+    ImplementationApproach,
+    MonitoringAction,
+    ReviewerDecision,
+)
 from aect.domain.explainability import feasibility_from_composite
 from aect.domain.i18n import DEFAULT_LANG, FEASIBILITY_DEFINITION, Lang
 from aect.domain.models import UseCaseInput
@@ -460,10 +465,43 @@ class DiscontinuedResponse(BaseModel):
     discontinued: bool
 
 
+# reason/actor_name (V4.1-S10): strip_whitespace VOR den Laengenpruefungen --
+# sonst kaeme " " durch min_length=1 und stuende als leere Begruendung im
+# Verlauf. Die 422 bei Leereingabe ist der eigentliche Zweck des Schemas, nicht
+# ein Nebeneffekt: ohne beide Angaben darf der Akt nicht stattfinden.
+_ReasonField = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+]
+_ActorNameField = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+]
+
+
+class DiscontinueEventRequest(BaseModel):
+    """Pflichtangaben fuer das Einstellen bzw. Reaktivieren eines Case
+    (Monitoring, V4.1-S10).
+
+    Beide Richtungen verlangen dasselbe: reason (Begruendung, Freitext) und
+    actor_name (Name der ausfuehrenden Person). Ein gemeinsames Schema statt
+    zweier identischer -- der Unterschied zwischen den Akten liegt in der
+    Route, nicht in den Angaben.
+
+    max_length wie bei MonitoringNoteRequest (Token-Flooding-Schutz,
+    aect-security-checklist v2.1 Phase A); actor_name kuerzer, es ist ein Name,
+    kein Fliesstext. extra="forbid" konsistent mit den uebrigen Request-Schemas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: _ReasonField
+    actor_name: _ActorNameField
+
+
 @router.post("/{case_id}/discontinue", response_model=DiscontinuedResponse)
 @limiter.limit("10/minute")
 async def discontinue_case(
     case_id: str,
+    body: DiscontinueEventRequest,
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
@@ -478,10 +516,15 @@ async def discontinue_case(
     Reines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein
     LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
 
+    Body ist Pflicht (V4.1-S10): Begruendung + Name der ausfuehrenden Person
+    landen als Ereignis in der Monitoring-Zeitleiste. Fehlt eine der beiden
+    Angaben (oder ist sie leer/nur Leerzeichen), lehnt Pydantic mit 422 ab --
+    der Akt findet dann nicht statt, auch nicht teilweise.
+
     Raises:
         HTTPException 404: case_id existiert nicht.
     """
-    case = await service.set_discontinued(case_id, True)
+    case = await service.set_discontinued(case_id, True, body.reason, body.actor_name)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -492,6 +535,7 @@ async def discontinue_case(
 @limiter.limit("10/minute")
 async def reinstate_case(
     case_id: str,
+    body: DiscontinueEventRequest,
     request: Request,
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
@@ -505,10 +549,15 @@ async def reinstate_case(
 
     Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
 
+    Body ist Pflicht (V4.1-S10), symmetrisch zu /discontinue: auch die Rueckkehr
+    in die aktive Beobachtung ist eine begruendungspflichtige Entscheidung --
+    sonst waere im Verlauf zwar jedes Einstellen belegt, aber jedes Zuruecknehmen
+    anonym.
+
     Raises:
         HTTPException 404: case_id existiert nicht.
     """
-    case = await service.set_discontinued(case_id, False)
+    case = await service.set_discontinued(case_id, False, body.reason, body.actor_name)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -585,6 +634,11 @@ class MonitoringEntryResponse(BaseModel):
 
     status_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,
     kein Live-Verweis).
+
+    action/actor_name (V4.1-S10): beide null bei einer freien Beobachtungsnotiz
+    (Regelfall + Altbestand), beide gesetzt bei einem discontinue/reinstate-
+    Ereignis -- dann traegt note die Pflicht-Begruendung. Clients unterscheiden
+    beide Eintragsarten an action, nicht an Heuristiken ueber den note-Text.
     """
 
     id: str
@@ -592,6 +646,8 @@ class MonitoringEntryResponse(BaseModel):
     created_at: datetime
     note: str
     status_snapshot: str
+    action: MonitoringAction | None = None
+    actor_name: str | None = None
 
 
 @router.post(
@@ -630,6 +686,8 @@ async def add_monitoring_note(
         created_at=entry.created_at,
         note=entry.note,
         status_snapshot=entry.status_snapshot,
+        action=entry.action,
+        actor_name=entry.actor_name,
     )
 
 
@@ -668,6 +726,8 @@ async def list_monitoring(
             created_at=entry.created_at,
             note=entry.note,
             status_snapshot=entry.status_snapshot,
+            action=entry.action,
+            actor_name=entry.actor_name,
         )
         for entry in entries
     ]

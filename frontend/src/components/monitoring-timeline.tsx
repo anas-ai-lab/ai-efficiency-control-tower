@@ -8,6 +8,7 @@ import { addMonitoringNote } from "@/app/actions";
 import { STATUS_CONFIG } from "@/lib/status";
 import { ActionError } from "@/components/action-error";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormat } from "@/lib/use-format";
@@ -105,6 +106,27 @@ export function MonitoringTimeline({
                   {fmt.dateTime(e.created_at)}
                 </time>
                 <StatusBadge status={e.status_snapshot} />
+                {/* Ereignis (V4.1-S10): Aktion + ausfuehrende Person. Beide
+                    null bei einer freien Notiz -- die bleibt unveraendert eine
+                    reine Zeitstempel+Status-Zeile. */}
+                {e.action !== null && (
+                  <Badge
+                    variant={
+                      e.action === "discontinued" ? "destructive" : "outline"
+                    }
+                  >
+                    {t(
+                      e.action === "discontinued"
+                        ? "actionDiscontinued"
+                        : "actionReactivated",
+                    )}
+                  </Badge>
+                )}
+                {e.actor_name !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("actorPrefix", { name: e.actor_name })}
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
                 {e.note}

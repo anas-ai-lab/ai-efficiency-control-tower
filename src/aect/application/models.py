@@ -13,7 +13,13 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 from aect.application.structured_output import ArchitectureSketch, ImprovementSuggestion
-from aect.domain import CaseStatus, ReviewerDecision, TriageResult, UseCaseInput
+from aect.domain import (
+    CaseStatus,
+    MonitoringAction,
+    ReviewerDecision,
+    TriageResult,
+    UseCaseInput,
+)
 
 
 class SimilarityWarning(BaseModel):
@@ -224,6 +230,20 @@ class MonitoringEntry:
     spaeterer Statuswechsel des Case aendert alte Eintraege nicht (sonst
     verloere die Zeitleiste ihren historischen Wert).
 
+    action/actor_name (V4.1-S10): beide None bei der freien Beobachtungsnotiz --
+    dem Regelfall und dem gesamten Altbestand (nullable Spalten, siehe
+    sqlite/repository.py). Gesetzt sind sie ausschliesslich bei den beiden
+    Monitoring-Ereignissen discontinue/reinstate, die einen Eintrag als
+    Nebenwirkung erzeugen: action haelt fest, WELCHER Akt es war, actor_name
+    WER ihn ausfuehrte, und note traegt dann die Pflicht-Begruendung statt
+    einer freien Notiz. Beide Felder werden nur ueber
+    TriageService.set_discontinued() gefuellt, wo die Route sie als
+    Pflichtangaben erzwingt (422 ohne).
+
+    actor_name ist ein selbst angegebener Name, kein Auth-Subjekt: der Build
+    kennt genau eine Admin-Identitaet (Session/API-Key), die Zeitleiste soll
+    aber benennen, wer die Entscheidung fachlich verantwortet.
+
     frozen=True: analog UseCaseInput/SharpenedUseCase -- nach Erstellung
     unveraenderlich.
     """
@@ -233,6 +253,8 @@ class MonitoringEntry:
     created_at: datetime
     note: str
     status_snapshot: str
+    action: MonitoringAction | None = None
+    actor_name: str | None = None
 
 
 @dataclass(frozen=True)

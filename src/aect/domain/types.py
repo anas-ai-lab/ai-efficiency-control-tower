@@ -166,3 +166,21 @@ class CaseStatus(StrEnum):
     ALREADY_EXISTS = "already_exists"
     REJECTED = "rejected"
     IMPLEMENTED = "implemented"
+
+
+class MonitoringAction(StrEnum):
+    """Der Anlass eines Monitoring-Eintrags, sofern er aus einer Aktion entstand.
+
+    Ein Eintrag OHNE Aktion ist die freie Beobachtungsnotiz (POST
+    /cases/{id}/monitoring) -- der Regelfall und der gesamte Altbestand.
+    DISCONTINUED/REACTIVATED entstehen ausschliesslich als Nebenwirkung von
+    POST /cases/{id}/discontinue bzw. /reinstate: dort sind Begruendung und
+    Name der ausfuehrenden Person Pflicht, hier wird festgehalten, welcher
+    der beiden Akte es war.
+
+    Bewusst KEIN CaseStatus-Member und kein ReviewerDecision-Wert: das
+    discontinued-Flag laeuft neben dem Lifecycle, nicht in ihm.
+    """
+
+    DISCONTINUED = "discontinued"
+    REACTIVATED = "reactivated"

@@ -70,6 +70,13 @@ mit-loescht. list_monitoring_entries sortiert ORDER BY created_at, id (der
 Sekundaerschluessel id haelt die Reihenfolge stabil, wenn zwei Eintraege in
 dieselbe sekundengenaue ISO-Zeit fallen).
 
+monitoring_entries.action/actor_name (V4.1-S10): zwei nullable Spalten fuer die
+discontinue/reinstate-Ereignisse (Aktion + ausfuehrende Person; die Begruendung
+liegt in note). Migration wie bei den Case-Spalten ueber PRAGMA table_info --
+hier auf monitoring_entries statt submitted_cases. NULL bleibt dauerhaft
+gueltig: es kennzeichnet die freie Beobachtungsnotiz, nicht nur den Altbestand
+(Details am CREATE-Statement).
+
 discontinued (Monitoring, V4.1-S7): nullable-freie INTEGER-Spalte NOT NULL
 DEFAULT 0 (SQLite kennt kein natives BOOLEAN -- 0/1, analog contains_pii im
 Pydantic-Modell aber hier auf Spaltenebene). Geschrieben ueber
@@ -98,7 +105,12 @@ from aect.domain.pipeline import TriageResult
 from aect.domain.roi import ROIResult
 from aect.domain.routing import RoutingRecommendation, RoutingResult
 from aect.domain.scoring import CompositeScore
-from aect.domain.types import CaseStatus, ReviewerDecision, TriageZone
+from aect.domain.types import (
+    CaseStatus,
+    MonitoringAction,
+    ReviewerDecision,
+    TriageZone,
+)
 from aect.domain.zones import ZoneResult
 
 _CREATE_TABLE_SQL = """
@@ -231,26 +243,35 @@ _REEVALUATE_SQL = (
 # Fremdschluessel-Constraint -- SQLite erzwingt FKs nur mit PRAGMA foreign_keys
 # (pro Verbindung), und die Loesch-Kaskade wird ohnehin explizit in delete()
 # gefahren. INSERT-only; Loeschung nur ueber die case-weite DSGVO-Kaskade.
+#
+# action/actor_name (V4.1-S10): NULLABLE -- und zwar dauerhaft, nicht nur fuer
+# die Migration. NULL ist die freie Beobachtungsnotiz (der Regelfall), gesetzt
+# ist ein discontinue/reinstate-Ereignis. Ein NOT NULL DEFAULT waere hier
+# falsch: es gibt keinen sinnvollen Default-Akt fuer eine Notiz, und ein
+# Platzhalter-String wuerde jeden Altbestandseintrag als Ereignis ausgeben,
+# das nie stattfand.
 _CREATE_MONITORING_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS monitoring_entries (
     id               TEXT PRIMARY KEY,
     case_id          TEXT NOT NULL,
     created_at       TEXT NOT NULL,
     note             TEXT NOT NULL,
-    status_snapshot  TEXT NOT NULL
+    status_snapshot  TEXT NOT NULL,
+    action           TEXT,
+    actor_name       TEXT
 )
 """
 
 _INSERT_MONITORING_SQL = (
     "INSERT INTO monitoring_entries "
-    "(id, case_id, created_at, note, status_snapshot) "
-    "VALUES (?, ?, ?, ?, ?)"
+    "(id, case_id, created_at, note, status_snapshot, action, actor_name) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
 # ORDER BY created_at, id: id als Sekundaerschluessel gegen Reihenfolge-
 # Kollisionen in derselben (sekundengenauen) ISO-Zeit.
 _SELECT_MONITORING_BY_CASE_SQL = (
-    "SELECT id, case_id, created_at, note, status_snapshot "
+    "SELECT id, case_id, created_at, note, status_snapshot, action, actor_name "
     "FROM monitoring_entries WHERE case_id = ? ORDER BY created_at, id"
 )
 
@@ -466,14 +487,22 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
 
 
 def _row_to_monitoring_entry(row: tuple[Any, ...]) -> MonitoringEntry:
-    """SQLite-Row (5-Tupel) -> MonitoringEntry."""
-    (entry_id, case_id, created_at_str, note, status_snapshot) = row
+    """SQLite-Row (7-Tupel) -> MonitoringEntry.
+
+    action/actor_name sind NULL bei freien Notizen und im Altbestand
+    (Eintraege aus der Zeit vor V4.1-S10) -> None statt str(None). Ein
+    gesetzter action-Wert wird ueber MonitoringAction(...) geparst und wirft
+    bei unbekanntem String (fail loud, analog CaseStatus() unten).
+    """
+    (entry_id, case_id, created_at_str, note, status_snapshot, action, actor_name) = row
     return MonitoringEntry(
         id=str(entry_id),
         case_id=str(case_id),
         created_at=datetime.fromisoformat(str(created_at_str)),
         note=str(note),
         status_snapshot=str(status_snapshot),
+        action=None if action is None else MonitoringAction(str(action)),
+        actor_name=None if actor_name is None else str(actor_name),
     )
 
 
@@ -557,6 +586,19 @@ class SQLiteRepository:
                 conn.execute(
                     "ALTER TABLE submitted_cases ADD COLUMN discontinued "
                     "INTEGER NOT NULL DEFAULT 0"
+                )
+            # action/actor_name (V4.1-S10): dieselbe PRAGMA-Strategie, aber auf
+            # monitoring_entries. Bewusst OHNE NOT NULL/DEFAULT -- Altbestands-
+            # Eintraege sind freie Notizen ohne Aktion und Person; NULL sagt
+            # genau das, ein Default-String wuerde ein Ereignis behaupten.
+            monitoring_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(monitoring_entries)")
+            }
+            if "action" not in monitoring_columns:
+                conn.execute("ALTER TABLE monitoring_entries ADD COLUMN action TEXT")
+            if "actor_name" not in monitoring_columns:
+                conn.execute(
+                    "ALTER TABLE monitoring_entries ADD COLUMN actor_name TEXT"
                 )
             # ADR-0051: der Lifecycle-Status 'integrated' wurde entfernt.
             # Bestehende Rows idempotent auf 'implemented' heben -- sonst wirft
@@ -731,6 +773,8 @@ class SQLiteRepository:
                     entry.created_at.isoformat(),
                     entry.note,
                     entry.status_snapshot,
+                    None if entry.action is None else entry.action.value,
+                    entry.actor_name,
                 ),
             )
 

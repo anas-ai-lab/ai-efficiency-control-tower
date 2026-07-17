@@ -34,6 +34,7 @@ from aect.domain.types import (
     EmployeeCategory,
     EvidenceLevel,
     ImplementationApproach,
+    MonitoringAction,
     ReviewerDecision,
     TriageZone,
 )
@@ -59,6 +60,8 @@ __all__ = [
     # filters
     "FilterResult",
     "ImplementationApproach",
+    # monitoring
+    "MonitoringAction",
     # roi
     "ROIConfig",
     "ROIResult",

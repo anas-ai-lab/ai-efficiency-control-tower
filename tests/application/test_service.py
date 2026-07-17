@@ -34,7 +34,12 @@ from aect.application.structured_output import (
 )
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
-from aect.domain.types import CaseStatus, DataClassification, ReviewerDecision
+from aect.domain.types import (
+    CaseStatus,
+    DataClassification,
+    MonitoringAction,
+    ReviewerDecision,
+)
 
 
 def _solution_json(marker: str) -> str:
@@ -1385,6 +1390,12 @@ class TestTriageServiceUpdateStatus:
 # discontinued-Flag (Monitoring, V4.1-S7)
 # ---------------------------------------------------------------------------
 
+# Pflichtangaben je Ereignis (V4.1-S10). Die Nicht-Leer-Pruefung liegt im
+# Request-Schema (422, siehe tests/adapters/api/test_discontinue.py) -- der
+# Service bekommt sie bereits geprueft und haelt sie nur fest.
+_REASON = "Pilot ohne messbaren Nutzen beendet."
+_ACTOR = "Maria Muster"
+
 
 class TestTriageServiceSetDiscontinued:
     async def test_default_is_false(
@@ -1400,7 +1411,7 @@ class TestTriageServiceSetDiscontinued:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        updated = await service.set_discontinued(case.id, True)
+        updated = await service.set_discontinued(case.id, True, _REASON, _ACTOR)
 
         assert updated is not None
         assert updated.discontinued is True
@@ -1411,7 +1422,7 @@ class TestTriageServiceSetDiscontinued:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        await service.set_discontinued(case.id, True)
+        await service.set_discontinued(case.id, True, _REASON, _ACTOR)
 
         persisted = repo.get(case.id)
         assert persisted is not None
@@ -1423,8 +1434,8 @@ class TestTriageServiceSetDiscontinued:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        await service.set_discontinued(case.id, True)
-        await service.set_discontinued(case.id, False)
+        await service.set_discontinued(case.id, True, _REASON, _ACTOR)
+        await service.set_discontinued(case.id, False, _REASON, _ACTOR)
 
         persisted = repo.get(case.id)
         assert persisted is not None
@@ -1438,7 +1449,7 @@ class TestTriageServiceSetDiscontinued:
         case = service.submit_use_case(sample_use_case)
         await service.update_status(case.id, CaseStatus.APPROVED)
 
-        updated = await service.set_discontinued(case.id, True)
+        updated = await service.set_discontinued(case.id, True, _REASON, _ACTOR)
 
         assert updated is not None
         assert updated.status == CaseStatus.APPROVED
@@ -1448,7 +1459,7 @@ class TestTriageServiceSetDiscontinued:
         self, roi_config: ROIConfig
     ) -> None:
         service, _ = _make_service(roi_config)
-        result = await service.set_discontinued("does-not-exist", True)
+        result = await service.set_discontinued("does-not-exist", True, _REASON, _ACTOR)
         assert result is None
 
     async def test_set_discontinued_emits_audit_log_event(
@@ -1458,12 +1469,95 @@ class TestTriageServiceSetDiscontinued:
         case = service.submit_use_case(sample_use_case)
 
         with capture_logs() as logs:
-            await service.set_discontinued(case.id, True)
+            await service.set_discontinued(case.id, True, _REASON, _ACTOR)
 
         events = [e for e in logs if e.get("event") == "case_discontinued_changed"]
         assert len(events) == 1
         assert events[0]["case_id"] == case.id
         assert events[0]["discontinued"] is True
+
+    async def test_audit_log_carries_no_reason_or_actor_name(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # PII-Allowlist (analog case_decision_recorded): Freitext-Begruendung
+        # und Personenname gehoeren in die Zeitleiste, nicht in die Logs.
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.set_discontinued(case.id, True, _REASON, _ACTOR)
+
+        event = next(e for e in logs if e.get("event") == "case_discontinued_changed")
+        assert _REASON not in str(event)
+        assert _ACTOR not in str(event)
+
+    async def test_discontinue_appends_monitoring_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Der Verlaufseintrag traegt alle vier geforderten Angaben:
+        # Zeitpunkt, Aktion, Name, Begruendung (V4.1-S10).
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.set_discontinued(case.id, True, _REASON, _ACTOR)
+
+        entries = repo.list_monitoring_entries(case.id)
+        assert len(entries) == 1
+        assert entries[0].action == MonitoringAction.DISCONTINUED
+        assert entries[0].actor_name == _ACTOR
+        assert entries[0].note == _REASON
+        assert entries[0].created_at is not None
+
+    async def test_reinstate_appends_reactivated_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.set_discontinued(case.id, True, "Kein Nutzen", "Anna Admin")
+        await service.set_discontinued(case.id, False, _REASON, _ACTOR)
+
+        entries = repo.list_monitoring_entries(case.id)
+        assert [e.action for e in entries] == [
+            MonitoringAction.DISCONTINUED,
+            MonitoringAction.REACTIVATED,
+        ]
+        assert entries[1].actor_name == _ACTOR
+
+    async def test_event_snapshots_current_lifecycle_status(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Der Eintrag friert den Status zum Zeitpunkt des Akts ein -- das
+        # Einstellen selbst aendert ihn nicht.
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.IMPLEMENTED)
+
+        await service.set_discontinued(case.id, True, _REASON, _ACTOR)
+
+        entries = repo.list_monitoring_entries(case.id)
+        assert entries[0].status_snapshot == CaseStatus.IMPLEMENTED.value
+
+    async def test_missing_case_appends_no_event(self, roi_config: ROIConfig) -> None:
+        service, repo = _make_service(roi_config)
+
+        await service.set_discontinued("does-not-exist", True, _REASON, _ACTOR)
+
+        assert repo.list_monitoring_entries("does-not-exist") == []
+
+    async def test_manual_note_has_no_action_or_actor(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Die freie Beobachtungsnotiz bleibt aktionslos -- daran unterscheidet
+        # die Anzeige Ereignis von Notiz.
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        entry = await service.add_monitoring_note(case.id, "Pilot gestartet")
+
+        assert entry is not None
+        assert entry.action is None
+        assert entry.actor_name is None
 
 
 # ---------------------------------------------------------------------------

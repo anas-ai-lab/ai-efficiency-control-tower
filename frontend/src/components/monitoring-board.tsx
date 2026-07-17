@@ -11,6 +11,7 @@ import { CaseStatusControl } from "@/components/case-status-control"
 import { DiscontinueControl } from "@/components/discontinue-control"
 import { MonitoringTimeline } from "@/components/monitoring-timeline"
 import { ZoneBadge } from "@/components/status-badge"
+import { Badge } from "@/components/ui/badge"
 import { useFormat } from "@/lib/use-format"
 import { cn } from "@/lib/utils"
 
@@ -28,25 +29,36 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // discontinued (V4.1-S7): eigener State statt direktem c.discontinued-Zugriff,
-  // damit DiscontinueControl den Wert optimistisch aktualisieren kann -- die
-  // rote Hervorhebung unten liest denselben State.
+  // damit DiscontinueControl den vom Server bestaetigten Wert zurueckmelden
+  // kann -- Badge und Hervorhebung unten lesen denselben State.
   const [discontinued, setDiscontinued] = useState(c.discontinued)
+
+  async function load() {
+    setLoading(true)
+    setError(null)
+    try {
+      setEntries(await listMonitoringEntries(c.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("entriesLoadError"))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function toggle() {
     const next = !expanded
     setExpanded(next)
     // Beim ersten Aufklappen einmalig laden.
     if (next && entries === null && !loading) {
-      setLoading(true)
-      setError(null)
-      try {
-        setEntries(await listMonitoringEntries(c.id))
-      } catch (e) {
-        setError(e instanceof Error ? e.message : t("entriesLoadError"))
-      } finally {
-        setLoading(false)
-      }
+      await load()
     }
+  }
+
+  // Einstellen/Reaktivieren erzeugt serverseitig einen Verlaufseintrag
+  // (V4.1-S10). Eine bereits geladene Zeitleiste wuesste sonst nichts davon und
+  // zeigte einen Verlauf, in dem der eben ausgefuehrte Akt fehlt.
+  async function handleEventLogged() {
+    if (entries !== null) await load()
   }
 
   return (
@@ -57,24 +69,30 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
       )}
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
-        <div className="min-w-0 flex-1">
+        {/* basis-full unter sm: Titel + Abteilung bekommen eine eigene Zeile,
+            statt sich mit den Badges um dieselbe zu druecken. Ab sm traegt
+            flex-1 den Rest der Breite. */}
+        <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
           <Link
             href={`/cases/${c.id}`}
             className="font-medium text-foreground underline-offset-2 hover:underline"
           >
             {c.title}
           </Link>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {c.department}
-            {discontinued && (
-              <span className="ml-2 font-medium text-destructive">
-                {t("discontinuedBadge")}
-              </span>
-            )}
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{c.department}</p>
         </div>
-        <div className="hidden sm:block">
-          <ZoneBadge zone={c.zone} />
+        {/* Zustands-Badge und Zone sitzen als Geschwister in EINEM gap-Container
+            (frueher: Badge inline im Abteilungs-Absatz, wo es bei knapper Breite
+            in die Zone lief). Geschwister in einem flex-gap koennen sich
+            strukturell nicht ueberlappen -- auf keinem Breakpoint. shrink-0
+            haelt sie zusammen, wenn der Titel lang wird. */}
+        <div className="flex shrink-0 items-center gap-3">
+          {discontinued && (
+            <Badge variant="destructive">{t("discontinuedBadge")}</Badge>
+          )}
+          <div className="hidden sm:block">
+            <ZoneBadge zone={c.zone} />
+          </div>
         </div>
         <div className="hidden font-mono text-sm tabular-nums text-foreground/85 md:block">
           {c.net_expected_benefit_eur === null
@@ -86,6 +104,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
           caseId={c.id}
           discontinued={discontinued}
           onDiscontinuedChange={setDiscontinued}
+          onEventLogged={handleEventLogged}
         />
         <button
           type="button"

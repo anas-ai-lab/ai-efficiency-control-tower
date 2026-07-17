@@ -68,6 +68,7 @@ from aect.domain import (
     CaseStatus,
     EvidenceLevel,
     ImplementationApproach,
+    MonitoringAction,
     ReviewerDecision,
     ROIConfig,
     TriageExplanation,
@@ -1053,21 +1054,38 @@ class TriageService:
         return case
 
     async def set_discontinued(
-        self, case_id: str, discontinued: bool
+        self, case_id: str, discontinued: bool, reason: str, actor_name: str
     ) -> SubmittedCase | None:
-        """Setzt das discontinued-Flag eines Case (Monitoring, V4.1-S7).
+        """Setzt das discontinued-Flag eines Case und protokolliert den Akt
+        in der Monitoring-Zeitleiste (Monitoring, V4.1-S7; Begruendungspflicht
+        V4.1-S10).
 
         Reines Zusatzflag, unabhaengig vom CaseStatus-Lifecycle (kein neuer
         CaseStatus-Member) -- ein eingestellter Case behaelt seinen Status.
 
-        Persistenz: dediziertes UPDATE ueber RepositoryPort.set_discontinued_
-        async (F-011-Muster, analog update_status) statt save() der ganzen
-        Zeile -- kein Lost-Update gegenueber parallelen LLM-Feld-
-        Schreibvorgaengen (sharpen/propose/compliance) auf demselben Case.
+        reason/actor_name sind Pflicht (V4.1-S10): das Einstellen eines Use
+        Case beendet die aktive Beobachtung und ist damit die folgenreichste
+        Monitoring-Handlung -- sie darf nicht anonym und unbegruendet im
+        Verlauf stehen. Die Route erzwingt beide Angaben nicht-leer (422);
+        hier wird nicht erneut validiert, sondern nur festgehalten.
+
+        Zwei Schreibvorgaenge, bewusst in dieser Reihenfolge: erst das Flag
+        (der fachliche Zustand), dann der append-only Eintrag. Bricht der
+        zweite ab, steht ein gesetztes Flag ohne Verlaufseintrag da -- der
+        umgekehrte Fall (Eintrag ueber einen nie erfolgten Akt) waere die
+        schlechtere Luege. Eine echte Transaktion ueber beide Tabellen gibt
+        der RepositoryPort nicht her (getrennte Verbindungen je Methode).
+
+        Der Eintrag traegt action (discontinued/reactivated), actor_name und
+        die Begruendung als note -- damit erscheint das Ereignis in derselben
+        chronologischen Zeitleiste wie die manuellen Notizen, statt in einem
+        zweiten, konkurrierenden Verlauf.
 
         Audit-Trail: case_discontinued_changed wird geloggt (case_id,
-        discontinued) -- reine Allowlist-Felder, kein Freitext
-        (PII-Allowlist-konform, analog case_status_changed).
+        discontinued, entry_id) -- reine Allowlist-Felder. OHNE reason
+        (Freitext) und OHNE actor_name (Personenname): beides koennte PII
+        tragen, analog case_decision_recorded, das die reviewer_note ebenfalls
+        nicht loggt.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -1079,11 +1097,27 @@ class TriageService:
         await self._repository.set_discontinued_async(case_id, discontinued)
         case.discontinued = discontinued
 
+        entry = MonitoringEntry(
+            id=self._id_generator.generate(),
+            case_id=case_id,
+            created_at=self._clock.now(),
+            note=reason,
+            status_snapshot=case.status.value,
+            action=(
+                MonitoringAction.DISCONTINUED
+                if discontinued
+                else MonitoringAction.REACTIVATED
+            ),
+            actor_name=actor_name,
+        )
+        await self._repository.add_monitoring_entry_async(entry)
+
         logger = structlog.get_logger()
         logger.info(
             "case_discontinued_changed",
             case_id=case_id,
             discontinued=discontinued,
+            entry_id=entry.id,
         )
         return case
 

@@ -506,10 +506,25 @@ export interface MonitoringEntry {
   created_at: string;
   note: string;
   status_snapshot: CaseStatus;
+  // action/actor_name (V4.1-S10): null bei der freien Beobachtungsnotiz
+  // (Regelfall + Altbestand), gesetzt bei einem Einstellen/Reaktivieren --
+  // dann traegt note die Pflicht-Begruendung. Die Anzeige unterscheidet beide
+  // Arten an action, nicht am note-Text.
+  action: MonitoringAction | null;
+  actor_name: string | null;
 }
+
+export type MonitoringAction = "discontinued" | "reactivated";
 
 export interface MonitoringNoteRequest {
   note: string;
+}
+
+// Pflichtangaben fuer POST /cases/{id}/discontinue bzw. /reinstate (V4.1-S10).
+// Beide Felder nicht-leer, sonst 422 -- die Aktion findet ohne sie nicht statt.
+export interface DiscontinueEventRequest {
+  reason: string;
+  actor_name: string;
 }
 
 // ---- Architektur-Skizze (/cases/{id}/architecture-sketch, P11, ADR-0049) ---

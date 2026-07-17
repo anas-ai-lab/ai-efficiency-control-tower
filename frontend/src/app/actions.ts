@@ -415,12 +415,18 @@ export async function updateCaseStatus(
 // discontinued-Flag (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr
 // aktiv beobachtet", unabhaengig vom CaseStatus-Lifecycle. Kein Request-Body
 // (analog sharpen/accept) -- der Endpoint-Name traegt die Bedeutung.
+// Einstellen/Reaktivieren (V4.1-S10): reason + actorName sind serverseitig
+// Pflicht (422 bei leer). Das Dialog-Formular erzwingt beide bereits, der
+// Trim hier ist die zweite Instanz -- nicht die einzige.
 export async function discontinueCase(
   caseId: string,
+  reason: string,
+  actorName: string,
 ): Promise<DiscontinuedResponse> {
   const res = await apiFetch<DiscontinuedResponse>(
     `/cases/${caseId}/discontinue`,
     RULE_TIMEOUT_MS,
+    JSON.stringify({ reason, actor_name: actorName }),
   );
   revalidateCase(caseId);
   return res;
@@ -428,10 +434,13 @@ export async function discontinueCase(
 
 export async function reinstateCase(
   caseId: string,
+  reason: string,
+  actorName: string,
 ): Promise<DiscontinuedResponse> {
   const res = await apiFetch<DiscontinuedResponse>(
     `/cases/${caseId}/reinstate`,
     RULE_TIMEOUT_MS,
+    JSON.stringify({ reason, actor_name: actorName }),
   );
   revalidateCase(caseId);
   return res;

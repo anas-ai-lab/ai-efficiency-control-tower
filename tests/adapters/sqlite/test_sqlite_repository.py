@@ -29,6 +29,7 @@ from aect.domain.types import (
     EmployeeCategory,
     EvidenceLevel,
     ImplementationApproach,
+    MonitoringAction,
     ReviewerDecision,
 )
 
@@ -1007,3 +1008,174 @@ class TestDiscontinuedColumn:
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
             }
         assert "discontinued" in columns
+
+
+# ---------------------------------------------------------------------------
+# monitoring_entries.action/actor_name (V4.1-S10)
+# ---------------------------------------------------------------------------
+
+
+class TestMonitoringEventColumns:
+    def test_event_roundtrip_keeps_action_and_actor(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        repo.add_monitoring_entry(
+            MonitoringEntry(
+                id="m-evt",
+                case_id=sample_case.id,
+                created_at=datetime(2026, 7, 1, 9, 0, 0, tzinfo=UTC),
+                note="Pilot ohne messbaren Nutzen beendet.",
+                status_snapshot="implemented",
+                action=MonitoringAction.DISCONTINUED,
+                actor_name="Maria Muster",
+            )
+        )
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert entries[0].action == MonitoringAction.DISCONTINUED
+        assert entries[0].actor_name == "Maria Muster"
+        assert entries[0].note == "Pilot ohne messbaren Nutzen beendet."
+
+    def test_event_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        repo.add_monitoring_entry(
+            MonitoringEntry(
+                id="m-evt",
+                case_id=sample_case.id,
+                created_at=datetime(2026, 7, 1, 9, 0, 0, tzinfo=UTC),
+                note="Neue Datenlage",
+                status_snapshot="approved",
+                action=MonitoringAction.REACTIVATED,
+                actor_name="Anna Admin",
+            )
+        )
+
+        reloaded = SQLiteRepository(db_path).list_monitoring_entries(sample_case.id)
+        assert reloaded[0].action == MonitoringAction.REACTIVATED
+        assert reloaded[0].actor_name == "Anna Admin"
+
+    def test_plain_note_stays_null_in_both_columns(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        # Die freie Notiz ist kein Ereignis: NULL, kein Platzhalter-Default.
+        repo.save(sample_case)
+        repo.add_monitoring_entry(
+            _entry("m-1", sample_case.id, datetime(2026, 6, 12, 8, 30, 0, tzinfo=UTC))
+        )
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert entries[0].action is None
+        assert entries[0].actor_name is None
+
+    def test_migration_adds_columns_to_legacy_monitoring_table(
+        self, db_path: Path
+    ) -> None:
+        """Alte monitoring_entries-Tabelle ohne action/actor_name -> _init_db
+        ergaenzt beide (analog der Spalten-Migration an submitted_cases)."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE monitoring_entries ("
+                "id TEXT PRIMARY KEY, case_id TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, note TEXT NOT NULL, "
+                "status_snapshot TEXT NOT NULL)"
+            )
+
+        SQLiteRepository(db_path)
+
+        with connect(db_path) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(monitoring_entries)")
+            }
+        assert "action" in columns
+        assert "actor_name" in columns
+
+    def test_legacy_entries_stay_readable_after_migration(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Der Kern der Migrationszusage: ein Eintrag, der VOR V4.1-S10
+        geschrieben wurde, laedt weiter -- mit action/actor_name als None
+        statt einer Exception oder einem erfundenen Ereignis."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE monitoring_entries ("
+                "id TEXT PRIMARY KEY, case_id TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, note TEXT NOT NULL, "
+                "status_snapshot TEXT NOT NULL)"
+            )
+            conn.execute(
+                "INSERT INTO monitoring_entries "
+                "(id, case_id, created_at, note, status_snapshot) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    "legacy-1",
+                    sample_case.id,
+                    datetime(2026, 5, 1, 7, 0, 0, tzinfo=UTC).isoformat(),
+                    "Alter Eintrag aus der Zeit vor der Begruendungspflicht",
+                    "approved",
+                ),
+            )
+
+        repo = SQLiteRepository(db_path)
+        entries = repo.list_monitoring_entries(sample_case.id)
+
+        assert len(entries) == 1
+        assert entries[0].id == "legacy-1"
+        assert (
+            entries[0].note == "Alter Eintrag aus der Zeit vor der Begruendungspflicht"
+        )
+        assert entries[0].action is None
+        assert entries[0].actor_name is None
+
+    def test_new_event_writes_next_to_legacy_entries(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Altbestand und neues Ereignis stehen in derselben Zeitleiste --
+        die Migration macht die Tabelle nicht schreibunfaehig."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE monitoring_entries ("
+                "id TEXT PRIMARY KEY, case_id TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, note TEXT NOT NULL, "
+                "status_snapshot TEXT NOT NULL)"
+            )
+            conn.execute(
+                "INSERT INTO monitoring_entries "
+                "(id, case_id, created_at, note, status_snapshot) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    "legacy-1",
+                    sample_case.id,
+                    datetime(2026, 5, 1, 7, 0, 0, tzinfo=UTC).isoformat(),
+                    "Alter Eintrag",
+                    "approved",
+                ),
+            )
+
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+        repo.add_monitoring_entry(
+            MonitoringEntry(
+                id="m-evt",
+                case_id=sample_case.id,
+                created_at=datetime(2026, 7, 1, 9, 0, 0, tzinfo=UTC),
+                note="Pilot beendet",
+                status_snapshot="approved",
+                action=MonitoringAction.DISCONTINUED,
+                actor_name="Maria Muster",
+            )
+        )
+
+        entries = repo.list_monitoring_entries(sample_case.id)
+        assert [e.id for e in entries] == ["legacy-1", "m-evt"]
+        assert entries[0].action is None
+        assert entries[1].action == MonitoringAction.DISCONTINUED

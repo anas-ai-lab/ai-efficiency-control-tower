@@ -486,7 +486,7 @@
           "cases"
         ],
         "summary": "Discontinue Case",
-        "description": "Markiert einen Case als eingestellt (Monitoring, V4.1-S7).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.\n\nReines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein\nLLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Markiert einen Case als eingestellt (Monitoring, V4.1-S7).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.\n\nReines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein\nLLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).\n\nBody ist Pflicht (V4.1-S10): Begruendung + Name der ausfuehrenden Person\nlanden als Ereignis in der Monitoring-Zeitleiste. Fehlt eine der beiden\nAngaben (oder ist sie leer/nur Leerzeichen), lehnt Pydantic mit 422 ab --\nder Akt findet dann nicht statt, auch nicht teilweise.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "discontinue_case_cases__case_id__discontinue_post",
         "security": [
           {
@@ -504,6 +504,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscontinueEventRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -534,7 +544,7 @@
           "cases"
         ],
         "summary": "Reinstate Case",
-        "description": "Hebt die \"eingestellt\"-Markierung eines Case auf (Monitoring, V4.1-S7).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.\n\nKein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Hebt die \"eingestellt\"-Markierung eines Case auf (Monitoring, V4.1-S7).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.\n\nKein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).\n\nBody ist Pflicht (V4.1-S10), symmetrisch zu /discontinue: auch die Rueckkehr\nin die aktive Beobachtung ist eine begruendungspflichtige Entscheidung --\nsonst waere im Verlauf zwar jedes Einstellen belegt, aber jedes Zuruecknehmen\nanonym.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "reinstate_case_cases__case_id__reinstate_post",
         "security": [
           {
@@ -552,6 +562,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscontinueEventRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2399,6 +2419,30 @@
         "title": "DecisionResponse",
         "description": "Aktueller Entscheidungs-Zustand eines Case nach POST /decision."
       },
+      "DiscontinueEventRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "actor_name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "actor_name"
+        ],
+        "title": "DiscontinueEventRequest",
+        "description": "Pflichtangaben fuer das Einstellen bzw. Reaktivieren eines Case\n(Monitoring, V4.1-S10).\n\nBeide Richtungen verlangen dasselbe: reason (Begruendung, Freitext) und\nactor_name (Name der ausfuehrenden Person). Ein gemeinsames Schema statt\nzweier identischer -- der Unterschied zwischen den Akten liegt in der\nRoute, nicht in den Angaben.\n\nmax_length wie bei MonitoringNoteRequest (Token-Flooding-Schutz,\naect-security-checklist v2.1 Phase A); actor_name kuerzer, es ist ein Name,\nkein Fliesstext. extra=\"forbid\" konsistent mit den uebrigen Request-Schemas."
+      },
       "DiscontinuedResponse": {
         "properties": {
           "case_id": {
@@ -2649,6 +2693,15 @@
         "title": "ManagementViewResponse",
         "description": "Management-Ebene der Ergebnisdarstellung (V4.1-S5): zwei Klartext-Saetze.\n\nzonen_satz fasst Nutzen/Aufwand/Belastbarkeit zusammen, empfehlung_satz die\nEmpfehlung samt Belastbarkeit -- ohne interne Codes, Faktoren oder Scores.\nNone bei Vorfilter-Fail (kein bewertetes Ergebnis)."
       },
+      "MonitoringAction": {
+        "type": "string",
+        "enum": [
+          "discontinued",
+          "reactivated"
+        ],
+        "title": "MonitoringAction",
+        "description": "Der Anlass eines Monitoring-Eintrags, sofern er aus einer Aktion entstand.\n\nEin Eintrag OHNE Aktion ist die freie Beobachtungsnotiz (POST\n/cases/{id}/monitoring) -- der Regelfall und der gesamte Altbestand.\nDISCONTINUED/REACTIVATED entstehen ausschliesslich als Nebenwirkung von\nPOST /cases/{id}/discontinue bzw. /reinstate: dort sind Begruendung und\nName der ausfuehrenden Person Pflicht, hier wird festgehalten, welcher\nder beiden Akte es war.\n\nBewusst KEIN CaseStatus-Member und kein ReviewerDecision-Wert: das\ndiscontinued-Flag laeuft neben dem Lifecycle, nicht in ihm."
+      },
       "MonitoringEntryResponse": {
         "properties": {
           "id": {
@@ -2671,6 +2724,27 @@
           "status_snapshot": {
             "type": "string",
             "title": "Status Snapshot"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonitoringAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
           }
         },
         "type": "object",
@@ -2682,7 +2756,7 @@
           "status_snapshot"
         ],
         "title": "MonitoringEntryResponse",
-        "description": "Ein append-only Monitoring-Eintrag (Monitoring-ADR).\n\nstatus_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,\nkein Live-Verweis)."
+        "description": "Ein append-only Monitoring-Eintrag (Monitoring-ADR).\n\nstatus_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,\nkein Live-Verweis).\n\naction/actor_name (V4.1-S10): beide null bei einer freien Beobachtungsnotiz\n(Regelfall + Altbestand), beide gesetzt bei einem discontinue/reinstate-\nEreignis -- dann traegt note die Pflicht-Begruendung. Clients unterscheiden\nbeide Eintragsarten an action, nicht an Heuristiken ueber den note-Text."
       },
       "MonitoringNoteRequest": {
         "properties": {

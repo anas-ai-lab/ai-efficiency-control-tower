@@ -335,6 +335,11 @@ export interface paths {
          *     Reines Zusatzflag -- ruehrt den CaseStatus-Lifecycle nicht an. Kein
          *     LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
          *
+         *     Body ist Pflicht (V4.1-S10): Begruendung + Name der ausfuehrenden Person
+         *     landen als Ereignis in der Monitoring-Zeitleiste. Fehlt eine der beiden
+         *     Angaben (oder ist sie leer/nur Leerzeichen), lehnt Pydantic mit 422 ab --
+         *     der Akt findet dann nicht statt, auch nicht teilweise.
+         *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
          */
@@ -363,6 +368,11 @@ export interface paths {
          *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
          *
          *     Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /status).
+         *
+         *     Body ist Pflicht (V4.1-S10), symmetrisch zu /discontinue: auch die Rueckkehr
+         *     in die aktive Beobachtung ist eine begruendungspflichtige Entscheidung --
+         *     sonst waere im Verlauf zwar jedes Einstellen belegt, aber jedes Zuruecknehmen
+         *     anonym.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
@@ -1263,6 +1273,26 @@ export interface components {
             decided_at: string | null;
         };
         /**
+         * DiscontinueEventRequest
+         * @description Pflichtangaben fuer das Einstellen bzw. Reaktivieren eines Case
+         *     (Monitoring, V4.1-S10).
+         *
+         *     Beide Richtungen verlangen dasselbe: reason (Begruendung, Freitext) und
+         *     actor_name (Name der ausfuehrenden Person). Ein gemeinsames Schema statt
+         *     zweier identischer -- der Unterschied zwischen den Akten liegt in der
+         *     Route, nicht in den Angaben.
+         *
+         *     max_length wie bei MonitoringNoteRequest (Token-Flooding-Schutz,
+         *     aect-security-checklist v2.1 Phase A); actor_name kuerzer, es ist ein Name,
+         *     kein Fliesstext. extra="forbid" konsistent mit den uebrigen Request-Schemas.
+         */
+        DiscontinueEventRequest: {
+            /** Reason */
+            reason: string;
+            /** Actor Name */
+            actor_name: string;
+        };
+        /**
          * DiscontinuedResponse
          * @description Aktueller discontinued-Zustand eines Case nach POST /discontinue bzw.
          *     /reinstate (Monitoring, V4.1-S7).
@@ -1429,11 +1459,32 @@ export interface components {
             empfehlung_satz: string;
         };
         /**
+         * MonitoringAction
+         * @description Der Anlass eines Monitoring-Eintrags, sofern er aus einer Aktion entstand.
+         *
+         *     Ein Eintrag OHNE Aktion ist die freie Beobachtungsnotiz (POST
+         *     /cases/{id}/monitoring) -- der Regelfall und der gesamte Altbestand.
+         *     DISCONTINUED/REACTIVATED entstehen ausschliesslich als Nebenwirkung von
+         *     POST /cases/{id}/discontinue bzw. /reinstate: dort sind Begruendung und
+         *     Name der ausfuehrenden Person Pflicht, hier wird festgehalten, welcher
+         *     der beiden Akte es war.
+         *
+         *     Bewusst KEIN CaseStatus-Member und kein ReviewerDecision-Wert: das
+         *     discontinued-Flag laeuft neben dem Lifecycle, nicht in ihm.
+         * @enum {string}
+         */
+        MonitoringAction: "discontinued" | "reactivated";
+        /**
          * MonitoringEntryResponse
          * @description Ein append-only Monitoring-Eintrag (Monitoring-ADR).
          *
          *     status_snapshot: der Case-Status zum Zeitpunkt des Eintrags (Momentaufnahme,
          *     kein Live-Verweis).
+         *
+         *     action/actor_name (V4.1-S10): beide null bei einer freien Beobachtungsnotiz
+         *     (Regelfall + Altbestand), beide gesetzt bei einem discontinue/reinstate-
+         *     Ereignis -- dann traegt note die Pflicht-Begruendung. Clients unterscheiden
+         *     beide Eintragsarten an action, nicht an Heuristiken ueber den note-Text.
          */
         MonitoringEntryResponse: {
             /** Id */
@@ -1449,6 +1500,9 @@ export interface components {
             note: string;
             /** Status Snapshot */
             status_snapshot: string;
+            action?: components["schemas"]["MonitoringAction"] | null;
+            /** Actor Name */
+            actor_name?: string | null;
         };
         /**
          * MonitoringNoteRequest
@@ -2450,7 +2504,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscontinueEventRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2481,7 +2539,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscontinueEventRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
