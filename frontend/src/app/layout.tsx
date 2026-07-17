@@ -88,25 +88,35 @@ export default async function RootLayout({
               dadurch sichtbar nach innen versetzt gegen den Hero, den sie
               rahmen soll. /board laeuft weiterhin auf 6xl und bleibt damit
               minimal breiter als der Rahmen; das ist vorbestehend. */}
-          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-5 sm:px-6">
-            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-              <Link
-                href="/"
-                className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]"
+          {/* Unter 768px passt die Zeile nicht: Wortmarke (~97px) + Nav (bis
+              ~308px im anonymen Zustand) + rechte Gruppe (~212px) + Abstaende
+              liegen ueber der Breite. Vorher lief die Nav darum sichtbar UEBER
+              Abmelden/Sprache. Darum umbricht die Leiste dort in zwei Reihen
+              (Wortmarke + Steuerung oben, Nav darunter); ab md ist es wieder
+              exakt eine Reihe. Die Schwelle ist md und nicht sm, weil die
+              anonyme Nav bei 640px noch ~25px zu breit ist (gemessen, nicht
+              geschaetzt). Die order-/ml-auto-Paare stellen beide Faelle her,
+              ohne die Reihenfolge im DOM zu drehen. */}
+          <div className="mx-auto flex min-h-14 max-w-5xl flex-wrap items-center gap-x-4 max-md:py-2 px-5 sm:px-6 md:h-14 md:flex-nowrap md:gap-6">
+            <Link
+              href="/"
+              className="order-1 flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]"
+            >
+              <span
+                aria-hidden
+                className="flex size-7 items-center justify-center rounded-md bg-primary font-mono text-[0.7rem] font-semibold tracking-tight text-primary-foreground"
               >
-                <span
-                  aria-hidden
-                  className="flex size-7 items-center justify-center rounded-md bg-primary font-mono text-[0.7rem] font-semibold tracking-tight text-primary-foreground"
-                >
-                  AE
-                </span>
-                <span className="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">
-                  AECT
-                </span>
-              </Link>
-              <MainNav authenticated={authenticated} />
-            </div>
-            <div className="flex items-center gap-3 sm:gap-4">
+                AE
+              </span>
+              <span className="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">
+                AECT
+              </span>
+            </Link>
+            <MainNav authenticated={authenticated} />
+            {/* shrink-0: die rechte Gruppe behaelt ihre Breite. ml-auto schiebt
+                sie unter md in Reihe 1 nach rechts; ab md uebernimmt das
+                mr-auto der Nav. */}
+            <div className="order-2 ml-auto flex shrink-0 items-center gap-3 sm:gap-4 md:order-3 md:ml-0">
               <AuthControl authenticated={authenticated} />
               <LangToggle />
               <ThemeToggle />

@@ -71,6 +71,26 @@ so wird exakt der Stack geprueft, den man sonst von Hand bedient.
   Code-Lesen findet das nicht: im Markup steht ein sauberer Bestaetigungs-Schritt.
   Darum ein Browser-Test statt einer Code-Regel.
 
+`nav-layout.spec.ts` (Guard fuer die Kopfleiste):
+
+- **`f) Kopfleiste kollidiert und clippt in keiner Breite`** -- prueft den Header
+  ueber sechs Breiten (375/640/768/1024/1280/1440), anonym und angemeldet. Der
+  angemeldete Zustand hat eine andere Link-Menge (Board/Monitoring statt
+  Einreichen/Ideen-Assistent) und war der gemeldete Fall; er laeuft nur mit
+  Admin-Passwort, der anonyme braucht nur das Frontend.
+
+  Zwei Zusicherungen, weil **jede allein** einen echten Defekt durchlaesst:
+  (1) kein Nav-Link ueberlappt die rechten Steuerelemente -- der Ausgangsfehler
+  (unter 768px behielt die Nav ihre Inhaltsbreite und lief sichtbar ueber
+  Abmelden/Sprache/Theme); (2) die Nav ist nicht geclippt
+  (`scrollWidth <= clientWidth`). (2) existiert, weil eine Zwischenfassung die
+  Nav per `overflow-x-auto` abschnitt: Ueberlappung weg, Labels standen aber als
+  "Ideenli"/"Id" da -- und (1) blieb **gruen**, denn
+  `getBoundingClientRect()` liefert die **Layout**-Position, nicht den sichtbar
+  geclippten Bereich. Ein reiner Rect-Test sieht abgeschnittene Labels nie.
+  Beide Assertions sind gegengeprobt: (1) schlaegt gegen den Stand vor dem Fix an,
+  (2) gegen die Scroll-Zwischenfassung.
+
 ## Voraussetzungen (einmalig)
 
 ```bash

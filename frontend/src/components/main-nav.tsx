@@ -48,7 +48,15 @@ export function MainNav({ authenticated }: { authenticated: boolean }) {
   });
 
   return (
-    <nav aria-label={t("mainNav")} className="flex items-center gap-4 sm:gap-5">
+    // Unter md liegt die Nav als volle Reihe UNTER Wortmarke/Steuerung
+    // (order-last + w-full) -- eine Reihe reicht dort nicht, siehe layout.tsx.
+    // Ab md steht sie wieder neben der Wortmarke und schiebt per mr-auto die
+    // rechte Gruppe an den Rand. overflow-x-auto bleibt als Netz fuer laengere
+    // Labels (EN) stehen; die Leiste selbst wird ausgeblendet.
+    <nav
+      aria-label={t("mainNav")}
+      className="order-last flex w-full min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] sm:gap-5 md:order-2 md:mr-auto md:w-auto [&::-webkit-scrollbar]:hidden"
+    >
       {links.map((link) => {
         const active = isActive(pathname, link.href);
         return (
@@ -60,9 +68,11 @@ export function MainNav({ authenticated }: { authenticated: boolean }) {
             // die Seite nicht -- also auch keine Blaetter.
             {...(active ? {} : { [LEAF_ORIGIN_ATTR]: "" })}
             className={
+              // shrink-0 + whitespace-nowrap: im Scroll-Kasten darf ein Label
+              // weder umbrechen noch gestaucht werden.
               active
-                ? "text-[0.8rem] font-semibold text-[var(--ink)] underline decoration-[var(--ink)]/40 decoration-1 underline-offset-[6px]"
-                : "text-[0.8rem] font-medium text-muted-foreground underline-offset-[6px] transition-colors hover:text-foreground hover:underline hover:decoration-border"
+                ? "shrink-0 whitespace-nowrap text-[0.8rem] font-semibold text-[var(--ink)] underline decoration-[var(--ink)]/40 decoration-1 underline-offset-[6px]"
+                : "shrink-0 whitespace-nowrap text-[0.8rem] font-medium text-muted-foreground underline-offset-[6px] transition-colors hover:text-foreground hover:underline hover:decoration-border"
             }
           >
             {t(link.labelKey)}
