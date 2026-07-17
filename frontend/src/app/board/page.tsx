@@ -36,7 +36,7 @@ export default async function BoardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-5 py-12 sm:px-6">
+    <main className="mx-auto max-w-5xl px-5 py-12 sm:px-6">
       <p className="eyebrow">{t("pageEyebrow")}</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
         {t("pageTitle")}

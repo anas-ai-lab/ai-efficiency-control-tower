@@ -86,14 +86,21 @@
      Anteils-Balken der Kennzahl-Karten). Gedaempft, Zeta 0.78, ~1.8%
      Ueberschwingen -- genug Federung, dass es lebendig wirkt, zu wenig fuer
      "bouncy" (MOTION_INTENSITY 3). Die Kachel-Hover federn ueber motion/react
-     mit derselben Anmutung; ein Bewegungsgefuehl, zwei Techniken.
-     Der gerichtete Ausklang cubic-bezier(0.16, 1, 0.3, 1) bleibt in den
-     Keyframes unten literal -- er ist dort seit dem Redesign etabliert. */
+     mit derselben Anmutung; ein Bewegungsgefuehl, zwei Techniken. */
   --ease-spring: linear(
     0, 0.047, 0.156, 0.293, 0.435, 0.568, 0.684, 0.78, 0.856, 0.913, 0.954,
     0.983, 1.001, 1.011, 1.017, 1.018, 1.017, 1.015, 1.012, 1.01, 1.007, 1.005,
     1.003, 1.001, 1
   );
+
+  /* Der gerichtete Ausklang aller Eintritts-Bewegungen (Schrittwechsel,
+     Ansichts-Eintritt, Stagger-Kaskade, Erfolgs-Haken): schneller Antritt,
+     langer ruhiger Auslauf, kein Ueberschwingen. Seit dem Redesign etabliert,
+     vorher in jeder Regel literal wiederholt.
+     NICHT zu verwechseln mit dem symmetrischen cubic-bezier(0.4, 0, 0.2, 1)
+     des Fortschrittsbalkens -- der laeuft endlos hin und her und braucht
+     bewusst keinen gerichteten Ausklang. */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Blatt-Partikel beim Seitenwechsel: monochrom, kippt mit dem Theme.
      Light = Tinte auf Papier, Dark = helles Blatt auf Nacht. */
@@ -356,13 +363,13 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .animate-view-enter {
-    animation: view-enter 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: view-enter 0.24s var(--ease-settle) both;
   }
   .animate-step-forward {
-    animation: step-in-forward 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: step-in-forward 0.24s var(--ease-settle) both;
   }
   .animate-step-back {
-    animation: step-in-back 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: step-in-back 0.24s var(--ease-settle) both;
   }
   /* Der Haken sitzt als direktes Kind in einer .stagger-Kaskade. Deren
      generische Regel (.stagger > *, gleiche Spezifitaet, weiter unten im
@@ -371,10 +378,10 @@
      Das Delay der Kaskade (nth-child) bleibt davon unberuehrt. */
   .animate-success-mark,
   .stagger > .animate-success-mark {
-    animation: success-mark 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: success-mark 0.36s var(--ease-settle) both;
   }
   .stagger > * {
-    animation: view-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: view-enter 0.28s var(--ease-settle) both;
   }
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
   .stagger > *:nth-child(2) { animation-delay: 40ms; }

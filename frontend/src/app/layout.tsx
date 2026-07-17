@@ -83,11 +83,12 @@ export default async function RootLayout({
             siehe Architektur-Notiz in leaf-transition.tsx. */}
         <LeafTransition />
         <header className="sticky top-0 z-40 border-b border-[var(--hairline-rule)] bg-background">
-          {/* Rahmenbreite = Inhaltsbreite der oeffentlichen Seiten (max-w-5xl:
-              Startseite, Ideenliste). Vorher max-w-3xl -- die Wortmarke stand
-              dadurch sichtbar nach innen versetzt gegen den Hero, den sie
-              rahmen soll. /board laeuft weiterhin auf 6xl und bleibt damit
-              minimal breiter als der Rahmen; das ist vorbestehend. */}
+          {/* Rahmenbreite = Inhaltsbreite der Seiten (max-w-5xl). Vorher
+              max-w-3xl -- die Wortmarke stand dadurch sichtbar nach innen
+              versetzt gegen den Hero, den sie rahmen soll. /board lief zuletzt
+              als einzige Seite auf 6xl und ragte damit unter dem Rahmen
+              hervor; seit v4.2 liegt es ebenfalls auf 5xl, der Rahmen deckt
+              jetzt ueberall. */}
           {/* Unter 768px passt die Zeile nicht: Wortmarke (~97px) + Nav (bis
               ~308px im anonymen Zustand) + rechte Gruppe (~212px) + Abstaende
               liegen ueber der Breite. Vorher lief die Nav darum sichtbar UEBER
