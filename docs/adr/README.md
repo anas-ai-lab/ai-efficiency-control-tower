@@ -1,6 +1,6 @@
 # Architecture Decision Log -- AECT
 
-55 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+59 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
@@ -35,6 +35,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0042](0042-retention-scheduled-job.md) | Retention-Enforcement als Scheduled Job (Design, kein Deploy) |
 | [0043](0043-decision-record-statt-reviewer-workflow.md) | Human-in-the-Loop-Decision-Record statt vollem Reviewer-Workflow |
 | [0044](0044-country-and-employee-level-schema-change.md) | Country- und Employee-Level-Schema-Erweiterung (5 Level, Impl.-Kosten) |
+| [0052](0052-public-schema-ohne-bewertungsfelder.md) | Public-Schema ohne Bewertungsfelder statt genullter Felder |
 
 ## LLM-Integration
 

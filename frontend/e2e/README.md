@@ -1,11 +1,13 @@
 # UI-Smoke-Tests
 
-Zwei Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
-machen (S3-Nachtrag). Sie laufen gegen **lokal laufende Prozesse**, nicht gegen
-einen von Playwright selbst gestarteten Server -- so wird exakt der Stack
-geprueft, den man sonst von Hand bedient.
+Drei Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
+machen (S3-Nachtrag, erweitert in V4.1-S8). Sie laufen gegen **lokal laufende
+Prozesse**, nicht gegen einen von Playwright selbst gestarteten Server -- so wird
+exakt der Stack geprueft, den man sonst von Hand bedient.
 
 ## Was geprueft wird
+
+`smoke.spec.ts`:
 
 - **`a) Passwort-Toggle`** -- Login-Seite: das Auge schaltet `input[type]` zwischen
   `password` und `text` und das `aria-label` zwischen "Passwort anzeigen" und
@@ -16,6 +18,25 @@ geprueft, den man sonst von Hand bedient.
   dass danach Zone/Bewertung erscheinen und die Ideenliste den Case **nicht mehr**
   mit dem Pending-Badge zeigt. Die Neubewertung ist deterministisch -- **kein
   Azure-/LLM-Call**. *Braucht Frontend + Backend + Admin-Passwort.*
+
+`public-visibility.spec.ts` (Guard fuer ADR-0052):
+
+- **`c) Anonyme Sichtbarkeit`** -- legt einen bewerteten Case an, gibt ihn als
+  Admin frei (der Zustand, in dem die Vorgaenger-Version leakte) und prueft die
+  Detailseite **anonym**: sichtbar sind Grunddaten, Status und die
+  Board-Entscheidung mit Begruendung; **kein** Bewertungsbegriff und **kein**
+  Bewertungswert dieses Falls. Die verbotenen Werte werden aus der Admin-Sicht
+  desselben Falls gelesen, nicht hartkodiert -- so veraltet der Test nicht, wenn
+  das Bewertungsmodell neu kalibriert wird. Die Ideenliste wird als zweiter Pfad
+  derselben Zusicherung mitgeprueft. *Braucht Frontend + Backend + Admin-Passwort.*
+
+  Der Test prueft `innerText` (den **sichtbaren** Text), nicht `page.content()`:
+  der komplette i18n-Katalog steht als JSON im RSC-Payload des HTML und enthaelt
+  "Zone"/"Nettonutzen" als Label-Strings -- ein `content()`-Test waere dauerhaft
+  rot, ohne dass je Case-Daten geleakt waeren. Vor den Negativ-Assertions stehen
+  bewusst Positiv-Kontrollen (Titel, Entscheidung, Begruendung sichtbar): ohne sie
+  wuerde jede Fehler- oder Ladeseite den Test bestehen, weil auf ihr die
+  verbotenen Begriffe ebenfalls fehlen.
 
 ## Voraussetzungen (einmalig)
 
@@ -37,9 +58,15 @@ export AECT_ADMIN_PASSWORD_HASH="$(uv run python -c \
 
 AECT_DB_PATH=aect_smoke.db \
 AECT_AZURE_OPENAI_ENDPOINT= \
-AECT_CHROMA_HOST= \
   uv run uvicorn aect.adapters.api.app:app --no-server-header
 ```
+
+> **`AECT_CHROMA_HOST` NICHT leer setzen.** Frueher stand hier `AECT_CHROMA_HOST=`;
+> seit V4-P2 ist ein leerer Wert **fail loud** (`resolve_retriever` wirft, kein
+> stiller Mock-Fallback) und `POST /triage` antwortet dann `500` -- die Tests
+> scheitern beim Anlegen des Cases. Der Default `127.0.0.1` ist richtig; ein
+> tatsaechlich laufendes ChromaDB brauchen die Smokes nicht (die Dedup-Pruefung im
+> Intake vertraegt einen nicht erreichbaren Chroma).
 
 **Terminal 2 -- Frontend** (auf das Smoke-Backend zeigend):
 
@@ -68,7 +95,7 @@ Server gruen-mit-Skips statt rot.
 | --------------------------- | ----------------------- | --------------------------------------- |
 | `PLAYWRIGHT_BASE_URL`       | `http://localhost:3000` | Frontend-URL                            |
 | `AECT_SMOKE_API_URL`        | `http://localhost:8000` | Backend-URL (Case-Anlage + Health)      |
-| `AECT_SMOKE_ADMIN_PASSWORD` | *(leer -> Test b skip)* | Klartext-Passwort passend zum Backend   |
+| `AECT_SMOKE_ADMIN_PASSWORD` | *(leer -> Test b + c skip)* | Klartext-Passwort passend zum Backend |
 
 ## CI-Einbindung (Vorschlag, hier NICHT umgesetzt)
 
