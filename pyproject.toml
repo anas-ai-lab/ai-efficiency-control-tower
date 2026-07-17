@@ -78,12 +78,35 @@ select = [
     "UP",   # pyupgrade
     "RUF",  # ruff-specific rules
     "SIM",  # flake8-simplify
+    "S",    # flake8-bandit (Sicherheit)
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
     "RUF002",  # Unicode-Mathesymbole (x, -) in Docstrings erlaubt
     "RUF003",  # Unicode-Mathesymbole (x, -) in Kommentaren erlaubt
+    # S101 (assert) repo-weit aus, nicht nur in tests/: die 19 asserts in src/
+    # sind ausnahmslos mypy-Narrowing auf Invarianten, die vorgelagerte Guards
+    # bereits laut durchsetzen (_guard_not_pending -> 409, ADR-0050;
+    # NoProposalForSketchError). Sie validieren nichts -- ein Wegfall unter
+    # `python -O` wuerde in einen AttributeError laufen, nicht in einen stillen
+    # Default; -O wird nirgends verwendet (Dockerfile/CI/Makefile geprueft).
+    # S101 hier zu erzwingen wuerde jedes kuenftige Narrowing zum noqa treiben,
+    # ohne Sicherheitsgewinn. Die uebrigen S-Regeln bleiben in src/ scharf.
+    "S101",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Test-Fixtures: erfundene Passwoerter/Token-Hashes sind hier der Zweck, kein
+# Leak. S603: test_settings_isolation startet bewusst einen Subprozess mit
+# literalem sys.executable-Kommando, keine Fremdeingabe.
+"tests/**" = ["S105", "S106", "S107", "S603"]
+# pin_ci_actions.py baut die URL aus einem literalen https://api.github.com-
+# Praefix -- das von S310 befuerchtete file:/custom-Schema ist nicht erreichbar.
+"scripts/**" = ["S310"]
+# False Positive: _NUMBER_TOKEN ist kein Secret, sondern das Regex-Fragment
+# r"\d[\d.,]*\d|\d" fuer die Zahlen-Extraktion des Sharpening-Guards. Bandit
+# triggert allein auf das Namensende "TOKEN".
+"src/aect/domain/sharpening_guard.py" = ["S105"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["aect"]
