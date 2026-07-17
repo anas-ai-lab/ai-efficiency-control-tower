@@ -3,6 +3,82 @@
 Alle nennenswerten Aenderungen an AECT. Format orientiert an Keep a Changelog,
 Versionierung nach SemVer.
 
+## [4.2.0] -- 2026-07-17
+
+**Ausbau innerhalb des V4-Demo-Scopes** (SDR-0003 unveraendert: Demo-Build fuer
+einen internen Vorgesetzten, kein Produktivbetrieb, kein Verkauf). Schwerpunkt:
+wer was sehen darf, wird serverseitig entschieden statt in der Oberflaeche
+ausgeblendet; Entscheidungen werden begruendungspflichtig; der Loesungsvorschlag
+bekommt Struktur statt Fliesstext; die Oberflaeche eine durchgehende
+Gestaltungssprache. Vorgaenger: v4.1.0 (Tag gesetzt, Detail in der
+Tag-Annotation, nicht in dieser Datei nachgetragen -- wie zuvor bei v3.x).
+
+### Added
+
+- **Rollen-Sichtbarkeit serverseitig** (32500f5, bf266aa; ADR-0052): das
+  Public-Schema traegt die Bewertungsfelder gar nicht erst, statt sie genullt
+  auszuliefern. Die Vorgaenger-Fassung blendete sie nur im Frontend aus -- die
+  Werte standen im RSC-Payload. Playwright-Guard prueft die anonyme Sicht.
+- **Begruendungspflicht im Monitoring** (5d650a7, c1e06ad; ADR-0053):
+  Einstellen/Reaktivieren verlangt Name und Begruendung; beides landet in der
+  bestehenden append-only Zeitleiste. API-Haelfte 422, UI-Haelfte gesperrter
+  Absende-Knopf -- auch bei reinem Whitespace.
+- **Strukturierter Loesungsvorschlag** (8e68f9f; ADR-0054): SolutionProposalV3
+  mit sieben Feldern (Management-Zusammenfassung, Nutzen, Komponenten,
+  Datenfluss, Integrationspunkte, offene Annahmen) statt Fliesstext; die
+  Schaerfungs-Vorschlaege entfallen ersatzlos.
+- **Punktesystem-Drift-Guard** (f3e0617): die Erklaerung des Aufwandscores im
+  Frontend wird gegen `domain/scoring` geprueft -- Bereiche, Baender und Punkte
+  je Ansatz werden aus dem Code abgeleitet, nicht aus dem Text. Bisher spiegelte
+  der Text die Domain von Hand.
+- **Header-Layout-Guard** (e58c4dc): `e2e/nav-layout.spec.ts` prueft sechs
+  Breiten in beiden Rollen auf Nicht-Ueberlappung und Nicht-Clipping.
+
+### Fixed / Changed
+
+- Analyse- und Empfehlungs-Texte entschlackt, Begruendungen ausgeschrieben (f9ab02b).
+- Wizard-Copy je Abschnitt, gruppierte Zusammenfassung, gerichtete Uebergaenge (54f8660).
+- Wizard sendete beim Wechsel in die Zusammenfassung sofort ab -- derselbe Knoten
+  wechselte `type` waehrend des Klick-Dispatch (15f2a8b).
+- Entscheidung waehrend eines LLM-Calls gesperrt, Loesungs-Draft nicht mehr still
+  verworfen (261e34e).
+- Korrekte Umlaute in nutzerseitigen Backend-Texten (37ed1cf); KB-Hinweis in den
+  Sprachkatalog, `seed_demo` auf ADR-0051 nachgezogen (6271eba).
+- Kopfleiste kollidierte unter 768px: die Nav lief sichtbar ueber
+  Abmelden/Sprache/Theme. Sie umbricht dort jetzt in eine zweite Reihe; ab md
+  unveraendert eine Reihe (e58c4dc).
+- `/board` von `max-w-6xl` auf `max-w-5xl` -- der Header-Rahmen deckt jetzt
+  ueberall; der gerichtete Ausklang liegt als `--ease-settle` an einer Stelle
+  statt fuenffach literal (8e67c32).
+- Testlauf von der lokalen `.env` isoliert (f433d1c); totes `noqa: S603` entfernt (b9e0c39).
+- setuptools >= 83.0.0 (PYSEC-2026-3447 behoben, c34df9a).
+
+### Gestaltung
+
+- **Gestaltungs-Pass v4.2** (cb7e7fa): Hairline-System (Linie statt Kasten, drei
+  Staerken), ein Akzent (`--ink`), Geist Sans als Textschrift, Kennzahl-Karten
+  mit Feder-Hover, Blatt-Effekt beim Seitenwechsel (eigenes Canvas, nicht motion).
+
+### Korrigiert an eigener Doku
+
+- **known_limitations #34 ausgeraeumt** (429ebc6): das dokumentierte
+  "Ideation-Prefill-Rennen" existierte nicht. `removeItem` und `form.reset()`
+  liegen im selben synchronen Effekt und koennen einander nicht ueberholen.
+  Gemessen: der Fehlschlag entstand in der Testkonstruktion (Key im Fenster
+  zwischen `load` und Hydration gesetzt, dann `reload()` -- der Wizard der noch
+  offenen Seite konsumierte ihn read-once). Am unveraenderten Anwendungscode:
+  Dokument-Load 6/6, realer Pfad 5/5. Der Test legt den Entwurf jetzt per
+  `addInitScript` ab; die e2e-Suite hat keinen bekannt roten Test mehr.
+- **ADR-Index geradegezogen**: Header nannte 60 bei 61 ADRs; 0036-0039, 0050,
+  0051 und 0054 waren unverlinkt. Jetzt 61/61, keine toten Links.
+
+### Release-Artefakte
+
+- Version 4.0.0 -> **4.2.0** (`pyproject.toml`; `/health` und
+  `aect.__version__` folgen via importlib.metadata, H-044). Der Sprung ist
+  zweistellig, weil v4.1.0 getaggt wurde, ohne die Paketversion zu bumpen --
+  `/health` meldete seither 4.0.0.
+
 ## [4.0.0] -- 2026-07-11
 
 **V4 = Demo-Build fuer einen internen Vorgesetzten** (kein Produktivbetrieb, kein

@@ -3,7 +3,7 @@
   "info": {
     "title": "AECT - AI Efficiency Control Tower",
     "description": "AI Use Case Intake & Triage Assistant",
-    "version": "4.0.0"
+    "version": "4.2.0"
   },
   "paths": {
     "/health/live": {
