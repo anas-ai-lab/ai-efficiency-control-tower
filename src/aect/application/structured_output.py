@@ -34,73 +34,20 @@ class InvalidLLMOutputError(Exception):
     """
 
 
-class CaseField(StrEnum):
-    """Bezugsfeld eines Verbesserungsvorschlags (V4, Hebel-Pflicht).
-
-    Werte = exakte UseCaseInput-Feldnamen (domain/models.py) -- so kann das
-    Frontend (V4-P7) einen Vorschlag direkt einem Formularfeld zuordnen und der
-    Prompt kann die erlaubten Werte aufzaehlen. Ein Vorschlag muss benennen,
-    WELCHES Feld er betrifft (kein generischer Beratungssatz ohne Feldbezug).
-
-    Kein Config-Key -> gehoert NICHT in domain/types.py (dort liegt der StrEnum-
-    Anker ausschliesslich fuer TOML-Config-Keys, siehe SketchNodeKind). Teil des
-    LLM-Output-Schemas, lebt daher bei den uebrigen Schema-Typen.
-    """
-
-    TITLE = "title"
-    CURRENT_STATE = "current_state"
-    DESIRED_STATE = "desired_state"
-    EXAMPLE_PROCESS = "example_process"
-    DESIRED_EXAMPLE_PROCESS = "desired_example_process"
-    TIME_PER_CASE_HOURS_CURRENT = "time_per_case_hours_current"
-    TIME_PER_CASE_HOURS_WITH_AI = "time_per_case_hours_with_ai"
-    OCCURRENCES_PER_EMPLOYEE_PER_YEAR = "occurrences_per_employee_per_year"
-    AFFECTED_EMPLOYEES = "affected_employees_count"
-    EMPLOYEE_CATEGORY = "employee_category"
-    EVIDENCE_LEVEL = "evidence_level"
-    ADOPTION_TYPE = "adoption_type"
-    IMPLEMENTATION_APPROACH = "implementation_approach"
-    ESTIMATED_LICENSE_COST = "estimated_license_cost_eur"
-    IMPLEMENTATION_COST = "implementation_cost_eur"
-    DATA_CLASSIFICATION = "data_classification"
-    NOTES = "notes"
-
-
-class ImprovementSuggestion(BaseModel):
-    """Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
-
-    Ersetzt die frueheren generischen Beratungs-Floskeln (freier String). Jeder
-    Vorschlag muss dreiteilig sein:
-      bezugsfeld: welches Case-Feld er betrifft (CaseField),
-      vorschlag:  die konkrete, umsetzbare Massnahme,
-      hebel:      welche Bewertungsgroesse sich wie veraendert (z. B.
-                  "Evidenzfaktor steigt von 0,40 auf 0,90").
-
-    Fehlt bezugsfeld oder hebel, ist das ein Schema-Fehler -- die Retry-/Fail-
-    Mechanik in sharpen_case() (application/service.py) greift dann analog zum
-    Zahlen-Guard.
-
-    extra="forbid"/frozen=True analog den uebrigen Schema-Typen.
-    """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    bezugsfeld: CaseField
-    vorschlag: str = Field(min_length=5, max_length=500)
-    hebel: str = Field(min_length=5, max_length=300)
-
-
 class SharpenedContentV2(BaseModel):
-    """Strukturierte Schaerfung (ADR-0013 Teil 2, erweitert V4; S4 auf Soll-Felder
-    reduziert).
+    """Strukturierte Schaerfung (ADR-0013 Teil 2; S4 auf Soll-Felder reduziert).
 
     Geschaerft werden ausschliesslich die Soll-Felder: sharpened_desired_state
     (analog desired_state) und sharpened_desired_example_process (analog
     desired_example_process), je 30-2000. Titel und Ist-Felder sind bewusst NICHT
     mehr Teil der Schaerfung (S4).
 
-    improvement_suggestions: max. 3 Eintraege (V4, Hebel-Pflicht -- Fokus statt
-    Floskel-Liste), je ein ImprovementSuggestion mit bezugsfeld/vorschlag/hebel.
+    Die frueheren improvement_suggestions (bezugsfeld/vorschlag/hebel) sind
+    ersatzlos entfallen (ADR-0054): die nachgelagerten Vorschlaege trugen keinen
+    Entscheidungswert. Die Schaerfung selbst -- Diff, Accept/Reject -- bleibt
+    unveraendert. extra="forbid" laesst ein Modell, das trotzdem noch
+    improvement_suggestions emittiert, in den Schema-Fehler laufen (Retry, dann
+    422) statt sie still zu schlucken.
 
     extra="forbid": unerwartete Felder im LLM-Output sind ein
     Validierungsfehler, kein stiller Datenverlust (OWASP LLM10).
@@ -111,21 +58,38 @@ class SharpenedContentV2(BaseModel):
 
     sharpened_desired_state: str = Field(min_length=30, max_length=2000)
     sharpened_desired_example_process: str = Field(min_length=30, max_length=2000)
-    improvement_suggestions: list[ImprovementSuggestion] = Field(
-        min_length=1, max_length=3
-    )
 
 
-class SolutionProposalV2(BaseModel):
-    """Zweigeteilter Loesungsvorschlag (V4-P6).
+# Ein Stichpunkt einer Loesungs-Liste: eine Zeile, kein Fliesstext. max_length=200
+# ist die Schema-Haelfte der "keine Absatz-Waende"-Regel -- die Prompt-Instruktion
+# allein ist keine Garantie (LLM-Output = untrusted).
+_Bullet = Annotated[str, Field(min_length=5, max_length=200)]
 
-    solution_business: ein Absatz fuer die Geschaeftsleitung -- was sich im
-    Arbeitsalltag aendert, wer was tut, was beim Menschen bleibt. VERBOTEN sind
-    Technologie-/Produktnamen und Architektur-Vokabular (Abkuerzungen wie
-    OCR/LLM/API/ERP); das prueft zusaetzlich ein deterministischer Vokabular-Guard
-    (domain/solution_guard) nach der Schema-Validierung.
-    solution_technical: der technische Loesungsansatz (bestehende Freitext-Struktur,
-    frueher proposal_text).
+
+class SolutionProposalV3(BaseModel):
+    """Zweigeteilter, strukturierter Loesungsvorschlag (ADR-0054).
+
+    Loest SolutionProposalV2 (zwei Freitext-Felder) ab: beide Ebenen lieferten
+    unlesbare Fliesstext-Waende. Jetzt traegt das Schema die Struktur, nicht nur
+    der Prompt.
+
+    Management-Ebene (technikfrei, Vokabular-Guard laeuft ueber BEIDE Felder --
+    domain/solution_guard, siehe service._validate_solution):
+      management_summary:  2-3 Saetze Kernaussage (was wird geloest, wie, was
+                           aendert sich fuer die Mitarbeitenden). max_length=700
+                           deckelt die Absatz-Wand -- 3 Saetze brauchen keine 1500
+                           Zeichen (V2 erlaubte sie und bekam sie prompt).
+      management_benefits: max. 3 Nutzen-Stichpunkte.
+
+    Technik-Ebene (Technologiebegriffe erlaubt, kein Guard):
+      architecture_summary: 2-3 Saetze Architektur-Kurzbeschreibung.
+      components / data_flow / integration_points / open_assumptions: Stichpunkte.
+
+    Die Listen-Untergrenzen (min_length) sind bewusst gesetzt: eine leere
+    Komponenten- oder Datenfluss-Liste ist keine technische Fassung, sondern ein
+    unbrauchbares Ergebnis -- besser der Retry als eine leere Liste im Report
+    (Fail loud). open_assumptions min_length=1: es gibt keinen Use Case ohne
+    mindestens eine Annahme.
 
     extra="forbid": unerwartete Felder sind ein Validierungsfehler (OWASP LLM10).
     frozen=True: nach Validierung unveraenderlich (analog SharpenedContentV2).
@@ -133,8 +97,13 @@ class SolutionProposalV2(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    solution_business: str = Field(min_length=30, max_length=1500)
-    solution_technical: str = Field(min_length=30, max_length=3000)
+    management_summary: str = Field(min_length=30, max_length=700)
+    management_benefits: list[_Bullet] = Field(min_length=1, max_length=3)
+    architecture_summary: str = Field(min_length=30, max_length=700)
+    components: list[_Bullet] = Field(min_length=2, max_length=6)
+    data_flow: list[_Bullet] = Field(min_length=2, max_length=6)
+    integration_points: list[_Bullet] = Field(min_length=1, max_length=5)
+    open_assumptions: list[_Bullet] = Field(min_length=1, max_length=5)
 
 
 _OpenQuestion = Annotated[str, Field(min_length=5, max_length=200)]

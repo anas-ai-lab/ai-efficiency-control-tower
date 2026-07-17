@@ -114,7 +114,7 @@ ASSESSMENT_KEYS = frozenset(
         "business_summary",
         "technical_detail",
         "solution_business",
-        "proposal_text",
+        "solution_technical",
         "sharpened_text",
         "compliance_hint_text",
         "compliance_citations",
@@ -339,7 +339,7 @@ async def test_case_detail_untriggered_steps_are_null() -> None:
 
     assert body["report"]["business_summary"]["sharpened_text"] is None
     assert body["report"]["business_summary"]["compliance_hint_text"] is None
-    assert body["report"]["technical_detail"]["proposal_text"] is None
+    assert body["report"]["technical_detail"]["solution_technical"] is None
 
 
 async def test_case_detail_missing_returns_404() -> None:

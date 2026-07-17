@@ -30,13 +30,6 @@ class TestValidationErrorRedaction:
                 "sharpened_desired_example_process": (
                     "Soll-Beispiel mit mehr als dreissig Zeichen im Text."
                 ),
-                "improvement_suggestions": [
-                    {
-                        "bezugsfeld": "notes",
-                        "vorschlag": "Konkreter Vorschlag.",
-                        "hebel": "ROI steigt.",
-                    }
-                ],
                 "leak_field": _SENTINEL,
             }
         )

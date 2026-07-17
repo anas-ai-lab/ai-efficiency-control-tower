@@ -9,6 +9,10 @@ import { acceptSolution, proposeSolution, rejectSolution } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
 import { useTrackLlmCall } from "@/components/llm-busy";
+import {
+  ManagementSolutionView,
+  TechnicalSolutionView,
+} from "@/components/solution-view";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -125,17 +129,13 @@ export function SolutionModal({
                 value="technical"
                 className="mt-3 max-h-[45vh] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4"
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                  {draft.solution_technical}
-                </p>
+                <TechnicalSolutionView solution={draft.technical} />
               </TabsContent>
               <TabsContent
                 value="business"
                 className="mt-3 max-h-[45vh] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4"
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                  {draft.solution_business}
-                </p>
+                <ManagementSolutionView solution={draft.management} />
               </TabsContent>
             </Tabs>
           )}

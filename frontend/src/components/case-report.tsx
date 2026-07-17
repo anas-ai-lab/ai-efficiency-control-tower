@@ -9,6 +9,10 @@ import type {
   ReviewerDecision,
 } from "@/types/api"
 import { useFormat } from "@/lib/use-format"
+import {
+  ManagementSolutionView,
+  TechnicalSolutionView,
+} from "@/components/solution-view"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Read-only Report-Ansicht (V4-P6/P7) fuer die Fall-Detailseite. Rendert den
@@ -154,9 +158,12 @@ export function CaseReport({ report }: { report: ReportResponse }) {
             </section>
           )}
 
-          {/* Loesung (Geschaeftsleitung) -- technikfrei. */}
+          {/* Loesung (Geschaeftsleitung) -- technikfrei, strukturiert (ADR-0054). */}
           {bs.solution_business !== null && (
-            <TextBlock title={t("solutionBusiness")} text={bs.solution_business} />
+            <section>
+              <Label>{t("solutionBusiness")}</Label>
+              <ManagementSolutionView solution={bs.solution_business} />
+            </section>
           )}
 
           {/* Geschaerfte Beschreibung (akzeptierte Fassung). */}
@@ -214,9 +221,12 @@ export function CaseReport({ report }: { report: ReportResponse }) {
           <TextBlock title={t("risks")} text={tr.risiken} />
           <TextBlock title={t("openQuestions")} text={tr.offene_technische_fragen} />
 
-          {/* Loesung (technisch). */}
-          {td.proposal_text !== null && (
-            <TextBlock title={t("solutionTechnical")} text={td.proposal_text} />
+          {/* Loesung (technisch) -- feste Felder statt Fliesstext (ADR-0054). */}
+          {td.solution_technical !== null && (
+            <section>
+              <Label>{t("solutionTechnical")}</Label>
+              <TechnicalSolutionView solution={td.solution_technical} />
+            </section>
           )}
 
           {td.roi_theoretical_potential_eur !== null && (

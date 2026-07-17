@@ -121,14 +121,14 @@ def main() -> None:
         r = None
     if r is not None and r.status_code == 200:
         sh = r.json()
-        if sh.get("sharpened_title"):
-            print(f"\n  Titel:    {sh['sharpened_title']}")
-            if sh.get("improvement_suggestions"):
-                print("\n  Verbesserungsvorschlaege:")
-                for s in sh["improvement_suggestions"][:3]:
-                    print(f"    - {textwrap.shorten(s, 72)}")
-        elif sh.get("raw_text"):
-            print(f"  [Mock] raw_text: {textwrap.shorten(sh['raw_text'], 80)}")
+        if sh.get("sharpened_desired_state"):
+            print(
+                f"\n  Soll-Zustand: {textwrap.shorten(sh['sharpened_desired_state'], 160)}"
+            )
+            print(
+                "  Soll-Beispiel: "
+                f"{textwrap.shorten(sh.get('sharpened_desired_example_process', ''), 160)}"
+            )
     elif r is not None:
         print(f"  [Schaerfung: {r.status_code}]")
 
@@ -143,12 +143,28 @@ def main() -> None:
         r = None
     if r is not None and r.status_code == 200:
         prop = r.json()
-        # V4-P6: zweigeteilt -- Business-Absatz + technische Fassung.
-        proposal_text = prop.get("solution_technical", "")
-        business = prop.get("solution_business", "")
-        if business:
-            print(f"\n  [Business] {textwrap.shorten(business, 180)}")
-        print(f"  [Technisch] {textwrap.shorten(proposal_text, 180)}")
+        # ADR-0054: zweigeteilt UND strukturiert -- Management-Ebene
+        # (Kernaussage + Nutzen-Stichpunkte) + Technik-Ebene (feste Felder).
+        management = prop.get("management", {})
+        technical = prop.get("technical", {})
+        proposal_text = technical.get("architecture_summary", "")
+        print(
+            f"\n  [Management] {textwrap.shorten(management.get('summary', ''), 180)}"
+        )
+        for benefit in management.get("benefits", []):
+            print(f"    - {textwrap.shorten(benefit, 72)}")
+        print(f"\n  [Technisch] {textwrap.shorten(proposal_text, 180)}")
+        for heading, key in (
+            ("Komponenten", "components"),
+            ("Datenfluss", "data_flow"),
+            ("Integrationspunkte", "integration_points"),
+            ("Offene Annahmen", "open_assumptions"),
+        ):
+            items = technical.get(key, [])
+            if items:
+                print(f"    {heading}:")
+                for item in items:
+                    print(f"      - {textwrap.shorten(item, 68)}")
     else:
         print(f"  [Loesung: {r.status_code}]")
 

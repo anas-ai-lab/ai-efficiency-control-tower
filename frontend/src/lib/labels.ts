@@ -104,28 +104,6 @@ export const CONFIDENCE_LABELS: Record<string, string> = {
   LOW: "Niedrig",
 }
 
-// Bezugsfeld eines Schaerfungs-Vorschlags (CaseField.value) als deutsches
-// Label. Deckt alle CaseField-Werte ab; unbekannte Keys fallen im UI auf den
-// Rohwert zurueck.
-export const CASE_FIELD_LABELS: Record<string, string> = {
-  title: "Titel",
-  current_state: "Ist-Zustand",
-  desired_state: "Soll-Zustand",
-  example_process: "Beispiel (Ist)",
-  desired_example_process: "Beispiel (Soll)",
-  time_per_case_hours_current: "Zeit / Vorgang heute",
-  time_per_case_hours_with_ai: "Zeit / Vorgang mit AI",
-  occurrences_per_employee_per_year: "Vorgänge / Jahr",
-  affected_employees_count: "Betroffene Mitarbeiter",
-  employee_category: "Mitarbeiterlevel",
-  evidence_level: "Evidenzlevel",
-  adoption_type: "Verbindlichkeit",
-  implementation_approach: "Implementierungsansatz",
-  estimated_license_cost_eur: "Lizenzkosten",
-  implementation_cost_eur: "Implementierungskosten",
-  data_classification: "Datenschutzklasse",
-}
-
 export const COUNTRY_OPTIONS = toOptions(COUNTRY_LABELS)
 export const EMPLOYEE_CATEGORY_OPTIONS = toOptions(EMPLOYEE_CATEGORY_LABELS)
 export const EVIDENCE_LEVEL_OPTIONS = toOptions(EVIDENCE_LEVEL_LABELS)

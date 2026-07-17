@@ -50,27 +50,33 @@ _SHARPEN_JSON = json.dumps(
         "sharpened_desired_example_process": (
             "Ein zahlenfreies Soll-Beispiel mit ausreichend Zeichen fuer das Schema."
         ),
-        "improvement_suggestions": [
-            {
-                "bezugsfeld": "evidence_level",
-                "vorschlag": "Belege die Zeitersparnis mit einer Messung.",
-                "hebel": "Evidenzfaktor steigt.",
-            }
-        ],
     }
 )
 
 
 _SOLUTION_JSON = json.dumps(
     {
-        "solution_business": (
+        "management_summary": (
             "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
             "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
             "Menschen."
         ),
-        "solution_technical": (
+        "management_benefits": [
+            "Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle."
+        ],
+        "architecture_summary": (
             "Technische Fassung: parallel-antwort fuer den Nebenlaeufigkeitstest."
         ),
+        "components": [
+            "Texterkennung: liest die Felder aus.",
+            "Klassifizierung: markiert Zweifelsfaelle.",
+        ],
+        "data_flow": [
+            "Eingang -> Texterkennung -> Datensatz",
+            "Datensatz -> Klassifizierung -> Zielsystem",
+        ],
+        "integration_points": ["Zielsystem der Fachabteilung."],
+        "open_assumptions": ["Die Dokumente liegen digital lesbar vor."],
     }
 )
 
@@ -85,7 +91,7 @@ class _RendezvousLLMAdapter:
     Fuer den Schaerfungs-Aufruf (System-Prompt traegt "sharpened_desired_state")
     liefert der Adapter schema-valides, zahlenfreies JSON -- sonst laeuft
     sharpen_case() in den Fail-loud-Pfad. Fuer propose_solution() (System-Prompt
-    traegt "solution_business") schema-valides, technikfreies Loesungs-JSON.
+    traegt "management_summary") schema-valides, technikfreies Loesungs-JSON.
     """
 
     def __init__(self, expected_calls: int = 2) -> None:

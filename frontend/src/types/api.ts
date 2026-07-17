@@ -258,14 +258,6 @@ export interface SimilarityPairsResponse {
 
 // ---- Schaerfung (/cases/{id}/sharpen POST, V4 Draft/Accept-Flow) -----------
 
-// Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4). bezugsfeld ist der
-// CaseField.value, an dem das Frontend das Formularfeld verlinkt.
-export interface SharpenSuggestion {
-  bezugsfeld: string;
-  vorschlag: string;
-  hebel: string;
-}
-
 // Draft-Ergebnis: Original + geschaerfte Fassung. Der Client baut daraus die
 // Diff-Ansicht und uebernimmt/verwirft via /sharpen/accept bzw. /reject. Alle
 // sharpened_*-Felder sind bei Erfolg gesetzt (422 statt Teilantwort im Backend).
@@ -276,7 +268,6 @@ export interface SharpenedCaseResponse {
   original_desired_example_process: string;
   sharpened_desired_state: string;
   sharpened_desired_example_process: string;
-  improvement_suggestions: SharpenSuggestion[];
   prompt_version: string;
 }
 
@@ -292,12 +283,31 @@ export interface SolutionActionResponse {
   status: string; // "accepted" | "rejected"
 }
 
-// ---- Loesungsvorschlag (/cases/{id}/propose-solution POST, V4-P6) ----------
-// Zweigeteilt: solution_business (technikfrei) + solution_technical.
+// ---- Loesungsvorschlag (/cases/{id}/propose-solution POST, ADR-0054) -------
+// Zweigeteilt UND strukturiert: Management-Ebene (technikfrei) + Technik-Ebene.
+
+// Management-Ebene: Kernaussage + max. 3 Nutzen-Stichpunkte. benefits ist bei
+// vor ADR-0054 persistierten Cases leer (deren Spalte traegt reinen Klartext,
+// der vollstaendig auf summary abgebildet wird).
+export interface ManagementSolution {
+  summary: string;
+  benefits: string[];
+}
+
+// Technik-Ebene: Architektur-Kurzbeschreibung + vier Stichpunkt-Listen. Die
+// Listen sind bei Legacy-Cases leer (analog ManagementSolution.benefits).
+export interface TechnicalSolution {
+  architecture_summary: string;
+  components: string[];
+  data_flow: string[];
+  integration_points: string[];
+  open_assumptions: string[];
+}
+
 export interface SolutionProposalResponse {
   case_id: string;
-  solution_business: string;
-  solution_technical: string;
+  management: ManagementSolution;
+  technical: TechnicalSolution;
   prompt_version: string;
 }
 
@@ -336,7 +346,7 @@ export interface DecisionKennzahlen {
 // Ausklappbare Details des Entscheider-Reports.
 export interface DecisionDetails {
   sharpened_text: string | null;
-  solution_business: string | null;
+  solution_business: ManagementSolution | null;
   compliance_hint_text: string | null;
 }
 
@@ -364,7 +374,7 @@ export interface BusinessSummary {
   recommendation: string;
   expected_benefit_eur: number | null;
   decision_report: DecisionReport; // V4-P6
-  solution_business: string | null; // V4-P6, null solange nicht erzeugt
+  solution_business: ManagementSolution | null; // ADR-0054, null solange nicht erzeugt
   sharpened_text: string | null;
   compliance_hint_text: string | null;
   compliance_citations: ComplianceCitation[];
@@ -388,7 +398,7 @@ export interface TechnicalDetail {
   roi_theoretical_potential_eur: number | null;
   roi_net_expected_benefit_eur: number | null;
   technical_report: TechnicalReport; // V4-P6
-  proposal_text: string | null;
+  solution_technical: TechnicalSolution | null; // ADR-0054
 }
 
 export interface ReportResponse {

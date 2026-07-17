@@ -48,8 +48,10 @@ from aect.adapters.api.rate_limit import limiter
 from aect.adapters.api.routes.triage import TriageResponse, _to_triage_response
 from aect.application.models import (
     ArchitectureSketchResult,
+    ManagementSolution,
     ReportResult,
     SubmittedCase,
+    TechnicalSolution,
 )
 from aect.application.service import (
     CaseNotFoundError,
@@ -742,19 +744,6 @@ async def list_monitoring(
     ]
 
 
-class SharpenSuggestionResponse(BaseModel):
-    """Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
-
-    bezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag
-    zielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.
-    hebel: welche Bewertungsgroesse sich wie veraendert.
-    """
-
-    bezugsfeld: str
-    vorschlag: str
-    hebel: str
-
-
 class SharpenedCaseResponse(BaseModel):
     """Original + geschaerfte Fassung eines Use Cases (V4, Draft/Accept-Flow).
 
@@ -771,7 +760,6 @@ class SharpenedCaseResponse(BaseModel):
     original_desired_example_process: str
     sharpened_desired_state: str
     sharpened_desired_example_process: str
-    improvement_suggestions: list[SharpenSuggestionResponse]
     prompt_version: str
 
 
@@ -832,7 +820,7 @@ async def sharpen_case(
             },
         ) from exc
     except InvalidLLMOutputError as exc:
-        # Schema-Verstoss (z. B. fehlendes bezugsfeld/hebel), auch nach Retry.
+        # Schema-Verstoss (z. B. fehlendes Soll-Feld), auch nach Retry.
         # str(exc) traegt nur loc+type je Fehler (H-031), nie LLM-Rohtext.
         raise HTTPException(
             status_code=422,
@@ -848,12 +836,6 @@ async def sharpen_case(
         original_desired_example_process=sharpened.original_desired_example_process,
         sharpened_desired_state=sharpened.sharpened_desired_state,
         sharpened_desired_example_process=(sharpened.sharpened_desired_example_process),
-        improvement_suggestions=[
-            SharpenSuggestionResponse(
-                bezugsfeld=s.bezugsfeld.value, vorschlag=s.vorschlag, hebel=s.hebel
-            )
-            for s in sharpened.improvement_suggestions
-        ],
         prompt_version=sharpened.prompt_version,
     )
 
@@ -920,16 +902,45 @@ async def reject_sharpening(
     return SharpeningActionResponse(case_id=case_id, status="rejected")
 
 
-class SolutionProposalResponse(BaseModel):
-    """Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).
+class ManagementSolutionResponse(BaseModel):
+    """Management-Ebene des Loesungsvorschlags (ADR-0054).
 
-    solution_business: technikfreier Absatz fuer die Geschaeftsleitung.
-    solution_technical: technischer Loesungsansatz (frueher proposal_text).
+    summary: 2-3 Saetze Kernaussage. benefits: max. 3 Nutzen-Stichpunkte. Beide
+    technikfrei (Vokabular-Guard, domain/solution_guard).
+
+    benefits ist bei vor ADR-0054 persistierten Cases leer -- deren Spalte traegt
+    reinen Klartext, der vollstaendig auf summary abgebildet wird
+    (application/solution_content).
+    """
+
+    summary: str
+    benefits: list[str]
+
+
+class TechnicalSolutionResponse(BaseModel):
+    """Technik-Ebene des Loesungsvorschlags (ADR-0054).
+
+    Feste Felder statt Fliesstext-Wand. Die vier Stichpunkt-Listen sind bei
+    Legacy-Cases leer (analog ManagementSolutionResponse.benefits).
+    """
+
+    architecture_summary: str
+    components: list[str]
+    data_flow: list[str]
+    integration_points: list[str]
+    open_assumptions: list[str]
+
+
+class SolutionProposalResponse(BaseModel):
+    """Zweigeteilter, strukturierter Loesungsvorschlag (ADR-0054).
+
+    management: technikfreie Fassung fuer die Geschaeftsleitung.
+    technical: strukturierte technische Fassung.
     """
 
     case_id: str
-    solution_business: str
-    solution_technical: str
+    management: ManagementSolutionResponse
+    technical: TechnicalSolutionResponse
     prompt_version: str
 
 
@@ -991,8 +1002,11 @@ async def propose_solution(
 
     return SolutionProposalResponse(
         case_id=proposal.case_id,
-        solution_business=proposal.solution_business,
-        solution_technical=proposal.solution_technical,
+        management=ManagementSolutionResponse(
+            summary=proposal.management.summary,
+            benefits=list(proposal.management.benefits),
+        ),
+        technical=_technical_solution_response(proposal.technical),
         prompt_version=proposal.prompt_version,
     )
 
@@ -1124,7 +1138,7 @@ class DecisionDetailsResponse(BaseModel):
     """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein)."""
 
     sharpened_text: str | None
-    solution_business: str | None
+    solution_business: ManagementSolutionResponse | None
     compliance_hint_text: str | None
 
 
@@ -1153,8 +1167,9 @@ class BusinessSummaryResponse(BaseModel):
     decision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die
     frueher redundante summary_text-Zeile ersatzlos.
 
-    solution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus
-    propose_solution(); None, solange der Endpoint nicht lief.
+    solution_business (ADR-0054): strukturierte, technikfreie Management-Fassung
+    aus propose_solution() (Kernaussage + Nutzen-Stichpunkte statt Freitext-
+    Absatz); None, solange der Endpoint nicht lief.
 
     compliance_hint_text/compliance_citations (ADR-0026): aus dem
     persistierten compliance_hints_json gelesen, kein Override moeglich
@@ -1171,7 +1186,7 @@ class BusinessSummaryResponse(BaseModel):
     recommendation: str
     expected_benefit_eur: float | None
     decision_report: DecisionReportResponse
-    solution_business: str | None
+    solution_business: ManagementSolutionResponse | None
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: list[ComplianceCitationResponse]
@@ -1200,7 +1215,7 @@ class TechnicalDetailResponse(BaseModel):
     roi_theoretical_potential_eur: float | None
     roi_net_expected_benefit_eur: float | None
     technical_report: TechnicalReportResponse
-    proposal_text: str | None
+    solution_technical: TechnicalSolutionResponse | None
 
 
 class ReportResponse(BaseModel):
@@ -1209,6 +1224,30 @@ class ReportResponse(BaseModel):
     case_id: str
     business_summary: BusinessSummaryResponse
     technical_detail: TechnicalDetailResponse
+
+
+def _management_solution_response(
+    solution: ManagementSolution | None,
+) -> ManagementSolutionResponse | None:
+    """ManagementSolution -> API-Schema (None bleibt None)."""
+    if solution is None:
+        return None
+    return ManagementSolutionResponse(
+        summary=solution.summary, benefits=list(solution.benefits)
+    )
+
+
+def _technical_solution_response(
+    solution: TechnicalSolution,
+) -> TechnicalSolutionResponse:
+    """TechnicalSolution -> API-Schema."""
+    return TechnicalSolutionResponse(
+        architecture_summary=solution.architecture_summary,
+        components=list(solution.components),
+        data_flow=list(solution.data_flow),
+        integration_points=list(solution.integration_points),
+        open_assumptions=list(solution.open_assumptions),
+    )
 
 
 def _to_report_response(report: ReportResult) -> ReportResponse:
@@ -1251,11 +1290,13 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
                 contra_punkte=list(dr.contra_punkte),
                 details=DecisionDetailsResponse(
                     sharpened_text=dr.details.sharpened_text,
-                    solution_business=dr.details.solution_business,
+                    solution_business=_management_solution_response(
+                        dr.details.solution_business
+                    ),
                     compliance_hint_text=dr.details.compliance_hint_text,
                 ),
             ),
-            solution_business=business.solution_business,
+            solution_business=_management_solution_response(business.solution_business),
             sharpened_text=business.sharpened_text,
             compliance_hint_text=business.compliance_hint_text,
             compliance_citations=[
@@ -1290,7 +1331,11 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
                 risiken=tr.risiken,
                 offene_technische_fragen=tr.offene_technische_fragen,
             ),
-            proposal_text=technical.proposal_text,
+            solution_technical=(
+                None
+                if technical.solution_technical is None
+                else _technical_solution_response(technical.solution_technical)
+            ),
         ),
     )
 

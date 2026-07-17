@@ -106,10 +106,16 @@ async def test_propose_solution_existing_case_returns_proposal() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["case_id"] == case_id
-    assert data["prompt_version"] == "v3"
-    # Zweigeteilt (V4-P6): technische Fassung + technikfreier Business-Absatz.
-    assert "[mock]" in data["solution_technical"]
-    assert data["solution_business"]
+    assert data["prompt_version"] == "v4"
+    # Zweigeteilt + strukturiert (ADR-0054): Management-Ebene technikfrei mit
+    # Kernaussage + Nutzen-Stichpunkten, Technik-Ebene mit festen Feldern.
+    assert "[mock]" in data["technical"]["architecture_summary"]
+    assert data["management"]["summary"]
+    assert 1 <= len(data["management"]["benefits"]) <= 3
+    assert len(data["technical"]["components"]) >= 2
+    assert len(data["technical"]["data_flow"]) >= 2
+    assert data["technical"]["integration_points"]
+    assert data["technical"]["open_assumptions"]
 
 
 async def test_propose_solution_with_injection_payload_still_returns_200() -> None:
@@ -137,14 +143,14 @@ async def test_propose_solution_with_injection_payload_still_returns_200() -> No
 
     assert response.status_code == 200
     data = response.json()
-    assert "[mock]" in data["solution_technical"]
+    assert "[mock]" in data["technical"]["architecture_summary"]
 
 
 # --- S4 Draft/Accept-Flow: /propose-solution/accept + /reject ---------------
 
 
 async def test_solution_draft_does_not_persist_until_accept() -> None:
-    # propose liefert einen Draft; der Report zeigt proposal_text erst nach accept.
+    # propose liefert einen Draft; der Report zeigt die Loesung erst nach accept.
     app = _make_app()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -160,7 +166,7 @@ async def test_solution_draft_does_not_persist_until_accept() -> None:
             f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
         )
 
-    assert report.json()["technical_detail"]["proposal_text"] is None
+    assert report.json()["technical_detail"]["solution_technical"] is None
 
 
 async def test_solution_accept_applies_draft() -> None:
@@ -185,9 +191,11 @@ async def test_solution_accept_applies_draft() -> None:
 
     assert accept.status_code == 200
     assert accept.json() == {"case_id": case_id, "status": "accepted"}
-    proposal_text = report.json()["technical_detail"]["proposal_text"]
-    assert proposal_text is not None
-    assert "[mock]" in proposal_text
+    technical = report.json()["technical_detail"]["solution_technical"]
+    assert technical is not None
+    assert "[mock]" in technical["architecture_summary"]
+    # Die Struktur ueberlebt die Persistenz (ADR-0054) -- kein Klartext-Dump.
+    assert len(technical["components"]) >= 2
 
 
 async def test_solution_reject_discards_draft() -> None:
@@ -212,7 +220,7 @@ async def test_solution_reject_discards_draft() -> None:
 
     assert reject.status_code == 200
     assert reject.json()["status"] == "rejected"
-    assert report.json()["technical_detail"]["proposal_text"] is None
+    assert report.json()["technical_detail"]["solution_technical"] is None
 
 
 async def test_solution_accept_without_draft_returns_409() -> None:

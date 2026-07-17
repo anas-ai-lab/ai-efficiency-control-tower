@@ -9,44 +9,104 @@ import pytest
 from aect.application.structured_output import (
     InvalidLLMOutputError,
     SharpenedContentV2,
-    SolutionProposalV2,
+    SolutionProposalV3,
     parse_structured_llm_output,
 )
 
+# Schema-valider Loesungsvorschlag (ADR-0054): beide Ebenen strukturiert.
+_VALID_SOLUTION: dict = {
+    "management_summary": (
+        "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+        "Mitarbeitenden strukturiert vorgelegt. Die Fachkraft prueft nur noch "
+        "Zweifelsfaelle und gibt frei."
+    ),
+    "management_benefits": [
+        "Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle.",
+        "Der Rueckstau bei Lastspitzen faellt geringer aus.",
+    ],
+    "architecture_summary": (
+        "Ein Dienst liest die Felder aus und uebergibt sie an das Zielsystem. "
+        "Eine Klassifizierung markiert Zweifelsfaelle."
+    ),
+    "components": [
+        "Texterkennung: liest die Felder aus dem Dokument.",
+        "Klassifizierung: markiert Zweifelsfaelle.",
+    ],
+    "data_flow": [
+        "Eingang -> Texterkennung -> strukturierter Datensatz",
+        "Datensatz -> Klassifizierung -> Zielsystem",
+    ],
+    "integration_points": ["Zielsystem der Fachabteilung ueber eine Schnittstelle."],
+    "open_assumptions": ["Die Dokumente liegen digital lesbar vor."],
+}
 
-def test_solution_proposal_v2_valid() -> None:
-    raw = json.dumps(
-        {
-            "solution_business": (
-                "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
-                "Mitarbeitenden vorgelegt."
-            ),
-            "solution_technical": (
-                "Ein Dienst liest die Felder aus und uebergibt sie an das Zielsystem."
-            ),
-        }
-    )
-    parsed = parse_structured_llm_output(raw, SolutionProposalV2)
-    assert parsed.solution_business
-    assert parsed.solution_technical
 
+class TestSolutionProposalV3:
+    def test_valid_payload_parses(self) -> None:
+        parsed = parse_structured_llm_output(
+            json.dumps(_VALID_SOLUTION), SolutionProposalV3
+        )
+        assert parsed.management_summary
+        assert len(parsed.management_benefits) == 2
+        assert len(parsed.components) == 2
+        assert parsed.open_assumptions == ["Die Dokumente liegen digital lesbar vor."]
 
-def test_solution_proposal_v2_rejects_extra_field() -> None:
-    raw = json.dumps(
-        {
+    def test_rejects_extra_field(self) -> None:
+        payload = {**_VALID_SOLUTION, "unexpected": "x"}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_legacy_v2_shape(self) -> None:
+        # Die alte Zwei-Felder-Form ist kein gueltiger Output mehr -- sie laeuft in
+        # den Schema-Fehler (Retry, dann 422), nicht still durch.
+        payload = {
             "solution_business": "Ein ausreichend langer Geschaeftsleitungs-Absatz.",
             "solution_technical": "Ein ausreichend langer technischer Absatz hier.",
-            "unexpected": "x",
         }
-    )
-    with pytest.raises(InvalidLLMOutputError):
-        parse_structured_llm_output(raw, SolutionProposalV2)
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
 
+    def test_rejects_summary_too_short(self) -> None:
+        payload = {**_VALID_SOLUTION, "management_summary": "kurz"}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
 
-def test_solution_proposal_v2_rejects_too_short() -> None:
-    raw = json.dumps({"solution_business": "kurz", "solution_technical": "auch kurz"})
-    with pytest.raises(InvalidLLMOutputError):
-        parse_structured_llm_output(raw, SolutionProposalV2)
+    def test_rejects_summary_wall_of_text(self) -> None:
+        # max_length=700 ist die Schema-Haelfte der "keine Absatz-Wand"-Regel:
+        # 2-3 Saetze brauchen sie nicht, eine Textwueste sprengt sie.
+        payload = {**_VALID_SOLUTION, "management_summary": "x" * 701}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_more_than_three_benefits(self) -> None:
+        payload = {
+            **_VALID_SOLUTION,
+            "management_benefits": [f"Nutzen Nummer {i} mit Text." for i in range(4)],
+        }
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_empty_benefits(self) -> None:
+        payload = {**_VALID_SOLUTION, "management_benefits": []}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_bullet_that_is_a_paragraph(self) -> None:
+        # Ein Stichpunkt ist eine Zeile (max 200) -- kein Absatz.
+        payload = {**_VALID_SOLUTION, "components": ["x" * 201, "Zweite Komponente."]}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_single_component(self) -> None:
+        # min_length=2: eine einzelne Komponente ist keine Architektur-Uebersicht.
+        payload = {**_VALID_SOLUTION, "components": ["Nur ein Baustein."]}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
+
+    def test_rejects_missing_technical_list(self) -> None:
+        payload = {k: v for k, v in _VALID_SOLUTION.items() if k != "data_flow"}
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), SolutionProposalV3)
 
 
 _VALID_PAYLOAD: dict = {
@@ -61,18 +121,6 @@ _VALID_PAYLOAD: dict = {
         "den Kostenstellen zugeordnet und als SAP-Buchungsvorschlag "
         "bereitgestellt; nur ein Zweifelsfall geht an eine Fachkraft."
     ),
-    "improvement_suggestions": [
-        {
-            "bezugsfeld": "evidence_level",
-            "vorschlag": "Belege die Zeitersparnis mit einer Vorher-Nachher-Messung.",
-            "hebel": "Evidenzfaktor steigt von 0,40 auf 0,90.",
-        },
-        {
-            "bezugsfeld": "adoption_type",
-            "vorschlag": "Lege die Nutzung als verbindlich fest.",
-            "hebel": "Nutzungsfaktor steigt, der erwartete Nutzen im ROI waechst.",
-        },
-    ],
 }
 
 
@@ -85,7 +133,6 @@ class TestParseStructuredLLMOutputValid:
         assert (
             result.sharpened_desired_state == _VALID_PAYLOAD["sharpened_desired_state"]
         )
-        assert len(result.improvement_suggestions) == 2
 
 
 class TestParseStructuredLLMOutputInvalidJSON:
@@ -121,65 +168,16 @@ class TestParseStructuredLLMOutputSchemaViolations:
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
 
-    def test_empty_suggestions_list_raises(self) -> None:
-        payload = {**_VALID_PAYLOAD, "improvement_suggestions": []}
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
-
-    def test_too_many_suggestions_raises(self) -> None:
-        # max_length=3 (V4, Hebel-Pflicht -- Fokus statt Floskel-Liste).
+    def test_legacy_suggestions_field_now_rejected(self) -> None:
+        # ADR-0054: improvement_suggestions ist ersatzlos entfallen. extra="forbid"
+        # laesst ein Modell, das den Block weiterhin emittiert, in den Schema-
+        # Fehler laufen (Retry, dann 422) statt ihn still zu schlucken.
         payload = {
             **_VALID_PAYLOAD,
             "improvement_suggestions": [
                 {
                     "bezugsfeld": "notes",
-                    "vorschlag": f"Vorschlag Nummer {i} mit genug Zeichen",
-                    "hebel": "Aufwand-Score sinkt.",
-                }
-                for i in range(4)
-            ],
-        }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
-
-    def test_suggestion_vorschlag_too_long_raises(self) -> None:
-        payload = {
-            **_VALID_PAYLOAD,
-            "improvement_suggestions": [
-                {"bezugsfeld": "notes", "vorschlag": "x" * 501, "hebel": "ROI steigt."}
-            ],
-        }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
-
-    def test_suggestion_missing_bezugsfeld_raises(self) -> None:
-        # Fehlt bezugsfeld -> Schema-Fehler (Hebel-Pflicht, V4).
-        payload = {
-            **_VALID_PAYLOAD,
-            "improvement_suggestions": [
-                {"vorschlag": "Ohne Feldbezug.", "hebel": "ROI steigt."}
-            ],
-        }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
-
-    def test_suggestion_missing_hebel_raises(self) -> None:
-        payload = {
-            **_VALID_PAYLOAD,
-            "improvement_suggestions": [
-                {"bezugsfeld": "notes", "vorschlag": "Ohne Hebel."}
-            ],
-        }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), SharpenedContentV2)
-
-    def test_suggestion_unknown_bezugsfeld_raises(self) -> None:
-        payload = {
-            **_VALID_PAYLOAD,
-            "improvement_suggestions": [
-                {
-                    "bezugsfeld": "nicht_existentes_feld",
-                    "vorschlag": "Bezieht sich auf nichts.",
+                    "vorschlag": "Ein Vorschlag mit genug Zeichen.",
                     "hebel": "ROI steigt.",
                 }
             ],

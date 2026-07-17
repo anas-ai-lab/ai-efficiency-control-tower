@@ -10,36 +10,49 @@ from aect.application.ports.llm import (
 )
 from aect.application.structured_output import (
     ArchitectureSketch,
-    CaseField,
     IdeationDraft,
     IdeationResult,
-    ImprovementSuggestion,
     SharpenedContentV2,
     SketchEdge,
     SketchNode,
     SketchNodeKind,
-    SolutionProposalV2,
+    SolutionProposalV3,
 )
 from aect.domain.i18n import Lang
 
 _MOCK_TOOL_CALL_ID = "mock-tool-call-1"
 
-# Deterministischer, schema-valider zweigeteilter Loesungsvorschlag (V4-P6).
-# solution_business ist bewusst FREI von verbotenem Technik-/Architektur-Vokabular
-# (domain/solution_guard) -- so verletzt der Mock nie den Vokabular-Guard. Der
-# "[mock]"-Marker macht die Herkunft in Assertions sichtbar.
-_SOLUTION_MOCK_JSON = SolutionProposalV2(
-    solution_business=(
+# Deterministischer, schema-valider zweigeteilter Loesungsvorschlag (ADR-0054).
+# Die Management-Ebene (summary + benefits) ist bewusst FREI von verbotenem
+# Technik-/Architektur-Vokabular (domain/solution_guard) -- so verletzt der Mock
+# nie den Vokabular-Guard. Der "[mock]"-Marker macht die Herkunft in Assertions
+# sichtbar.
+_SOLUTION_MOCK_JSON = SolutionProposalV3(
+    management_summary=(
         "[mock] Eingehende Vorgaenge werden kuenftig automatisch vorbereitet und "
         "den Mitarbeitenden strukturiert vorgelegt. Die Fachkraft prueft nur noch "
         "Zweifelsfaelle und gibt frei; die endgueltige Entscheidung bleibt beim "
         "Menschen."
     ),
-    solution_technical=(
+    management_benefits=[
+        "Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle.",
+        "Der Rueckstau bei Lastspitzen faellt spuerbar geringer aus.",
+    ],
+    architecture_summary=(
         "[mock] Ein Dienst liest die benoetigten Felder aus und uebergibt sie an "
         "das Zielsystem; eine Klassifizierung markiert Zweifelsfaelle fuer die "
         "manuelle Pruefung."
     ),
+    components=[
+        "Texterkennung: liest die Felder aus dem eingehenden Dokument.",
+        "Klassifizierung: markiert Zweifelsfaelle fuer die manuelle Pruefung.",
+    ],
+    data_flow=[
+        "Eingang -> Texterkennung -> strukturierter Datensatz",
+        "Strukturierter Datensatz -> Klassifizierung -> Zielsystem",
+    ],
+    integration_points=["Zielsystem der Fachabteilung ueber eine Schnittstelle."],
+    open_assumptions=["Die eingehenden Dokumente liegen digital lesbar vor."],
 ).model_dump_json()
 
 # Deterministische, schema-valide Schaerfung fuer Tests (V4; S4 auf Soll-Felder
@@ -55,19 +68,6 @@ _SHARPENING_MOCK_JSON = SharpenedContentV2(
         "Ein typischer Zielvorgang laeuft weitgehend automatisch; nur eine "
         "unklare Ausnahme geht an eine Fachkraft zur Bestaetigung."
     ),
-    improvement_suggestions=[
-        ImprovementSuggestion(
-            bezugsfeld=CaseField.EVIDENCE_LEVEL,
-            vorschlag=(
-                "Belege die Zeitersparnis mit einer kurzen Vorher-Nachher-"
-                "Messung an echten Vorgaengen."
-            ),
-            hebel=(
-                "Evidenzfaktor steigt, der erwartete Nutzen wird im ROI hoeher "
-                "gewichtet."
-            ),
-        )
-    ],
 ).model_dump_json()
 
 
@@ -111,12 +111,12 @@ class MockLLMAdapter:
         if any("sharpened_desired_state" in m.content for m in messages):
             return LLMResponse(content=_SHARPENING_MOCK_JSON)
 
-        # propose_solution v3: der System-Prompt beschreibt das JSON-Schema und
-        # traegt daher "solution_business". Dann liefert der Mock einen
-        # schema-validen, zweigeteilten Loesungsvorschlag (Business + technisch)
-        # statt eines Echos (das waere kein JSON und wuerde den Fail-loud-Pfad
-        # ausloesen).
-        if any("solution_business" in m.content for m in messages):
+        # propose_solution v4: der System-Prompt beschreibt das JSON-Schema und
+        # traegt daher "management_summary" (vor ADR-0054: "solution_business").
+        # Dann liefert der Mock einen schema-validen, zweigeteilten
+        # Loesungsvorschlag (Management + technisch) statt eines Echos (das waere
+        # kein JSON und wuerde den Fail-loud-Pfad ausloesen).
+        if any("management_summary" in m.content for m in messages):
             return LLMResponse(content=_SOLUTION_MOCK_JSON)
 
         last_user = next(

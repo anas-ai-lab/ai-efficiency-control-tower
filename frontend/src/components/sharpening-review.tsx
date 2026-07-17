@@ -213,7 +213,6 @@ export function SharpeningReview({
   onResolved: () => void
 }) {
   const t = useTranslations("sharpening")
-  const te = useTranslations("enums")
   const [pending, setPending] = useState<"accept" | "reject" | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -282,29 +281,6 @@ export function SharpeningReview({
           <DiffField key={f.label} label={f.label} diff={f.diff} mode={mode} />
         ))}
       </div>
-
-      {/* Verbesserungsvorschlaege: Bezugsfeld-Badge + Vorschlag + Hebel. */}
-      {sharpened.improvement_suggestions.length > 0 && (
-        <div className="mt-5">
-          <p className="eyebrow mb-2">{t("suggestions")}</p>
-          <ul className="space-y-2.5">
-            {sharpened.improvement_suggestions.map((s, i) => (
-              <li key={i} className="rounded-xl border border-border bg-card p-4">
-                <span className="inline-flex items-center rounded-md border border-[var(--ink)]/25 bg-[var(--ink-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--ink)]">
-                  {te(`caseField.${s.bezugsfeld}`)}
-                </span>
-                <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-                  {s.vorschlag}
-                </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground/70">{t("lever")}</span>{" "}
-                  {s.hebel}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <ActionError message={error} className="mt-4" />
 

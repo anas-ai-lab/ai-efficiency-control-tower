@@ -87,12 +87,27 @@ def _make_app(
 # damit proposal_text (Voraussetzung fuer die Skizze), bevor die Skizze scheitert.
 _SOLUTION_JSON = json.dumps(
     {
-        "solution_business": (
+        "management_summary": (
             "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
             "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
             "Menschen."
         ),
-        "solution_technical": "Ein knapper technischer Loesungsvorschlag als Grundlage.",
+        "management_benefits": [
+            "Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle."
+        ],
+        "architecture_summary": (
+            "Ein knapper technischer Loesungsvorschlag als Grundlage."
+        ),
+        "components": [
+            "Texterkennung: liest die Felder aus.",
+            "Klassifizierung: markiert Zweifelsfaelle.",
+        ],
+        "data_flow": [
+            "Eingang -> Texterkennung -> Datensatz",
+            "Datensatz -> Klassifizierung -> Zielsystem",
+        ],
+        "integration_points": ["Zielsystem der Fachabteilung."],
+        "open_assumptions": ["Die Dokumente liegen digital lesbar vor."],
     }
 )
 

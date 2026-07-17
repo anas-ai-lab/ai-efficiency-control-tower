@@ -322,7 +322,6 @@ class TestLLMNarrativePersistence:
             {
                 "sharpened_desired_state": None,
                 "sharpened_desired_example_process": None,
-                "improvement_suggestions": [],
                 "raw_text": "Geschaerfte Version: ...",
             }
         )
@@ -862,8 +861,7 @@ class TestSharpeningDraftColumn:
                     "sharpened_desired_state": "sd",
                     "sharpened_desired_example_process": "sde",
                 },
-                "improvement_suggestions": [],
-                "prompt_version": "v3",
+                "prompt_version": "v4",
                 "created_at": "2026-07-10T10:00:00+00:00",
             }
         )

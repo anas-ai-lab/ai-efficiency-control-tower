@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from aect.application.structured_output import ArchitectureSketch, ImprovementSuggestion
+from aect.application.structured_output import ArchitectureSketch
 from aect.domain import (
     CaseStatus,
     MonitoringAction,
@@ -193,7 +193,7 @@ class SubmittedCase:
     # die POST /cases/{id}/sharpen erzeugt hat, BEVOR ein Mensch sie uebernimmt.
     # Ueberschreibt nichts am Case; accept traegt den Draft in
     # sharpened_content_json, reject leert ihn. None, solange kein Draft offen
-    # ist. JSON-Objekt (original/sharpened/improvement_suggestions/metadaten).
+    # ist. JSON-Objekt (original/sharpened/metadaten).
     sharpening_draft: str | None = None
     # solution_draft (S4, Draft/Accept-Flow analog sharpening_draft): der von
     # propose_solution() erzeugte Loesungsvorschlag (business + technical), BEVOR
@@ -271,15 +271,16 @@ class SharpenedUseCase:
     Beschreibungs-Felder keine im Original fehlenden Zahlen erfinden. Bei
     Schema- oder Zahlen-Verstoss laeuft genau EIN Retry; scheitert auch der,
     wirft sharpen_case() (Fail loud, kein Graceful-Degradation-Fallback mehr).
-    In der Erfolgs-Form sind beide sharpened_*-Soll-Felder gesetzt und
-    improvement_suggestions traegt 1-3 ImprovementSuggestion (bezugsfeld/
-    vorschlag/hebel). S4: Titel und Ist-Felder sind nicht mehr Teil der
-    Schaerfung -- nur Soll-Zustand + Soll-Beispiel.
+    In der Erfolgs-Form sind beide sharpened_*-Soll-Felder gesetzt. S4: Titel
+    und Ist-Felder sind nicht mehr Teil der Schaerfung -- nur Soll-Zustand +
+    Soll-Beispiel.
+
+    Die frueheren improvement_suggestions sind ersatzlos entfallen (ADR-0054).
 
     prompt_version macht nachvollziehbar, welche Prompt-Version dieses
     Ergebnis erzeugt hat (aect.application.prompts.load_prompt). Default seit
-    V4: "v3" (Zahlen-Verbot + Hebel-Pflicht). Die stale v1/v2-Prompts (altes
-    Schema, kein Zahlen-Verbot) wurden vor S5 entfernt.
+    ADR-0054: "v4" (Zahlen-Verbot, ohne Vorschlags-Block). Die stale v1/v2-
+    Prompts (altes Schema, kein Zahlen-Verbot) wurden vor S5 entfernt.
 
     frozen=True: Schaerfungs-Ergebnis ist nach Erstellung unveraenderlich,
     analog zu UseCaseInput.
@@ -290,20 +291,51 @@ class SharpenedUseCase:
     original_desired_example_process: str
     sharpened_desired_state: str
     sharpened_desired_example_process: str
-    improvement_suggestions: tuple[ImprovementSuggestion, ...]
     prompt_version: str
 
 
 @dataclass(frozen=True)
+class ManagementSolution:
+    """Management-Ebene des Loesungsvorschlags (ADR-0054).
+
+    summary: 2-3 Saetze Kernaussage. benefits: max. 3 Nutzen-Stichpunkte.
+    Beide technikfrei (Vokabular-Guard, domain/solution_guard).
+
+    Legacy-Form: vor ADR-0054 persistierte Cases tragen in der Spalte
+    solution_business reinen Klartext statt JSON. read_management_solution()
+    (application/solution_content.py) bildet den auf summary ab und laesst
+    benefits leer -- das rendert als Absatz ohne Stichpunkte, statt zu brechen.
+    """
+
+    summary: str
+    benefits: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TechnicalSolution:
+    """Technik-Ebene des Loesungsvorschlags (ADR-0054).
+
+    Feste Felder statt Fliesstext-Wand: architecture_summary (2-3 Saetze) plus
+    vier Stichpunkt-Listen. Legacy-Klartext (vor ADR-0054, Spalte proposal_text)
+    landet analog ManagementSolution vollstaendig in architecture_summary, die
+    Listen bleiben leer.
+    """
+
+    architecture_summary: str
+    components: tuple[str, ...]
+    data_flow: tuple[str, ...]
+    integration_points: tuple[str, ...]
+    open_assumptions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SolutionProposal:
-    """Ergebnis des zweigeteilten Loesungsvorschlags (V4-P6).
+    """Ergebnis des zweigeteilten Loesungsvorschlags (ADR-0054).
 
-    solution_business: ein Absatz fuer die Geschaeftsleitung -- was sich im
-    Arbeitsalltag aendert, ohne Technik-/Architektur-Vokabular (deterministischer
-    Vokabular-Guard, domain/solution_guard). solution_technical: der technische
-    Loesungsansatz (frueher das einzige proposal_text-Feld).
+    management: technikfreie Fassung fuer die Geschaeftsleitung.
+    technical: strukturierte technische Fassung.
 
-    Strukturierte Ausgabe (SolutionProposalV2, extra="forbid"): schlaegt Schema
+    Strukturierte Ausgabe (SolutionProposalV3, extra="forbid"): schlaegt Schema
     ODER Vokabular-Guard an, laeuft genau EIN Retry; scheitert auch der, wirft
     propose_solution() (Fail loud, Route -> 422). case_id verweist auf den
     persistierten SubmittedCase.
@@ -313,8 +345,8 @@ class SolutionProposal:
     """
 
     case_id: str
-    solution_business: str
-    solution_technical: str
+    management: ManagementSolution
+    technical: TechnicalSolution
     prompt_version: str
 
 
@@ -369,13 +401,13 @@ class DecisionDetails:
     """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
 
     sharpened_text: geschaerfte Beschreibung (falls akzeptiert). solution_business:
-    Geschaeftsleitungs-Absatz aus propose_solution(). compliance_hint_text:
-    RAG-gegruendeter Compliance-Hinweis. Alle None, solange der jeweilige
-    Schritt nicht ausgeloest wurde.
+    strukturierte Management-Fassung aus propose_solution() (ADR-0054, frueher ein
+    Freitext-Absatz). compliance_hint_text: RAG-gegruendeter Compliance-Hinweis.
+    Alle None, solange der jeweilige Schritt nicht ausgeloest wurde.
     """
 
     sharpened_text: str | None
-    solution_business: str | None
+    solution_business: ManagementSolution | None
     compliance_hint_text: str | None
 
 
@@ -421,9 +453,10 @@ class BusinessSummary:
     kennzahlen, zu_entscheiden, contra_punkte, details) -- ersetzt die frueher
     redundante summary_text-Zeile ersatzlos.
 
-    solution_business (V4-P6): der Geschaeftsleitungs-Absatz aus propose_solution()
-    (technikfrei). None, solange propose_solution() fuer diesen Case nie lief. Als
-    untrusted LLM-Output unveraendert weitergereicht.
+    solution_business (ADR-0054): die strukturierte Management-Fassung aus
+    propose_solution() (technikfrei) -- Kernaussage + Nutzen-Stichpunkte statt des
+    frueheren Freitext-Absatzes. None, solange propose_solution() fuer diesen Case
+    nie lief. Als untrusted LLM-Output unveraendert weitergereicht.
 
     sharpened_text: LLM-Schaerfung des Cases. Default ist der persistierte
     Wert aus sharpen_case() (Tag 42, ADR-0012); ein im Request-Body
@@ -455,7 +488,7 @@ class BusinessSummary:
     recommendation: str
     expected_benefit_eur: float | None
     decision_report: DecisionReport
-    solution_business: str | None
+    solution_business: ManagementSolution | None
     sharpened_text: str | None
     compliance_hint_text: str | None
     compliance_citations: tuple[ComplianceCitation, ...]
@@ -474,9 +507,11 @@ class TechnicalDetail:
     technical_report (V4-P6): dieselben technischen Inhalte in Abschnitte
     gegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen).
 
-    proposal_text: technische Loesungsfassung des Cases (solution_technical),
-    analog sharpened_text in BusinessSummary (persistiert via propose_solution(),
-    Tag 42, ADR-0012; Request-Body-Wert ueberschreibt den persistierten).
+    solution_technical (ADR-0054): die strukturierte technische Loesungsfassung
+    (Architektur-Kurzbeschreibung + Komponenten/Datenfluss/Integrationspunkte/
+    offene Annahmen) statt des frueheren Freitext-Felds proposal_text. Analog
+    sharpened_text in BusinessSummary persistiert via propose_solution() (Tag 42,
+    ADR-0012; Request-Body-Wert ueberschreibt den persistierten).
     """
 
     passed_vorfilter: bool
@@ -492,7 +527,7 @@ class TechnicalDetail:
     roi_theoretical_potential_eur: float | None
     roi_net_expected_benefit_eur: float | None
     technical_report: TechnicalReport
-    proposal_text: str | None
+    solution_technical: TechnicalSolution | None
 
 
 @dataclass(frozen=True)

@@ -27,6 +27,7 @@ from aect.application.models import (
     DecisionDetails,
     DecisionKennzahlen,
     DecisionReport,
+    ManagementSolution,
     MonitoringEntry,
     PortfolioStats,
     ReportResult,
@@ -38,6 +39,7 @@ from aect.application.models import (
     SubmittedCase,
     TechnicalDetail,
     TechnicalReport,
+    TechnicalSolution,
 )
 from aect.application.ports.clock import ClockPort
 from aect.application.ports.embedder import EmbedderPort
@@ -51,12 +53,21 @@ from aect.application.sanitization import (
     detect_injection_patterns,
     neutralize_delimiters,
 )
+from aect.application.solution_content import (
+    dump_management,
+    dump_technical,
+    management_from_schema,
+    read_management_solution,
+    read_technical_solution,
+    render_technical_text,
+    technical_from_schema,
+)
 from aect.application.structured_output import (
     ArchitectureSketch,
     IdeationResult,
     InvalidLLMOutputError,
     SharpenedContentV2,
-    SolutionProposalV2,
+    SolutionProposalV3,
     parse_structured_llm_output,
 )
 from aect.application.tools import (
@@ -257,22 +268,6 @@ class NoSolutionDraftError(Exception):
         self.case_id = case_id
 
 
-def _render_suggestion_line(suggestion: object) -> str:
-    """Rendert einen Verbesserungsvorschlag als lesbare Zeile.
-
-    Neue Form (V4): dict mit bezugsfeld/vorschlag/hebel -> "- vorschlag
-    (Feld: bezugsfeld; Hebel: hebel)". Alt-Form (vor V4, reiner String in
-    persistierten Cases) -> unveraendert als "- <string>" (Rueckwaerts-
-    kompatibel fuer bereits gespeicherte sharpened_content_json).
-    """
-    if isinstance(suggestion, dict):
-        vorschlag = suggestion.get("vorschlag", "")
-        bezugsfeld = suggestion.get("bezugsfeld", "")
-        hebel = suggestion.get("hebel", "")
-        return f"- {vorschlag} (Feld: {bezugsfeld}; Hebel: {hebel})"
-    return f"- {suggestion}"
-
-
 def _render_sharpened_content(content_json: str | None) -> str | None:
     """Rendert den persistierten Schaerfungs-Inhalt zu lesbarem Text.
 
@@ -280,6 +275,11 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     None (sharpen_case() lief nie fuer diesen Case), ein Graceful-
     Degradation-JSON (raw_text gesetzt, ADR-0013 Teil 2) oder ein valides
     SharpenedContentV2-JSON (strukturierte Felder gesetzt).
+
+    Die frueher angehaengten Verbesserungsvorschlaege sind entfallen (ADR-0054).
+    Vor ADR-0054 persistierte Cases tragen sie noch im JSON -- sie werden hier
+    schlicht nicht mehr gelesen (kein Migrationsbedarf, der Block verschwindet
+    aus der Anzeige).
     """
     if content_json is None:
         return None
@@ -288,13 +288,12 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     # Degradation-Cases (der neue Fail-loud-Pfad schreibt nie mehr raw_text).
     if data.get("raw_text") is not None:
         return str(data["raw_text"])
-    lines = [
-        f"Soll-Zustand: {data['sharpened_desired_state']}",
-        f"Soll-Beispiel: {data['sharpened_desired_example_process']}",
-        "Verbesserungsvorschlaege:",
-    ]
-    lines += [_render_suggestion_line(s) for s in data["improvement_suggestions"]]
-    return "\n".join(lines)
+    return "\n".join(
+        (
+            f"Soll-Zustand: {data['sharpened_desired_state']}",
+            f"Soll-Beispiel: {data['sharpened_desired_example_process']}",
+        )
+    )
 
 
 def _render_compliance_hints(
@@ -353,7 +352,7 @@ def _build_decision_report(
     use_case: UseCaseInput,
     explanation: TriageExplanation,
     sharpened_text: str | None,
-    solution_business: str | None,
+    solution_business: ManagementSolution | None,
     compliance_hint_text: str | None,
     lang: Lang = DEFAULT_LANG,
 ) -> DecisionReport:
@@ -376,7 +375,7 @@ def _build_decision_report(
 def _build_technical_report(
     result: TriageResult,
     use_case: UseCaseInput,
-    solution_technical: str | None,
+    solution_technical: TechnicalSolution | None,
     lang: Lang = DEFAULT_LANG,
 ) -> TechnicalReport:
     """Baut den technischen Report in Abschnitten (V4-P6, Abschnitte statt Textwueste).
@@ -388,8 +387,13 @@ def _build_technical_report(
     """
     assert result.routing is not None
     cat = TECHNICAL_REPORT[lang]
+    # Die Architektur-Zeile des Reports traegt seit ADR-0054 nur noch die
+    # Kurzbeschreibung -- Komponenten/Datenfluss/Integration/Annahmen rendert das
+    # Frontend als eigene Stichpunkt-Listen aus technical_detail.solution_technical.
     architektur = (
-        solution_technical if solution_technical else cat["architektur_placeholder"]
+        solution_technical.architecture_summary
+        if solution_technical is not None
+        else cat["architektur_placeholder"]
     )
     datenlage = cat["datenlage"].format(
         datenschutz=DATA_CLASSIFICATION_CLARTEXT[lang][use_case.data_classification],
@@ -399,7 +403,7 @@ def _build_technical_report(
     _, _, risk_flags = collect_routing_signals(use_case, lang)
     risiken = "; ".join(risk_flags) if risk_flags else cat["risiken_none"]
     offene: list[str] = []
-    if not solution_technical:
+    if solution_technical is None:
         offene.append(cat["offene_solution"])
     if result.routing.requires_human_review:
         offene.append(cat["offene_review"])
@@ -419,7 +423,7 @@ def _build_business_summary(
     use_case: UseCaseInput,
     explanation: TriageExplanation,
     sharpened_text: str | None,
-    solution_business: str | None,
+    solution_business: ManagementSolution | None,
     compliance_hint_text: str | None,
     compliance_citations: tuple[ComplianceCitation, ...],
     reviewer_decision: str,
@@ -470,14 +474,15 @@ def _build_business_summary(
 def _build_technical_detail(
     result: TriageResult,
     use_case: UseCaseInput,
-    proposal_text: str | None,
+    solution_technical: TechnicalSolution | None,
     lang: Lang = DEFAULT_LANG,
 ) -> TechnicalDetail:
     """Leitet die Reviewer-Schicht deterministisch aus TriageResult ab.
 
     composite/roi sind None wenn passed_vorfilter False ist (siehe
-    domain/pipeline.py) -- entsprechende Felder werden dann None. proposal_text
-    ist die technische Loesungsfassung (solution_technical).
+    domain/pipeline.py) -- entsprechende Felder werden dann None.
+    solution_technical ist die strukturierte technische Loesungsfassung
+    (ADR-0054).
 
     Nur fuer bewertete Cases aufgerufen (generate_report gated gegen den
     Vor-Bewertungs-Zustand, ADR-0050) -- vorfilter/feasibility/routing befuellt.
@@ -519,8 +524,10 @@ def _build_technical_detail(
             if result.roi is not None
             else None
         ),
-        technical_report=_build_technical_report(result, use_case, proposal_text, lang),
-        proposal_text=proposal_text,
+        technical_report=_build_technical_report(
+            result, use_case, solution_technical, lang
+        ),
+        solution_technical=solution_technical,
     )
 
 
@@ -1186,11 +1193,9 @@ class TriageService:
         - Schema ok, aber erfundene Zahlen -> (parsed, None, [Zahlen]).
         - Sauber -> (parsed, None, []).
 
-        Der Zahlen-Guard laeuft NUR ueber die beiden geschaerften Soll-Felder
-        (sharpened_desired_state/sharpened_desired_example_process, S4) -- NICHT
-        ueber die improvement_suggestions. Deren hebel darf bewusst
-        Bewertungsgroessen beziffern ("Evidenzfaktor steigt von 0,40 auf 0,90");
-        das sind Config-/Modell-Werte, keine erfundenen Case-Zahlen.
+        Der Zahlen-Guard laeuft ueber die beiden geschaerften Soll-Felder
+        (sharpened_desired_state/sharpened_desired_example_process, S4) -- seit
+        ADR-0054 sind das die einzigen Felder des Schemas.
         """
         try:
             parsed = parse_structured_llm_output(content, SharpenedContentV2)
@@ -1217,58 +1222,65 @@ class TriageService:
             )
         return (
             "Deine Antwort erfuellte das vorgegebene JSON-Schema nicht "
-            f"({schema_error}). Antworte erneut exakt im Schema; jeder "
-            "Verbesserungsvorschlag braucht bezugsfeld, vorschlag und hebel."
+            f"({schema_error}). Antworte erneut exakt im Schema mit genau den "
+            "Feldern sharpened_desired_state und sharpened_desired_example_process."
         )
 
     def _validate_solution(
         self, content: str
-    ) -> tuple[SolutionProposalV2 | None, InvalidLLMOutputError | None, list[str]]:
-        """Prueft eine rohe LLM-Antwort auf Schema UND verbotenes Vokabular (V4-P6).
+    ) -> tuple[SolutionProposalV3 | None, InvalidLLMOutputError | None, list[str]]:
+        """Prueft eine rohe LLM-Antwort auf Schema UND verbotenes Vokabular (ADR-0054).
 
         Rueckgabe (parsed, schema_error, violations):
         - Schema verletzt -> (None, InvalidLLMOutputError, []).
-        - Schema ok, aber Technik-/Architektur-Vokabular im Business-Absatz ->
+        - Schema ok, aber Technik-/Architektur-Vokabular in der Management-Ebene ->
           (parsed, None, [Begriffe]).
         - Sauber -> (parsed, None, []).
 
-        Der Vokabular-Guard laeuft NUR ueber solution_business -- solution_technical
-        darf und soll Technologiebegriffe nennen.
+        Der Vokabular-Guard laeuft ueber management_summary UND die
+        management_benefits (ADR-0054): die Stichpunkte sind ebenso
+        Management-Text und duerfen ebenso wenig OCR/API/Backend enthalten. Die
+        Technik-Felder bleiben ungeprueft -- dort sind Technologiebegriffe
+        erwuenscht.
         """
         try:
-            parsed = parse_structured_llm_output(content, SolutionProposalV2)
+            parsed = parse_structured_llm_output(content, SolutionProposalV3)
         except InvalidLLMOutputError as exc:
             return None, exc, []
-        return parsed, None, find_vocabulary_violations(parsed.solution_business)
+        guarded_text = "\n".join(
+            (parsed.management_summary, *parsed.management_benefits)
+        )
+        return parsed, None, find_vocabulary_violations(guarded_text)
 
     @staticmethod
     def _solution_correction(
         schema_error: InvalidLLMOutputError | None, violations: list[str]
     ) -> str:
-        """Baut die an den Retry angehaengte Korrektur-Instruktion (V4-P6)."""
+        """Baut die an den Retry angehaengte Korrektur-Instruktion (ADR-0054)."""
         if violations:
             return (
-                "Der Absatz fuer die Geschaeftsleitung (solution_business) enthaelt "
-                f"verbotene technische Begriffe: {', '.join(violations)}. Formuliere "
-                "ihn ohne Technologie-/Produktnamen und ohne Architekturvokabular "
-                "neu; das JSON-Schema (solution_business, solution_technical) bleibt "
-                "gleich."
+                "Die Management-Ebene (management_summary/management_benefits) "
+                f"enthaelt verbotene technische Begriffe: {', '.join(violations)}. "
+                "Formuliere sie ohne Technologie-/Produktnamen und ohne "
+                "Architekturvokabular neu; das JSON-Schema mit allen sieben Feldern "
+                "bleibt gleich."
             )
         return (
             "Deine Antwort erfuellte das vorgegebene JSON-Schema nicht "
             f"({schema_error}). Antworte erneut exakt im Schema mit genau den "
-            "Feldern solution_business und solution_technical."
+            "Feldern management_summary, management_benefits, architecture_summary, "
+            "components, data_flow, integration_points und open_assumptions."
         )
 
     async def sharpen_case(
-        self, case_id: str, prompt_version: str = "v3", lang: Lang = DEFAULT_LANG
+        self, case_id: str, prompt_version: str = "v4", lang: Lang = DEFAULT_LANG
     ) -> SharpenedUseCase | None:
         """Schaerft die Use-Case-Beschreibung eines persistierten Cases via LLM.
 
         Original-Felder (title, current_state, desired_state) werden aus dem
         gespeicherten Case uebernommen und nie ueberschrieben -- die
-        geschaerfte Version steht daneben (sharpened_title/current_state/
-        desired_state + improvement_suggestions).
+        geschaerfte Version steht daneben (sharpened_desired_state /
+        sharpened_desired_example_process).
 
         Zahlen-Guard + Retry + Fail loud (V4, SDR-0003): die rohe Antwort wird
         gegen SharpenedContentV2 validiert UND ein deterministischer
@@ -1376,7 +1388,6 @@ class TriageService:
             )
             raise SharpeningNumberViolationError(case.id, violations)
 
-        suggestions = tuple(parsed.improvement_suggestions)
         draft_json = json.dumps(
             {
                 "original": {
@@ -1389,9 +1400,6 @@ class TriageService:
                         parsed.sharpened_desired_example_process
                     ),
                 },
-                "improvement_suggestions": [
-                    s.model_dump(mode="json") for s in suggestions
-                ],
                 "prompt_version": prompt_version,
                 "created_at": self._clock.now().isoformat(),
             }
@@ -1408,7 +1416,6 @@ class TriageService:
             sharpened_desired_example_process=(
                 parsed.sharpened_desired_example_process
             ),
-            improvement_suggestions=suggestions,
             prompt_version=prompt_version,
         )
 
@@ -1441,7 +1448,6 @@ class TriageService:
                 "sharpened_desired_example_process": sharpened[
                     "sharpened_desired_example_process"
                 ],
-                "improvement_suggestions": draft["improvement_suggestions"],
                 "prompt_version": draft.get("prompt_version"),
             }
         )
@@ -1470,7 +1476,7 @@ class TriageService:
         return await self._repository.get_async(case.id)
 
     async def propose_solution(
-        self, case_id: str, prompt_version: str = "v3", lang: Lang = DEFAULT_LANG
+        self, case_id: str, prompt_version: str = "v4", lang: Lang = DEFAULT_LANG
     ) -> SolutionProposal | None:
         """Skizziert einen Loesungsansatz fuer einen persistierten Case via LLM.
 
@@ -1618,10 +1624,16 @@ class TriageService:
         # accept_solution() traegt beide Fassungen nach proposal_text +
         # solution_business -- damit hat auch die technische Variante einen
         # expliziten Freigabe-Weg. reject_solution() verwirft den Draft.
+        #
+        # Der Draft traegt beide Ebenen bereits in ihrer Spalten-Form (ADR-0054):
+        # accept_solution() schreibt sie unveraendert durch, ohne die Struktur
+        # noch einmal umzubauen.
+        management = management_from_schema(parsed)
+        technical = technical_from_schema(parsed)
         draft_json = json.dumps(
             {
-                "solution_business": parsed.solution_business,
-                "solution_technical": parsed.solution_technical,
+                "solution_business": dump_management(management),
+                "solution_technical": dump_technical(technical),
                 "prompt_version": prompt_version,
                 "created_at": self._clock.now().isoformat(),
             }
@@ -1630,8 +1642,8 @@ class TriageService:
 
         return SolutionProposal(
             case_id=case.id,
-            solution_business=parsed.solution_business,
-            solution_technical=parsed.solution_technical,
+            management=management,
+            technical=technical,
             prompt_version=prompt_version,
         )
 
@@ -1642,6 +1654,10 @@ class TriageService:
         Report-Sicht) und solution_business -> solution_business und leert den
         Draft. Alle Schreibvorgaenge sind per-Feld-UPDATEs (F-011). Analog
         accept_sharpening().
+
+        Beide Draft-Werte sind seit ADR-0054 bereits die fertigen JSON-Spalten-
+        Formen (application/solution_content) -- hier wird nichts mehr umgebaut,
+        nur durchgeschrieben.
 
         Returns:
             Den aktualisierten Case (reload), oder None wenn case_id fehlt
@@ -1951,9 +1967,14 @@ class TriageService:
         if case is None:
             return None
 
-        proposal_text = case.proposal_text
-        if proposal_text is None or not proposal_text.strip():
+        # Die Spalte traegt seit ADR-0054 strukturiertes JSON (Legacy-Cases:
+        # Klartext). Der Skizzen-Prompt erwartet Beschreibungsmaterial als Text,
+        # kein JSON -- daher deterministisch zurueckrendern.
+        if case.proposal_text is None or not case.proposal_text.strip():
             raise NoProposalForSketchError(case_id)
+        technical = read_technical_solution(case.proposal_text)
+        assert technical is not None  # proposal_text ist hier nicht None
+        proposal_text = render_technical_text(technical)
 
         # Injection-Check auch hier (H-030): Titel + Ist/Soll-Zustand koennen
         # ueber die description in den Prompt fliessen.
@@ -2087,9 +2108,15 @@ class TriageService:
             if sharpened_text is not None
             else _render_sharpened_content(case.sharpened_content_json)
         )
-        effective_proposal_text = (
+        # Beide Loesungs-Spalten tragen seit ADR-0054 strukturiertes JSON; die
+        # read_*()-Leser bilden Legacy-Klartext auf das jeweilige Summary-Feld ab.
+        # Das deckt zugleich den proposal_text-Override aus dem Request-Body, der
+        # bewusst Freitext bleibt (Vorschau/Tests) -- er landet als
+        # architecture_summary ohne Stichpunkte.
+        effective_solution_technical = read_technical_solution(
             proposal_text if proposal_text is not None else case.proposal_text
         )
+        effective_solution_business = read_management_solution(case.solution_business)
         compliance_hint_text, compliance_citations = _render_compliance_hints(
             case.compliance_hints_json
         )
@@ -2102,7 +2129,7 @@ class TriageService:
                 case.use_case,
                 explanation,
                 effective_sharpened_text,
-                case.solution_business,
+                effective_solution_business,
                 compliance_hint_text,
                 compliance_citations,
                 case.reviewer_decision.value,
@@ -2111,6 +2138,6 @@ class TriageService:
                 lang,
             ),
             technical_detail=_build_technical_detail(
-                case.result, case.use_case, effective_proposal_text, lang
+                case.result, case.use_case, effective_solution_technical, lang
             ),
         )

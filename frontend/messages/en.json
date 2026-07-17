@@ -357,8 +357,6 @@
     "helpAutoSplit": "Strong rewrite detected — side-by-side view is preset.",
     "fieldDesiredState": "Target state",
     "fieldDesiredExample": "Target example",
-    "suggestions": "Suggestions",
-    "lever": "Lever:",
     "actionError": "The action could not be performed.",
     "accept": "Accept",
     "accepting": "Accepting …",
@@ -377,7 +375,12 @@
     "reject": "Discard",
     "accept": "Accept",
     "accepting": "Accepting …",
-    "confirmDiscard": "Discard proposal? The draft will be lost and would have to be regenerated."
+    "confirmDiscard": "Discard proposal? The draft will be lost and would have to be regenerated.",
+    "benefits": "Benefits",
+    "components": "Components",
+    "dataFlow": "Data flow",
+    "integrationPoints": "Integration points",
+    "openAssumptions": "Open assumptions"
   },
   "monitoring": {
     "metaTitle": "Monitoring | AECT",
@@ -663,24 +666,6 @@
       "HIGH": "High",
       "MEDIUM": "Medium",
       "LOW": "Low"
-    },
-    "caseField": {
-      "title": "Title",
-      "current_state": "Current state",
-      "desired_state": "Target state",
-      "example_process": "Example (current)",
-      "desired_example_process": "Example (target)",
-      "time_per_case_hours_current": "Time / case today",
-      "time_per_case_hours_with_ai": "Time / case with AI",
-      "occurrences_per_employee_per_year": "Cases / year",
-      "affected_employees_count": "Affected employees",
-      "employee_category": "Employee level",
-      "evidence_level": "Evidence level",
-      "adoption_type": "Commitment",
-      "implementation_approach": "Implementation approach",
-      "estimated_license_cost_eur": "License cost",
-      "implementation_cost_eur": "Implementation cost",
-      "data_classification": "Data protection class"
     },
     "feasibilityFlag": {
       "DESCRIPTION_TOO_VAGUE": "Description too vague",

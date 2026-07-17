@@ -1735,13 +1735,12 @@
           "solution_business": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/ManagementSolutionResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Solution Business"
+            ]
           },
           "sharpened_text": {
             "anyOf": [
@@ -1817,7 +1816,7 @@
           "decided_at"
         ],
         "title": "BusinessSummaryResponse",
-        "description": "Entscheider-Schicht des Reports.\n\ndecision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die\nfrueher redundante summary_text-Zeile ersatzlos.\n\nsolution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus\npropose_solution(); None, solange der Endpoint nicht lief.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
+        "description": "Entscheider-Schicht des Reports.\n\ndecision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die\nfrueher redundante summary_text-Zeile ersatzlos.\n\nsolution_business (ADR-0054): strukturierte, technikfreie Management-Fassung\naus propose_solution() (Kernaussage + Nutzen-Stichpunkte statt Freitext-\nAbsatz); None, solange der Endpoint nicht lief.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
       },
       "CaseDecisionResponse": {
         "properties": {
@@ -2224,13 +2223,12 @@
           "solution_business": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/ManagementSolutionResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Solution Business"
+            ]
           },
           "compliance_hint_text": {
             "anyOf": [
@@ -2673,6 +2671,28 @@
         ],
         "title": "LoginRequest",
         "description": "Login-Body -- nur das Passwort.\n\nmax_length: Token-Flooding-/DoS-Schutz (scrypt auf sehr langem Input ist\nteuer), konsistent mit der Eingabe-Disziplin der uebrigen Request-Schemas."
+      },
+      "ManagementSolutionResponse": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "benefits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Benefits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "benefits"
+        ],
+        "title": "ManagementSolutionResponse",
+        "description": "Management-Ebene des Loesungsvorschlags (ADR-0054).\n\nsummary: 2-3 Saetze Kernaussage. benefits: max. 3 Nutzen-Stichpunkte. Beide\ntechnikfrei (Vokabular-Guard, domain/solution_guard).\n\nbenefits ist bei vor ADR-0054 persistierten Cases leer -- deren Spalte traegt\nreinen Klartext, der vollstaendig auf summary abgebildet wird\n(application/solution_content)."
       },
       "ManagementViewResponse": {
         "properties": {
@@ -3133,30 +3153,6 @@
         "title": "SetImplementationApproachRequest",
         "description": "Nachgetragener Umsetzungsansatz fuer einen Case (V4.1, ADR-0050).\n\nimplementation_approach: einer der ImplementationApproach-Enum-Werte\n(Pflicht -- hier gibt es keinen \"kein Ansatz\"-Fall, das Nachtragen setzt\nihn bewusst). extra=\"forbid\" konsistent mit den uebrigen Request-Schemas."
       },
-      "SharpenSuggestionResponse": {
-        "properties": {
-          "bezugsfeld": {
-            "type": "string",
-            "title": "Bezugsfeld"
-          },
-          "vorschlag": {
-            "type": "string",
-            "title": "Vorschlag"
-          },
-          "hebel": {
-            "type": "string",
-            "title": "Hebel"
-          }
-        },
-        "type": "object",
-        "required": [
-          "bezugsfeld",
-          "vorschlag",
-          "hebel"
-        ],
-        "title": "SharpenSuggestionResponse",
-        "description": "Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).\n\nbezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag\nzielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.\nhebel: welche Bewertungsgroesse sich wie veraendert."
-      },
       "SharpenedCaseResponse": {
         "properties": {
           "case_id": {
@@ -3179,13 +3175,6 @@
             "type": "string",
             "title": "Sharpened Desired Example Process"
           },
-          "improvement_suggestions": {
-            "items": {
-              "$ref": "#/components/schemas/SharpenSuggestionResponse"
-            },
-            "type": "array",
-            "title": "Improvement Suggestions"
-          },
           "prompt_version": {
             "type": "string",
             "title": "Prompt Version"
@@ -3198,7 +3187,6 @@
           "original_desired_example_process",
           "sharpened_desired_state",
           "sharpened_desired_example_process",
-          "improvement_suggestions",
           "prompt_version"
         ],
         "title": "SharpenedCaseResponse",
@@ -3395,13 +3383,11 @@
             "type": "string",
             "title": "Case Id"
           },
-          "solution_business": {
-            "type": "string",
-            "title": "Solution Business"
+          "management": {
+            "$ref": "#/components/schemas/ManagementSolutionResponse"
           },
-          "solution_technical": {
-            "type": "string",
-            "title": "Solution Technical"
+          "technical": {
+            "$ref": "#/components/schemas/TechnicalSolutionResponse"
           },
           "prompt_version": {
             "type": "string",
@@ -3411,12 +3397,12 @@
         "type": "object",
         "required": [
           "case_id",
-          "solution_business",
-          "solution_technical",
+          "management",
+          "technical",
           "prompt_version"
         ],
         "title": "SolutionProposalResponse",
-        "description": "Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).\n\nsolution_business: technikfreier Absatz fuer die Geschaeftsleitung.\nsolution_technical: technischer Loesungsansatz (frueher proposal_text)."
+        "description": "Zweigeteilter, strukturierter Loesungsvorschlag (ADR-0054).\n\nmanagement: technikfreie Fassung fuer die Geschaeftsleitung.\ntechnical: strukturierte technische Fassung."
       },
       "StatsResponse": {
         "properties": {
@@ -3606,16 +3592,15 @@
           "technical_report": {
             "$ref": "#/components/schemas/TechnicalReportResponse"
           },
-          "proposal_text": {
+          "solution_technical": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/TechnicalSolutionResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Proposal Text"
+            ]
           }
         },
         "type": "object",
@@ -3633,7 +3618,7 @@
           "roi_theoretical_potential_eur",
           "roi_net_expected_benefit_eur",
           "technical_report",
-          "proposal_text"
+          "solution_technical"
         ],
         "title": "TechnicalDetailResponse",
         "description": "Reviewer-Schicht des Reports.\n\ntechnical_report (V4-P6): dieselben technischen Inhalte in Abschnitte\ngegliedert (Architektur-Kurzfassung, Datenlage, Risiken, offene Fragen)."
@@ -3666,6 +3651,52 @@
         ],
         "title": "TechnicalReportResponse",
         "description": "Technischer Report in Abschnitten statt Textwueste (V4-P6)."
+      },
+      "TechnicalSolutionResponse": {
+        "properties": {
+          "architecture_summary": {
+            "type": "string",
+            "title": "Architecture Summary"
+          },
+          "components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "data_flow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Flow"
+          },
+          "integration_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Integration Points"
+          },
+          "open_assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Open Assumptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "architecture_summary",
+          "components",
+          "data_flow",
+          "integration_points",
+          "open_assumptions"
+        ],
+        "title": "TechnicalSolutionResponse",
+        "description": "Technik-Ebene des Loesungsvorschlags (ADR-0054).\n\nFeste Felder statt Fliesstext-Wand. Die vier Stichpunkt-Listen sind bei\nLegacy-Cases leer (analog ManagementSolutionResponse.benefits)."
       },
       "TriageResponse": {
         "properties": {

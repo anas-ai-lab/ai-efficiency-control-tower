@@ -30,7 +30,7 @@ from aect.application.service import (
 )
 from aect.application.structured_output import (
     InvalidLLMOutputError,
-    SolutionProposalV2,
+    SolutionProposalV3,
 )
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
@@ -42,27 +42,52 @@ from aect.domain.types import (
 )
 
 
-def _solution_json(marker: str) -> str:
-    """Schema-valides, technikfreies Loesungs-JSON (V4-P6) mit Marker in der
-    technischen Fassung -- fuer Test-Adapter, die eine feste Antwort liefern."""
-    return SolutionProposalV2(
-        solution_business=(
-            "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
-            "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
-            "Menschen."
+def _solution_v3(
+    *,
+    management_summary: str = (
+        "Die Vorgaenge werden kuenftig automatisch vorbereitet und den "
+        "Mitarbeitenden strukturiert vorgelegt; die Entscheidung bleibt beim "
+        "Menschen."
+    ),
+    management_benefits: list[str] | None = None,
+    architecture_summary: str = "Eine technische Fassung fuer den Test.",
+) -> SolutionProposalV3:
+    """Schema-valider, technikfreier Loesungsvorschlag (ADR-0054).
+
+    Die Management-Felder sind ueberschreibbar, um dem Vokabular-Guard gezielt
+    verbotene Begriffe unterzuschieben (Retry-/Fail-Tests)."""
+    return SolutionProposalV3(
+        management_summary=management_summary,
+        management_benefits=(
+            management_benefits
+            if management_benefits is not None
+            else ["Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle."]
         ),
-        solution_technical=f"{marker} technische Fassung fuer den Test.",
+        architecture_summary=architecture_summary,
+        components=[
+            "Texterkennung: liest die Felder aus.",
+            "Klassifizierung: markiert Zweifelsfaelle.",
+        ],
+        data_flow=[
+            "Eingang -> Texterkennung -> Datensatz",
+            "Datensatz -> Klassifizierung -> Zielsystem",
+        ],
+        integration_points=["Zielsystem der Fachabteilung."],
+        open_assumptions=["Die Dokumente liegen digital lesbar vor."],
+    )
+
+
+def _solution_json(marker: str) -> str:
+    """Loesungs-JSON mit Marker in der technischen Kurzbeschreibung -- fuer
+    Test-Adapter, die eine feste Antwort liefern."""
+    return _solution_v3(
+        architecture_summary=f"{marker} technische Fassung fuer den Test."
     ).model_dump_json()
 
 
 def _solution_json_business(business: str) -> str:
-    """Loesungs-JSON mit frei waehlbarem Business-Absatz (Vokabular-Guard-Tests)."""
-    return SolutionProposalV2(
-        solution_business=business,
-        solution_technical=(
-            "Ein technischer Absatz mit ausreichend Zeichen fuer das Schema."
-        ),
-    ).model_dump_json()
+    """Loesungs-JSON mit frei waehlbarer Management-Kernaussage (Guard-Tests)."""
+    return _solution_v3(management_summary=business).model_dump_json()
 
 
 _FORBIDDEN_BUSINESS = (
@@ -99,8 +124,49 @@ class _RetryRecoversVocabLLM:
         return LLMResponse(content=_solution_json_business(business), tool_calls=None)
 
 
+class _ForbiddenVocabInBenefitLLM:
+    """Kernaussage sauber, aber ein Nutzen-Stichpunkt traegt verbotenes Vokabular.
+
+    ADR-0054 zieht den Guard ueber management_summary UND management_benefits --
+    vor dem Umbau lief er nur ueber das eine Freitext-Feld, ein Stichpunkt mit
+    "OCR" waere also durchgerutscht."""
+
+    async def complete(
+        self, messages: list[LLMMessage], tools: list[ToolDefinition] | None = None
+    ) -> LLMResponse:
+        return LLMResponse(
+            content=_solution_v3(
+                management_summary=_CLEAN_BUSINESS,
+                management_benefits=["Die Erfassung laeuft kuenftig per OCR."],
+            ).model_dump_json(),
+            tool_calls=None,
+        )
+
+
 class TestProposeSolutionVocabularyGuard:
-    """V4-P6: der Business-Absatz muss technikfrei sein (Vokabular-Guard)."""
+    """ADR-0054: die Management-Ebene muss technikfrei sein (Vokabular-Guard)."""
+
+    async def test_forbidden_vocab_in_benefit_bullet_raises(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        repo = InMemoryRepository()
+        service = TriageService(
+            repository=repo,
+            clock=_FakeClock(),
+            id_generator=_FakeIdGenerator(ids=["id-001"]),
+            roi_config=roi_config,
+            retriever=MockRetriever(),
+            llm=_ForbiddenVocabInBenefitLLM(),
+        )
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(SolutionVocabularyViolationError) as exc:
+            await service.propose_solution(case.id)
+
+        assert "OCR" in exc.value.violations
+        stored = repo.get(case.id)
+        assert stored is not None
+        assert stored.solution_business is None
 
     async def test_forbidden_vocab_after_retry_raises(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -143,7 +209,7 @@ class TestProposeSolutionVocabularyGuard:
         proposal = await service.propose_solution(case.id)
 
         assert proposal is not None
-        assert "OCR" not in proposal.solution_business
+        assert "OCR" not in proposal.management.summary
         stored = repo.get(case.id)
         assert stored is not None
         # S4 Draft/Accept: propose persistiert den bereinigten Vorschlag als Draft.
@@ -227,13 +293,6 @@ def _valid_sharpen_json(
         {
             "sharpened_desired_state": desired_state,
             "sharpened_desired_example_process": desired_example_process,
-            "improvement_suggestions": [
-                {
-                    "bezugsfeld": "evidence_level",
-                    "vorschlag": "Belege die Zeitersparnis mit einer Messung.",
-                    "hebel": "Evidenzfaktor steigt von 0,40 auf 0,90.",
-                }
-            ],
         }
     )
 
@@ -339,13 +398,13 @@ class TestTriageServiceSharpen:
         assert sharpened is not None
         assert sharpened.case_id == case.id
         assert sharpened.original_desired_state == sample_use_case.desired_state
-        assert sharpened.prompt_version == "v3"
+        assert sharpened.prompt_version == "v4"
         assert sharpened.sharpened_desired_state.startswith("[mock]")
 
     async def test_sharpen_success_path_sets_structured_fields(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        # Schema-konformes LLM-JSON -> strukturierte Felder + Vorschlaege gesetzt.
+        # Schema-konformes LLM-JSON -> beide geschaerften Soll-Felder gesetzt.
         service, _ = _make_service(roi_config, llm=_SharpenSuccessLLM())
         case = service.submit_use_case(sample_use_case)
 
@@ -354,10 +413,6 @@ class TestTriageServiceSharpen:
         assert sharpened is not None
         assert sharpened.sharpened_desired_state
         assert sharpened.sharpened_desired_example_process is not None
-        assert len(sharpened.improvement_suggestions) == 1
-        suggestion = sharpened.improvement_suggestions[0]
-        assert suggestion.bezugsfeld.value == "evidence_level"
-        assert suggestion.hebel != ""
 
     async def test_sharpen_nonexistent_case_returns_none(
         self, roi_config: ROIConfig
@@ -488,9 +543,10 @@ class TestTriageServiceProposeSolution:
 
         assert proposal is not None
         assert proposal.case_id == case.id
-        assert proposal.prompt_version == "v3"
-        assert "[mock]" in proposal.solution_technical
-        assert proposal.solution_business
+        assert proposal.prompt_version == "v4"
+        assert "[mock]" in proposal.technical.architecture_summary
+        assert proposal.management.summary
+        assert proposal.management.benefits
 
     async def test_propose_solution_logs_cost_for_both_llm_calls(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -534,7 +590,7 @@ class TestTriageServiceProposeSolutionUnknownTool:
         proposal = await service.propose_solution(case.id)
 
         assert proposal is not None
-        assert "[mock-response]" in proposal.solution_technical
+        assert "[mock-response]" in proposal.technical.architecture_summary
 
 
 class _NoToolCallLLMAdapter:
@@ -582,7 +638,7 @@ class TestTriageServiceProposeSolutionNoToolCall:
             proposal = await service.propose_solution(case.id)
 
         assert proposal is not None
-        assert "[direct-response]" in proposal.solution_technical
+        assert "[direct-response]" in proposal.technical.architecture_summary
 
         # Genau ein Cost-Log -- kein zweiter complete()-Call, da kein
         # Tool-Call angefordert wurde (Abgrenzung zum Tool-Call-Pfad,
@@ -689,8 +745,7 @@ class TestTriageServiceSharpenStructuredOutput:
         assert sharpened is not None
         assert sharpened.sharpened_desired_state is not None
         assert sharpened.sharpened_desired_example_process is not None
-        assert len(sharpened.improvement_suggestions) == 1
-        assert sharpened.prompt_version == "v3"
+        assert sharpened.prompt_version == "v4"
 
     async def test_valid_structured_response_does_not_retry(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -903,8 +958,10 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         report = service.generate_report(case.id)
 
         assert report is not None
-        assert report.technical_detail.proposal_text is not None
-        assert "[mock]" in report.technical_detail.proposal_text
+        assert report.technical_detail.solution_technical is not None
+        assert (
+            "[mock]" in report.technical_detail.solution_technical.architecture_summary
+        )
 
     async def test_report_ignores_unaccepted_solution_draft(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -918,7 +975,7 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         report = service.generate_report(case.id)
 
         assert report is not None
-        assert report.technical_detail.proposal_text is None
+        assert report.technical_detail.solution_technical is None
 
     async def test_explicit_argument_overrides_persisted_sharpened_text(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -943,7 +1000,7 @@ class TestTriageServiceGenerateReportUsesPersistedText:
 
         assert report is not None
         assert report.business_summary.sharpened_text is None
-        assert report.technical_detail.proposal_text is None
+        assert report.technical_detail.solution_technical is None
         assert report.business_summary.compliance_hint_text is None
         assert report.business_summary.compliance_citations == ()
         # ADR-0043: Default-Entscheidungs-Zustand vor jeder Review-Aktion.

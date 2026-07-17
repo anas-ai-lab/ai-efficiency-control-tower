@@ -357,8 +357,6 @@
     "helpAutoSplit": "Starke Überarbeitung erkannt — Nebeneinander-Ansicht ist voreingestellt.",
     "fieldDesiredState": "Soll-Zustand",
     "fieldDesiredExample": "Soll-Beispiel",
-    "suggestions": "Vorschläge",
-    "lever": "Hebel:",
     "actionError": "Aktion konnte nicht ausgeführt werden.",
     "accept": "Übernehmen",
     "accepting": "Wird übernommen …",
@@ -377,7 +375,12 @@
     "reject": "Verwerfen",
     "accept": "Übernehmen",
     "accepting": "Wird übernommen …",
-    "confirmDiscard": "Vorschlag verwerfen? Der Entwurf geht verloren und müsste neu erzeugt werden."
+    "confirmDiscard": "Vorschlag verwerfen? Der Entwurf geht verloren und müsste neu erzeugt werden.",
+    "benefits": "Nutzen",
+    "components": "Komponenten",
+    "dataFlow": "Datenfluss",
+    "integrationPoints": "Integrationspunkte",
+    "openAssumptions": "Offene Annahmen"
   },
   "monitoring": {
     "metaTitle": "Monitoring | AECT",
@@ -663,24 +666,6 @@
       "HIGH": "Hoch",
       "MEDIUM": "Mittel",
       "LOW": "Niedrig"
-    },
-    "caseField": {
-      "title": "Titel",
-      "current_state": "Ist-Zustand",
-      "desired_state": "Soll-Zustand",
-      "example_process": "Beispiel (Ist)",
-      "desired_example_process": "Beispiel (Soll)",
-      "time_per_case_hours_current": "Zeit / Vorgang heute",
-      "time_per_case_hours_with_ai": "Zeit / Vorgang mit AI",
-      "occurrences_per_employee_per_year": "Vorgänge / Jahr",
-      "affected_employees_count": "Betroffene Mitarbeiter",
-      "employee_category": "Mitarbeiterlevel",
-      "evidence_level": "Evidenzlevel",
-      "adoption_type": "Verbindlichkeit",
-      "implementation_approach": "Implementierungsansatz",
-      "estimated_license_cost_eur": "Lizenzkosten",
-      "implementation_cost_eur": "Implementierungskosten",
-      "data_classification": "Datenschutzklasse"
     },
     "feasibilityFlag": {
       "DESCRIPTION_TOO_VAGUE": "Beschreibung zu vage",

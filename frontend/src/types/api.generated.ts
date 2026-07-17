@@ -962,8 +962,9 @@ export interface components {
          *     decision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die
          *     frueher redundante summary_text-Zeile ersatzlos.
          *
-         *     solution_business (V4-P6): technikfreier Geschaeftsleitungs-Absatz aus
-         *     propose_solution(); None, solange der Endpoint nicht lief.
+         *     solution_business (ADR-0054): strukturierte, technikfreie Management-Fassung
+         *     aus propose_solution() (Kernaussage + Nutzen-Stichpunkte statt Freitext-
+         *     Absatz); None, solange der Endpoint nicht lief.
          *
          *     compliance_hint_text/compliance_citations (ADR-0026): aus dem
          *     persistierten compliance_hints_json gelesen, kein Override moeglich
@@ -985,8 +986,7 @@ export interface components {
             /** Expected Benefit Eur */
             expected_benefit_eur: number | null;
             decision_report: components["schemas"]["DecisionReportResponse"];
-            /** Solution Business */
-            solution_business: string | null;
+            solution_business: components["schemas"]["ManagementSolutionResponse"] | null;
             /** Sharpened Text */
             sharpened_text: string | null;
             /** Compliance Hint Text */
@@ -1204,8 +1204,7 @@ export interface components {
         DecisionDetailsResponse: {
             /** Sharpened Text */
             sharpened_text: string | null;
-            /** Solution Business */
-            solution_business: string | null;
+            solution_business: components["schemas"]["ManagementSolutionResponse"] | null;
             /** Compliance Hint Text */
             compliance_hint_text: string | null;
         };
@@ -1443,6 +1442,23 @@ export interface components {
         LoginRequest: {
             /** Password */
             password: string;
+        };
+        /**
+         * ManagementSolutionResponse
+         * @description Management-Ebene des Loesungsvorschlags (ADR-0054).
+         *
+         *     summary: 2-3 Saetze Kernaussage. benefits: max. 3 Nutzen-Stichpunkte. Beide
+         *     technikfrei (Vokabular-Guard, domain/solution_guard).
+         *
+         *     benefits ist bei vor ADR-0054 persistierten Cases leer -- deren Spalte traegt
+         *     reinen Klartext, der vollstaendig auf summary abgebildet wird
+         *     (application/solution_content).
+         */
+        ManagementSolutionResponse: {
+            /** Summary */
+            summary: string;
+            /** Benefits */
+            benefits: string[];
         };
         /**
          * ManagementViewResponse
@@ -1703,22 +1719,6 @@ export interface components {
             implementation_approach: components["schemas"]["ImplementationApproach"];
         };
         /**
-         * SharpenSuggestionResponse
-         * @description Ein Verbesserungsvorschlag mit Feldbezug und Hebel (V4).
-         *
-         *     bezugsfeld: Name des Case-Feldes (CaseField.value), auf das der Vorschlag
-         *     zielt -- das Frontend (V4-P7) verlinkt daran das Formularfeld.
-         *     hebel: welche Bewertungsgroesse sich wie veraendert.
-         */
-        SharpenSuggestionResponse: {
-            /** Bezugsfeld */
-            bezugsfeld: string;
-            /** Vorschlag */
-            vorschlag: string;
-            /** Hebel */
-            hebel: string;
-        };
-        /**
          * SharpenedCaseResponse
          * @description Original + geschaerfte Fassung eines Use Cases (V4, Draft/Accept-Flow).
          *
@@ -1740,8 +1740,6 @@ export interface components {
             sharpened_desired_state: string;
             /** Sharpened Desired Example Process */
             sharpened_desired_example_process: string;
-            /** Improvement Suggestions */
-            improvement_suggestions: components["schemas"]["SharpenSuggestionResponse"][];
             /** Prompt Version */
             prompt_version: string;
         };
@@ -1855,18 +1853,16 @@ export interface components {
         };
         /**
          * SolutionProposalResponse
-         * @description Zweigeteilter Loesungsvorschlag fuer einen Use Case (V4-P6).
+         * @description Zweigeteilter, strukturierter Loesungsvorschlag (ADR-0054).
          *
-         *     solution_business: technikfreier Absatz fuer die Geschaeftsleitung.
-         *     solution_technical: technischer Loesungsansatz (frueher proposal_text).
+         *     management: technikfreie Fassung fuer die Geschaeftsleitung.
+         *     technical: strukturierte technische Fassung.
          */
         SolutionProposalResponse: {
             /** Case Id */
             case_id: string;
-            /** Solution Business */
-            solution_business: string;
-            /** Solution Technical */
-            solution_technical: string;
+            management: components["schemas"]["ManagementSolutionResponse"];
+            technical: components["schemas"]["TechnicalSolutionResponse"];
             /** Prompt Version */
             prompt_version: string;
         };
@@ -1953,8 +1949,7 @@ export interface components {
             /** Roi Net Expected Benefit Eur */
             roi_net_expected_benefit_eur: number | null;
             technical_report: components["schemas"]["TechnicalReportResponse"];
-            /** Proposal Text */
-            proposal_text: string | null;
+            solution_technical: components["schemas"]["TechnicalSolutionResponse"] | null;
         };
         /**
          * TechnicalReportResponse
@@ -1969,6 +1964,25 @@ export interface components {
             risiken: string;
             /** Offene Technische Fragen */
             offene_technische_fragen: string;
+        };
+        /**
+         * TechnicalSolutionResponse
+         * @description Technik-Ebene des Loesungsvorschlags (ADR-0054).
+         *
+         *     Feste Felder statt Fliesstext-Wand. Die vier Stichpunkt-Listen sind bei
+         *     Legacy-Cases leer (analog ManagementSolutionResponse.benefits).
+         */
+        TechnicalSolutionResponse: {
+            /** Architecture Summary */
+            architecture_summary: string;
+            /** Components */
+            components: string[];
+            /** Data Flow */
+            data_flow: string[];
+            /** Integration Points */
+            integration_points: string[];
+            /** Open Assumptions */
+            open_assumptions: string[];
         };
         /**
          * TriageResponse

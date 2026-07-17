@@ -79,13 +79,6 @@ class _InventsNumbersLLM(MockLLMAdapter):
                             "Ein typischer Zielvorgang bindet exakt 999 Stunden "
                             "pro Jahr und laeuft sonst als reine Routine."
                         ),
-                        "improvement_suggestions": [
-                            {
-                                "bezugsfeld": "evidence_level",
-                                "vorschlag": "Belege die Ersparnis mit Messung.",
-                                "hebel": "Evidenzfaktor steigt.",
-                            }
-                        ],
                     }
                 )
             )
@@ -151,14 +144,12 @@ async def test_sharpen_existing_case_returns_draft() -> None:
     assert data["case_id"] == case_id
     # Diff-tauglich: Original-Soll steht feldweise neben der geschaerften Fassung.
     assert data["original_desired_state"] == _VALID_PAYLOAD["desired_state"]
-    assert data["prompt_version"] == "v3"
-    # Erfolgs-Form (S4): nur die Soll-Felder geschaerft, Vorschlaege mit Feldbezug.
+    assert data["prompt_version"] == "v4"
+    # Erfolgs-Form (S4): nur die Soll-Felder geschaerft. Die frueheren
+    # Verbesserungsvorschlaege sind ersatzlos entfallen (ADR-0054).
     assert data["sharpened_desired_state"].startswith("[mock]")
     assert data["sharpened_desired_example_process"]
-    assert len(data["improvement_suggestions"]) >= 1
-    first = data["improvement_suggestions"][0]
-    assert set(first) == {"bezugsfeld", "vorschlag", "hebel"}
-    assert first["bezugsfeld"] == "evidence_level"
+    assert "improvement_suggestions" not in data
 
 
 async def test_sharpen_draft_does_not_appear_in_report_until_accept() -> None:

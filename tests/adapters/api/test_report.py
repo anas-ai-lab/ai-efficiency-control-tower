@@ -137,7 +137,7 @@ async def test_report_passing_case_has_zone_and_recommendation() -> None:
     assert technical["composite_total"] is not None
     assert technical["roi_theoretical_potential_eur"] is not None
     assert business["sharpened_text"] is None
-    assert technical["proposal_text"] is None
+    assert technical["solution_technical"] is None
 
 
 async def test_report_failing_case_has_no_zone() -> None:
@@ -191,7 +191,12 @@ async def test_report_passes_through_sharpened_and_proposal_text() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["business_summary"]["sharpened_text"] == "Geschaerfte Version: ..."
-    assert data["technical_detail"]["proposal_text"] == "Vorschlag: ..."
+    # Der proposal_text-Override bleibt bewusst Freitext (Vorschau/Tests). Er
+    # laeuft durch den Legacy-Zweig von read_technical_solution() (ADR-0054):
+    # vollstaendig als architecture_summary, ohne Stichpunkt-Listen.
+    technical = data["technical_detail"]["solution_technical"]
+    assert technical["architecture_summary"] == "Vorschlag: ..."
+    assert technical["components"] == []
 
 
 async def test_report_rejects_unknown_field() -> None:
@@ -262,7 +267,7 @@ async def test_report_uses_persisted_proposal_text_after_propose_solution_call()
             f"/cases/{case_id}/propose-solution",
             headers={"X-API-Key": TEST_API_KEY},
         )
-        # S4: propose liefert nur einen Draft -> uebernehmen, damit proposal_text
+        # S4: propose liefert nur einen Draft -> uebernehmen, damit die Loesung
         # im Report erscheint.
         await client.post(
             f"/cases/{case_id}/propose-solution/accept",
@@ -276,9 +281,10 @@ async def test_report_uses_persisted_proposal_text_after_propose_solution_call()
 
     assert response.status_code == 200
     data = response.json()
-    proposal = data["technical_detail"]["proposal_text"]
+    proposal = data["technical_detail"]["solution_technical"]
     assert proposal is not None
-    assert "[mock]" in proposal
+    assert "[mock]" in proposal["architecture_summary"]
+    assert len(proposal["components"]) >= 2
 
 
 async def test_report_uses_persisted_compliance_hints_after_compliance_hints_call() -> (
