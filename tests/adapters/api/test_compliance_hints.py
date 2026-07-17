@@ -175,7 +175,7 @@ async def test_sensitive_case_with_mock_retriever_fails_loud() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["hint_text"] is not None
-    assert "nicht verfuegbar" in data["hint_text"]
+    assert "nicht verfügbar" in data["hint_text"]
     assert data["citations"] == []
     # Guard: die konkrete Mock-Quelle darf nie in der Response auftauchen.
     assert "mock-compliance-dsfa" not in response.text

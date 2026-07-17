@@ -112,7 +112,7 @@ _TRANSPARENCY_QUERY = "Transparenzpflicht KI-System Offenlegung"
 # Mock-Zitaten. Mock-Fixtures sind ausschliesslich in Tests zulaessig.
 _MOCK_SOURCE_PREFIX = "mock-"
 _KB_UNAVAILABLE_HINT = (
-    "Wissensbasis nicht verfuegbar -- keine belegten Compliance-Hinweise moeglich."
+    "Wissensbasis nicht verfügbar -- keine belegten Compliance-Hinweise möglich."
 )
 
 # Dedup-Schwellen (L-3, ADR-0039). Generische Cosinus-Aehnlichkeitsgrenzen,

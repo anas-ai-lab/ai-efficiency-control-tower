@@ -296,7 +296,7 @@ async def test_sketch_without_proposal_returns_409() -> None:
             headers={"X-API-Key": TEST_API_KEY},
         )
     assert response.status_code == 409
-    assert "Loesungsvorschlag" in response.json()["detail"]
+    assert "Lösungsvorschlag" in response.json()["detail"]
 
 
 async def test_sketch_e2e_generates_persists_and_reads() -> None:

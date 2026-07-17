@@ -139,7 +139,7 @@ def test_complexity_component_reason(
     assert complexity_comp.key == "complexity"
     assert complexity_comp.wert == complexity
     assert complexity_comp.max == 5
-    assert f"Komplexitaet {complexity} von 5" in complexity_comp.begruendung
+    assert f"Komplexität {complexity} von 5" in complexity_comp.begruendung
 
 
 @pytest.mark.parametrize(

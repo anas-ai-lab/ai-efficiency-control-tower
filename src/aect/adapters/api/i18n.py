@@ -31,14 +31,14 @@ API_ERRORS: dict[Lang, dict[str, str]] = {
         "solution_schema": "KI-Antwort verletzt das Lösungs-Schema: {exc}",
         "no_solution_draft": "Kein offener Lösungs-Entwurf für diesen Case.",
         "sketch_no_proposal": (
-            "Fuer diesen Use Case liegt kein Loesungsvorschlag vor -- Skizze "
-            "nicht moeglich."
+            "Für diesen Use Case liegt kein Lösungsvorschlag vor -- Skizze "
+            "nicht möglich."
         ),
         "sketch_schema": "KI-Antwort verletzt das Skizzen-Schema: {exc}",
         "sketch_internal": "Interner Fehler bei der Skizzen-Erzeugung.",
         "ideation_unusable": "KI-Antwort war nicht verwertbar -- bitte erneut versuchen.",
         "llm_unavailable": (
-            "KI-Dienst derzeit nicht erreichbar -- bitte spaeter erneut versuchen."
+            "KI-Dienst derzeit nicht erreichbar -- bitte später erneut versuchen."
         ),
     },
     "en": {

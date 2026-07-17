@@ -311,7 +311,7 @@ async def test_report_uses_persisted_compliance_hints_after_compliance_hints_cal
     # Fail loud (CLAUDE.md): MockRetriever -> ehrliche 'nicht verfuegbar'-Antwort
     # im Report, NIE eine mock-Quelle als Citation.
     assert business["compliance_hint_text"] is not None
-    assert "nicht verfuegbar" in business["compliance_hint_text"]
+    assert "nicht verfügbar" in business["compliance_hint_text"]
     assert business["compliance_citations"] == []
     # Guard: die konkrete Mock-Quelle darf nie in der Report-Response auftauchen.
     assert "mock-compliance-dsfa" not in response.text

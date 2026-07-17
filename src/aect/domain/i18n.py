@@ -68,7 +68,7 @@ APPROACH_LABEL: dict[Lang, dict[ImplementationApproach, str]] = {
         ImplementationApproach.DEVELOPMENT_ON_EXISTING: "Entwicklung auf Bestehendem",
         ImplementationApproach.API_INTEGRATION: "API-Anbindung an Bestehendes",
         ImplementationApproach.CUSTOM_DEVELOPMENT: "Eigene Entwicklung",
-        ImplementationApproach.NEW_TOOL: "Einfuehrung eines neuen Tools",
+        ImplementationApproach.NEW_TOOL: "Einführung eines neuen Tools",
     },
     "en": {
         ImplementationApproach.SIMPLE_INTEGRATION: "Simple integration into existing systems",
@@ -311,7 +311,7 @@ BASIS_EINSTUFUNG_ERKLAERUNG: dict[Lang, str] = {
 #: Score-Komponenten-Labels (Aufwandscore-Herkunft).
 SCORE_COMPONENT_LABELS: dict[Lang, dict[str, str]] = {
     "de": {
-        "complexity": "Komplexitaet",
+        "complexity": "Komplexität",
         "cost": "Kosten",
         "data_protection": "Datenschutz",
     },
@@ -358,7 +358,7 @@ BERECHNUNG_LABELS: dict[Lang, dict[str, str]] = {
 EXPLAIN_TEXT: dict[Lang, dict[str, str]] = {
     "de": {
         "flip_marker": "kippt",
-        "complexity_reason": "{approach} -> Komplexitaet {n} von 5",
+        "complexity_reason": "{approach} -> Komplexität {n} von 5",
         "cost_point_plus": "{label} {cost}{suffix} >= {threshold} -> +1 Kostenpunkt",
         "cost_point_none": "{label} {cost}{suffix} < {threshold} -> kein Punkt",
         "total_line": "Aufwandscore {total} von {max} -> {effort}",
@@ -381,7 +381,7 @@ EXPLAIN_TEXT: dict[Lang, dict[str, str]] = {
         "point_plural": "{n} Aufwandspunkten",
         "eval_pending": (
             "Noch nicht bewertet: der Implementierungsansatz fehlt. Ein Admin "
-            "traegt ihn nach, danach wird der Fall vollstaendig bewertet."
+            "trägt ihn nach, danach wird der Fall vollständig bewertet."
         ),
         "not_recommended_no_time": (
             "Nicht zur Umsetzung empfohlen: der Vorgang mit KI ist nicht schneller "
@@ -468,7 +468,7 @@ RECOMMENDATION_TEMPLATES: dict[Lang, dict[str, str]] = {
             "pro Jahr ({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
         ),
         "BORDERLINE": (
-            "Mischsignale, Einzelfallpruefung empfohlen: {h} eingesparte Stunden "
+            "Mischsignale, Einzelfallprüfung empfohlen: {h} eingesparte Stunden "
             "pro Jahr ({netto} EUR Netto-Nutzen) bei Aufwand {x} von 9 und {dp}."
         ),
     },
@@ -551,11 +551,11 @@ CONTRA_POINTS: dict[Lang, dict[str, str]] = {
             "einplanen."
         ),
         "cost": (
-            "Der Aufwandscore traegt Kostenpunkte (Lizenz- und/oder "
+            "Der Aufwandscore trägt Kostenpunkte (Lizenz- und/oder "
             "Implementierungskosten oberhalb der Schwelle)."
         ),
         "boundary": (
-            "Der Case liegt nahe an einer Zonengrenze -- kleine Aenderungen an "
+            "Der Case liegt nahe an einer Zonengrenze -- kleine Änderungen an "
             "Nutzen oder Aufwand kippen die Einstufung."
         ),
         "no_time": (
@@ -564,11 +564,11 @@ CONTRA_POINTS: dict[Lang, dict[str, str]] = {
         ),
         "little_time": (
             "Die Zeitersparnis pro Vorgang ist mit unter 3 Minuten knapp -- der "
-            "Nutzen haengt stark am Volumen."
+            "Nutzen hängt stark am Volumen."
         ),
         "fallback_no_validation": (
-            "Bewertung beruht vollstaendig auf Angaben des Einreichers; keine "
-            "unabhaengige Validierung."
+            "Bewertung beruht vollständig auf Angaben des Einreichers; keine "
+            "unabhängige Validierung."
         ),
         "fallback_ex_ante": (
             "Die Bewertung ist eine Ex-ante-Schaetzung -- der tatsaechliche Nutzen "
@@ -766,7 +766,7 @@ FEASIBILITY_RECOMMENDATION: dict[Lang, dict[str, str]] = {
 TECHNICAL_REPORT: dict[Lang, dict[str, str]] = {
     "de": {
         "architektur_placeholder": (
-            "Noch kein technischer Loesungsvorschlag erzeugt "
+            "Noch kein technischer Lösungsvorschlag erzeugt "
             "(POST /cases/{id}/propose-solution)."
         ),
         "datenlage": (
@@ -774,9 +774,9 @@ TECHNICAL_REPORT: dict[Lang, dict[str, str]] = {
             "Verbindlichkeit: {verbindlichkeit}."
         ),
         "risiken_none": "Keine regelbasierten Risikoflags.",
-        "offene_solution": "Technischer Loesungsansatz noch offen.",
-        "offene_review": "Fachliche/datenschutzrechtliche Pruefung offen.",
-        "offene_estimate": "Zeitersparnis ist unbelegt (reine Einschaetzung).",
+        "offene_solution": "Technischer Lösungsansatz noch offen.",
+        "offene_review": "Fachliche/datenschutzrechtliche Prüfung offen.",
+        "offene_estimate": "Zeitersparnis ist unbelegt (reine Einschätzung).",
         "offene_none": "Keine offenen technischen Fragen erkennbar.",
     },
     "en": {
