@@ -31,12 +31,9 @@ from aect.domain.formatting import format_number
 from aect.domain.i18n import (
     APPROACH_LABEL,
     BASIS_EINSTUFUNG_ERKLAERUNG,
-    BELASTBARKEIT_EMPFEHLUNG_GRUND,
     BELASTBARKEIT_ZONE_SATZ,
     BERECHNUNG_LABELS,
-    CONFIDENCE_LEVEL_DISPLAY,
     CONTRA_POINTS,
-    COST_LABELS,
     DATA_CLASSIFICATION_CLARTEXT,
     DATA_PROTECTION_REASON,
     DEFAULT_LANG,
@@ -44,11 +41,11 @@ from aect.domain.i18n import (
     EFFORT_KLARTEXT,
     EFFORT_LABEL_DISPLAY,
     EMPFEHLUNG_ANSATZ,
-    EVIDENCE_FAKTOR_GRUND,
     EXPLAIN_TEXT,
     FEASIBILITY_DEFINITION,
     NUTZEN_FORMEL_WORTE,
     RECOMMENDATION_TEMPLATES,
+    ROUTING_BEGRUENDUNG,
     SCORE_COMPONENT_LABELS,
     ZONE_LABELS,
     ZU_ENTSCHEIDEN,
@@ -212,21 +209,13 @@ def build_score_breakdown(
         n=composite.complexity_score,
     )
 
-    cost_labels = COST_LABELS[lang]
-    license_reason = _cost_point_reason(
-        cost_labels["license"],
-        use_case.estimated_license_cost_eur,
-        license_cost_point_min_eur,
-        suffix=cost_labels["per_year"],
+    cost_reason = _cost_reason(
+        license_cost_eur=use_case.estimated_license_cost_eur,
+        impl_cost_eur=use_case.implementation_cost_eur,
+        license_threshold_eur=license_cost_point_min_eur,
+        impl_threshold_eur=impl_cost_point_min_eur,
         lang=lang,
     )
-    impl_reason = _cost_point_reason(
-        cost_labels["impl"],
-        use_case.implementation_cost_eur,
-        impl_cost_point_min_eur,
-        lang=lang,
-    )
-    cost_reason = f"{license_reason}; {impl_reason}"
 
     data_reason = DATA_PROTECTION_REASON[lang][use_case.data_classification]
 
@@ -270,22 +259,88 @@ def build_score_breakdown(
     )
 
 
-def _cost_point_reason(
-    label: str,
-    cost_eur: float,
-    threshold_eur: float,
+def _cost_reason(
     *,
-    suffix: str = "",
+    license_cost_eur: float,
+    impl_cost_eur: float,
+    license_threshold_eur: float,
+    impl_threshold_eur: float,
     lang: Lang = DEFAULT_LANG,
 ) -> str:
-    """Begruendung eines Kostenpunkts: Wert gegen Schwelle, +1 oder kein Punkt."""
+    """Ein kompakter Satz fuer beide Kostenpunkte (V4.1-S9).
+
+    Frueher zwei aneinandergehaengte Vergleichsketten ("Lizenzkosten 0 EUR/Jahr
+    < 10.000 EUR -> kein Punkt; Implementierungskosten 0 EUR < 10.000 EUR ->
+    kein Punkt"). Jetzt ein Satz je Ausgang; die Betraege selbst stehen ohnehin
+    in den Eingaben.
+
+    Die Vergleiche sind IDENTISCH zu compute_composite_score (>= Schwelle -> +1)
+    -- reine Textprojektion, kein zweiter Rechenweg. Beide Schwellen sind
+    getrennte Config-Keys: sind sie gleich (Default), nennt der Satz sie einmal;
+    weichen sie ab, nennt er beide (sonst waere der Satz schlicht falsch).
+    """
     text = EXPLAIN_TEXT[lang]
-    key = "cost_point_plus" if cost_eur >= threshold_eur else "cost_point_none"
+    license_point = license_cost_eur >= license_threshold_eur
+    impl_point = impl_cost_eur >= impl_threshold_eur
+    same_threshold = license_threshold_eur == impl_threshold_eur
+
+    license_str = format_number(license_threshold_eur, lang, "EUR")
+    impl_str = format_number(impl_threshold_eur, lang, "EUR")
+
+    if license_point and impl_point:
+        key = "cost_both_same" if same_threshold else "cost_both_diff"
+    elif license_point:
+        key = "cost_license_only"
+    elif impl_point:
+        key = "cost_impl_only"
+    else:
+        key = "cost_none_same" if same_threshold else "cost_none_diff"
+
     return text[key].format(
-        label=label,
-        cost=format_number(cost_eur, lang, "EUR"),
-        suffix=suffix,
-        threshold=format_number(threshold_eur, lang, "EUR"),
+        threshold=license_str,
+        license_threshold=license_str,
+        impl_threshold=impl_str,
+    )
+
+
+def build_routing_begruendung(
+    *,
+    recommendation: RoutingRecommendation,
+    automation_signals: tuple[str, ...],
+    ai_signals: tuple[str, ...],
+    risk_flags: tuple[str, ...],
+    lang: Lang = DEFAULT_LANG,
+) -> str:
+    """Nennt die Kriterien, die GENAU zu dieser Route gefuehrt haben (V4.1-S9).
+
+    Bis V4.1 trug die Oberflaeche die Empfehlung ("Automatisierung (regelbasiert,
+    ohne KI)") ohne jede fallbezogene Begruendung; die tragenden Signale lagen
+    zwar im Response, standen aber nur eingeklappt in der Herkunfts-Ebene und
+    wurden nach Empfehlung gefiltert.
+
+    Der Zweig wird aus den Signal-ZAEHLERN re-abgeleitet -- exakt die Regel aus
+    routing._decide (Risiko-Eskalation > eindeutige Mehrheit > gemischte
+    Signale). Reine Projektion: die Entscheidung selbst faellt weiterhin
+    ausschliesslich in routing.py, hier wird sie nur erklaert. Weicht die
+    Reihenfolge dort je ab, muss sie hier nachgezogen werden -- die Zuordnung ist
+    per Test an alle vier Empfehlungen gebunden.
+    """
+    cat = ROUTING_BEGRUENDUNG[lang]
+    join = "; "
+
+    if recommendation == RoutingRecommendation.HUMAN_REVIEW_REQUIRED:
+        return cat["human_review"].format(gruende=join.join(risk_flags))
+    if recommendation == RoutingRecommendation.AUTOMATION_RECOMMENDED:
+        key = "auto_clear" if not ai_signals else "auto_majority"
+        return cat[key].format(gruende=join.join(automation_signals))
+    if recommendation == RoutingRecommendation.AI_RECOMMENDED:
+        key = "ai_clear" if not automation_signals else "ai_majority"
+        return cat[key].format(gruende=join.join(ai_signals))
+    # BORDERLINE: Gleichstand (beide Seiten gleich viele) oder gar kein Signal.
+    if not automation_signals and not ai_signals:
+        return cat["borderline_none"]
+    return cat["borderline_tie"].format(
+        gruende=join.join((*automation_signals, *ai_signals))
     )
 
 
@@ -580,28 +635,29 @@ def build_management_view(
     net_expected_benefit_eur: Decimal,
     effort_label: str,
     evidence_level: EvidenceLevel,
-    confidence_level: str,
     recommendation: RoutingRecommendation,
     lang: Lang = DEFAULT_LANG,
 ) -> ManagementView:
     """Baut die Management-Ebene (zwei Klartext-Saetze, keine internen Codes).
 
-    Informationsgehalt: Nutzen (EUR/Jahr), Aufwand (verbal), Belastbarkeit
-    (Stufe + Grund) sowie die Empfehlung als ganzer Satz. Alle Zahlen kommen
-    unveraendert aus dem bereits berechneten TriageResult -- reine Projektion.
+    Informationsgehalt: Nutzen (EUR/Jahr), Aufwand (verbal), Datenlage in
+    Alltagssprache sowie die Empfehlung als Satz. Alle Zahlen kommen unveraendert
+    aus dem bereits berechneten TriageResult -- reine Projektion.
+
+    Ohne Konfidenz-Stufe (V4.1-S9): "Belastbarkeit hoch/mittel/niedrig" war ein
+    internes Label ohne sichtbare Rechenregel. Die Stufe selbst bleibt berechnet
+    und steht weiter im Response (zone.confidence_reasoning) -- nur die Anzeige
+    nennt sie nicht mehr. Darum faellt auch der frueher noetige
+    confidence_level-Parameter weg.
     """
     text = EXPLAIN_TEXT[lang]
-    level_display = CONFIDENCE_LEVEL_DISPLAY[lang][confidence_level]
     zonen_satz = text["zonen_satz"].format(
         eur=format_number(net_expected_benefit_eur, lang, "€"),
         adjektiv=EFFORT_ADJEKTIV[lang][effort_label],
         bel_zone=BELASTBARKEIT_ZONE_SATZ[lang][evidence_level],
-        level=level_display,
     )
     empfehlung_satz = text["empfehlung_satz"].format(
         ansatz=EMPFEHLUNG_ANSATZ[lang][recommendation.value],
-        level=level_display,
-        grund=BELASTBARKEIT_EMPFEHLUNG_GRUND[lang][evidence_level],
     )
     return ManagementView(zonen_satz=zonen_satz, empfehlung_satz=empfehlung_satz)
 
@@ -609,8 +665,6 @@ def build_management_view(
 def build_berechnung(
     *,
     net_expected_benefit_eur: Decimal,
-    evidence_level: EvidenceLevel,
-    evidence_factor: float,
     composite_total: int,
     effort_label: str,
     base_zone: TriageZone,
@@ -619,24 +673,29 @@ def build_berechnung(
 ) -> tuple[BerechnungsZeile, ...]:
     """Baut die Berechnungs-Ebene: je Komponente eine Zeile in Alltagssprache.
 
-    Vier Zeilen: erwarteter Nutzen (Formel in Worten), Belastbarkeit (Stufe +
-    uebersetzter Faktor), Aufwand (Score + verbale Einordnung) und die Basis-
-    Einstufung vor der Handlungsdruck-Hochstufung (Zonen-Label statt Code).
+    Drei Zeilen: erwarteter Nutzen (Formel in Worten), Aufwand (Score + verbale
+    Einordnung) und die Basis-Einstufung vor der Handlungsdruck-Hochstufung
+    (Zonen-Label statt Code).
+
+    Die frueher vierte Zeile "Belastbarkeit" (Stufe + "Angesetzt werden 40 % des
+    theoretischen Potenzials, weil noch keine Belege vorliegen.") entfaellt
+    (V4.1-S9). Der Evidenzfaktor daempft den Nutzen unveraendert weiter -- nur
+    erklaert die Anzeige ihn nicht mehr ueber eine Prozentzahl, die ohne die
+    Faktor-Tabelle nicht einzuordnen war. Die Datenlage steht in Alltagssprache
+    im zonen_satz (Ebene 1).
     """
     text = EXPLAIN_TEXT[lang]
     labels = BERECHNUNG_LABELS[lang]
-    evidence_pct = round(evidence_factor * 100)
-    belastbarkeit_erklaerung = text["belastbarkeit_erklaerung"].format(
-        pct=evidence_pct,
-        grund=EVIDENCE_FAKTOR_GRUND[lang][evidence_level],
-    )
-    # Zonengrenz-Naehe (falls vorhanden) als Zusatz -- faktorfrei, nennt den
-    # kleineren Kipp-Hebel. Wiederverwendung der Konfidenz-Gruende (kein zweiter
-    # Rechenweg): der Kipp-Satz enthaelt das sprachweise Marker-Wort ("kippt"/
-    # "flips"). confidence wurde in derselben Sprache gebaut -> Marker passt.
+
+    # Zonengrenz-Naehe (falls vorhanden): haengt jetzt an der Basis-Einstufung --
+    # der Satz beschreibt genau deren Kippen ("Mit 5 % weniger erwartetem Nutzen
+    # kippt der Case von X nach Y"). Wiederverwendung der Konfidenz-Gruende (kein
+    # zweiter Rechenweg): der Kipp-Satz traegt das sprachweise Marker-Wort
+    # ("kippt"/"flips"); confidence wurde in derselben Sprache gebaut.
+    base_zone_erklaerung = BASIS_EINSTUFUNG_ERKLAERUNG[lang]
     flip = next((g for g in confidence.gruende if text["flip_marker"] in g), None)
     if flip is not None:
-        belastbarkeit_erklaerung = f"{belastbarkeit_erklaerung} {flip}"
+        base_zone_erklaerung = f"{base_zone_erklaerung} {flip}"
 
     return (
         BerechnungsZeile(
@@ -647,11 +706,6 @@ def build_berechnung(
             erklaerung=NUTZEN_FORMEL_WORTE[lang],
         ),
         BerechnungsZeile(
-            label=labels["confidence"],
-            wert=CONFIDENCE_LEVEL_DISPLAY[lang][confidence.level],
-            erklaerung=belastbarkeit_erklaerung,
-        ),
-        BerechnungsZeile(
             label=labels["effort"],
             wert=f"{composite_total} / {COMPOSITE_MAX_TOTAL}",
             erklaerung=EFFORT_KLARTEXT[lang][effort_label],
@@ -659,7 +713,7 @@ def build_berechnung(
         BerechnungsZeile(
             label=labels["base_zone"],
             wert=ZONE_LABELS[lang][base_zone],
-            erklaerung=BASIS_EINSTUFUNG_ERKLAERUNG[lang],
+            erklaerung=base_zone_erklaerung,
         ),
     )
 
@@ -726,14 +780,11 @@ def explain_triage(
             net_expected_benefit_eur=result.roi.net_expected_benefit_eur,
             effort_label=result.composite.effort_label,
             evidence_level=use_case.evidence_level,
-            confidence_level=confidence.level,
             recommendation=result.routing.recommendation,
             lang=lang,
         )
         berechnung = build_berechnung(
             net_expected_benefit_eur=result.roi.net_expected_benefit_eur,
-            evidence_level=use_case.evidence_level,
-            evidence_factor=result.roi.evidence_factor,
             composite_total=result.composite.total,
             effort_label=result.composite.effort_label,
             base_zone=result.zone.base_zone,

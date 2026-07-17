@@ -258,7 +258,27 @@
     "humanReviewRecommended": "Human review recommended",
     "netBenefit": "Expected net benefit",
     "hoursSaved": "Hours saved",
-    "perYear": "per year"
+    "perYear": "per year",
+    "theoreticalPotential": "Theoretical potential",
+    "theoreticalPotentialHint": "before damping, per year",
+    "scoring": {
+      "title": "How the point system works",
+      "intro": "The effort score adds up three dimensions. The higher the total, the more demanding or risky the implementation.",
+      "complexity": {
+        "label": "Complexity",
+        "text": "Follows directly from the chosen implementation approach: simple integration 1, development on existing systems 2, API integration 3, custom development 4, new tool 5."
+      },
+      "cost": {
+        "label": "Cost",
+        "text": "One point each for license and implementation cost once they reach the configured cost threshold — otherwise no point. The applicable threshold appears in the cost rationale below."
+      },
+      "dataProtection": {
+        "label": "Data protection",
+        "text": "No personal data 0 points; personal or pseudonymous 1 point (pseudonymous data remains personal, Art. 4(5) GDPR); special categories under Art. 9 GDPR 2 points."
+      },
+      "total": "Total 1 to 9: up to 3 the effort counts as low, up to 6 as moderate, above that as high. Feasibility is its counterpart (10 minus the effort score).",
+      "zoneEffect": "The zone comes from expected benefit and effort score together — high benefit at low effort gives the best classification. Stated urgency (regulatory, competitive, strategic) can then upgrade the zone. The recommendation (AI, automation, expert review) is derived separately from the detected criteria — it appears above with its rationale."
+    }
   },
   "caseTools": {
     "title": "Admin tools",
@@ -492,7 +512,8 @@
     "pressureNone": "none",
     "pressureRegulatory": "Regulatory",
     "pressureCompetitive": "Competitive",
-    "pressureStrategic": "Strategic"
+    "pressureStrategic": "Strategic",
+    "piiEffect": "Together with regulatory pressure, this entry causes the case to be reviewed by experts before implementation and a data protection impact assessment to be recommended. It does not affect the effort score — that is driven by the data protection class."
   },
   "implApproach": {
     "edit": "change",
@@ -541,7 +562,10 @@
     "reviewingHeading": "Under review by the AI Board",
     "reviewingBody": "Submitted on {date}. The AI Board's decision appears here once it has been made.",
     "report": "Report",
-    "areaBoardDecision": "AI Board decision"
+    "areaBoardDecision": "AI Board decision",
+    "decisionBlockedTitle": "Approve and reject are blocked",
+    "decisionBlockedBody": "Without an implementation approach the case is not assessed — there is no benefit, effort or recommendation for the AI Board to decide on. Once the approach is added, the case is assessed automatically and the decision becomes possible.",
+    "decisionBlockedLink": "Add the implementation approach in the use case above"
   },
   "rationale": {
     "sentence": "Of the theoretical potential ({potential}), <netTag>{net}</netTag> remains: usage <usageTag>{usage}</usageTag> × evidence <evidenceTag>{evidence}</evidenceTag>.",

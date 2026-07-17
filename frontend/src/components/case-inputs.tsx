@@ -13,12 +13,27 @@ import { ImplementationApproachEditor } from "@/components/implementation-approa
 // Eingaben als "Grundlage der Bewertung" und nannte Zone/Nutzen/Aufwand --
 // Groessen, die Nicht-Admins seit V4.1-S8 gar nicht mehr sehen.
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: string
+  // Optionaler Erklaersatz unter dem Wert -- nur dort, wo der nackte Wert die
+  // Wirkung nicht verraet (aktuell die PII-Angabe).
+  hint?: string
+}) {
   return (
     <div className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[13rem_1fr] sm:gap-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-sm whitespace-pre-wrap text-foreground/90">
         {value.length > 0 ? value : "—"}
+        {hint !== undefined && (
+          <span className="mt-1 block max-w-prose text-xs leading-relaxed text-muted-foreground">
+            {hint}
+          </span>
+        )}
       </dd>
     </div>
   )
@@ -124,9 +139,20 @@ export async function CaseInputs({
             label={t("rowDataClass")}
             value={te(`dataClassification.${e.data_classification}`)}
           />
+          {/* PII mit Klartext-Wirkung (V4.1-S9): die Zeile stand hier ohne jede
+              Einordnung -- "Personenbezogene Daten: Ja" sagt nicht, was daraus
+              folgt. Der Satz erklaert die Wirkung in Alltagssprache statt in
+              Mechanik-Begriffen. Die Regel dahinter ist unveraendert (routing:
+              regulatorischer Druck + PII -> Human Review + DSFA-Empfehlung).
+
+              NUR fuer Admins: der Satz ordnet die Angabe in die Bewertung ein
+              (Aufwands-Score, fachliche Pruefung) -- das ist Board-Material und
+              hat in der anonymen Sicht nichts zu suchen (ADR-0052). Der
+              Einreicher sieht unveraendert nur Ja/Nein. */}
           <Row
             label={t("rowPii")}
             value={e.contains_pii ? t("yes") : t("no")}
+            hint={isAdmin ? t("piiEffect") : undefined}
           />
           <Row
             label={t("rowAdoption")}

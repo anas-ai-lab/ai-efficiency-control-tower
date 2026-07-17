@@ -258,7 +258,27 @@
     "humanReviewRecommended": "Menschliche Prüfung empfohlen",
     "netBenefit": "Erwarteter Nettonutzen",
     "hoursSaved": "Eingesparte Stunden",
-    "perYear": "pro Jahr"
+    "perYear": "pro Jahr",
+    "theoreticalPotential": "Theoretisches Potenzial",
+    "theoreticalPotentialHint": "vor Dämpfung, pro Jahr",
+    "scoring": {
+      "title": "Wie das Punktesystem funktioniert",
+      "intro": "Der Aufwandscore addiert drei Dimensionen. Je höher die Summe, desto aufwändiger oder riskanter die Umsetzung.",
+      "complexity": {
+        "label": "Komplexität",
+        "text": "Ergibt sich direkt aus dem gewählten Umsetzungsansatz: einfache Integration 1, Entwicklung auf Bestehendem 2, API-Anbindung 3, eigene Entwicklung 4, neues Tool 5."
+      },
+      "cost": {
+        "label": "Kosten",
+        "text": "Je ein Punkt für Lizenz- und für Implementierungskosten, sobald sie die hinterlegte Kostenschwelle erreichen — sonst kein Punkt. Die geltende Schwelle steht unten in der Kostenbegründung."
+      },
+      "dataProtection": {
+        "label": "Datenschutz",
+        "text": "Keine personenbezogenen Daten 0 Punkte; personenbezogen oder pseudonym 1 Punkt (pseudonyme Daten bleiben personenbezogen, Art. 4 Nr. 5 DSGVO); besondere Kategorien nach Art. 9 DSGVO 2 Punkte."
+      },
+      "total": "Summe 1 bis 9: bis 3 gilt der Aufwand als niedrig, bis 6 als mittel, darüber als hoch. Die Machbarkeit ist der Gegenwert dazu (10 minus Aufwandscore).",
+      "zoneEffect": "Die Zone entsteht aus erwartetem Nutzen und Aufwandscore zusammen — hoher Nutzen bei niedrigem Aufwand ergibt die beste Einstufung. Ein angegebener Handlungsdruck (regulatorisch, Wettbewerb, strategisch) kann die Zone anschließend noch hochstufen. Die Empfehlung (KI, Automatisierung, fachliche Prüfung) entsteht getrennt davon aus den erkannten Kriterien — sie steht oben mit ihrer Begründung."
+    }
   },
   "caseTools": {
     "title": "Admin-Werkzeuge",
@@ -492,7 +512,8 @@
     "pressureNone": "keiner",
     "pressureRegulatory": "Regulatorisch",
     "pressureCompetitive": "Wettbewerb",
-    "pressureStrategic": "Strategisch"
+    "pressureStrategic": "Strategisch",
+    "piiEffect": "Zusammen mit regulatorischem Druck führt diese Angabe dazu, dass der Fall vor der Umsetzung fachlich geprüft und eine Datenschutz-Folgenabschätzung empfohlen wird. Auf den Aufwands-Score wirkt sie nicht — den steuert die Datenschutzklasse."
   },
   "implApproach": {
     "edit": "ändern",
@@ -541,7 +562,10 @@
     "reviewingHeading": "Wird vom AI Board geprüft",
     "reviewingBody": "Eingereicht am {date}. Die Entscheidung des AI Board erscheint hier, sobald sie getroffen wurde.",
     "report": "Report",
-    "areaBoardDecision": "Entscheidung des AI Board"
+    "areaBoardDecision": "Entscheidung des AI Board",
+    "decisionBlockedTitle": "Freigeben und Ablehnen sind gesperrt",
+    "decisionBlockedBody": "Ohne Implementierungsansatz wird der Fall nicht bewertet — es gibt weder Nutzen, Aufwand noch Empfehlung, über die das AI Board entscheiden könnte. Sobald der Ansatz ergänzt ist, wird der Fall automatisch bewertet und die Entscheidung ist möglich.",
+    "decisionBlockedLink": "Implementierungsansatz oben im Use Case ergänzen"
   },
   "rationale": {
     "sentence": "Vom theoretischen Potenzial ({potential}) bleiben <netTag>{net}</netTag>: Nutzung <usageTag>{usage}</usageTag> × Evidenz <evidenceTag>{evidence}</evidenceTag>.",

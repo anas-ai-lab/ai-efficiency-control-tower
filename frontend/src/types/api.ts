@@ -130,6 +130,9 @@ export interface RoutingResult {
   // Empfehlung als deutscher Satz (V4-P6) -- das Enum bleibt maschinenlesbar
   // daneben (recommendation).
   recommendation_text: string;
+  // Fallspezifische Begruendung der Route (V4.1-S9): welche Kriterien GENAU zu
+  // dieser Empfehlung gefuehrt haben. Immer gesetzt fuer bewertete Cases.
+  begruendung: string;
   confidence: string;
   automation_signals: string[];
   ai_signals: string[];

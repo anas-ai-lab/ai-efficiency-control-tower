@@ -186,15 +186,13 @@ EFFORT_LABEL_DISPLAY: dict[Lang, dict[str, str]] = {
     "en": {"NIEDRIG": "LOW", "MITTEL": "MEDIUM", "HOCH": "HIGH"},
 }
 
-#: Anzeige-Fassung des Konfidenz-Level (hoch/mittel/niedrig -- Maschinen-Key,
-#: bleibt in der Response als .level; hier nur der eingebettete Klartext).
-CONFIDENCE_LEVEL_DISPLAY: dict[Lang, dict[str, str]] = {
-    "de": {"hoch": "hoch", "mittel": "mittel", "niedrig": "niedrig"},
-    "en": {"hoch": "high", "mittel": "medium", "niedrig": "low"},
-}
+# CONFIDENCE_LEVEL_DISPLAY (hoch/mittel/niedrig -> Anzeigetext) ist mit V4.1-S9
+# entfallen: die Konfidenz-Stufe wird nirgends mehr angezeigt. Sie bleibt
+# berechnet und steht als Maschinen-Key im Response (zone.confidence_reasoning.
+# level) -- ein Anzeige-Katalog dafuer haette keinen Aufrufer mehr.
 
 # ---------------------------------------------------------------------------
-# 3. Empfehlung + Belastbarkeit (Management-Ebene)
+# 3. Empfehlung + Routing-Begruendung (Management-Ebene)
 # ---------------------------------------------------------------------------
 
 #: Empfehlung als Klartext-Ansatz (Management-Satz). Keyed am
@@ -214,7 +212,11 @@ EMPFEHLUNG_ANSATZ: dict[Lang, dict[str, str]] = {
     },
 }
 
-#: Belastbarkeits-Satz fuer die Zonen-Zusammenfassung (Ebene 1).
+#: Datenlage-Satz fuer die Zonen-Zusammenfassung (Ebene 1). Sagt in Alltags-
+#: sprache, worauf die Schaetzung beruht -- OHNE die frueher angehaengte
+#: "Belastbarkeit <hoch/mittel/niedrig>"-Stufe (V4.1-S9): die Stufe war ein
+#: internes Konfidenz-Label, das Entscheider ohne die Rechenregel dahinter nicht
+#: einordnen konnten. Die Evidenz-Logik selbst ist unveraendert.
 BELASTBARKEIT_ZONE_SATZ: dict[Lang, dict[EvidenceLevel, str]] = {
     "de": {
         EvidenceLevel.PURE_ESTIMATE: (
@@ -238,43 +240,59 @@ BELASTBARKEIT_ZONE_SATZ: dict[Lang, dict[EvidenceLevel, str]] = {
     },
 }
 
-#: Belastbarkeits-Grund fuer den Empfehlungs-Satz (Ebene 1).
-BELASTBARKEIT_EMPFEHLUNG_GRUND: dict[Lang, dict[EvidenceLevel, str]] = {
+#: Routing-Begruendung (V4.1-S9): warum GENAU dieser Weg empfohlen wird.
+#: Keyed nach dem Zweig der Entscheidungsmatrix in routing._decide -- die Zweige
+#: werden am Response-Rand aus den Signal-ZAEHLERN re-abgeleitet (dieselbe Regel,
+#: keine zweite Wahrheit). {gruende} traegt die tatsaechlich erkannten Kriterien.
+ROUTING_BEGRUENDUNG: dict[Lang, dict[str, str]] = {
     "de": {
-        EvidenceLevel.PURE_ESTIMATE: (
-            "sie stützt sich bisher nur auf Einschätzungen ohne Belege"
+        "human_review": (
+            "Mindestens zwei Risikohinweise erzwingen eine fachliche Prüfung -- "
+            "unabhängig von Nutzen und Aufwand: {gruende}"
         ),
-        EvidenceLevel.SIMILAR_PROJECT: (
-            "sie stützt sich auf Erfahrung aus einem Analogieprojekt"
+        "auto_clear": (
+            "Ausschlaggebend für Automatisierung; kein Kriterium sprach für KI: "
+            "{gruende}"
         ),
-        EvidenceLevel.TESTED_PILOTED: "sie ist mit realen Beispielen getestet",
+        "ai_clear": (
+            "Ausschlaggebend für KI; kein Kriterium sprach für Automatisierung: "
+            "{gruende}"
+        ),
+        "auto_majority": (
+            "Beide Seiten hatten Kriterien, für Automatisierung sprachen mehr: "
+            "{gruende}"
+        ),
+        "ai_majority": (
+            "Beide Seiten hatten Kriterien, für KI sprachen mehr: {gruende}"
+        ),
+        "borderline_tie": (
+            "Kein Weg überwiegt -- für beide Seiten sprachen gleich viele "
+            "Kriterien: {gruende}"
+        ),
+        "borderline_none": (
+            "Die Regeln erkennen weder für Automatisierung noch für KI ein "
+            "Kriterium -- deshalb die Einzelfallprüfung."
+        ),
     },
     "en": {
-        EvidenceLevel.PURE_ESTIMATE: (
-            "so far it rests only on assessments without evidence"
+        "human_review": (
+            "At least two risk indicators force an expert review -- regardless of "
+            "benefit and effort: {gruende}"
         ),
-        EvidenceLevel.SIMILAR_PROJECT: (
-            "it draws on experience from a comparable project"
+        "auto_clear": ("Decisive for automation; no criterion spoke for AI: {gruende}"),
+        "ai_clear": ("Decisive for AI; no criterion spoke for automation: {gruende}"),
+        "auto_majority": (
+            "Both sides had criteria, more spoke for automation: {gruende}"
         ),
-        EvidenceLevel.TESTED_PILOTED: "it is tested with real examples",
-    },
-}
-
-#: Grund fuer den uebersetzten Evidenzfaktor (Berechnungs-Ebene).
-EVIDENCE_FAKTOR_GRUND: dict[Lang, dict[EvidenceLevel, str]] = {
-    "de": {
-        EvidenceLevel.PURE_ESTIMATE: "weil noch keine Belege vorliegen",
-        EvidenceLevel.SIMILAR_PROJECT: (
-            "gestützt auf Erfahrung aus einem Analogieprojekt"
+        "ai_majority": "Both sides had criteria, more spoke for AI: {gruende}",
+        "borderline_tie": (
+            "Neither path prevails -- both sides had the same number of criteria: "
+            "{gruende}"
         ),
-        EvidenceLevel.TESTED_PILOTED: "abgesichert durch reale Beispiele",
-    },
-    "en": {
-        EvidenceLevel.PURE_ESTIMATE: "because no evidence is available yet",
-        EvidenceLevel.SIMILAR_PROJECT: (
-            "backed by experience from a comparable project"
+        "borderline_none": (
+            "The rules find no criterion for automation or for AI -- hence the "
+            "case-by-case review."
         ),
-        EvidenceLevel.TESTED_PILOTED: "secured by real examples",
     },
 }
 
@@ -282,13 +300,12 @@ EVIDENCE_FAKTOR_GRUND: dict[Lang, dict[EvidenceLevel, str]] = {
 NUTZEN_FORMEL_WORTE: dict[Lang, str] = {
     "de": (
         "Minuten pro Vorgang x Vorgänge pro Mitarbeiter und Jahr x betroffene "
-        "Mitarbeiter x Stundensatz, anschließend gedämpft nach Belastbarkeit der "
-        "Angaben und erwarteter Nutzung."
+        "Mitarbeiter x Stundensatz, anschließend gedämpft nach Datenlage und "
+        "erwarteter Nutzung."
     ),
     "en": (
         "minutes per case x cases per employee per year x affected employees x "
-        "hourly rate, then damped by the confidence of the inputs and the "
-        "expected adoption."
+        "hourly rate, then damped by the evidence base and the expected adoption."
     ),
 }
 
@@ -322,31 +339,23 @@ SCORE_COMPONENT_LABELS: dict[Lang, dict[str, str]] = {
     },
 }
 
-#: Kostenpunkt-Labels + Suffix (Score-Herkunft).
-COST_LABELS: dict[Lang, dict[str, str]] = {
-    "de": {
-        "license": "Lizenzkosten",
-        "impl": "Implementierungskosten",
-        "per_year": "/Jahr",
-    },
-    "en": {
-        "license": "License cost",
-        "impl": "Implementation cost",
-        "per_year": "/year",
-    },
-}
+# COST_LABELS (Lizenzkosten/Implementierungskosten/-Jahr als Bausteine) ist mit
+# V4.1-S9 entfallen: die Kostenbegruendung ist jetzt EIN fertiger Satz je Ausgang
+# (EXPLAIN_TEXT cost_*) statt einer aus Label + Betrag + Schwelle
+# zusammengesetzten Vergleichskette.
 
-#: Berechnungs-Ebenen-Labels (Ebene 2).
+#: Berechnungs-Ebenen-Labels (Ebene 2). Die frueher vierte Zeile "Belastbarkeit"
+#: (Stufe + "Angesetzt werden 40 % des theoretischen Potenzials ...") entfaellt
+#: (V4.1-S9) -- der Kipp-Hinweis daraus haengt jetzt an der Basis-Einstufung, wo
+#: er hingehoert (er beschreibt genau deren Kippen).
 BERECHNUNG_LABELS: dict[Lang, dict[str, str]] = {
     "de": {
         "benefit": "Erwarteter Nutzen",
-        "confidence": "Belastbarkeit",
         "effort": "Aufwand",
         "base_zone": "Basis-Einstufung vor Dämpfung",
     },
     "en": {
         "benefit": "Expected Benefit",
-        "confidence": "Confidence",
         "effort": "Effort",
         "base_zone": "Base classification before damping",
     },
@@ -359,8 +368,34 @@ EXPLAIN_TEXT: dict[Lang, dict[str, str]] = {
     "de": {
         "flip_marker": "kippt",
         "complexity_reason": "{approach} -> Komplexität {n} von 5",
-        "cost_point_plus": "{label} {cost}{suffix} >= {threshold} -> +1 Kostenpunkt",
-        "cost_point_none": "{label} {cost}{suffix} < {threshold} -> kein Punkt",
+        # Kostenpunkte kompakt (V4.1-S9): frueher zwei aneinandergehaengte
+        # Vergleichsketten ("Lizenzkosten 0 EUR/Jahr < 10.000 EUR -> kein Punkt;
+        # Implementierungskosten ..."). Ein Satz je Ausgang statt der Rechnung.
+        # Die _same-Varianten greifen nur, wenn beide Schwellen identisch sind
+        # (Default); bei abweichenden Schwellen nennen die _diff-Varianten beide.
+        "cost_none_same": (
+            "Lizenz- und Implementierungskosten unter {threshold} -- keine "
+            "Aufwandspunkte."
+        ),
+        "cost_both_same": (
+            "Lizenz- und Implementierungskosten ab {threshold} -- +2 Aufwandspunkte."
+        ),
+        "cost_none_diff": (
+            "Lizenzkosten unter {license_threshold}, Implementierungskosten unter "
+            "{impl_threshold} -- keine Aufwandspunkte."
+        ),
+        "cost_both_diff": (
+            "Lizenzkosten ab {license_threshold}, Implementierungskosten ab "
+            "{impl_threshold} -- +2 Aufwandspunkte."
+        ),
+        "cost_license_only": (
+            "Lizenzkosten ab {license_threshold} -- +1 Aufwandspunkt; "
+            "Implementierungskosten darunter."
+        ),
+        "cost_impl_only": (
+            "Implementierungskosten ab {impl_threshold} -- +1 Aufwandspunkt; "
+            "Lizenzkosten darunter."
+        ),
         "total_line": "Aufwandscore {total} von {max} -> {effort}",
         "pure_estimate_grund": (
             "Nutzen basiert auf reiner Einschätzung (Faktor {factor})."
@@ -390,23 +425,44 @@ EXPLAIN_TEXT: dict[Lang, dict[str, str]] = {
         "not_recommended_prefilter": (
             "Nicht zur Umsetzung empfohlen: Vorfilter nicht bestanden ({criteria})."
         ),
-        "belastbarkeit_erklaerung": (
-            "Angesetzt werden {pct} % des theoretischen Potenzials, {grund}."
-        ),
         "benefit_per_year": "{eur} / Jahr",
+        # Ohne "-- Belastbarkeit <level>" (V4.1-S9). {bel_zone} bleibt: der Satz
+        # sagt in Alltagssprache, worauf die Schaetzung beruht, ohne die interne
+        # Konfidenz-Stufe zu nennen.
         "zonen_satz": (
             "Erwarteter Nutzen rund {eur} pro Jahr bei {adjektiv} "
-            "Umsetzungsaufwand. {bel_zone} -- Belastbarkeit {level}."
+            "Umsetzungsaufwand. {bel_zone}."
         ),
-        "empfehlung_satz": (
-            "Empfehlung: {ansatz}. Belastbarkeit der Empfehlung: {level} -- {grund}."
-        ),
+        # Ohne "Belastbarkeit der Empfehlung: <level>" (V4.1-S9). Die
+        # fallspezifische Begruendung liefert routing.begruendung daneben.
+        "empfehlung_satz": "Empfehlung: {ansatz}.",
     },
     "en": {
         "flip_marker": "flips",
         "complexity_reason": "{approach} -> complexity {n} of 5",
-        "cost_point_plus": "{label} {cost}{suffix} >= {threshold} -> +1 cost point",
-        "cost_point_none": "{label} {cost}{suffix} < {threshold} -> no point",
+        "cost_none_same": (
+            "License and implementation cost below {threshold} -- no effort points."
+        ),
+        "cost_both_same": (
+            "License and implementation cost at or above {threshold} -- "
+            "+2 effort points."
+        ),
+        "cost_none_diff": (
+            "License cost below {license_threshold}, implementation cost below "
+            "{impl_threshold} -- no effort points."
+        ),
+        "cost_both_diff": (
+            "License cost at or above {license_threshold}, implementation cost at "
+            "or above {impl_threshold} -- +2 effort points."
+        ),
+        "cost_license_only": (
+            "License cost at or above {license_threshold} -- +1 effort point; "
+            "implementation cost below it."
+        ),
+        "cost_impl_only": (
+            "Implementation cost at or above {impl_threshold} -- +1 effort point; "
+            "license cost below it."
+        ),
         "total_line": "Effort score {total} of {max} -> {effort}",
         "pure_estimate_grund": (
             "Benefit is based on a pure estimate (factor {factor})."
@@ -436,18 +492,12 @@ EXPLAIN_TEXT: dict[Lang, dict[str, str]] = {
         "not_recommended_prefilter": (
             "Not recommended for implementation: prefilter not passed ({criteria})."
         ),
-        "belastbarkeit_erklaerung": (
-            "{pct} % of the theoretical potential is applied, {grund}."
-        ),
         "benefit_per_year": "{eur} / year",
         "zonen_satz": (
             "Expected benefit around {eur} per year at {adjektiv} implementation "
-            "effort. {bel_zone} -- confidence {level}."
+            "effort. {bel_zone}."
         ),
-        "empfehlung_satz": (
-            "Recommendation: {ansatz}. Confidence of the recommendation: {level} -- "
-            "{grund}."
-        ),
+        "empfehlung_satz": "Recommendation: {ansatz}.",
     },
 }
 
@@ -765,15 +815,25 @@ FEASIBILITY_RECOMMENDATION: dict[Lang, dict[str, str]] = {
 
 TECHNICAL_REPORT: dict[Lang, dict[str, str]] = {
     "de": {
+        # Ohne Endpoint-Angabe (V4.1-S9): der Platzhalter zeigte einem Fachnutzer
+        # eine API-Route, mit der er nichts anfangen kann. Jetzt der Weg durch die
+        # Oberflaeche -- der Button-Name ist der aus caseTools.solution.
         "architektur_placeholder": (
-            "Noch kein technischer Lösungsvorschlag erzeugt "
-            "(POST /cases/{id}/propose-solution)."
+            "Noch kein Lösungsvorschlag erzeugt -- über den Button "
+            '"Lösungsvorschlag" im Bereich Werkzeuge starten.'
         ),
         "datenlage": (
             "Datenschutz: {datenschutz}. Evidenz: {evidenz}. "
             "Verbindlichkeit: {verbindlichkeit}."
         ),
-        "risiken_none": "Keine regelbasierten Risikoflags.",
+        # Nennt die tatsaechlich geprueften Kategorien (domain/routing.
+        # _collect_risk_flags prueft genau diese zwei) statt "keine Flags"
+        # (V4.1-S9): "keine Risikoflags" sagt nicht, WORAUF geprueft wurde.
+        "risiken_none": (
+            "Die automatische Prüfung hat keine Risikofaktoren erkannt. Geprüft "
+            "wurden: besondere Kategorien personenbezogener Daten (Art. 9 DSGVO) "
+            "sowie regulatorischer Druck in Verbindung mit personenbezogenen Daten."
+        ),
         "offene_solution": "Technischer Lösungsansatz noch offen.",
         "offene_review": "Fachliche/datenschutzrechtliche Prüfung offen.",
         "offene_estimate": "Zeitersparnis ist unbelegt (reine Einschätzung).",
@@ -781,14 +841,18 @@ TECHNICAL_REPORT: dict[Lang, dict[str, str]] = {
     },
     "en": {
         "architektur_placeholder": (
-            "No technical solution proposal generated yet "
-            "(POST /cases/{id}/propose-solution)."
+            "No solution proposal generated yet -- start it via the "
+            '"Propose solution" button in the tools section.'
         ),
         "datenlage": (
             "Data protection: {datenschutz}. Evidence: {evidenz}. "
             "Commitment: {verbindlichkeit}."
         ),
-        "risiken_none": "No rule-based risk flags.",
+        "risiken_none": (
+            "The automated check found no risk factors. Checked: special categories "
+            "of personal data (Art. 9 GDPR) and regulatory pressure in combination "
+            "with personal data."
+        ),
         "offene_solution": "Technical solution approach still open.",
         "offene_review": "Expert / data-protection review still open.",
         "offene_estimate": "Time saving is unproven (pure estimate).",

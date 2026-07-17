@@ -1579,6 +1579,8 @@ export interface components {
             recommendation: string;
             /** Recommendation Text */
             recommendation_text: string;
+            /** Begruendung */
+            begruendung: string;
             /** Confidence */
             confidence: string;
             /** Automation Signals */

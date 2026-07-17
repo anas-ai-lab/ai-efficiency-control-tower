@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   ChevronDown,
+  Info,
   XCircle,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -21,6 +22,63 @@ import {
 // Scores). Ebene 2 ("Wie wurde das berechnet?") klappt die Herkunft je
 // Komponente auf. Alle Saetze kommen deterministisch aus management/berechnung
 // (Backend), kein LLM; Zahlen unveraendert.
+
+// Punktesystem-Erklaerung (V4.1-S9): steht als erstes in der Analyse, damit die
+// Zahlen darunter einzuordnen sind -- eingeklappt, weil sie fuer jeden Case
+// gleich ist. Der Inhalt spiegelt domain/scoring.py: Komplexitaet 1-5 aus dem
+// Umsetzungsansatz (COMPLEXITY_BY_APPROACH), Kosten 0-2 (je ein Punkt ab
+// Lizenz-/Implementierungs-Schwelle), Datenschutz 0-2 (DSGVO-Mapping), Summe
+// 1-9 -> NIEDRIG (<=3) / MITTEL (<=6) / HOCH (>6). Die Kostenschwelle selbst
+// steht bewusst NICHT hier: sie ist Config (roi_config.toml) und erscheint
+// fallbezogen in der Kostenbegruendung unten.
+function PunktesystemExpander() {
+  const t = useTranslations("result.scoring")
+  const rows: { key: string; range: string }[] = [
+    { key: "complexity", range: "1-5" },
+    { key: "cost", range: "0-2" },
+    { key: "dataProtection", range: "0-2" },
+  ]
+  return (
+    <details className="group rounded-2xl border border-border bg-muted/20">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-6 py-4 text-sm font-medium text-foreground marker:content-none">
+        <span className="flex items-center gap-2">
+          <Info className="size-4 text-muted-foreground" aria-hidden />
+          {t("title")}
+        </span>
+        <ChevronDown
+          aria-hidden
+          className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <div className="space-y-4 border-t border-border px-6 py-5">
+        <p className="max-w-prose text-[0.8125rem] leading-relaxed text-muted-foreground">
+          {t("intro")}
+        </p>
+        <ul className="space-y-3">
+          {rows.map((r) => (
+            <li key={r.key} className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+              <span className="text-sm font-medium text-foreground">
+                {t(`${r.key}.label`)}
+              </span>
+              <span className="text-right font-mono text-sm tabular-nums text-muted-foreground">
+                {r.range}
+              </span>
+              <span className="col-span-2 text-[0.8125rem] leading-relaxed text-muted-foreground">
+                {t(`${r.key}.text`)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="max-w-prose border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted-foreground">
+          {t("total")}
+        </p>
+        <p className="max-w-prose text-[0.8125rem] leading-relaxed text-muted-foreground">
+          {t("zoneEffect")}
+        </p>
+      </div>
+    </details>
+  )
+}
 
 // Ebene 2: aufklappbare Herkunft -- die vier Berechnungs-Zeilen, das Aufwand-
 // Score-Detail, der Nutzen-Rechenweg und die tragenden Routing-Signale.
@@ -196,6 +254,10 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
 
   return (
     <div className="space-y-5">
+      {/* Punktesystem zuerst: erklaert, wofuer es Punkte gibt und wie sie Zone +
+          Empfehlung treiben -- eingeklappt, gleich fuer jeden Case. */}
+      <PunktesystemExpander />
+
       {/* ===== Ebene 1: Management-taugliche Zusammenfassung ===== */}
       <section className={`rounded-2xl border px-6 py-6 sm:px-7 ${zoneConfig.surface}`}>
         <div className="flex items-start gap-4">
@@ -223,12 +285,20 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
         </div>
       </section>
 
-      {/* Empfehlung als ganzer Satz (inkl. Belastbarkeit der Empfehlung). */}
+      {/* Empfehlung als ganzer Satz + fallspezifische Begruendung (V4.1-S9).
+          Die Begruendung nennt die Kriterien, die GENAU zu dieser Route gefuehrt
+          haben -- sie stand frueher nur eingeklappt in der Herkunfts-Ebene und
+          war nach Empfehlung gefiltert. */}
       <section className="rounded-2xl border border-border bg-card px-6 py-5">
         <p className="eyebrow">{t("recommendation")}</p>
         <p className="mt-2 max-w-prose text-[0.9375rem] leading-relaxed text-foreground">
           {mgmt.empfehlung_satz}
         </p>
+        {triage.routing !== null && (
+          <p className="mt-2.5 max-w-prose text-[0.8125rem] leading-relaxed text-muted-foreground">
+            {triage.routing.begruendung}
+          </p>
+        )}
         {triage.routing !== null && triage.routing.requires_human_review && (
           <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-sm font-medium text-[var(--zone-risk-fg)]">
             <AlertTriangle className="size-3.5" />
@@ -237,15 +307,27 @@ export function CaseResult({ triage }: { triage: TriageResponse }) {
         )}
       </section>
 
-      {/* Headline-Kennzahlen (Zahlen, keine internen Codes). */}
+      {/* Headline-Kennzahlen (Zahlen, keine internen Codes). Das theoretische
+          Potenzial steht neben dem Nettonutzen (V4.1-S9): der Nettonutzen allein
+          liess offen, wovon er der gedaempfte Teil ist. Bewusst zurueckhaltender
+          gesetzt -- entschieden wird am Nettonutzen, nicht am Potenzial. */}
       {triage.roi !== null && (
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-3">
           <div className="bg-card px-6 py-5">
             <p className="eyebrow">{t("netBenefit")}</p>
             <p className="stat-value mt-2.5 text-[1.75rem] text-foreground">
               {fmt.eur(triage.roi.net_expected_benefit_eur)}
             </p>
             <p className="mt-1.5 text-xs text-muted-foreground">{t("perYear")}</p>
+          </div>
+          <div className="bg-card px-6 py-5">
+            <p className="eyebrow">{t("theoreticalPotential")}</p>
+            <p className="stat-value mt-2.5 text-[1.75rem] text-foreground/60">
+              {fmt.eur(triage.roi.theoretical_potential_eur)}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {t("theoreticalPotentialHint")}
+            </p>
           </div>
           <div className="bg-card px-6 py-5">
             <p className="eyebrow">{t("hoursSaved")}</p>

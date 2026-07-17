@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { Clock } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 
 import {
   checkAuth,
@@ -43,12 +43,15 @@ export const dynamic = "force-dynamic";
 function AreaSection({
   title,
   children,
+  id,
 }: {
   title: string;
   children: React.ReactNode;
+  // Anker fuer den Sprung aus der Freigabe-Sperre zum Umsetzungsansatz (S9).
+  id?: string;
 }) {
   return (
-    <section className="mt-12 border-t border-border pt-8">
+    <section id={id} className="mt-12 scroll-mt-6 border-t border-border pt-8">
       <h2 className="text-lg font-semibold tracking-tight text-foreground">
         {title}
       </h2>
@@ -186,7 +189,7 @@ export default async function CaseDetailPage({
         </div>
 
         {/* ===== Bereich 1: Use Case ===== */}
-        <AreaSection title={t("areaUseCase")}>
+        <AreaSection title={t("areaUseCase")} id="use-case">
           <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
         </AreaSection>
 
@@ -242,6 +245,31 @@ export default async function CaseDetailPage({
                 })}
               />
             )}
+          </AreaSection>
+        )}
+
+        {/* ===== Bereich 3 (Admin, Fall unbewertet): Freigabe gesperrt =====
+            Ohne Umsetzungsansatz gibt es keine Bewertung -- und damit nichts,
+            worueber das Board entscheiden koennte. Bis V4.1-S8 verschwand der
+            ganze Bereich wortlos (report === null): der Admin sah keine Buttons
+            und keinen Grund. Jetzt steht beides da, mit dem Weg zum Feld. */}
+        {admin !== null && admin.evaluation_pending && (
+          <AreaSection title={t("areaDecision")}>
+            <div className="rounded-xl border border-[var(--zone-risk-border)] bg-[var(--zone-risk-surface)] px-5 py-4">
+              <p className="flex items-center gap-2 text-sm font-medium text-[var(--zone-risk-fg)]">
+                <Lock className="size-4 shrink-0" aria-hidden />
+                {t("decisionBlockedTitle")}
+              </p>
+              <p className="mt-2 max-w-prose text-sm leading-relaxed text-foreground/85">
+                {t("decisionBlockedBody")}
+              </p>
+              <Link
+                href="#use-case"
+                className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
+              >
+                {t("decisionBlockedLink")}
+              </Link>
+            </div>
           </AreaSection>
         )}
 

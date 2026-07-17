@@ -19,6 +19,7 @@ from aect.domain.explainability import (
     build_contra_points,
     build_management_view,
     build_recommendation_text,
+    build_routing_begruendung,
     build_score_breakdown,
     build_zu_entscheiden,
     feasibility_from_composite,
@@ -143,17 +144,38 @@ def test_complexity_component_reason(
 
 
 @pytest.mark.parametrize(
-    ("license_cost", "expected_fragment"),
+    ("license_cost", "expected_text"),
     [
-        (10_000.0, ">= 10.000 EUR -> +1 Kostenpunkt"),
-        (14_000.0, ">= 10.000 EUR -> +1 Kostenpunkt"),
-        (9_999.99, "< 10.000 EUR -> kein Punkt"),
-        (0.0, "< 10.000 EUR -> kein Punkt"),
+        # Nur Lizenzkosten ueber der Schwelle -> ein Satz, der genau das sagt.
+        (
+            10_000.0,
+            "Lizenzkosten ab 10.000 EUR -- +1 Aufwandspunkt; "
+            "Implementierungskosten darunter.",
+        ),
+        (
+            14_000.0,
+            "Lizenzkosten ab 10.000 EUR -- +1 Aufwandspunkt; "
+            "Implementierungskosten darunter.",
+        ),
+        # Beide darunter -> ein kompakter Satz statt zweier Vergleichsketten.
+        (
+            9_999.99,
+            "Lizenz- und Implementierungskosten unter 10.000 EUR -- keine Aufwandspunkte.",
+        ),
+        (
+            0.0,
+            "Lizenz- und Implementierungskosten unter 10.000 EUR -- keine Aufwandspunkte.",
+        ),
     ],
 )
 def test_cost_component_threshold_boundary(
-    license_cost: float, expected_fragment: str
+    license_cost: float, expected_text: str
 ) -> None:
+    """V4.1-S9: die Kostenbegruendung ist EIN Satz je Ausgang.
+
+    Die Schwellen-Grenze bleibt exakt wie in compute_composite_score (>= gibt
+    den Punkt, 9_999.99 nicht) -- geprueft ueber den Wortlaut UND den Punktwert.
+    """
     composite = compute_composite_score(
         ImplementationApproach.CUSTOM_DEVELOPMENT,
         0.0,
@@ -168,7 +190,34 @@ def test_cost_component_threshold_boundary(
     )
     cost_comp = breakdown.components[1]
     assert cost_comp.key == "cost"
-    assert expected_fragment in cost_comp.begruendung
+    assert cost_comp.begruendung == expected_text
+    # Der Text folgt dem Punktwert, er behauptet nichts Eigenes.
+    assert cost_comp.wert == (1 if license_cost >= 10_000.0 else 0)
+    # Die frueheren Vergleichsketten sind weg (Erfolgskriterium Punkt 3).
+    assert "->" not in cost_comp.begruendung
+    assert "kein Punkt" not in cost_comp.begruendung
+
+
+def test_cost_reason_names_both_thresholds_when_they_differ() -> None:
+    """Die zwei Kostenschwellen sind getrennte Config-Keys. Weichen sie ab, muss
+    der kompakte Satz beide nennen -- sonst waere er schlicht falsch."""
+    composite = compute_composite_score(
+        ImplementationApproach.CUSTOM_DEVELOPMENT,
+        0.0,
+        0.0,
+        DataClassification.NO_PERSONAL_DATA,
+        impl_cost_point_min_eur=5_000.0,
+        license_cost_point_min_eur=10_000.0,
+    )
+    breakdown = build_score_breakdown(
+        _uc(estimated_license_cost_eur=0.0, implementation_cost_eur=0.0),
+        composite,
+        impl_cost_point_min_eur=5_000.0,
+        license_cost_point_min_eur=10_000.0,
+    )
+    begruendung = breakdown.components[1].begruendung
+    assert "10.000 EUR" in begruendung
+    assert "5.000 EUR" in begruendung
 
 
 @pytest.mark.parametrize(
@@ -537,21 +586,43 @@ def test_management_view_summarises_without_internal_codes() -> None:
         net_expected_benefit_eur=Decimal("164929"),
         effort_label="NIEDRIG",
         evidence_level=EvidenceLevel.PURE_ESTIMATE,
-        confidence_level="niedrig",
         recommendation=RoutingRecommendation.AUTOMATION_RECOMMENDED,
     )
-    # Nutzen (EUR/Jahr), Aufwand (verbal) und Belastbarkeit (Stufe) im Satz.
+    # Nutzen (EUR/Jahr) und Aufwand (verbal) im Satz -- die Datenlage in
+    # Alltagssprache dahinter.
     assert "164.929 €" in mv.zonen_satz
     assert "niedrigem Umsetzungsaufwand" in mv.zonen_satz
-    assert "Belastbarkeit niedrig" in mv.zonen_satz
-    # Empfehlung als ganzer Satz + Belastbarkeit der Empfehlung.
-    assert mv.empfehlung_satz.startswith(
-        "Empfehlung: Automatisierung (regelbasiert, ohne KI)."
-    )
-    assert "Belastbarkeit der Empfehlung: niedrig" in mv.empfehlung_satz
+    assert "Einschätzungen ohne Belege" in mv.zonen_satz
+    # Empfehlung als ganzer Satz -- die Begruendung liefert routing.begruendung.
+    assert mv.empfehlung_satz == "Empfehlung: Automatisierung (regelbasiert, ohne KI)."
     for banned in _EBENE1_VERBOTE:
         assert banned not in mv.zonen_satz
         assert banned not in mv.empfehlung_satz
+
+
+def test_management_view_never_shows_belastbarkeit_level() -> None:
+    """Erfolgskriterium Punkt 1: kein "Belastbarkeit <Stufe>" mehr -- fuer JEDE
+    Kombination aus Evidenzlage und Empfehlung, nicht nur die geprueften."""
+    for evidence in EvidenceLevel:
+        for recommendation in RoutingRecommendation:
+            mv = build_management_view(
+                net_expected_benefit_eur=Decimal("50000"),
+                effort_label="MITTEL",
+                evidence_level=evidence,
+                recommendation=recommendation,
+                lang="de",
+            )
+            assert "Belastbarkeit" not in mv.zonen_satz
+            assert "Belastbarkeit" not in mv.empfehlung_satz
+            mv_en = build_management_view(
+                net_expected_benefit_eur=Decimal("50000"),
+                effort_label="MITTEL",
+                evidence_level=evidence,
+                recommendation=recommendation,
+                lang="en",
+            )
+            assert "onfidence" not in mv_en.zonen_satz
+            assert "onfidence" not in mv_en.empfehlung_satz
 
 
 @pytest.mark.parametrize(
@@ -563,13 +634,14 @@ def test_management_view_effort_adjektiv(effort_label: str, adjektiv: str) -> No
         net_expected_benefit_eur=Decimal("120000"),
         effort_label=effort_label,
         evidence_level=EvidenceLevel.TESTED_PILOTED,
-        confidence_level="hoch",
         recommendation=RoutingRecommendation.AI_RECOMMENDED,
     )
     assert f"bei {adjektiv} Umsetzungsaufwand" in mv.zonen_satz
 
 
-def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> None:
+def test_berechnung_three_rows_translate_code(clf: ZoneClassifier) -> None:
+    """V4.1-S9: die Belastbarkeits-Zeile (Stufe + "40 % des theoretischen
+    Potenzials") ist raus -- drei Zeilen bleiben."""
     conf = build_confidence_reasoning(
         evidence_level=EvidenceLevel.PURE_ESTIMATE,
         evidence_factor=0.40,
@@ -580,8 +652,6 @@ def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> 
     )
     rows = build_berechnung(
         net_expected_benefit_eur=Decimal("164929"),
-        evidence_level=EvidenceLevel.PURE_ESTIMATE,
-        evidence_factor=0.40,
         composite_total=3,
         effort_label="NIEDRIG",
         base_zone=TriageZone.LIKELY_WIN,
@@ -590,14 +660,11 @@ def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> 
     by = {r.label: r for r in rows}
     assert [r.label for r in rows] == [
         "Erwarteter Nutzen",
-        "Belastbarkeit",
         "Aufwand",
         "Basis-Einstufung vor Dämpfung",
     ]
     assert "164.929 €" in by["Erwarteter Nutzen"].wert
     assert "Minuten pro Vorgang" in by["Erwarteter Nutzen"].erklaerung
-    # Interner Faktor uebersetzt: 40 % des theoretischen Potenzials.
-    assert "40 % des theoretischen Potenzials" in by["Belastbarkeit"].erklaerung
     assert by["Aufwand"].wert == "3 / 9"
     assert by["Aufwand"].erklaerung == "niedrig -- kurzfristig umsetzbar"
     # Deutsches Label statt Enum-Code (zentrale ZONE_LABELS-Map).
@@ -608,9 +675,14 @@ def test_berechnung_four_rows_translate_code_and_factor(clf: ZoneClassifier) -> 
     joined = " ".join(r.wert + r.erklaerung for r in rows)
     for banned in ("LIKELY_WIN", "CALCULATED_RISK", "MARGINAL_GAIN"):
         assert banned not in joined
+    # Erfolgskriterium Punkt 1: weder Label noch der 40-%-Erklaersatz.
+    assert "Belastbarkeit" not in joined
+    assert "des theoretischen Potenzials" not in joined
 
 
-def test_berechnung_belastbarkeit_appends_boundary_flip(clf: ZoneClassifier) -> None:
+def test_berechnung_base_zone_row_carries_boundary_flip(clf: ZoneClassifier) -> None:
+    """Der Kipp-Hinweis ueberlebt den Wegfall der Belastbarkeits-Zeile: er haengt
+    jetzt an der Basis-Einstufung -- er beschreibt genau deren Kippen."""
     # Genau 1 Composite-Punkt bis MARGINAL_GAIN -> Konfidenz niedrig, Kipp-Satz.
     conf = build_confidence_reasoning(
         evidence_level=EvidenceLevel.TESTED_PILOTED,
@@ -622,13 +694,92 @@ def test_berechnung_belastbarkeit_appends_boundary_flip(clf: ZoneClassifier) -> 
     )
     rows = build_berechnung(
         net_expected_benefit_eur=Decimal("20000"),
-        evidence_level=EvidenceLevel.TESTED_PILOTED,
-        evidence_factor=0.90,
         composite_total=7,
         effort_label="HOCH",
         base_zone=TriageZone.CALCULATED_RISK,
         confidence=conf,
     )
-    belastbarkeit = next(r for r in rows if r.label == "Belastbarkeit")
-    assert "90 % des theoretischen Potenzials" in belastbarkeit.erklaerung
-    assert "kippt" in belastbarkeit.erklaerung
+    base_zone_row = next(r for r in rows if r.label == "Basis-Einstufung vor Dämpfung")
+    assert "kippt" in base_zone_row.erklaerung
+    # Die Faktor-Prozentzahl bleibt draussen.
+    assert "des theoretischen Potenzials" not in base_zone_row.erklaerung
+
+
+# ---------------------------------------------------------------------------
+# Routing-Begruendung (V4.1-S9, Punkt 5)
+# ---------------------------------------------------------------------------
+
+
+def test_routing_begruendung_names_the_decisive_criteria() -> None:
+    """Erfolgskriterium Punkt 5: die Empfehlung traegt IMMER eine fallspezifische
+    Begruendung -- kein generischer Satz. Der eindeutige Automation-Fall nennt
+    die erkannten Automation-Kriterien und sagt, dass fuer KI keines sprach."""
+    begruendung = build_routing_begruendung(
+        recommendation=RoutingRecommendation.AUTOMATION_RECOMMENDED,
+        automation_signals=(
+            "Komplexität 2 <= 2 -- einfacher Ablauf",
+            "Fester Prozessschritt",
+        ),
+        ai_signals=(),
+        risk_flags=(),
+    )
+    assert "kein Kriterium sprach für KI" in begruendung
+    assert "Komplexität 2 <= 2 -- einfacher Ablauf" in begruendung
+    assert "Fester Prozessschritt" in begruendung
+
+
+def test_routing_begruendung_mixed_signals_says_majority_decided() -> None:
+    """Gemischte Signale (beide Seiten haben Kriterien): der Text darf NICHT
+    behaupten, die Gegenseite habe nichts vorzuweisen."""
+    begruendung = build_routing_begruendung(
+        recommendation=RoutingRecommendation.AUTOMATION_RECOMMENDED,
+        automation_signals=("A1", "A2"),
+        ai_signals=("KI1",),
+        risk_flags=(),
+    )
+    assert "für Automatisierung sprachen mehr" in begruendung
+    assert "kein Kriterium" not in begruendung
+
+
+def test_routing_begruendung_human_review_names_the_risk_flags() -> None:
+    begruendung = build_routing_begruendung(
+        recommendation=RoutingRecommendation.HUMAN_REVIEW_REQUIRED,
+        automation_signals=("A1",),
+        ai_signals=("KI1",),
+        risk_flags=(
+            "Sensible Personendaten (Art. 9 DSGVO)",
+            "Regulatorischer Druck + PII",
+        ),
+    )
+    assert "Sensible Personendaten (Art. 9 DSGVO)" in begruendung
+    assert "Regulatorischer Druck + PII" in begruendung
+    assert "fachliche Prüfung" in begruendung
+
+
+def test_routing_begruendung_borderline_without_any_signal_is_honest() -> None:
+    """BORDERLINE ohne jedes Signal: es gibt keine Kriterien zu nennen -- der
+    Text sagt genau das, statt eine leere Aufzaehlung zu drucken."""
+    begruendung = build_routing_begruendung(
+        recommendation=RoutingRecommendation.BORDERLINE,
+        automation_signals=(),
+        ai_signals=(),
+        risk_flags=(),
+    )
+    assert "weder für Automatisierung noch für KI" in begruendung
+    assert begruendung.strip().endswith(".")
+
+
+def test_routing_begruendung_exists_for_every_recommendation_in_both_langs() -> None:
+    """Kein Zweig ohne Begruendung -- in beiden Sprachen. Faellt eine Empfehlung
+    durch die Zuordnung, waere die Anzeige wieder ohne Begruendung."""
+    for lang in ("de", "en"):
+        for recommendation in RoutingRecommendation:
+            begruendung = build_routing_begruendung(
+                recommendation=recommendation,
+                automation_signals=("A1",),
+                ai_signals=("KI1",),
+                risk_flags=("R1", "R2"),
+                lang=lang,  # type: ignore[arg-type]
+            )
+            assert begruendung.strip() != ""
+            assert "{" not in begruendung  # kein ungefuelltes Template

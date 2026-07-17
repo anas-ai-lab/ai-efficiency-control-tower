@@ -47,7 +47,7 @@ from aect.adapters.api.rate_limit import limiter
 from aect.application.models import SimilarityWarning, SubmittedCase
 from aect.application.ports.idempotency_store import IdempotencyStorePort
 from aect.application.service import TriageService
-from aect.domain.explainability import TriageExplanation
+from aect.domain.explainability import TriageExplanation, build_routing_begruendung
 from aect.domain.feasibility import build_feasibility_recommendation
 from aect.domain.i18n import DEFAULT_LANG, Lang
 from aect.domain.models import UseCaseInput
@@ -88,6 +88,12 @@ class RoutingResponse(BaseModel):
     # daneben. Feste Argument-Reihenfolge: Stunden/Jahr -> Netto -> Aufwand ->
     # Datenschutzlage; Vorfilter-Fail nennt den Klartext-Grund.
     recommendation_text: str
+    # Fallspezifische Begruendung der Route (V4.1-S9): welche Kriterien GENAU zu
+    # dieser Empfehlung gefuehrt haben, abgeleitet aus den Signal-Zaehlern nach
+    # derselben Regel wie routing._decide. Die Signale selbst stehen unveraendert
+    # daneben (automation_signals/ai_signals/risk_flags) -- begruendung sagt,
+    # welche davon den Ausschlag gaben und warum die andere Seite nicht gewann.
+    begruendung: str
     confidence: str
     automation_signals: list[str]
     ai_signals: list[str]
@@ -316,6 +322,16 @@ def _to_triage_response(
         routing=RoutingResponse(
             recommendation=r.routing.recommendation.value,
             recommendation_text=explanation.recommendation_text,
+            # Aus den in lang neu abgeleiteten Signalen gebaut (nicht aus den
+            # persistierten deutschen) -- sonst stuenden bei lang=en deutsche
+            # Kriterien in der Begruendung.
+            begruendung=build_routing_begruendung(
+                recommendation=r.routing.recommendation,
+                automation_signals=automation_signals,
+                ai_signals=ai_signals,
+                risk_flags=risk_flags,
+                lang=lang,
+            ),
             confidence=r.routing.confidence,
             automation_signals=list(automation_signals),
             ai_signals=list(ai_signals),

@@ -2917,6 +2917,10 @@
             "type": "string",
             "title": "Recommendation Text"
           },
+          "begruendung": {
+            "type": "string",
+            "title": "Begruendung"
+          },
           "confidence": {
             "type": "string",
             "title": "Confidence"
@@ -2951,6 +2955,7 @@
         "required": [
           "recommendation",
           "recommendation_text",
+          "begruendung",
           "confidence",
           "automation_signals",
           "ai_signals",
