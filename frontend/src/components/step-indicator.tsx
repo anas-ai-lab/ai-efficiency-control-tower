@@ -59,7 +59,7 @@ export function StepIndicator({ steps, current }: StepIndicatorProps) {
                     state === "active" &&
                       "border-[var(--ink)] bg-background text-[var(--ink)] shadow-[0_0_0_3px_var(--ink-subtle)]",
                     state === "todo" &&
-                      "border-border bg-background text-muted-foreground"
+                      "border-[var(--hairline-rule)] bg-background text-muted-foreground"
                   )}
                 >
                   {state === "done" ? (

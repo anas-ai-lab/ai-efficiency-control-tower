@@ -141,7 +141,7 @@ function HelpText({ children }: { children: React.ReactNode }) {
 // Ersetzt den frueheren pauschalen Untertitel auf der Seite.
 function SectionIntro({ children }: { children: React.ReactNode }) {
   return (
-    <p className="max-w-prose border-l-2 border-border pl-3.5 text-sm leading-relaxed text-muted-foreground">
+    <p className="max-w-prose border-l-2 border-[var(--hairline-rule)] pl-3.5 text-sm leading-relaxed text-muted-foreground">
       {children}
     </p>
   )
@@ -231,8 +231,8 @@ function ReviewSection({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card px-5 py-1">
-      <div className="flex items-center justify-between gap-3 border-b border-border py-3">
+    <section className="rounded-xl border border-[var(--hairline-rule)] bg-card px-5 py-1">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--hairline)] py-3">
         <h3 className="eyebrow">{title}</h3>
         <button
           type="button"
@@ -378,7 +378,7 @@ export function IntakeWizard() {
       // prefers-reduced-motion -- ohne Bewegung steht alles sofort da.
       <div
         role="status"
-        className="stagger rounded-2xl border border-border bg-card px-6 py-10 text-center sm:px-10"
+        className="stagger rounded-2xl border border-[var(--hairline-rule)] bg-card px-6 py-10 text-center sm:px-10"
       >
         <span
           aria-hidden
@@ -392,7 +392,7 @@ export function IntakeWizard() {
         <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
           {t("confirm.body", { title: submitted.title })}
         </p>
-        <p className="mx-auto mt-4 max-w-prose border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
+        <p className="mx-auto mt-4 max-w-prose border-t border-[var(--hairline)] pt-4 text-sm leading-relaxed text-muted-foreground">
           {t("confirm.next")}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -728,7 +728,7 @@ export function IntakeWizard() {
                 note={t("noteRequired")}
               />
 
-              <fieldset className="space-y-3 border-t border-border pt-5">
+              <fieldset className="space-y-3 border-t border-[var(--hairline)] pt-5">
                 <legend className="eyebrow mb-1">{t("pressure.legend")}</legend>
                 {(
                   [
@@ -743,7 +743,7 @@ export function IntakeWizard() {
                     name={name as Path<FormValues>}
                     render={({ field }) => (
                       <FormItem>
-                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--hairline-rule)] p-3.5 transition-colors hover:bg-muted/40 has-data-[state=checked]:border-[var(--ink)]/40 has-data-[state=checked]:bg-[var(--ink-subtle)]">
                           <FormControl>
                             <Checkbox className="mt-0.5" checked={Boolean(field.value)} onCheckedChange={field.onChange} />
                           </FormControl>
@@ -875,7 +875,7 @@ export function IntakeWizard() {
         </div>
 
         {/* --- Navigation --- */}
-        <div className="mt-9 flex items-center justify-between gap-3 border-t border-border pt-6">
+        <div className="mt-9 flex items-center justify-between gap-3 border-t border-[var(--hairline)] pt-6">
           <Button
             type="button"
             variant="ghost"

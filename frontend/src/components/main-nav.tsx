@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { LEAF_ORIGIN_ATTR } from "@/components/leaf-transition";
+
 // Primaer-Navigation im Header. Client-Komponente nur wegen usePathname
 // (aktiver Link) -- das Layout selbst bleibt Server Component. Dezente
 // Text-Links auf den Design-Tokens, keine Pill-Nav: aktiv = Tinten-Akzent
@@ -54,6 +56,9 @@ export function MainNav({ authenticated }: { authenticated: boolean }) {
             key={link.href}
             href={link.href}
             aria-current={active ? "page" : undefined}
+            // Blatt-Effekt beim Seitenwechsel (v4.2). Der aktive Link wechselt
+            // die Seite nicht -- also auch keine Blaetter.
+            {...(active ? {} : { [LEAF_ORIGIN_ATTR]: "" })}
             className={
               active
                 ? "text-[0.8rem] font-semibold text-[var(--ink)] underline decoration-[var(--ink)]/40 decoration-1 underline-offset-[6px]"

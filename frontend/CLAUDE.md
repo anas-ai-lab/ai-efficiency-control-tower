@@ -8,7 +8,13 @@ Use-Case-Intake und KI-Triage. Privates Portfolio-Projekt, kein SaaS.
 - Next.js 16 (App Router, TypeScript, Turbopack als Default-Bundler)
 - Tailwind CSS v4 + shadcn/ui (new-york Style, Zinc-Basis)
 - react-hook-form + zod fuer Client-seitige Formular-Validierung
-- KEINE Framer Motion in diesem Tag -- erst nach expliziter Anforderung
+- motion (Framer Motion, v12) -- seit dem Gestaltungs-Pass v4.2 auf explizite
+  Anforderung aufgenommen (vorher hier ausgeschlossen). Einsatz bewusst eng:
+  NUR der Feder-Hover der Startseiten-Kacheln (nav-tile.tsx) und die
+  Zaehl-Animation der Kennzahlen (stat-card.tsx). Alles andere bleibt CSS --
+  eine Motion-Bibliothek ist kein Grund, bestehende Keyframes zu ersetzen.
+  Der Blatt-Effekt beim Seitenwechsel laeuft NICHT ueber motion, sondern ueber
+  ein eigenes Canvas (leaf-transition.tsx).
 
 ## Sicherheitsregel (NICHT BRECHEN)
 - AECT_API_KEY liegt ausschliesslich in frontend/.env.local
@@ -76,8 +82,12 @@ MARGINAL_GAIN   -> gedaempftes Rot    (--zone-gain-*)
   farbige Box-Shadow-Bleeds, Glassmorphism/Frosted-Blur, Emoji im UI,
   symmetrische 3-Spalten-Hero-Grids, generische Card+CardHeader+CardTitle auf
   jedem Block, Badge-Outline-als-Verdikt.
-- Typografie traegt die Hierarchie: Geist Sans (Text) + Geist Mono (Zahlen).
-  Kennzahlen = .stat-value (mono, tabular-nums, gross). Sektionsmarken = .eyebrow.
+- Typografie traegt die Hierarchie: Geist Sans (Text) + Source Serif 4 (nur
+  H1/H2) + Geist Mono (Zahlen). Kennzahlen = .stat-value (mono, tabular-nums,
+  gross). Sektionsmarken = .eyebrow.
+- Hairlines statt Kaesten: --hairline (Trennung in der Flaeche), --hairline-rule
+  (Trennung zwischen Flaechen), --hairline-accent (nur interaktiv, laeuft bei
+  Hover/Fokus ein). Neue Trennlinien konsumieren diese Tokens, nicht border-border.
 - Layout: grosszuegiger, intentionaler Weissraum auf 4px-Raster. Intake-Form
   nutzt zweispaltiges Editorial-Layout (links Meta, rechts Felder), keine Cards.
 - VISUAL_DENSITY: 3 (war 4 -- Dichte-Constraints fuer das Redesign aufgehoben).

@@ -23,10 +23,10 @@ export function ContactCard() {
   const t = useTranslations("contact")
 
   return (
-    <aside className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-5 py-3.5">
+    <aside className="mb-10 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--hairline-rule)] bg-card px-5 py-4">
       <span
         aria-hidden
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[var(--hairline)] bg-muted text-muted-foreground"
       >
         <Mail className="size-4" />
       </span>

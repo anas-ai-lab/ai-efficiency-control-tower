@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-source-serif);
   /* Der eine Akzent: ein gedecktes Tinten-Blau, nur fuer interaktive Elemente. */
@@ -70,6 +70,34 @@
   /* Text auf der Gradient-Flaeche: in beiden Themes hell (Gradient bleibt
      dunkelblau). Separat, weil --ink-foreground pro Theme kippt. */
   --gradient-hero-fg: oklch(0.99 0.008 265);
+
+  /* === Hairlines (v4.2) -- das tragende Gestaltungselement ===================
+     Eine Linie statt eines Kastens, wo eine Linie reicht. Drei Staerken:
+     -hair  = Trennung innerhalb einer Flaeche (fast unsichtbar, nur Ordnung)
+     -rule  = Trennung zwischen Flaechen (die Regel-Linie)
+     -accent= Akzent-Hairline, laeuft bei Hover/Fokus ein (nur interaktiv)
+     Beide Themes gespiegelt; alle Flaechen konsumieren diese Tokens. */
+  --hairline: color-mix(in oklch, var(--border), transparent 45%);
+  --hairline-rule: var(--border);
+  --hairline-accent: var(--brand-accent);
+
+  /* === Motion-Token ==========================================================
+     Die CSS-Feder fuer Zustandswechsel, die ohne JS auskommen (aktuell: der
+     Anteils-Balken der Kennzahl-Karten). Gedaempft, Zeta 0.78, ~1.8%
+     Ueberschwingen -- genug Federung, dass es lebendig wirkt, zu wenig fuer
+     "bouncy" (MOTION_INTENSITY 3). Die Kachel-Hover federn ueber motion/react
+     mit derselben Anmutung; ein Bewegungsgefuehl, zwei Techniken.
+     Der gerichtete Ausklang cubic-bezier(0.16, 1, 0.3, 1) bleibt in den
+     Keyframes unten literal -- er ist dort seit dem Redesign etabliert. */
+  --ease-spring: linear(
+    0, 0.047, 0.156, 0.293, 0.435, 0.568, 0.684, 0.78, 0.856, 0.913, 0.954,
+    0.983, 1.001, 1.011, 1.017, 1.018, 1.017, 1.015, 1.012, 1.01, 1.007, 1.005,
+    1.003, 1.001, 1
+  );
+
+  /* Blatt-Partikel beim Seitenwechsel: monochrom, kippt mit dem Theme.
+     Light = Tinte auf Papier, Dark = helles Blatt auf Nacht. */
+  --leaf: oklch(0.205 0.012 255);
 
   /* Naehe an Weiss, mit minimal kuehlem Unterton -- nicht klinisch reinweiss. */
   --background: oklch(0.992 0.001 250);
@@ -149,6 +177,15 @@
     #23237a,
     #3a3ad6
   ); /* tiefe Toene, dezent -- nicht die aufgehellten Marken-Tokens */
+
+  /* Hairlines (Dark-Spiegel): --border ist hier bereits eine Alpha-Weiss-Stufe,
+     die Abstufung laeuft also ueber die Deckkraft statt ueber die Helligkeit. */
+  --hairline: oklch(1 0 0 / 5%);
+  --hairline-rule: oklch(1 0 0 / 11%);
+  --hairline-accent: var(--brand-accent);
+
+  /* Blatt auf dunkler Flaeche: heller Ton, gleiche Deckkraft-Logik. */
+  --leaf: oklch(0.96 0.003 250);
 
   --background: oklch(0.165 0.008 260);
   --foreground: oklch(0.96 0.003 250);
@@ -369,6 +406,30 @@
     background: var(--ink);
     border-radius: inherit;
     animation: progress-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+/* --- reduced-motion: der einfache Fade als Ersatz ---------------------------
+   Der Blatt-Effekt beim Seitenwechsel entfaellt hier vollstaendig -- die
+   leaf-transition-Komponente spawnt dann gar nichts. Damit ein Seitenwechsel
+   trotzdem lesbar bleibt, ersetzt ein reiner Opazitaets-Fade die gerichteten
+   Bewegungen: Deckkraft ist die ausdruecklich zugelassene Alternative zu
+   Bewegung, kein Transform, keine Richtung. */
+@keyframes view-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-view-enter,
+  .animate-step-forward,
+  .animate-step-back,
+  .stagger > * {
+    animation: view-fade 0.2s ease-out both;
   }
 }
 

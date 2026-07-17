@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Inter, Source_Serif_4, Geist_Mono } from "next/font/google";
+import { Geist, Source_Serif_4, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
@@ -9,11 +9,15 @@ import { LangToggle } from "@/components/lang-toggle";
 import { UnsavedGuardProvider } from "@/components/unsaved-guard";
 import { MainNav } from "@/components/main-nav";
 import { AuthControl } from "@/components/auth-control";
+import { LeafTransition } from "@/components/leaf-transition";
 import { checkAuth } from "@/app/actions";
 
-// Body-Schrift: Inter -- neutraler Grotesk-Workhorse (ruhig, hohe Lesbarkeit).
-const inter = Inter({
-  variable: "--font-inter",
+// Body-Schrift: Geist Sans (v4.2, vorher Inter). Praeziser Grotesk mit engeren
+// Punzen und ruhigerem Rhythmus als Inter. Ausschlaggebend war die Verwandtschaft
+// zu Geist Mono: Ziffernbreiten und Strichstaerke laufen zwischen Fliesstext und
+// den .stat-value/.tnum-Zahlen zusammen, statt sichtbar zu springen.
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
   display: "swap",
 });
@@ -66,7 +70,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       suppressHydrationWarning
-      className={`${inter.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
@@ -74,8 +78,17 @@ export default async function RootLayout({
       <body className="flex min-h-full flex-col bg-background">
         <NextIntlClientProvider messages={messages}>
         <UnsavedGuardProvider>
-        <header className="sticky top-0 z-40 border-b border-border/70 bg-background">
-          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-5 sm:px-6">
+        {/* Blatt-Overlay: liegt im Layout (nicht in children), damit der Schwarm
+            den Seitenwechsel ueberlebt. Beruehrt die Theme-Transition nicht --
+            siehe Architektur-Notiz in leaf-transition.tsx. */}
+        <LeafTransition />
+        <header className="sticky top-0 z-40 border-b border-[var(--hairline-rule)] bg-background">
+          {/* Rahmenbreite = Inhaltsbreite der oeffentlichen Seiten (max-w-5xl:
+              Startseite, Ideenliste). Vorher max-w-3xl -- die Wortmarke stand
+              dadurch sichtbar nach innen versetzt gegen den Hero, den sie
+              rahmen soll. /board laeuft weiterhin auf 6xl und bleibt damit
+              minimal breiter als der Rahmen; das ist vorbestehend. */}
+          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-5 sm:px-6">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <Link
                 href="/"
@@ -103,8 +116,8 @@ export default async function RootLayout({
 
         <div className="flex-1">{children}</div>
 
-        <footer className="mt-auto border-t border-border/70">
-          <div className="mx-auto flex max-w-3xl items-start gap-3 px-5 py-5 sm:px-6">
+        <footer className="mt-auto border-t border-[var(--hairline-rule)]">
+          <div className="mx-auto flex max-w-5xl items-start gap-3 px-5 py-6 sm:px-6">
             <span
               aria-hidden
               className="mt-px font-mono text-[0.6rem] font-semibold tracking-wider text-muted-foreground/70"
