@@ -211,9 +211,6 @@ jobs:
       - name: TypeScript check
         run: npm run --prefix frontend typecheck
 
-      - name: TypeScript check
-        run: npm run --prefix frontend typecheck
-
       - name: Lint — eslint
         run: npm run --prefix frontend lint
 
@@ -222,12 +219,6 @@ jobs:
       # next-intl wirft dort nicht, es rendert den Pfad als Text.
       - name: i18n check — Paritaet + Verwendung
         run: npm run --prefix frontend i18n:check
-
-      - name: Build
-        run: npm run --prefix frontend build
-        env:
-          AECT_API_KEY: test-key-for-ci
-          AECT_API_BASE_URL: http://localhost:8000
 
       - name: Build
         run: npm run --prefix frontend build
