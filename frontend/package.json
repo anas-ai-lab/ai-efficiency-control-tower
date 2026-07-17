@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "generate-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/api.generated.ts",
     "generate-types:file": "openapi-typescript ../openapi.json -o src/types/api.generated.ts",
-    "i18n:check": "node scripts/check-i18n-parity.mjs",
+    "i18n:check": "node scripts/check-i18n-parity.mjs && node scripts/check-i18n-usage.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {

@@ -217,6 +217,12 @@ jobs:
       - name: Lint — eslint
         run: npm run --prefix frontend lint
 
+      # Paritaet de<->en UND Code -> Katalog. Zweiteres faengt einen
+      # Katalog-Cleanup, der einen noch referenzierten Key entfernt --
+      # next-intl wirft dort nicht, es rendert den Pfad als Text.
+      - name: i18n check — Paritaet + Verwendung
+        run: npm run --prefix frontend i18n:check
+
       - name: Build
         run: npm run --prefix frontend build
         env:
