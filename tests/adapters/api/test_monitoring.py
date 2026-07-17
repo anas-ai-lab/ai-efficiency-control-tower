@@ -135,6 +135,37 @@ async def test_missing_note_returns_422() -> None:
     assert response.status_code == 422
 
 
+async def test_whitespace_only_note_returns_422_and_creates_no_entry() -> None:
+    # V4.1-S10: min_length=1 allein liess "   " durch -- ein append-only
+    # Eintrag ohne Inhalt, der per ADR-0046 nie wieder loeschbar waere.
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        response = await client.post(
+            f"/cases/{case_id}/monitoring", json={"note": "   "}, headers=_AUTH
+        )
+        entries = await client.get(f"/cases/{case_id}/monitoring", headers=_AUTH)
+
+    assert response.status_code == 422
+    assert entries.json() == []
+
+
+async def test_note_is_stored_trimmed() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        response = await client.post(
+            f"/cases/{case_id}/monitoring",
+            json={"note": "  Pilot gestartet  "},
+            headers=_AUTH,
+        )
+
+    assert response.status_code == 201
+    assert response.json()["note"] == "Pilot gestartet"
+
+
 async def test_note_exceeding_max_length_returns_422() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"

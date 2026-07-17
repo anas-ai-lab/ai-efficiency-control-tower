@@ -465,14 +465,17 @@ class DiscontinuedResponse(BaseModel):
     discontinued: bool
 
 
-# reason/actor_name (V4.1-S10): strip_whitespace VOR den Laengenpruefungen --
-# sonst kaeme " " durch min_length=1 und stuende als leere Begruendung im
-# Verlauf. Die 422 bei Leereingabe ist der eigentliche Zweck des Schemas, nicht
-# ein Nebeneffekt: ohne beide Angaben darf der Akt nicht stattfinden.
-_ReasonField = Annotated[
+# Pflicht-Freitext (V4.1-S10): strip_whitespace VOR den Laengenpruefungen --
+# sonst kaeme "   " durch min_length=1 und stuende als leere Begruendung bzw.
+# leere Notiz in der Zeitleiste. Die 422 bei Leereingabe ist der eigentliche
+# Zweck, nicht ein Nebeneffekt: ohne Angabe darf der Eintrag nicht entstehen.
+# Geteilt von DiscontinueEventRequest.reason und MonitoringNoteRequest.note --
+# beide sind Freitext mit derselben Obergrenze (Token-Flooding-Schutz).
+_RequiredText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
 ]
-_ActorNameField = Annotated[
+# Kuerzer: ein Name, kein Fliesstext.
+_RequiredName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
 ]
 
@@ -493,8 +496,8 @@ class DiscontinueEventRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    reason: _ReasonField
-    actor_name: _ActorNameField
+    reason: _RequiredText
+    actor_name: _RequiredName
 
 
 @router.post("/{case_id}/discontinue", response_model=DiscontinuedResponse)
@@ -622,11 +625,17 @@ class MonitoringNoteRequest(BaseModel):
     note: Pflicht-Freitext (min 1, max 2000 -- Substanz + Token-Flooding-Schutz,
     aect-security-checklist v2.1 Phase A). extra="forbid" konsistent mit den
     uebrigen Request-Schemas.
+
+    strip_whitespace (V4.1-S10): dieselbe Behandlung wie reason/actor_name in
+    DiscontinueEventRequest. Zuvor liess min_length=1 eine Notiz aus reinen
+    Leerzeichen durch -- ein append-only Eintrag, der nichts festhaelt und
+    (per ADR-0046) nie wieder loeschbar ist. Der Trim wirkt vor der
+    Laengenpruefung und macht "   " zur 422 statt zum Datensatz.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    note: str = Field(min_length=1, max_length=2000)
+    note: _RequiredText
 
 
 class MonitoringEntryResponse(BaseModel):

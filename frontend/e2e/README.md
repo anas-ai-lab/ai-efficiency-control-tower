@@ -1,9 +1,9 @@
 # UI-Smoke-Tests
 
-Drei Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
-machen (S3-Nachtrag, erweitert in V4.1-S8). Sie laufen gegen **lokal laufende
-Prozesse**, nicht gegen einen von Playwright selbst gestarteten Server -- so wird
-exakt der Stack geprueft, den man sonst von Hand bedient.
+Vier Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
+machen (S3-Nachtrag, erweitert in V4.1-S8 und -S10). Sie laufen gegen **lokal
+laufende Prozesse**, nicht gegen einen von Playwright selbst gestarteten Server --
+so wird exakt der Stack geprueft, den man sonst von Hand bedient.
 
 ## Was geprueft wird
 
@@ -37,6 +37,23 @@ exakt der Stack geprueft, den man sonst von Hand bedient.
   bewusst Positiv-Kontrollen (Titel, Entscheidung, Begruendung sichtbar): ohne sie
   wuerde jede Fehler- oder Ladeseite den Test bestehen, weil auf ihr die
   verbotenen Begriffe ebenfalls fehlen.
+
+`discontinue-dialog.spec.ts` (Guard fuer ADR-0053):
+
+- **`d) Begruendungspflicht beim Einstellen`** -- legt einen bewerteten Case an,
+  gibt ihn als Admin frei (erst dann steht er im Monitoring) und oeffnet den
+  Einstellen-Dialog. Geprueft wird die **UI-Haelfte** der Zusicherung "ohne
+  Begruendung UND Name kein Akt": Absenden bleibt gesperrt bei leeren Feldern,
+  bei nur einem gefuellten Feld und -- der eigentliche Grund fuer den Test -- bei
+  Feldern aus reinem **Whitespace** (`"   "` ist nicht leer und passiert eine
+  naive `required`-Pruefung). Erst mit beiden Angaben wird der Button frei; danach
+  laeuft der Akt echt durch und der Verlauf zeigt Aktion, Name und Begruendung.
+  Die API-Haelfte (422) liegt in `tests/adapters/api/test_discontinue.py`.
+  *Braucht Frontend + Backend + Admin-Passwort.*
+
+  Die Freigabe laeuft ueber `page.request` **mit dem Session-Cookie** des
+  eingeloggten Browser-Contexts (Cookies sind host-, nicht portgebunden) -- kein
+  API-Key im Test, echter Admin-Pfad.
 
 ## Voraussetzungen (einmalig)
 

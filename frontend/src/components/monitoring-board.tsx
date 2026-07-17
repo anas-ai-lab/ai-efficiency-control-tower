@@ -71,8 +71,16 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
         {/* basis-full unter sm: Titel + Abteilung bekommen eine eigene Zeile,
             statt sich mit den Badges um dieselbe zu druecken. Ab sm traegt
-            flex-1 den Rest der Breite. */}
-        <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
+            flex-1 den Rest der Breite.
+
+            min-w-[14rem] ist die Untergrenze, nicht Kosmetik: ohne sie druecken
+            die shrink-0-Geschwister den Titel bei langem Text auf ~200px, er
+            bricht auf fuenf Zeilen um, und das vertikal zentrierte Badge landet
+            MITTEN im Titelblock -- optisch genau die Ueberlappung, die hier
+            behoben werden soll (im Screenshot-Durchlauf bei 768px und 1280px
+            gesehen). Mit der Untergrenze weichen stattdessen die Geschwister in
+            die naechste Zeile aus (flex-wrap), der Titel bleibt zweizeilig. */}
+        <div className="min-w-0 basis-full sm:min-w-[14rem] sm:flex-1 sm:basis-0">
           <Link
             href={`/cases/${c.id}`}
             className="font-medium text-foreground underline-offset-2 hover:underline"

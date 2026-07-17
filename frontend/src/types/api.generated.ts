@@ -1511,6 +1511,12 @@ export interface components {
          *     note: Pflicht-Freitext (min 1, max 2000 -- Substanz + Token-Flooding-Schutz,
          *     aect-security-checklist v2.1 Phase A). extra="forbid" konsistent mit den
          *     uebrigen Request-Schemas.
+         *
+         *     strip_whitespace (V4.1-S10): dieselbe Behandlung wie reason/actor_name in
+         *     DiscontinueEventRequest. Zuvor liess min_length=1 eine Notiz aus reinen
+         *     Leerzeichen durch -- ein append-only Eintrag, der nichts festhaelt und
+         *     (per ADR-0046) nie wieder loeschbar ist. Der Trim wirkt vor der
+         *     Laengenpruefung und macht "   " zur 422 statt zum Datensatz.
          */
         MonitoringNoteRequest: {
             /** Note */
