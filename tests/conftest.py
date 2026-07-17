@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
+from aect.adapters.api.settings import Settings
 from aect.domain import UseCaseInput, load_roi_config
 from aect.domain.roi import ROIConfig
 from aect.domain.types import (
@@ -15,6 +18,58 @@ from aect.domain.types import (
     EvidenceLevel,
     ImplementationApproach,
 )
+
+
+# ---------------------------------------------------------------------------
+# Test-Isolation gegen die lokale .env
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True, scope="session")
+def _isolate_settings_from_local_env() -> Iterator[None]:
+    """Kappt die .env-Datei als Settings-Quelle fuer den gesamten Testlauf.
+
+    WARUM (belegter Befund, nicht vorsorglich):
+    Settings (pydantic-settings) liest ``.env`` ueber model_config; die
+    Prioritaet ist Konstruktor-Kwargs > Key Vault > Env > .env. Die Suite baut
+    ihre Settings mit Kwargs (z. B. ``Settings(api_key=TEST_API_KEY)``) -- alle
+    NICHT genannten Felder fallen aber weiter auf die lokale .env durch. Ein
+    dort gesetztes ``AECT_DB_PATH=data/aect.db`` (die echte Entwickler-DB)
+    schlug damit auf zwei Wegen in die Tests durch:
+
+      1. get_triage_service() -> SQLiteRepository auf jener DB. GET /cases
+         lieferte deren echte Cases statt ``[]`` -- und schlimmer: die Suite
+         SCHRIEB ihre Testfaelle dort hinein (kumulativ, Lauf fuer Lauf).
+      2. get_token_budget_store() -> SQLiteTokenBudgetStore auf derselben DB.
+         Der Token-Verbrauch der Budget-Tests ueberlebte den Prozess: im selben
+         Stundenfenster startete der naechste Lauf mit erschoepftem Budget und
+         bekam 429 statt 200. Der autouse-Reset in tests/adapters/api/conftest.py
+         leert nur den In-Memory-Store und lief dagegen ins Leere.
+
+    Beide Symptome hatten also EINE Ursache, aber zwei Mechanismen.
+
+    WARUM SO:
+    ``db_path=""`` (= In-Memory-Adapter) ist der dokumentierte Default und exakt
+    der Zustand, den CI faehrt: dort existiert keine .env (gitignored) und der
+    pytest-Job setzt keine AECT_-Variablen -- deshalb war CI immer gruen und nur
+    lokal rot. Der Fix stellt lokal denselben Zustand her, statt eine
+    Temp-SQLite-Datei zu erfinden, die keine der beiden Umgebungen nutzt.
+
+    ``AECT_DB_PATH`` wird zusaetzlich aus os.environ entfernt: sonst reichte ein
+    exportiertes ``AECT_DB_PATH=... uv run pytest``, um dieselbe Falle ueber die
+    Env-Quelle wieder aufzureissen.
+
+    NICHT GEKAPPT: die Env-Quelle als solche bleibt aktiv --
+    test_keyvault_settings.py setzt AECT_API_KEY/AECT_AZURE_KEY_VAULT_URL per
+    monkeypatch und prueft genau deren Vorrang. Nur die Datei-Quelle faellt weg.
+
+    Session-Scope genuegt: get_settings() hat bewusst keinen lru_cache und es
+    gibt keine modul-globale Settings()-Instanz zur Importzeit -- jede Instanz
+    entsteht erst zur Request-/Aufrufzeit, also lange nach dieser Fixture.
+    """
+    mp = pytest.MonkeyPatch()
+    mp.setitem(Settings.model_config, "env_file", None)
+    mp.delenv("AECT_DB_PATH", raising=False)
+    yield
+    mp.undo()
 
 
 # ---------------------------------------------------------------------------
