@@ -613,6 +613,9 @@
     "autoSupports": "What favors automation"
   },
   "enums": {
+    "caseField": {
+      "implementation_approach": "Implementation approach"
+    },
     "country": {
       "de": "Germany",
       "at": "Austria",

@@ -613,6 +613,9 @@
     "autoSupports": "Wofür Automatisierung spricht"
   },
   "enums": {
+    "caseField": {
+      "implementation_approach": "Implementierungsansatz"
+    },
     "country": {
       "de": "Deutschland",
       "at": "Österreich",
