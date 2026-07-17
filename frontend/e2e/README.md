@@ -1,7 +1,7 @@
 # UI-Smoke-Tests
 
-Vier Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
-machen (S3-Nachtrag, erweitert in V4.1-S8 und -S10). Sie laufen gegen **lokal
+Playwright-Tests, die die bisher manuelle Durchklick-Pruefung reproduzierbar
+machen (S3-Nachtrag, erweitert in V4.1-S8, -S10 und -S11). Sie laufen gegen **lokal
 laufende Prozesse**, nicht gegen einen von Playwright selbst gestarteten Server --
 so wird exakt der Stack geprueft, den man sonst von Hand bedient.
 
@@ -54,6 +54,22 @@ so wird exakt der Stack geprueft, den man sonst von Hand bedient.
   Die Freigabe laeuft ueber `page.request` **mit dem Session-Cookie** des
   eingeloggten Browser-Contexts (Cookies sind host-, nicht portgebunden) -- kein
   API-Key im Test, echter Admin-Pfad.
+
+`intake-review-step.spec.ts` (Guard gegen die V4.1-Absende-Regression):
+
+- **`e) Kein Absenden ohne Bestaetigung`** -- klickt den Wizard bis ans Ende durch
+  und prueft, dass "Weiter" im vorletzten Schritt die **Zusammenfassung** zeigt
+  (vier Abschnitte, Werte read-only) statt abzusenden -- kein Erfolgs-Screen, und
+  "Ändern" springt zum Korrigieren zurueck. Der Test stoppt **vor** dem Absenden,
+  legt also keinen Case an. *Braucht nur das Frontend.*
+
+  Hintergrund: der Klick auf "Weiter" hat den Case zeitweise **sofort** abgesendet
+  -- derselbe DOM-Button wechselte von `type="button"` auf `type="submit"`, waehrend
+  der Klick noch im Dispatch war (`goNext` ist async -> React flusht den neuen
+  Schritt im Microtask-Checkpoint, die Activation-Behavior des Browsers laeuft
+  **danach** und traf den inzwischen zum Absende-Button gewordenen Knoten). Reines
+  Code-Lesen findet das nicht: im Markup steht ein sauberer Bestaetigungs-Schritt.
+  Darum ein Browser-Test statt einer Code-Regel.
 
 ## Voraussetzungen (einmalig)
 

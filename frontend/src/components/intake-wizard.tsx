@@ -887,13 +887,29 @@ export function IntakeWizard() {
             {tc("back")}
           </Button>
 
+          {/* Beide Buttons sind type="button" und tragen eigene keys -- der
+              Absende-Button darf NICHT type="submit" sein:
+              "Weiter" im vorletzten Schritt setzt den Schritt-State noch
+              waehrend des Click-Dispatches (goNext ist async, React flusht im
+              Microtask-Checkpoint nach dem Listener). Der Browser fuehrt die
+              Activation-Behavior des Klicks DANACH aus -- bei type="submit"
+              waere das geklickte DOM-Element dann bereits der Absende-Button
+              und der Case ginge raus, ohne dass die Zusammenfassung je zu
+              sehen war. Belegt im Browser (Playwright), nicht nur theoretisch.
+              Abgesendet wird ausschliesslich per explizitem Klick unten. */}
           {isLast ? (
-            <Button type="submit" size="lg" disabled={isPending}>
+            <Button
+              key="submit"
+              type="button"
+              size="lg"
+              disabled={isPending}
+              onClick={form.handleSubmit(onSubmit)}
+            >
               {isPending && <Loader2 className="size-4 animate-spin" />}
               {isPending ? t("submitting") : t("submit")}
             </Button>
           ) : (
-            <Button type="button" size="lg" onClick={goNext}>
+            <Button key="next" type="button" size="lg" onClick={goNext}>
               {tc("next")}
               <ArrowRight className="size-4" />
             </Button>

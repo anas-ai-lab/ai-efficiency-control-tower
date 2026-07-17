@@ -327,7 +327,13 @@
   .animate-step-back {
     animation: step-in-back 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .animate-success-mark {
+  /* Der Haken sitzt als direktes Kind in einer .stagger-Kaskade. Deren
+     generische Regel (.stagger > *, gleiche Spezifitaet, weiter unten im
+     Stylesheet) wuerde den Aufbau sonst mit view-enter ueberschreiben -- die
+     Kind-Variante ist spezifischer und gewinnt unabhaengig von der Reihenfolge.
+     Das Delay der Kaskade (nth-child) bleibt davon unberuehrt. */
+  .animate-success-mark,
+  .stagger > .animate-success-mark {
     animation: success-mark 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .stagger > * {
