@@ -281,7 +281,8 @@
     "error": "Entscheidung fehlgeschlagen.",
     "saving": "Wird gespeichert …",
     "approve": "Freigeben",
-    "reject": "Ablehnen"
+    "reject": "Ablehnen",
+    "analysisRunning": "Analyse läuft — Entscheidung erst nach Abschluss möglich."
   },
   "report": {
     "tabDecision": "Entscheider",
@@ -341,7 +342,8 @@
     "tabBusiness": "Management-Variante",
     "reject": "Verwerfen",
     "accept": "Übernehmen",
-    "accepting": "Wird übernommen …"
+    "accepting": "Wird übernommen …",
+    "confirmDiscard": "Vorschlag verwerfen? Der Entwurf geht verloren und müsste neu erzeugt werden."
   },
   "monitoring": {
     "metaTitle": "Monitoring | AECT",

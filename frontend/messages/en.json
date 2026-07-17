@@ -281,7 +281,8 @@
     "error": "Decision failed.",
     "saving": "Saving …",
     "approve": "Approve",
-    "reject": "Reject"
+    "reject": "Reject",
+    "analysisRunning": "Analysis running — decision possible once it has finished."
   },
   "report": {
     "tabDecision": "Decision-maker",
@@ -341,7 +342,8 @@
     "tabBusiness": "Management variant",
     "reject": "Discard",
     "accept": "Accept",
-    "accepting": "Accepting …"
+    "accepting": "Accepting …",
+    "confirmDiscard": "Discard proposal? The draft will be lost and would have to be regenerated."
   },
   "monitoring": {
     "metaTitle": "Monitoring | AECT",

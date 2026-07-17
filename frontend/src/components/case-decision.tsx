@@ -2,19 +2,25 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CheckCircle2, Circle, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 
 import type { ReviewerDecision } from "@/types/api";
 import { recordDecision } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
+import { useLlmBusy } from "@/components/llm-busy";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 // Reviewer-Entscheidung (Human-in-the-Loop, ADR-0043) -- Bereich 3
 // "Entscheidung & Report" der Detailseite (S4). Bewusst OHNE Werkzeug-Buttons
 // (Zielgruppe: Entscheider). Aus der frueheren CaseAdminActions herausgeloest;
-// Verhalten unveraendert, nur router.refresh() -> hardRefresh() (Prod-Cache).
+// router.refresh() -> hardRefresh() (Prod-Cache).
+//
+// Solange ein Werkzeug aus Bereich 2 einen LLM-Call offen hat (useLlmBusy),
+// ist die Entscheidung gesperrt UND der Grund steht daneben. Ohne die Sperre
+// landete der Klick in der serialisierten Server-Action-Warteschlange und der
+// Button behauptete minutenlang "Wird gespeichert …" (s. llm-busy.tsx).
 
 interface Props {
   caseId: string;
@@ -36,6 +42,10 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
   const [note, setNote] = useState(reviewerNote ?? "");
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Laeuft parallel eine Analyse (Bereich 2)? Dann waere jeder Klick nur eine
+  // stille Wartemarke -- lieber sperren und den Grund zeigen.
+  const analysisRunning = useLlmBusy();
+  const waiting = analysisRunning && busy === null;
 
   const view = DECISION_VIEW[reviewerDecision];
   const Icon = view.icon;
@@ -69,14 +79,27 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
         rows={2}
       />
       <ActionError message={error} className="mt-3" />
+      {waiting && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-4 animate-spin text-[var(--ink)]" />
+          {t("analysisRunning")}
+        </p>
+      )}
       <div className="mt-3 flex gap-2">
-        <Button onClick={() => handleDecide("approved")} disabled={busy !== null}>
+        <Button
+          onClick={() => handleDecide("approved")}
+          disabled={busy !== null || analysisRunning}
+        >
           {busy === "approved" ? t("saving") : t("approve")}
         </Button>
         <Button
           variant="destructive"
           onClick={() => handleDecide("rejected")}
-          disabled={busy !== null}
+          disabled={busy !== null || analysisRunning}
         >
           {busy === "rejected" ? t("saving") : t("reject")}
         </Button>

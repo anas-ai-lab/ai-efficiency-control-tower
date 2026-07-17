@@ -11,6 +11,7 @@ import type {
 import { generateComplianceHints, sharpenCase } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
+import { useTrackLlmCall } from "@/components/llm-busy";
 import { SharpeningReview } from "@/components/sharpening-review";
 import { SolutionModal } from "@/components/solution-modal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,9 @@ interface Props {
 
 export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
   const t = useTranslations("caseTools");
+  // Meldet die LLM-Calls an die Detailseite, damit die Entscheidung (Bereich 3)
+  // solange gesperrt bleibt statt in der Server-Action-Queue zu haengen.
+  const trackLlmCall = useTrackLlmCall();
   const [sharpenBusy, setSharpenBusy] = useState(false);
   const [sharpenError, setSharpenError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SharpenedCaseResponse | null>(null);
@@ -45,7 +49,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
     setSharpenBusy(true);
     setSharpenError(null);
     try {
-      setDraft(await sharpenCase(caseId));
+      setDraft(await trackLlmCall(() => sharpenCase(caseId)));
     } catch (e) {
       setSharpenError(e instanceof Error ? e.message : t("sharpenError"));
     } finally {
@@ -65,7 +69,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
       // Ergebnis inline anzeigen (kein hardRefresh): die Detailseite bleibt
       // stehen, der Report zieht die persistierte Fassung bei naechster
       // Navigation (revalidateCase in der Action).
-      setCompliance(await generateComplianceHints(caseId));
+      setCompliance(await trackLlmCall(() => generateComplianceHints(caseId)));
     } catch (e) {
       setComplianceError(
         e instanceof Error ? e.message : t("complianceError"),

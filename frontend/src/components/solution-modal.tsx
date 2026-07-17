@@ -8,6 +8,7 @@ import type { SolutionProposalResponse } from "@/types/api";
 import { acceptSolution, proposeSolution, rejectSolution } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
+import { useTrackLlmCall } from "@/components/llm-busy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,9 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // "Lösung vorschlagen" (S4-E): erzeugt einen Draft (propose, persistiert
 // solution_draft, aendert nichts am Case) und oeffnet ein Modal mit zwei
 // vollstaendig lesbaren, scrollbaren Reitern. "Übernehmen" persistiert beide
-// Varianten (accept), "Verwerfen" -- ebenso ein Schliessen ueber X/Escape/
-// Overlay -- verwirft den Draft serverseitig (reject) und hinterlaesst nichts.
-// Damit hat auch die technische Variante einen expliziten Freigabe-Weg.
+// Varianten (accept), "Verwerfen" verwirft den Draft serverseitig (reject).
+//
+// Beilaeufiges Schliessen (Escape/Overlay/X) fragt seit dem Skizzen-Befund
+// ZUERST nach: es verwarf den Entwurf kommentarlos, und weil die
+// Architektur-Skizze einen uebernommenen Vorschlag voraussetzt, blieb deren
+// Button danach dauerhaft grau -- ohne dass der Zusammenhang sichtbar war.
+// Der explizite "Verwerfen"-Button bleibt ohne Rueckfrage (erklaerter Wille).
 export function SolutionModal({
   caseId,
   hasSolution,
@@ -33,6 +38,7 @@ export function SolutionModal({
   hasSolution: boolean;
 }) {
   const t = useTranslations("solution");
+  const trackLlmCall = useTrackLlmCall();
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState<SolutionProposalResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +50,7 @@ export function SolutionModal({
     setError(null);
     acceptedRef.current = false;
     try {
-      setDraft(await proposeSolution(caseId));
+      setDraft(await trackLlmCall(() => proposeSolution(caseId)));
     } catch (e) {
       setError(
         e instanceof Error ? e.message : t("proposeError"),
@@ -67,16 +73,31 @@ export function SolutionModal({
     }
   }
 
-  // Schliessen ohne Übernehmen = Verwerfen: den offenen Draft serverseitig
-  // leeren (fire-and-forget; 409 "kein Draft" ist unkritisch).
-  function handleOpenChange(open: boolean) {
-    if (open) return;
+  // Verwerfen: den offenen Draft serverseitig leeren (fire-and-forget; 409
+  // "kein Draft" ist unkritisch) und schliessen.
+  function discardDraft() {
     if (draft !== null && !acceptedRef.current) {
       void rejectSolution(caseId).catch(() => {});
     }
     setDraft(null);
     setBusy(false);
     setError(null);
+  }
+
+  // Escape/Overlay/X: erst fragen, dann verwerfen. Ein "Abbrechen" laesst das
+  // Modal offen -- open haengt an draft, der early return genuegt also.
+  // Waehrend des Uebernehmens gar nicht schliessen: sonst wuerde der Reject
+  // dem laufenden Accept in den Ruecken fallen.
+  function handleOpenChange(open: boolean) {
+    if (open || busy) return;
+    if (
+      draft !== null &&
+      !acceptedRef.current &&
+      !window.confirm(t("confirmDiscard"))
+    ) {
+      return;
+    }
+    discardDraft();
   }
 
   return (
@@ -122,11 +143,7 @@ export function SolutionModal({
           {draft !== null && <ActionError message={error} className="mt-3" />}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={busy}
-            >
+            <Button variant="outline" onClick={discardDraft} disabled={busy}>
               {t("reject")}
             </Button>
             <Button onClick={handleAccept} disabled={busy}>

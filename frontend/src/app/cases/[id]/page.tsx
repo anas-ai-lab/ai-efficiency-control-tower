@@ -16,6 +16,7 @@ import { CaseReport } from "@/components/case-report";
 import { CaseResult } from "@/components/case-result";
 import { CaseStatusControl } from "@/components/case-status-control";
 import { CaseTools } from "@/components/case-tools";
+import { LlmBusyProvider } from "@/components/llm-busy";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
 import { RetryButton } from "@/components/retry-button";
 import { SketchView } from "@/components/sketch-view";
@@ -154,95 +155,101 @@ export default async function CaseDetailPage({
   const evaluated = !detail.evaluation_pending;
   const summary = report?.business_summary ?? null;
 
+  // LlmBusyProvider klammert Bereich 2 (Werkzeuge) und Bereich 3
+  // (Entscheidung): die Werkzeuge melden ihre laufenden LLM-Calls an, die
+  // Entscheidung sperrt solange mit sichtbarem Grund (s. llm-busy.tsx). Die
+  // Kinder bleiben Server-Komponenten -- der Provider reicht sie nur durch.
   return (
-    <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
-      {/* --- Kopf --- */}
-      <p className="eyebrow">{t("eyebrow")}</p>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-        {eingaben.title}
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {t("submittedLine", {
-          department: eingaben.department,
-          date: fmt.dateShort(detail.submitted_at),
-        })}
-      </p>
-      {/* Status zur Orientierung (read-only); die Steuerung lebt in Bereich 3. */}
-      <div className="mt-4 flex items-center gap-2">
-        <span className="eyebrow">{t("status")}</span>
-        <StatusBadge status={detail.status} />
-      </div>
+    <LlmBusyProvider>
+      <main className="mx-auto max-w-3xl px-5 py-12 sm:px-6">
+        {/* --- Kopf --- */}
+        <p className="eyebrow">{t("eyebrow")}</p>
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+          {eingaben.title}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("submittedLine", {
+            department: eingaben.department,
+            date: fmt.dateShort(detail.submitted_at),
+          })}
+        </p>
+        {/* Status zur Orientierung (read-only); die Steuerung lebt in Bereich 3. */}
+        <div className="mt-4 flex items-center gap-2">
+          <span className="eyebrow">{t("status")}</span>
+          <StatusBadge status={detail.status} />
+        </div>
 
-      {/* ===== Bereich 1: Use Case ===== */}
-      <AreaSection title={t("areaUseCase")}>
-        <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
-      </AreaSection>
+        {/* ===== Bereich 1: Use Case ===== */}
+        <AreaSection title={t("areaUseCase")}>
+          <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
+        </AreaSection>
 
-      {/* ===== Bereich 2: Analyse & Empfehlung ===== */}
-      <AreaSection title={t("areaAnalysis")}>
-        {detail.evaluation_pending ? (
-          <StatusBox
-            heading={ts("evaluationPending")}
-            body={t("pendingBody")}
-          />
-        ) : triage !== null ? (
-          <CaseResult triage={triage} />
-        ) : (
-          <StatusBox
-            heading={t("reviewingHeading")}
-            body={t("reviewingBody", { date: fmt.dateShort(detail.submitted_at) })}
-          />
-        )}
-
-        {/* Admin-Werkzeuge + Skizze nur fuer angemeldete Admins mit
-            ausgewertetem Case (report != null). */}
-        {authenticated && evaluated && report !== null && summary !== null && (
-          <div className="mt-8 space-y-6">
-            <CaseTools
-              caseId={detail.id}
-              hasSolution={summary.solution_business !== null}
-              hasCompliance={summary.compliance_hint_text !== null}
+        {/* ===== Bereich 2: Analyse & Empfehlung ===== */}
+        <AreaSection title={t("areaAnalysis")}>
+          {detail.evaluation_pending ? (
+            <StatusBox
+              heading={ts("evaluationPending")}
+              body={t("pendingBody")}
             />
-            <SketchView
-              caseId={detail.id}
-              initialSketch={initialSketch}
-              hasSolution={summary.solution_business !== null}
+          ) : triage !== null ? (
+            <CaseResult triage={triage} />
+          ) : (
+            <StatusBox
+              heading={t("reviewingHeading")}
+              body={t("reviewingBody", { date: fmt.dateShort(detail.submitted_at) })}
             />
-          </div>
-        )}
+          )}
 
-        {authenticated && (
-          <div className="mt-8">
-            <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
-          </div>
-        )}
-      </AreaSection>
-
-      {/* ===== Bereich 3: Entscheidung & Report ===== */}
-      {report !== null && summary !== null && (
-        <AreaSection title={t("areaDecision")}>
-          {authenticated && (
-            <div className="space-y-6">
-              <div>
-                <p className="eyebrow mb-2">{t("status")}</p>
-                <CaseStatusControl
-                  caseId={detail.id}
-                  initialStatus={detail.status}
-                />
-              </div>
-              <CaseDecision
+          {/* Admin-Werkzeuge + Skizze nur fuer angemeldete Admins mit
+              ausgewertetem Case (report != null). */}
+          {authenticated && evaluated && report !== null && summary !== null && (
+            <div className="mt-8 space-y-6">
+              <CaseTools
                 caseId={detail.id}
-                reviewerDecision={summary.reviewer_decision}
-                reviewerNote={summary.reviewer_note}
+                hasSolution={summary.solution_business !== null}
+                hasCompliance={summary.compliance_hint_text !== null}
+              />
+              <SketchView
+                caseId={detail.id}
+                initialSketch={initialSketch}
+                hasSolution={summary.solution_business !== null}
               />
             </div>
           )}
-          <div className={authenticated ? "mt-10" : ""}>
-            <p className="eyebrow mb-3">{t("report")}</p>
-            <CaseReport report={report} />
-          </div>
+
+          {authenticated && (
+            <div className="mt-8">
+              <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
+            </div>
+          )}
         </AreaSection>
-      )}
-    </main>
+
+        {/* ===== Bereich 3: Entscheidung & Report ===== */}
+        {report !== null && summary !== null && (
+          <AreaSection title={t("areaDecision")}>
+            {authenticated && (
+              <div className="space-y-6">
+                <div>
+                  <p className="eyebrow mb-2">{t("status")}</p>
+                  <CaseStatusControl
+                    caseId={detail.id}
+                    initialStatus={detail.status}
+                  />
+                </div>
+                <CaseDecision
+                  caseId={detail.id}
+                  reviewerDecision={summary.reviewer_decision}
+                  reviewerNote={summary.reviewer_note}
+                />
+              </div>
+            )}
+            <div className={authenticated ? "mt-10" : ""}>
+              <p className="eyebrow mb-3">{t("report")}</p>
+              <CaseReport report={report} />
+            </div>
+          </AreaSection>
+        )}
+      </main>
+    </LlmBusyProvider>
   );
 }

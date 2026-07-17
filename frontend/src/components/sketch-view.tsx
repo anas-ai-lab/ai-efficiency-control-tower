@@ -9,6 +9,7 @@ import {
   type SketchGenerateResult,
 } from "@/app/actions";
 import { LlmAction } from "@/components/llm-action";
+import { useTrackLlmCall } from "@/components/llm-busy";
 import { Button } from "@/components/ui/button";
 import { useFormat } from "@/lib/use-format";
 import type { ArchitectureSketchResponse } from "@/types/api";
@@ -149,6 +150,7 @@ export function SketchView({
 }: SketchViewProps) {
   const t = useTranslations("sketch");
   const fmt = useFormat();
+  const trackLlmCall = useTrackLlmCall();
   const [sketch, setSketch] = useState<ArchitectureSketchResponse | null>(
     initialSketch,
   );
@@ -164,7 +166,7 @@ export function SketchView({
     setError(null);
     let result: SketchGenerateResult;
     try {
-      result = await generateArchitectureSketch(caseId);
+      result = await trackLlmCall(() => generateArchitectureSketch(caseId));
     } finally {
       setIsLoading(false);
     }
