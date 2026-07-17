@@ -102,8 +102,7 @@
     "page": {
       "metaTitle": "Use Case einreichen | AECT",
       "eyebrow": "Erfassung",
-      "title": "Use Case einreichen",
-      "lead": "Beschreibe deinen Use Case in wenigen Schritten. AECT bewertet ihn anschließend automatisch."
+      "title": "Use Case einreichen"
     },
     "progressAria": "Fortschritt",
     "progressStep": "Schritt {current} / {total}",
@@ -122,12 +121,13 @@
     },
     "confirm": {
       "title": "Use Case eingereicht",
-      "body": "„{title}“ wurde erfasst und bewertet. Den vollständigen Bewertungsstand siehst du auf der Fall-Detailseite.",
+      "body": "„{title}“ ist eingereicht und gespeichert.",
       "toCase": "Zum Fall",
-      "toList": "Zur Ideenliste"
+      "toList": "Zur Ideenliste",
+      "next": "Als Nächstes bewertet das AI Board den Fall: Nutzen, Aufwand und Datenschutz werden geprüft, das Ergebnis erscheint auf der Fall-Detailseite."
     },
     "selectPlaceholder": "Bitte wählen",
-    "noteOptionalApproach": "Optional — kann später vom Admin ergänzt werden.",
+    "noteOptionalApproach": "Optional",
     "noteRequired": "Pflichtfeld",
     "fields": {
       "titleLabel": "Titel",
@@ -166,14 +166,16 @@
       "implCostHelp": "Einmalige Setup-/Integrationskosten.",
       "licenseCostLabel": "Lizenzkosten (wiederkehrend, € / Jahr)",
       "licenseCostPlaceholder": "0",
-      "licenseCostHelp": "0 = Open Source oder intern.",
       "dataClassLabel": "Datenschutzklasse",
       "piiLabel": "Enthält personenbezogene Daten (PII)",
-      "piiHelp": "Löst zusammen mit regulatorischem Druck die Empfehlung zu DSFA und menschlicher Prüfung aus. Die Datenschutzklasse oben steuert stattdessen den Aufwands-Score.",
+      "piiHelp": "Ankreuzen, wenn im Vorgang Daten zu einzelnen Personen vorkommen (z. B. Namen, Kunden- oder Mitarbeiterdaten). Trifft das zusammen mit „Regulatorischer Druck“ weiter unten zu, empfiehlt AECT, dass ein Mensch den Fall vor der Umsetzung prüft.",
       "adoptionLabel": "Verbindlichkeit der Nutzung",
       "evidenceLabel": "Evidenzlevel",
       "notesLabel": "Anmerkungen (optional)",
-      "notesPlaceholder": "Zusätzliche Infos für die Bewertung"
+      "notesPlaceholder": "Zusätzliche Infos für die Bewertung",
+      "currentStateHelp": "Beschreibe den Ablauf, wie er heute wirklich ist — inklusive der Stellen, an denen es hakt. Zum Beispiel: „Anfragen kommen per Mail und werden von Hand sortiert.“",
+      "desiredStateHelp": "Beschreibe, was am Ende anders sein soll — das Ergebnis, nicht die Technik. Zum Beispiel: „Anfragen sind vorsortiert und landen direkt beim richtigen Team.“",
+      "employeeCategoryHelp": "Welches Level hat die Mehrheit der Kolleginnen und Kollegen, die die Lösung nutzen sollen?"
     },
     "help": {
       "approach": {
@@ -239,10 +241,22 @@
       "rowAdoption": "Verbindlichkeit",
       "rowEvidence": "Evidenzlevel",
       "rowPressure": "Handlungsdruck",
-      "rowNotes": "Anmerkungen"
+      "rowNotes": "Anmerkungen",
+      "sectionIdee": "Idee",
+      "sectionMenge": "Zeit & Häufigkeit",
+      "sectionUmsetzung": "Umsetzung",
+      "sectionDaten": "Daten & Verbindlichkeit",
+      "editSection": "Ändern"
     },
     "submit": "Use Case einreichen",
-    "submitting": "Wird eingereicht …"
+    "submitting": "Wird eingereicht …",
+    "sectionIntro": {
+      "idee": "Hier beschreibst du, worum es geht: Wer reicht ein, wie der Ablauf heute aussieht und wie er künftig aussehen soll. Diese Texte sind die Grundlage für die inhaltliche Bewertung.",
+      "menge": "Hier erfasst du, wie viel Zeit der Vorgang kostet und wie oft er vorkommt. Daraus berechnet AECT den möglichen Zeitgewinn und den Nutzen in Euro.",
+      "umsetzung": "Hier schätzt du, wie die Lösung gebaut würde und was sie kostet. Daraus ergibt sich der Aufwand, der dem Nutzen gegenübergestellt wird.",
+      "daten": "Hier ordnest du ein, mit welchen Daten gearbeitet wird und wie verbindlich die Nutzung sein soll. Das steuert Datenschutz-Hinweise und die Verlässlichkeit der Schätzung.",
+      "pruefen": "Hier siehst du alle Eingaben noch einmal im Überblick. Nichts ist bisher gespeichert — erst der Absende-Button reicht den Use Case ein."
+    }
   },
   "result": {
     "howCalculated": "Wie wurde das berechnet?",

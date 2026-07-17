@@ -264,6 +264,44 @@
   }
 }
 
+/* Gerichteter Schrittwechsel im Intake-Wizard: die neue Ansicht kommt aus der
+   Richtung herein, in die navigiert wurde (vor = von rechts, zurueck = von
+   links). Gleiche Dauer/Kurve wie view-enter -- nur die Achse wechselt. */
+@keyframes step-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Bestaetigung nach dem Absenden: das Haken-Medaillon skaliert einmal ruhig auf
+   (kein Overshoot -- MOTION_INTENSITY 3, "nie bouncy"). */
+@keyframes success-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes skeleton-sweep {
   100% {
     transform: translateX(100%);
@@ -282,6 +320,15 @@
 @media (prefers-reduced-motion: no-preference) {
   .animate-view-enter {
     animation: view-enter 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-step-forward {
+    animation: step-in-forward 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-step-back {
+    animation: step-in-back 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-success-mark {
+    animation: success-mark 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .stagger > * {
     animation: view-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;

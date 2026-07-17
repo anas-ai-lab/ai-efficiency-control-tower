@@ -18,12 +18,11 @@ export default async function EinreichenPage() {
       <ContactCard />
       <header className="mb-8">
         <p className="eyebrow">{t("eyebrow")}</p>
+        {/* Kein Untertitel: was ein Abschnitt erfasst und wozu, steht am
+            jeweiligen Schritt (intake.sectionIntro.*) statt pauschal oben. */}
         <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-foreground">
           {t("title")}
         </h1>
-        <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-          {t("lead")}
-        </p>
       </header>
 
       <IntakeWizard />

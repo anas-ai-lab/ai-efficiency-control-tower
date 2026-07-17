@@ -118,6 +118,10 @@ export function IdeationView() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<IdeationResponse | null>(null)
+  // Zaehlt jeden abgeschlossenen Lauf -- dient nur als React-key, damit die
+  // Stagger-Kaskade bei einem zweiten Klick erneut anlaeuft (gleiche Anzahl
+  // Karten wuerde sonst nur re-rendern, nicht neu mounten).
+  const [runId, setRunId] = useState(0)
 
   const length = problem.length
   const tooShort = problem.trim().length < MIN_LEN
@@ -131,6 +135,7 @@ export function IdeationView() {
       // Neuer Klick ersetzt die Karten vollstaendig (D16, kein Verlauf).
       const res = await generateIdeas(problem)
       setResult(res)
+      setRunId((n) => n + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"))
     } finally {
@@ -252,7 +257,11 @@ export function IdeationView() {
             </p>
           ) : (
             <>
-              <div className="space-y-4">
+              {/* stagger laesst die Entwuerfe nacheinander auflaufen -- so ist
+                  sichtbar, dass mehrere erzeugt wurden. key an den Lauf
+                  gebunden: ein neuer Klick spielt die Kaskade erneut ab.
+                  Hinter prefers-reduced-motion (globals.css) gegatet. */}
+              <div key={runId} className="stagger space-y-4">
                 {result.drafts.map((draft, i) => (
                   <DraftCard key={i} draft={draft} onAdopt={handleAdopt} />
                 ))}

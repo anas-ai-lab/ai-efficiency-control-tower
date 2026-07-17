@@ -102,8 +102,7 @@
     "page": {
       "metaTitle": "Submit use case | AECT",
       "eyebrow": "Intake",
-      "title": "Submit a use case",
-      "lead": "Describe your use case in a few steps. AECT then assesses it automatically."
+      "title": "Submit a use case"
     },
     "progressAria": "Progress",
     "progressStep": "Step {current} / {total}",
@@ -122,12 +121,13 @@
     },
     "confirm": {
       "title": "Use case submitted",
-      "body": "“{title}” has been captured and assessed. You can see the full assessment on the case detail page.",
+      "body": "“{title}” has been submitted and saved.",
       "toCase": "Go to case",
-      "toList": "Go to Idea List"
+      "toList": "Go to Idea List",
+      "next": "Next, the AI Board assesses the case: benefit, effort and data protection are reviewed, and the result appears on the case detail page."
     },
     "selectPlaceholder": "Please select",
-    "noteOptionalApproach": "Optional — an admin can add it later.",
+    "noteOptionalApproach": "Optional",
     "noteRequired": "Required",
     "fields": {
       "titleLabel": "Title",
@@ -166,14 +166,16 @@
       "implCostHelp": "One-off setup / integration cost.",
       "licenseCostLabel": "License cost (recurring, € / year)",
       "licenseCostPlaceholder": "0",
-      "licenseCostHelp": "0 = open source or in-house.",
       "dataClassLabel": "Data protection class",
       "piiLabel": "Contains personal data (PII)",
-      "piiHelp": "Together with regulatory pressure, this triggers the recommendation for a DPIA and human review. The data protection class above drives the effort score instead.",
+      "piiHelp": "Tick this if the task involves data about individual people (e.g. names, customer or employee records). If that applies together with “Regulatory pressure” below, AECT recommends that a human reviews the case before implementation.",
       "adoptionLabel": "Commitment of use",
       "evidenceLabel": "Evidence level",
       "notesLabel": "Notes (optional)",
-      "notesPlaceholder": "Additional information for the assessment"
+      "notesPlaceholder": "Additional information for the assessment",
+      "currentStateHelp": "Describe the process as it really is today — including the points where it gets stuck. For example: “Requests arrive by email and are sorted by hand.”",
+      "desiredStateHelp": "Describe what should be different in the end — the outcome, not the technology. For example: “Requests are pre-sorted and land directly with the right team.”",
+      "employeeCategoryHelp": "Which level do the majority of the colleagues who are meant to use the solution have?"
     },
     "help": {
       "approach": {
@@ -239,10 +241,22 @@
       "rowAdoption": "Commitment",
       "rowEvidence": "Evidence level",
       "rowPressure": "Urgency",
-      "rowNotes": "Notes"
+      "rowNotes": "Notes",
+      "sectionIdee": "Idea",
+      "sectionMenge": "Time & frequency",
+      "sectionUmsetzung": "Implementation",
+      "sectionDaten": "Data & commitment",
+      "editSection": "Edit"
     },
     "submit": "Submit use case",
-    "submitting": "Submitting …"
+    "submitting": "Submitting …",
+    "sectionIntro": {
+      "idee": "This is where you describe what it is about: who is submitting, how the process works today and how it should work in future. These texts are the basis for the qualitative assessment.",
+      "menge": "This is where you capture how much time the task costs and how often it occurs. AECT uses this to calculate the possible time saved and the benefit in euros.",
+      "umsetzung": "This is where you estimate how the solution would be built and what it costs. That gives the effort which is weighed against the benefit.",
+      "daten": "This is where you classify which data is involved and how binding the use should be. It drives data protection notes and the reliability of the estimate.",
+      "pruefen": "This is where you see all your entries again at a glance. Nothing has been saved yet — only the submit button files the use case."
+    }
   },
   "result": {
     "howCalculated": "How was this calculated?",

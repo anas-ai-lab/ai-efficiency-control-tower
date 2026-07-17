@@ -41,6 +41,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { useFormat } from "@/lib/use-format"
+import { cn } from "@/lib/utils"
 
 // Werte exakt aus src/types/api.ts gespiegelt -- nicht aus dem Gedaechtnis.
 // Schema als Factory (V4.1-S6): die drei benutzersichtbaren Enum-Fehlertexte
@@ -136,6 +137,16 @@ function HelpText({ children }: { children: React.ReactNode }) {
   )
 }
 
+// Erklaersatz ueber jedem Schritt: was dieser Abschnitt erfasst und wozu.
+// Ersetzt den frueheren pauschalen Untertitel auf der Seite.
+function SectionIntro({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="max-w-prose border-l-2 border-border pl-3.5 text-sm leading-relaxed text-muted-foreground">
+      {children}
+    </p>
+  )
+}
+
 // Ein Select mit Optionsliste + optionalem Erklaersatz zur aktuellen Auswahl.
 // enumKey: Namespace unter enums.* fuer die Options-Labels; helpKey: Namespace
 // unter intake.help.* fuer den Erklaersatz zur Auswahl (beide sprachabhaengig).
@@ -206,6 +217,36 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Ein Abschnitt der Zusammenfassung: Titel + Sprung zurueck in den zugehoerigen
+// Schritt zum Korrigieren (die Navigations-Buttons unten bleiben zusaetzlich).
+function ReviewSection({
+  title,
+  editLabel,
+  onEdit,
+  children,
+}: {
+  title: string
+  editLabel: string
+  onEdit: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-card px-5 py-1">
+      <div className="flex items-center justify-between gap-3 border-b border-border py-3">
+        <h3 className="eyebrow">{title}</h3>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-xs font-medium text-[var(--ink)] underline-offset-4 hover:underline"
+        >
+          {editLabel}
+        </button>
+      </div>
+      <dl className="divide-y divide-border">{children}</dl>
+    </section>
+  )
+}
+
 export function IntakeWizard() {
   const t = useTranslations("intake")
   const tf = useTranslations("intake.fields")
@@ -216,6 +257,9 @@ export function IntakeWizard() {
   const fmt = useFormat()
 
   const [step, setStep] = useState(0)
+  // Richtung des letzten Schrittwechsels -- steuert nur, aus welcher Richtung
+  // die neue Ansicht hereinkommt (vor: von rechts, zurueck: von links).
+  const [dir, setDir] = useState<1 | -1>(1)
   const [isPending, startTransition] = useTransition()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState<TriageResponse | null>(null)
@@ -292,11 +336,20 @@ export function IntakeWizard() {
 
   async function goNext() {
     const valid = await form.trigger(STEP_FIELDS[step])
-    if (valid) setStep((s) => Math.min(s + 1, STEP_KEYS.length - 1))
+    if (!valid) return
+    setDir(1)
+    setStep((s) => Math.min(s + 1, STEP_KEYS.length - 1))
   }
 
   function goBack() {
+    setDir(-1)
     setStep((s) => Math.max(s - 1, 0))
+  }
+
+  // Sprung aus der Zusammenfassung zurueck in einen Abschnitt zum Korrigieren.
+  function goToStep(target: number) {
+    setDir(target > step ? 1 : -1)
+    setStep(target)
   }
 
   function onSubmit(data: FormValues) {
@@ -320,10 +373,16 @@ export function IntakeWizard() {
   // --- Bestaetigung nach dem Absenden (kein Score/keine Zone). ---
   if (submitted !== null) {
     return (
-      <div className="animate-view-enter rounded-2xl border border-border bg-card px-6 py-10 text-center sm:px-10">
+      // stagger laesst Haken, Titel, Text und Aktionen nacheinander auflaufen;
+      // beides (stagger + success-mark) haengt in globals.css hinter
+      // prefers-reduced-motion -- ohne Bewegung steht alles sofort da.
+      <div
+        role="status"
+        className="stagger rounded-2xl border border-border bg-card px-6 py-10 text-center sm:px-10"
+      >
         <span
           aria-hidden
-          className="mx-auto flex size-12 items-center justify-center rounded-full bg-[var(--zone-win-surface)]"
+          className="animate-success-mark mx-auto flex size-12 items-center justify-center rounded-full bg-[var(--zone-win-surface)]"
         >
           <CheckCircle2 className="size-6 text-[var(--zone-win)]" />
         </span>
@@ -332,6 +391,9 @@ export function IntakeWizard() {
         </h2>
         <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
           {t("confirm.body", { title: submitted.title })}
+        </p>
+        <p className="mx-auto mt-4 max-w-prose border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
+          {t("confirm.next")}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg">
@@ -364,10 +426,19 @@ export function IntakeWizard() {
           }
         }}
       >
-        <div key={step} className="animate-view-enter space-y-6">
+        {/* key={step} erzwingt einen Remount pro Schritt -- nur so laeuft die
+            Eintritts-Animation bei jedem Wechsel erneut an. */}
+        <div
+          key={step}
+          className={cn(
+            "space-y-6",
+            dir === 1 ? "animate-step-forward" : "animate-step-back"
+          )}
+        >
           {/* --- Schritt 1: Idee --- */}
           {step === 0 && (
             <>
+              <SectionIntro>{t("sectionIntro.idee")}</SectionIntro>
               <FormField
                 control={form.control}
                 name="title"
@@ -418,6 +489,7 @@ export function IntakeWizard() {
                     <FormControl>
                       <Textarea placeholder={tf("currentStatePlaceholder")} rows={4} {...field} />
                     </FormControl>
+                    <HelpText>{tf("currentStateHelp")}</HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -431,6 +503,7 @@ export function IntakeWizard() {
                     <FormControl>
                       <Textarea placeholder={tf("desiredStatePlaceholder")} rows={4} {...field} />
                     </FormControl>
+                    <HelpText>{tf("desiredStateHelp")}</HelpText>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -473,6 +546,7 @@ export function IntakeWizard() {
           {/* --- Schritt 2: Zeit & Häufigkeit --- */}
           {step === 1 && (
             <>
+              <SectionIntro>{t("sectionIntro.menge")}</SectionIntro>
               <div className="grid gap-5 sm:grid-cols-2">
                 <SelectField
                   form={form}
@@ -489,6 +563,7 @@ export function IntakeWizard() {
                   placeholder={placeholder}
                   options={EMPLOYEE_CATEGORY_OPTIONS}
                   enumKey="employeeCategory"
+                  note={tf("employeeCategoryHelp")}
                 />
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -557,6 +632,7 @@ export function IntakeWizard() {
           {/* --- Schritt 3: Umsetzung --- */}
           {step === 2 && (
             <>
+              <SectionIntro>{t("sectionIntro.umsetzung")}</SectionIntro>
               <SelectField
                 form={form}
                 name="implementation_approach"
@@ -591,7 +667,6 @@ export function IntakeWizard() {
                       <FormControl>
                         <Input type="number" min={0} placeholder={tf("licenseCostPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>{tf("licenseCostHelp")}</HelpText>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -603,6 +678,7 @@ export function IntakeWizard() {
           {/* --- Schritt 4: Daten & Verbindlichkeit --- */}
           {step === 3 && (
             <>
+              <SectionIntro>{t("sectionIntro.daten")}</SectionIntro>
               <SelectField
                 form={form}
                 name="data_classification"
@@ -701,61 +777,90 @@ export function IntakeWizard() {
           {/* --- Schritt 5: Pruefen & Absenden (KEINE Berechnung/Score/Zone). --- */}
           {step === 4 && (
             <div className="space-y-6">
+              <SectionIntro>{t("sectionIntro.pruefen")}</SectionIntro>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {t("review.intro")}
               </p>
-              <dl className="divide-y divide-border rounded-xl border border-border bg-card px-5 py-1">
-                <ReviewRow label={tr("rowTitle")} value={v.title} />
-                <ReviewRow label={tr("rowSubmitter")} value={v.submitter} />
-                <ReviewRow label={tr("rowDepartment")} value={v.department} />
-                <ReviewRow label={tr("rowCurrentState")} value={v.current_state} />
-                <ReviewRow label={tr("rowDesiredState")} value={v.desired_state} />
-                <ReviewRow label={tr("rowExample")} value={v.example_process} />
-                <ReviewRow label={tr("rowDesiredExample")} value={v.desired_example_process ?? ""} />
-                <ReviewRow label={tr("rowCountry")} value={v.country ? te(`country.${v.country}`) : ""} />
-                <ReviewRow
-                  label={tr("rowEmployeeCategory")}
-                  value={v.employee_category ? te(`employeeCategory.${v.employee_category}`) : ""}
-                />
-                <ReviewRow label={tr("rowTimeCurrent")} value={`${v.time_per_case_hours_current} ${tr("hoursUnit")}`} />
-                <ReviewRow label={tr("rowTimeAi")} value={`${v.time_per_case_hours_with_ai} ${tr("hoursUnit")}`} />
-                <ReviewRow label={tr("rowOccurrences")} value={String(v.occurrences_per_employee_per_year)} />
-                <ReviewRow label={tr("rowEmployees")} value={String(v.affected_employees_count)} />
-                <ReviewRow
-                  label={tr("rowApproach")}
-                  value={v.implementation_approach ? te(`implementationApproach.${v.implementation_approach}`) : ""}
-                />
-                <ReviewRow label={tr("rowImplCost")} value={fmt.eur(v.implementation_cost_eur || 0)} />
-                <ReviewRow label={tr("rowLicenseCost")} value={fmt.eur(v.estimated_license_cost_eur || 0)} />
-                <ReviewRow
-                  label={tr("rowDataClass")}
-                  value={v.data_classification ? te(`dataClassification.${v.data_classification}`) : ""}
-                />
-                <ReviewRow label={tr("rowPii")} value={v.contains_pii ? tr("yes") : tr("no")} />
-                <ReviewRow
-                  label={tr("rowAdoption")}
-                  value={v.adoption_type ? te(`adoptionType.${v.adoption_type}`) : ""}
-                />
-                <ReviewRow
-                  label={tr("rowEvidence")}
-                  value={v.evidence_level ? te(`evidenceLevel.${v.evidence_level}`) : ""}
-                />
-                <ReviewRow
-                  label={tr("rowPressure")}
-                  value={
-                    [
-                      v.regulatory_pressure && tr("pressureRegulatory"),
-                      v.competitive_pressure && tr("pressureCompetitive"),
-                      v.strategic_priority && tr("pressureStrategic"),
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || tr("pressureNone")
-                  }
-                />
-                {v.notes && v.notes.length > 0 && (
-                  <ReviewRow label={tr("rowNotes")} value={v.notes} />
-                )}
-              </dl>
+
+              <div className="space-y-4">
+                <ReviewSection
+                  title={tr("sectionIdee")}
+                  editLabel={tr("editSection")}
+                  onEdit={() => goToStep(0)}
+                >
+                  <ReviewRow label={tr("rowTitle")} value={v.title} />
+                  <ReviewRow label={tr("rowSubmitter")} value={v.submitter} />
+                  <ReviewRow label={tr("rowDepartment")} value={v.department} />
+                  <ReviewRow label={tr("rowCurrentState")} value={v.current_state} />
+                  <ReviewRow label={tr("rowDesiredState")} value={v.desired_state} />
+                  <ReviewRow label={tr("rowExample")} value={v.example_process} />
+                  <ReviewRow label={tr("rowDesiredExample")} value={v.desired_example_process ?? ""} />
+                </ReviewSection>
+
+                <ReviewSection
+                  title={tr("sectionMenge")}
+                  editLabel={tr("editSection")}
+                  onEdit={() => goToStep(1)}
+                >
+                  <ReviewRow label={tr("rowCountry")} value={v.country ? te(`country.${v.country}`) : ""} />
+                  <ReviewRow
+                    label={tr("rowEmployeeCategory")}
+                    value={v.employee_category ? te(`employeeCategory.${v.employee_category}`) : ""}
+                  />
+                  <ReviewRow label={tr("rowTimeCurrent")} value={`${v.time_per_case_hours_current} ${tr("hoursUnit")}`} />
+                  <ReviewRow label={tr("rowTimeAi")} value={`${v.time_per_case_hours_with_ai} ${tr("hoursUnit")}`} />
+                  <ReviewRow label={tr("rowOccurrences")} value={String(v.occurrences_per_employee_per_year)} />
+                  <ReviewRow label={tr("rowEmployees")} value={String(v.affected_employees_count)} />
+                </ReviewSection>
+
+                <ReviewSection
+                  title={tr("sectionUmsetzung")}
+                  editLabel={tr("editSection")}
+                  onEdit={() => goToStep(2)}
+                >
+                  <ReviewRow
+                    label={tr("rowApproach")}
+                    value={v.implementation_approach ? te(`implementationApproach.${v.implementation_approach}`) : ""}
+                  />
+                  <ReviewRow label={tr("rowImplCost")} value={fmt.eur(v.implementation_cost_eur || 0)} />
+                  <ReviewRow label={tr("rowLicenseCost")} value={fmt.eur(v.estimated_license_cost_eur || 0)} />
+                </ReviewSection>
+
+                <ReviewSection
+                  title={tr("sectionDaten")}
+                  editLabel={tr("editSection")}
+                  onEdit={() => goToStep(3)}
+                >
+                  <ReviewRow
+                    label={tr("rowDataClass")}
+                    value={v.data_classification ? te(`dataClassification.${v.data_classification}`) : ""}
+                  />
+                  <ReviewRow label={tr("rowPii")} value={v.contains_pii ? tr("yes") : tr("no")} />
+                  <ReviewRow
+                    label={tr("rowAdoption")}
+                    value={v.adoption_type ? te(`adoptionType.${v.adoption_type}`) : ""}
+                  />
+                  <ReviewRow
+                    label={tr("rowEvidence")}
+                    value={v.evidence_level ? te(`evidenceLevel.${v.evidence_level}`) : ""}
+                  />
+                  <ReviewRow
+                    label={tr("rowPressure")}
+                    value={
+                      [
+                        v.regulatory_pressure && tr("pressureRegulatory"),
+                        v.competitive_pressure && tr("pressureCompetitive"),
+                        v.strategic_priority && tr("pressureStrategic"),
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || tr("pressureNone")
+                    }
+                  />
+                  {v.notes && v.notes.length > 0 && (
+                    <ReviewRow label={tr("rowNotes")} value={v.notes} />
+                  )}
+                </ReviewSection>
+              </div>
 
               {submitError && (
                 <p
