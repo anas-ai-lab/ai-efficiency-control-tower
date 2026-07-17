@@ -7,7 +7,8 @@
 > Master-Audit H (Juli 2026) bestaetigten ehrlichen Luecken (#24 = offener
 > Fix-Kandidat, kein Design-Limit). #25-#32 ergaenzen die V4-Kalibrierungs- und
 > Demo-Grenzen (Juli 2026, Demo-Build SDR-0003). #33 dokumentiert den
-> Prod-Router-Cache-Workaround im Frontend (Next.js App Router).
+> Prod-Router-Cache-Workaround im Frontend (Next.js App Router), #34 das Rennen
+> im Ideation-Prefill-Handoff (macht einen bekannt roten e2e-Test sichtbar).
 
 ---
 
@@ -658,6 +659,60 @@ AECT-spezifischer Bug**, sondern bekanntes Next.js-App-Router-Verhalten (der
 RSC-Router-Cache im Prod-Build, im Dev-Build nicht sichtbar). Der harte Reload
 ist die pragmatische, robuste Antwort fuer den Single-User-Demo-Build; ein
 feineres Soft-Refresh-Muster ist ein Post-v4-Punkt.
+
+---
+
+## 34. Ideation-Prefill: read-once loescht den Entwurf, bevor er sicher im Formular ist
+
+**Was:** Der Handoff vom Ideen-Assistenten zum Intake (P14, D16/D17) legt den
+uebernommenen Entwurf unter `sessionStorage["aect_ideation_prefill"]` ab; der
+Wizard liest ihn beim Mount **und loescht den Key sofort** (read-once,
+`intake-wizard.tsx`), *bevor* feststeht, dass die Werte im Formular gelandet
+sind. Beides passiert im selben Effekt: `removeItem` steht vor dem
+`form.reset()`. Verliert das `reset()` das Rennen, ist der Key weg **und** das
+Formular leer -- der Entwurf ist unwiederbringlich verloren, ohne Fehlermeldung.
+
+**Reproduzierbar (nur bei vollem Dokument-Load):**
+
+```bash
+# Frontend prod: AECT_API_BASE_URL=... npx next start -p 3000
+# In der Browser-Konsole auf /einreichen:
+sessionStorage.setItem("aect_ideation_prefill", JSON.stringify({
+  title: "PREFILL-TITEL", current_state: "IST", desired_state: "SOLL",
+  example_process: "BSP" }));
+location.reload();   // Titel-Feld bleibt meist leer, Key ist trotzdem geloescht
+```
+
+Gemessen (Playwright, Prod-Build, je identische Szenarien): **Vollreload/`goto`
+auf `/einreichen` mit gesetztem Key -> 1 von 6 Laeufen uebernahm den Entwurf**;
+der **reale Pfad** (Klick "Uebernehmen" auf `/ideation` -> Client-Navigation
+zum Intake) **5 von 5 gruen**. Die Nichtdeterministik ist echt: derselbe Payload
+lief in aufeinanderfolgenden Laeufen einmal gruen, zweimal leer.
+
+**Warum es im Alltag (noch) nicht auffaellt:** Der Key wird ausschliesslich auf
+`/ideation` geschrieben, und der Weg von dort ins Formular ist eine
+**Client-Navigation** (`router.push`) -- kein Dokument-Load, der Wizard mountet
+im laufenden Baum. Genau dieser Pfad ist stabil. Der Vollreload-Fall ist ueber
+die Oberflaeche kaum erreichbar; er trifft aber jeden, der die Intake-Seite mit
+offenem Entwurf neu laedt (z. B. Sprachwechsel -> `hardRefresh()`, siehe #33) --
+dort ist der Verlust allerdings gewollt und der Ungespeichert-Waechter warnt
+vorher.
+
+**Sichtbar als:** `frontend/e2e/lang-switch-guard.spec.ts` -- der Test
+"Sprachwechsel nach Ideation-Prefill zeigt Dialog (isDirty=false)" ist **rot**.
+Er baut den Handoff synthetisch nach (Key setzen, dann `reload()`) und faellt
+damit in genau das Rennen. Der Test ist **aelter als V4.1-S8** und war nie an
+den Schema-Split gekoppelt: belegt durch Entfernen der einzigen S8-Aenderung an
+`/einreichen` (die `ContactCard`) -- der Test bleibt rot, in dev wie prod.
+
+**Grenze/Fix-Richtung (nicht umgesetzt):** Der Mechanismus des Rennens ist nicht
+zu Ende diagnostiziert (Verdacht: der Mount-Effekt laeuft gegen die Hydration,
+ein spaeterer Re-Render setzt das Formular auf die `defaultValues` zurueck).
+Robust waere, die Reihenfolge umzudrehen -- Key erst loeschen, **nachdem** die
+Werte im Formular stehen -- statt das Rennen zu gewinnen. Fuer den Demo-Build
+(SDR-0003) bleibt es bewusst offen: der reale Pfad ist stabil, und der Fix
+gehoert mit einem Regressionstest zusammen, der ohne den Reload-Kunstgriff
+auskommt.
 
 ---
 

@@ -76,7 +76,7 @@ def test_suite_stays_isolated_when_aect_db_path_points_at_populated_db(
     #    laufen lassen -- cwd = Repo-Root, die lokale .env ist also ebenfalls
     #    in Reichweite. --no-cov: die addopts-Coverage des Aussenlaufs wuerde
     #    im Subprozess kollidieren.
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [
             sys.executable,
             "-m",

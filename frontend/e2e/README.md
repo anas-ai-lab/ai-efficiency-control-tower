@@ -82,6 +82,16 @@ cd frontend
 AECT_SMOKE_ADMIN_PASSWORD='smoke-pw' npm run e2e
 ```
 
+## Bekannt rot
+
+`lang-switch-guard.spec.ts` -> "Sprachwechsel nach Ideation-Prefill zeigt Dialog
+(isDirty=false)" schlaegt fehl. **Kein neuer Regress:** der Test baut den
+Ideation-Handoff synthetisch nach (sessionStorage-Key setzen, dann `reload()`)
+und faellt damit in ein Rennen zwischen dem read-once-Loeschen des Entwurfs und
+dem Befuellen des Formulars. Der reale Pfad (Klick "Uebernehmen" auf `/ideation`
+-> Client-Navigation) ist stabil. Analyse, Messwerte und Fix-Richtung:
+`docs/known_limitations.md` #34.
+
 ## Skip-Verhalten
 
 Jeder Test prueft zuerst, ob die noetigen Prozesse erreichbar sind bzw. das
