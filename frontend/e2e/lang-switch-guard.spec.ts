@@ -86,10 +86,25 @@ test("Sprachwechsel nach Ideation-Prefill zeigt Dialog (isDirty=false)", async (
 
   // Uebernommener Entwurf im sessionStorage -- Key/Felder gespiegelt aus
   // src/lib/ideation-prefill.ts (IDEATION_PREFILL_KEY + qualitative Felder).
+  //
+  // Der Entwurf wird per addInitScript abgelegt, also VOR jedem Skript des
+  // Dokuments und damit vor jedem Mount des Wizards. Die Vorgaengerfassung
+  // setzte den Key per goto() + evaluate() und lud dann neu -- das war der
+  // Grund fuer die bekannte Flakiness (known_limitations #34, ~1/6 gruen), und
+  // zwar ohne Fehler in der Anwendung: goto() kehrt beim load-Event zurueck,
+  // React hydriert erst danach. Der Wizard der noch offenen Seite las den
+  // gerade gesetzten Key, loeschte ihn (read-once) und befuellte ein Formular,
+  // das der folgende reload() sofort verwarf. Der neue Dokument-Load fand dann
+  // nichts mehr vor. Gemessen: mit dieser Fassung 6/6, der reale Pfad
+  // (/ideation -> "Uebernehmen" -> Client-Navigation) unveraendert 5/5.
   const draftTitle = "Aus Ideation uebernommener Entwurf";
-  await page.goto("/einreichen");
-  await page.evaluate(
-    ([key, title]) => {
+  await page.addInitScript(
+    ([key, seededKey, title]) => {
+      // Einmalig pro Session: ein Handoff entspricht einem "Uebernehmen"-Klick.
+      // Ohne diese Sperre wuerde der Key bei jeder weiteren Navigation (z. B.
+      // dem Reload nach bestaetigtem Sprachwechsel) neu erscheinen.
+      if (sessionStorage.getItem(seededKey) !== null) return;
+      sessionStorage.setItem(seededKey, "1");
       sessionStorage.setItem(
         key,
         JSON.stringify({
@@ -102,10 +117,10 @@ test("Sprachwechsel nach Ideation-Prefill zeigt Dialog (isDirty=false)", async (
         }),
       );
     },
-    ["aect_ideation_prefill", draftTitle],
+    ["aect_ideation_prefill", "__aect_e2e_prefill_seeded", draftTitle],
   );
-  // Der Wizard liest den Entwurf beim Mount -> Reload triggert die Uebernahme.
-  await page.reload();
+  // Der Wizard liest den Entwurf beim Mount -- ein normaler Dokument-Load.
+  await page.goto("/einreichen");
   await expect(page.getByLabel("Titel")).toHaveValue(draftTitle);
 
   // Der Nutzer hat nichts selbst getippt (isDirty=false), aber der Entwurf

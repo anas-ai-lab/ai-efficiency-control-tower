@@ -7,8 +7,9 @@
 > Master-Audit H (Juli 2026) bestaetigten ehrlichen Luecken (#24 = offener
 > Fix-Kandidat, kein Design-Limit). #25-#32 ergaenzen die V4-Kalibrierungs- und
 > Demo-Grenzen (Juli 2026, Demo-Build SDR-0003). #33 dokumentiert den
-> Prod-Router-Cache-Workaround im Frontend (Next.js App Router), #34 das Rennen
-> im Ideation-Prefill-Handoff (macht einen bekannt roten e2e-Test sichtbar).
+> Prod-Router-Cache-Workaround im Frontend (Next.js App Router); #34 (Rennen im
+> Ideation-Prefill-Handoff) ist ausgeraeumt -- die Diagnose war falsch, der
+> Befund lag im Test, nicht in der Anwendung.
 
 ---
 
@@ -662,57 +663,55 @@ feineres Soft-Refresh-Muster ist ein Post-v4-Punkt.
 
 ---
 
-## 34. Ideation-Prefill: read-once loescht den Entwurf, bevor er sicher im Formular ist
+## 34. Ideation-Prefill-Rennen (AUSGERAEUMT -- Fehldiagnose, Befund lag im Test)
 
-**Was:** Der Handoff vom Ideen-Assistenten zum Intake (P14, D16/D17) legt den
-uebernommenen Entwurf unter `sessionStorage["aect_ideation_prefill"]` ab; der
-Wizard liest ihn beim Mount **und loescht den Key sofort** (read-once,
-`intake-wizard.tsx`), *bevor* feststeht, dass die Werte im Formular gelandet
-sind. Beides passiert im selben Effekt: `removeItem` steht vor dem
-`form.reset()`. Verliert das `reset()` das Rennen, ist der Key weg **und** das
-Formular leer -- der Entwurf ist unwiederbringlich verloren, ohne Fehlermeldung.
+**Was (historisch behauptet):** Der Handoff vom Ideen-Assistenten zum Intake
+(P14, D16/D17) legt den uebernommenen Entwurf unter
+`sessionStorage["aect_ideation_prefill"]` ab; der Wizard liest ihn beim Mount
+und loescht den Key sofort (read-once). Die urspruengliche Analyse las daraus ein
+Rennen: `removeItem` stehe vor dem `form.reset()`, verliere `reset()` das
+Rennen, sei der Entwurf still verloren. Gemessen wurde ein Vollreload auf
+`/einreichen` mit gesetztem Key als **1 von 6** gruen, der reale Pfad als 5/5.
+Der e2e-Test `lang-switch-guard.spec.ts` ("Sprachwechsel nach Ideation-Prefill")
+galt als bekannt rot.
 
-**Reproduzierbar (nur bei vollem Dokument-Load):**
+**Warum die Diagnose falsch war:** Die beiden Zeilen koennen einander nicht
+ueberholen -- der Effekt-Rumpf laeuft synchron durch; `removeItem` und
+`form.reset()` liegen im selben Task. Ein Rennen zwischen ihnen ist nicht
+konstruierbar.
 
-```bash
-# Frontend prod: AECT_API_BASE_URL=... npx next start -p 3000
-# In der Browser-Konsole auf /einreichen:
-sessionStorage.setItem("aect_ideation_prefill", JSON.stringify({
-  title: "PREFILL-TITEL", current_state: "IST", desired_state: "SOLL",
-  example_process: "BSP" }));
-location.reload();   // Titel-Feld bleibt meist leer, Key ist trotzdem geloescht
-```
+**Was tatsaechlich passierte (gemessen, v4.2):** Instrumentiert man den Wizard,
+zeigen die Fehllaeufe `EFFECT raw=null` bei **einem** Mount und ohne Unmount:
+der Key war beim Lesen bereits weg. Ursache ist die **Testkonstruktion**, nicht
+die Anwendung. `page.goto("/einreichen")` kehrt beim `load`-Event zurueck, React
+hydriert erst danach. Der Test setzte den Key in genau dieses Fenster und lud
+dann neu. Der Wizard der **noch offenen** Seite hydrierte, las den frisch
+gesetzten Key, loeschte ihn (read-once) und befuellte ein Formular, das der
+folgende `reload()` sofort verwarf -- der neue Dokument-Load fand nichts mehr.
+Ob der Effekt vor oder nach dem `setItem` lief, entschied Lauf fuer Lauf: daher
+die Nichtdeterministik.
 
-Gemessen (Playwright, Prod-Build, je identische Szenarien): **Vollreload/`goto`
-auf `/einreichen` mit gesetztem Key -> 1 von 6 Laeufen uebernahm den Entwurf**;
-der **reale Pfad** (Klick "Uebernehmen" auf `/ideation` -> Client-Navigation
-zum Intake) **5 von 5 gruen**. Die Nichtdeterministik ist echt: derselbe Payload
-lief in aufeinanderfolgenden Laeufen einmal gruen, zweimal leer.
+**Beleg (unveraenderter Anwendungscode):** Wird der Entwurf per
+`addInitScript` abgelegt -- also vor jedem Skript des Dokuments und damit vor
+jedem Mount --, uebernimmt ein echter Dokument-Load ihn **6 von 6** Mal. Der
+reale Pfad (`/ideation` -> "Uebernehmen" -> Client-Navigation) bleibt **5 von 5**.
+Es gab keinen stillen Entwurfsverlust ueber die Oberflaeche: den Key schreibt
+ausschliesslich `/ideation`, und von dort fuehrt eine Client-Navigation in den
+Wizard -- kein Dokument-Load, kein Vorgaenger-Mount, der konsumieren koennte.
 
-**Warum es im Alltag (noch) nicht auffaellt:** Der Key wird ausschliesslich auf
-`/ideation` geschrieben, und der Weg von dort ins Formular ist eine
-**Client-Navigation** (`router.push`) -- kein Dokument-Load, der Wizard mountet
-im laufenden Baum. Genau dieser Pfad ist stabil. Der Vollreload-Fall ist ueber
-die Oberflaeche kaum erreichbar; er trifft aber jeden, der die Intake-Seite mit
-offenem Entwurf neu laedt (z. B. Sprachwechsel -> `hardRefresh()`, siehe #33) --
-dort ist der Verlust allerdings gewollt und der Ungespeichert-Waechter warnt
-vorher.
+**Status:** Ausgeraeumt (v4.2). Der Anwendungscode ist **unveraendert**;
+read-once beim Mount bleibt richtig. Korrigiert wurde die Testkonstruktion:
+`lang-switch-guard.spec.ts` legt den Entwurf per `addInitScript` ab und laedt
+das Dokument normal (`goto`), statt den Handoff per `setItem` + `reload()`
+nachzustellen. Der Test ist damit gruen und stabil (6 aufeinanderfolgende
+Laeufe, je 3/3). Der "Bekannt rot"-Abschnitt in `frontend/e2e/README.md` ist
+entfallen.
 
-**Sichtbar als:** `frontend/e2e/lang-switch-guard.spec.ts` -- der Test
-"Sprachwechsel nach Ideation-Prefill zeigt Dialog (isDirty=false)" ist **rot**.
-Er baut den Handoff synthetisch nach (Key setzen, dann `reload()`) und faellt
-damit in genau das Rennen. Der Test ist **aelter als V4.1-S8** und war nie an
-den Schema-Split gekoppelt: belegt durch Entfernen der einzigen S8-Aenderung an
-`/einreichen` (die `ContactCard`) -- der Test bleibt rot, in dev wie prod.
-
-**Grenze/Fix-Richtung (nicht umgesetzt):** Der Mechanismus des Rennens ist nicht
-zu Ende diagnostiziert (Verdacht: der Mount-Effekt laeuft gegen die Hydration,
-ein spaeterer Re-Render setzt das Formular auf die `defaultValues` zurueck).
-Robust waere, die Reihenfolge umzudrehen -- Key erst loeschen, **nachdem** die
-Werte im Formular stehen -- statt das Rennen zu gewinnen. Fuer den Demo-Build
-(SDR-0003) bleibt es bewusst offen: der reale Pfad ist stabil, und der Fix
-gehoert mit einem Regressionstest zusammen, der ohne den Reload-Kunstgriff
-auskommt.
+**Was daran bleibt (Methodik, kein Defekt):** Ein Test, der einen Uebergabe-Pfad
+synthetisch nachstellt, kann seinen eigenen Aufbau messen statt die Anwendung.
+Hier wurde ueber mehrere Sitzungen ein Anwendungsfehler dokumentiert, den es nie
+gab -- und der Fehlschlag als "bekannt rot" akzeptiert. Erst die Instrumentierung
+(Mount-Zaehler + Effekt-Log) trennte Aufbau von Anwendung.
 
 ---
 

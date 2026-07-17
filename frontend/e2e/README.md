@@ -137,13 +137,17 @@ AECT_SMOKE_ADMIN_PASSWORD='smoke-pw' npm run e2e
 
 ## Bekannt rot
 
-`lang-switch-guard.spec.ts` -> "Sprachwechsel nach Ideation-Prefill zeigt Dialog
-(isDirty=false)" schlaegt fehl. **Kein neuer Regress:** der Test baut den
-Ideation-Handoff synthetisch nach (sessionStorage-Key setzen, dann `reload()`)
-und faellt damit in ein Rennen zwischen dem read-once-Loeschen des Entwurfs und
-dem Befuellen des Formulars. Der reale Pfad (Klick "Uebernehmen" auf `/ideation`
--> Client-Navigation) ist stabil. Analyse, Messwerte und Fix-Richtung:
-`docs/known_limitations.md` #34.
+Nichts. Die Suite ist gruen.
+
+Historie: `lang-switch-guard.spec.ts` -> "Sprachwechsel nach Ideation-Prefill
+zeigt Dialog (isDirty=false)" galt ueber mehrere Sitzungen als bekannt rot und
+wurde als Anwendungs-Rennen gedeutet (`known_limitations.md` #34). Das war eine
+Fehldiagnose: der Test setzte den Prefill-Key per `evaluate()` in das Fenster
+zwischen `load`-Event und React-Hydration und lud dann neu -- der Wizard der noch
+offenen Seite konsumierte den Key (read-once) und wurde vom `reload()` verworfen.
+Gemessen am unveraenderten Anwendungscode: Dokument-Load mit `addInitScript`
+6/6, realer Pfad 5/5. Der Test legt den Entwurf jetzt per `addInitScript` ab und
+laedt normal; die Anwendung blieb unveraendert. Details in #34.
 
 ## Skip-Verhalten
 
