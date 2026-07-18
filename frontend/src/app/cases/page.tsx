@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
+import { CasesHero } from "@/components/cases-hero";
 import { CasesTable } from "@/components/cases-table";
 import { ContactCard } from "@/components/contact-card";
 import { RetryButton } from "@/components/retry-button";
@@ -59,6 +60,8 @@ export default async function CasesPage() {
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
         {authenticated ? t("pageLead") : t("pageLeadPublic")}
       </p>
+
+      <CasesHero />
 
       <div className="mt-8">
         {loadError !== null ? (

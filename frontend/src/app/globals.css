@@ -393,6 +393,40 @@
   }
 }
 
+/* Ideenliste-Hero (rein dekorativ, /cases): 3 schwebende fiktive Idea-Karten
+   ueber einer verkleinerten Fassung des Pipeline-Visuals. Der Mirror-Effekt
+   ist ein Cursor-Spotlight ueber ::before, kein Klick-/Fokus-Zustand. */
+.mirror::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    160px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in oklch, var(--brand-accent), transparent 88%),
+    transparent 70%
+  );
+  transition: opacity 0.2s ease-out;
+}
+
+.mirror:hover::before {
+  opacity: 1;
+}
+
+/* Gedaempftes Schweben der Idea-Karten -- kein Ueberschwingen (MOTION_INTENSITY
+   3, "nie bouncy"), daher reines translateY ohne Skalierung. */
+@keyframes idea-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
 @keyframes progress-indeterminate {
   0% {
     transform: translateX(-100%);
@@ -435,6 +469,9 @@
   }
   .pipeline-glow {
     animation: pipeline-glow-breathe 6s ease-in-out infinite;
+  }
+  .idea-float {
+    animation: idea-float 5.6s ease-in-out infinite;
   }
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
   .stagger > *:nth-child(2) { animation-delay: 40ms; }
