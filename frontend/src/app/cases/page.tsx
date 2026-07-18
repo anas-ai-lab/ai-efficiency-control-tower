@@ -61,7 +61,7 @@ export default async function CasesPage() {
         {authenticated ? t("pageLead") : t("pageLeadPublic")}
       </p>
 
-      <CasesHero />
+      <CasesHero cases={cases} authenticated={authenticated} />
 
       <div className="mt-8">
         {loadError !== null ? (
