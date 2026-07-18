@@ -490,6 +490,7 @@
     "pageEyebrow": "Ideenliste",
     "pageTitle": "Alle eingereichten Use Cases",
     "pageLead": "Das gesamte Portfolio auf einen Blick: filtern nach Status und Zone, sortieren nach Nettonutzen oder Einreichdatum, den Lifecycle-Status direkt in der Zeile setzen.",
+    "heroHeading": "Top 3 Use Cases",
     "loadErrorFallback": "Die Liste konnte nicht geladen werden.",
     "similarTo": "Ähnlich zu: {titles}",
     "nSimilar": "{n} ähnlich",

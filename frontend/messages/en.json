@@ -490,6 +490,7 @@
     "pageEyebrow": "Idea List",
     "pageTitle": "All submitted use cases",
     "pageLead": "The entire portfolio at a glance: filter by status and zone, sort by net benefit or submission date, set the lifecycle status right in the row.",
+    "heroHeading": "Top 3 use cases",
     "loadErrorFallback": "The list could not be loaded.",
     "similarTo": "Similar to: {titles}",
     "nSimilar": "{n} similar",
