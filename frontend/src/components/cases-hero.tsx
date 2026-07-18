@@ -147,7 +147,7 @@ export function CasesHero() {
   return (
     <div className="animate-view-enter relative mt-8 hidden h-48 w-full sm:block">
       <div className="pipeline-glow" aria-hidden />
-      <svg viewBox="0 0 320 190" className="size-full overflow-visible">
+      <svg viewBox="0 0 320 190" preserveAspectRatio="none" className="size-full overflow-visible">
         <path
           className="pipeline-path"
           fill="none"
