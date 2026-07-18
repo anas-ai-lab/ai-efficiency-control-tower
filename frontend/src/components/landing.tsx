@@ -1,26 +1,36 @@
 import Link from "next/link";
 import {
+  Activity,
+  ArrowRight,
   ClipboardList,
+  LayoutGrid,
   Lightbulb,
   ListChecks,
-  LayoutGrid,
-  Activity,
 } from "lucide-react";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import type { StatsResponse } from "@/types/api";
 import { bindFormat } from "@/lib/format";
+import { LEAF_ORIGIN_ATTR } from "@/components/leaf-transition";
 import { NavTile } from "@/components/nav-tile";
+import { PipelineStrip } from "@/components/pipeline-strip";
 import { StatCard } from "@/components/stat-card";
+import { Button } from "@/components/ui/button";
 
 // Startseite. Server-Komponente, bekommt Kennzahlen + Auth-Zustand als Props.
 // Der Gestaltungs-Pass v4.2 hat die Praesentation in zwei Client-Komponenten
 // verschoben (StatCard: Zaehl-Animation, NavTile: Feder-Hover) -- diese Datei
 // bleibt reine Komposition und Text-Zuordnung.
 //
-// Die Gradient-Kachel mit dem AE-Monogramm rechts im Hero ist entfallen: sie war
-// das einzige Element, das Flaeche fuer sich beanspruchte, ohne etwas zu sagen.
-// Der Hero traegt jetzt nur noch Text -- die Marke steht im Header.
+// Die Gradient-Kachel mit dem AE-Monogramm rechts im Hero bleibt entfallen: sie
+// war das einzige Element, das Flaeche fuer sich beanspruchte, ohne etwas zu
+// sagen. Die Pipeline-Leiste darunter ist ausdruecklich KEIN Ersatz dafuer --
+// sie fuellt keine Luecke im Layout, sondern traegt den Leitsatz aus
+// aect-context.md ("AI fuer Ambiguitaet, Regeln fuer Klarheit, Menschen fuer
+// Verantwortung") als Inhalt: die vier Stationen Regeln -> RAG -> LLM -> Mensch
+// sind die tatsaechliche Verarbeitungskette des Systems. Der Unterschied ist der
+// Pruefstein fuer kuenftige Ergaenzungen im Hero: eine Aussage darf bleiben,
+// eine Flaeche nicht.
 
 interface NavCardDef {
   href: string;
@@ -101,7 +111,25 @@ export async function Landing({
     <main className="mx-auto max-w-5xl px-5 py-20 sm:px-6 sm:py-24">
       {/* Hero: einspaltig, viel Luft, kein dekoratives Gegengewicht. Die Breite
           ist bewusst auf ~2/3 begrenzt -- eine Zeile, die ueber die volle
-          Kachelbreite laeuft, liest sich nicht mehr. */}
+          Kachelbreite laeuft, liest sich nicht mehr.
+
+          DESIGN-RESET v4.3: Der Mockup-Entwurf aus dem Chat wird vollstaendig
+          uebernommen -- Marken-Akzent Indigo/Moss, Schrift-Trio Manrope /
+          Fraunces / IBM Plex Mono, Glas-Header, farbiger Schatten unter der
+          Hero-CTA, ausgebautes Pipeline-Visual. Das ist eine ausdrueckliche
+          Entscheidung des Projektinhabers, keine aus dem Bestand abgeleitete:
+          die vorherige Runde war zurueckhaltender, und die drei neu erlaubten
+          Effekte (Glas, farbiger Schatten, Glow) sind in frontend/CLAUDE.md
+          jeweils auf GENAU EINE Stelle begrenzt worden -- Header, Hero-CTA,
+          Pipeline. Ausserhalb dieser drei Stellen bleiben sie verboten.
+
+          EINE bewusste Abweichung vom Mockup: die KPI-Karten bekommen KEINE
+          Trend-Zahl und KEINE Sparkline. Der Entwurf zeigt dort ein Delta
+          ("+12 % zum Vormonat"); GET /stats liefert aber nur die drei
+          Mengen-Staende, keine Historie. Jede Kurve und jedes Delta an dieser
+          Stelle waere erfunden -- siehe CLAUDE.md, "Keine erfundenen Zahlen".
+          Was die Karten stattdessen tragen, ist der aus denselben Staenden
+          ABGELEITETE Trichter-Anteil (Begruendung in stat-card.tsx). */}
       <section className="max-w-2xl">
         <p className="eyebrow">{t("eyebrow")}</p>
         <h1 className="mt-4 text-pretty text-4xl leading-[1.12] font-semibold tracking-tight text-foreground sm:text-[3.25rem]">
@@ -110,6 +138,31 @@ export async function Landing({
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted-foreground">
           {t("heroLead")}
         </p>
+        <div className="mt-8">
+          {/* Der farbige Schatten ist laut CLAUDE.md ausschliesslich hier
+              erlaubt -- er markiert die eine primaere Aktion der Startseite.
+              color-mix gegen --brand-primary statt einer festen Farbe, damit
+              der Schatten dem Marken-Token folgt (auch im Dark-Theme). */}
+          <Button
+            asChild
+            size="lg"
+            className="shadow-[0_10px_24px_-10px_color-mix(in_oklch,var(--brand-primary),transparent_45%)] transition-shadow hover:shadow-[0_16px_30px_-12px_color-mix(in_oklch,var(--brand-primary),transparent_38%)]"
+          >
+            <Link href="/einreichen" {...{ [LEAF_ORIGIN_ATTR]: "" }}>
+              {t("heroCtaLabel")}
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </div>
+        <PipelineStrip
+          steps={[
+            t("pipelineRule"),
+            t("pipelineRag"),
+            t("pipelineLlm"),
+            t("pipelineHuman"),
+          ]}
+          caption={t("pipelineCaption")}
+        />
       </section>
 
       {/* Kennzahlen. Ein Hairline-Raster traegt die drei Karten: die Fugen sind

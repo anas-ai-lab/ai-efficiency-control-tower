@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Source_Serif_4, Geist_Mono } from "next/font/google";
+import { Manrope, Fraunces, IBM_Plex_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
@@ -12,29 +12,40 @@ import { AuthControl } from "@/components/auth-control";
 import { LeafTransition } from "@/components/leaf-transition";
 import { checkAuth } from "@/app/actions";
 
-// Body-Schrift: Geist Sans (v4.2, vorher Inter). Praeziser Grotesk mit engeren
-// Punzen und ruhigerem Rhythmus als Inter. Ausschlaggebend war die Verwandtschaft
-// zu Geist Mono: Ziffernbreiten und Strichstaerke laufen zwischen Fliesstext und
-// den .stat-value/.tnum-Zahlen zusammen, statt sichtbar zu springen.
-const geistSans = Geist({
+// Schrift-Trio des Design-Resets v4.3 (vorher Geist / Source Serif 4 / Geist
+// Mono). Die Konstanten- und CSS-Variablennamen bleiben absichtlich unveraendert
+// (--font-geist-sans / --font-source-serif / --font-geist-mono): der
+// @theme-inline-Block in globals.css bindet gegen diese Namen, ein Rename waere
+// eine Aenderung an jeder Stelle, die Typografie konsumiert, ohne Gegenwert.
+//
+// Body-Schrift: Manrope. Offenere Punzen und etwas mehr Laufweite als Geist.
+// ACHTUNG -- die Begruendung der Geist-Paarung (angeglichene Ziffernbreiten
+// zwischen Fliesstext und den .stat-value/.tnum-Zahlen) traegt hier NICHT mehr:
+// Manrope und IBM Plex Mono stammen aus verschiedenen Familien. Siehe
+// frontend/CLAUDE.md, "visuell gegenpruefen".
+const geistSans = Manrope({
   variable: "--font-geist-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-// Display-Schrift NUR fuer H1/H2 (siehe globals.css h1,h2-Regel). Eine
-// zurueckhaltende Serife setzt die Hierarchie und gibt der Oberflaeche die
+// Display-Schrift NUR fuer H1/H2 (siehe globals.css h1,h2-Regel). Fraunces
+// ersetzt Source Serif 4; die optical-size-Achse laesst die Serife in grossen
+// Graden staerker kontrastieren, ohne im Kleinen zu zerfallen. Weiterhin
 // Editorial-/Governance-Anmutung -- kein "AI-Look", kein Marketing.
-const sourceSerif = Source_Serif_4({
+const sourceSerif = Fraunces({
   variable: "--font-source-serif",
   subsets: ["latin"],
+  axes: ["opsz"],
   display: "swap",
 });
 
-// Mono mit tabular-nums fuer alle Zahlen und Betraege.
-const geistMono = Geist_Mono({
+// Mono mit tabular-nums fuer alle Zahlen und Betraege. IBM Plex Mono ist ein
+// statischer Schnitt -- weight ist im next/font-Typ Pflicht, nicht optional.
+const geistMono = IBM_Plex_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
@@ -82,7 +93,7 @@ export default async function RootLayout({
             den Seitenwechsel ueberlebt. Beruehrt die Theme-Transition nicht --
             siehe Architektur-Notiz in leaf-transition.tsx. */}
         <LeafTransition />
-        <header className="sticky top-0 z-40 border-b border-[var(--hairline-rule)] bg-background">
+        <header className="sticky top-0 z-40 border-b border-[var(--hairline-rule)] bg-background/75 backdrop-blur-md transition-colors supports-[backdrop-filter]:bg-background/60">
           {/* Rahmenbreite = Inhaltsbreite der Seiten (max-w-5xl). Vorher
               max-w-3xl -- die Wortmarke stand dadurch sichtbar nach innen
               versetzt gegen den Hero, den sie rahmen soll. /board lief zuletzt

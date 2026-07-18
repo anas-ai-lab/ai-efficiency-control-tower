@@ -8,13 +8,12 @@ Use-Case-Intake und KI-Triage. Privates Portfolio-Projekt, kein SaaS.
 - Next.js 16 (App Router, TypeScript, Turbopack als Default-Bundler)
 - Tailwind CSS v4 + shadcn/ui (new-york Style, Zinc-Basis)
 - react-hook-form + zod fuer Client-seitige Formular-Validierung
-- motion (Framer Motion, v12) -- seit dem Gestaltungs-Pass v4.2 auf explizite
-  Anforderung aufgenommen (vorher hier ausgeschlossen). Einsatz bewusst eng:
-  NUR der Feder-Hover der Startseiten-Kacheln (nav-tile.tsx) und die
-  Zaehl-Animation der Kennzahlen (stat-card.tsx). Alles andere bleibt CSS --
-  eine Motion-Bibliothek ist kein Grund, bestehende Keyframes zu ersetzen.
-  Der Blatt-Effekt beim Seitenwechsel laeuft NICHT ueber motion, sondern ueber
-  ein eigenes Canvas (leaf-transition.tsx).
+- motion (Framer Motion, v12): NUR nav-tile.tsx (Feder-Hover + Cursor-Tilt/
+  Spotlight-Motion-Values), stat-card.tsx (Count-up + Cursor-Tilt/Spotlight),
+  pipeline-strip.tsx (Parallax + Legend-Cycle, useState/useEffect ohne
+  motion-Lib). Alles andere bleibt CSS. Der Blatt-Effekt beim Seitenwechsel
+  laeuft NICHT ueber motion, sondern ueber ein eigenes Canvas
+  (leaf-transition.tsx).
 
 ## Sicherheitsregel (NICHT BRECHEN)
 - AECT_API_KEY liegt ausschliesslich in frontend/.env.local
@@ -78,13 +77,19 @@ MARGINAL_GAIN   -> gedaempftes Rot    (--zone-gain-*)
 - EIN Akzent: gedecktes Tinten-Blau --ink (+ --ink-hover/-foreground/-subtle).
   NUR fuer interaktive/aktive Elemente (Fokusring, aktiver Step, Links, Hover
   des Primaerbuttons). Primaeraktion selbst bleibt monochrome Tinte (--primary).
-- VERBOTEN: Lila/Violett- und Blau-Pink-Verlaeufe, Gradient-Text, Glow/Neon,
-  farbige Box-Shadow-Bleeds, Glassmorphism/Frosted-Blur, Emoji im UI,
+- VERBOTEN weiterhin: Lila/Violett-Verlaeufe, Gradient-Text, Emoji im UI,
   symmetrische 3-Spalten-Hero-Grids, generische Card+CardHeader+CardTitle auf
   jedem Block, Badge-Outline-als-Verdikt.
-- Typografie traegt die Hierarchie: Geist Sans (Text) + Source Serif 4 (nur
-  H1/H2) + Geist Mono (Zahlen). Kennzahlen = .stat-value (mono, tabular-nums,
-  gross). Sektionsmarken = .eyebrow.
+- Glassmorphism/Frosted-Blur: erlaubt NUR fuer den Sticky-Header
+  (bg-background/75 + backdrop-blur-md). Kein generelles Card-/Panel-Muster.
+- Farbige Box-Shadow-Bleeds: erlaubt NUR fuer die primaere Hero-CTA
+  (color-mix mit --brand-primary). Keine Bleeds an anderen Buttons/Cards.
+- Glow/Neon: erlaubt NUR im Pipeline-Visual (sehr geringe Deckkraft, radial,
+  --brand-accent). Kein Glow sonst im UI.
+- Design-Reset v4.3 (Chat-getrieben, Anas' Entscheidung): Indigo/Moss statt
+  Navy/Blau/Gruen als Marken-Akzent, siehe globals.css --brand-*.
+- Typografie traegt die Hierarchie: Manrope (Text) + Fraunces (nur H1/H2,
+  optical-size Achse) + IBM Plex Mono (Zahlen). Gewechselt im Redesign v4.3.
 - Hairlines statt Kaesten: --hairline (Trennung in der Flaeche), --hairline-rule
   (Trennung zwischen Flaechen), --hairline-accent (nur interaktiv, laeuft bei
   Hover/Fokus ein). Neue Trennlinien konsumieren diese Tokens, nicht border-border.

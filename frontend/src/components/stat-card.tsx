@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { animate, useInView, useReducedMotion } from "motion/react"
+import {
+  animate,
+  motion,
+  useInView,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from "motion/react"
 
 import { useFormat } from "@/lib/use-format"
 
@@ -48,16 +55,67 @@ function useCountUp(value: number | null, inView: boolean): number {
   return display
 }
 
+// Gleiche Feder wie in nav-tile.tsx -- ein Bewegungsgefuehl ueber die ganze
+// Startseite, nicht zwei.
+const TILT_SPRING = {
+  type: "spring" as const,
+  stiffness: 300,
+  damping: 24,
+  mass: 0.5,
+}
+
 export function StatCard({ label, value, hint, share, shareLabel }: StatCardProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const inView = useInView(ref, { once: true, margin: "-64px" })
   const fmt = useFormat()
   const display = useCountUp(value, inView)
+  const reduce = useReducedMotion()
+
+  // Cursor-Tilt + Spotlight, identisches Muster wie NavTile (Begruendung dort,
+  // inkl. warum das bewusst nur an der Maus haengt).
+  const rawRotateX = useMotionValue(0)
+  const rawRotateY = useMotionValue(0)
+  const rotateX = useSpring(rawRotateX, TILT_SPRING)
+  const rotateY = useSpring(rawRotateY, TILT_SPRING)
+
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (reduce) return
+    const el = event.currentTarget
+    const rect = el.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    el.style.setProperty("--mx", `${(x / rect.width) * 100}%`)
+    el.style.setProperty("--my", `${(y / rect.height) * 100}%`)
+    rawRotateX.set(-((y - rect.height / 2) / (rect.height / 2)) * 3.5)
+    rawRotateY.set(((x - rect.width / 2) / (rect.width / 2)) * 3.5)
+  }
+
+  function handleMouseLeave() {
+    rawRotateX.set(0)
+    rawRotateY.set(0)
+  }
 
   const dash = "—"
 
   return (
-    <div ref={ref} className="flex flex-col justify-between bg-card px-6 py-7">
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={reduce ? undefined : { rotateX, rotateY, transformPerspective: 800 }}
+      className="group relative flex flex-col justify-between overflow-hidden bg-card px-6 py-7"
+    >
+      {/* Spotlight -- transparent 90% statt 88% wie bei den Nav-Kacheln: die
+          drei Karten stehen ohne Fugen direkt nebeneinander, dort faellt eine
+          Aufhellung staerker auf als bei den freistehenden Kacheln. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{
+          background:
+            "radial-gradient(circle at var(--mx,50%) var(--my,50%), color-mix(in oklch, var(--brand-accent), transparent 90%), transparent 60%)",
+        }}
+      />
       <div>
         <p className="eyebrow">{label}</p>
         {/* Zahl-Hierarchie: die Kennzahl ist das lauteste Element der Karte --
@@ -88,7 +146,7 @@ export function StatCard({ label, value, hint, share, shareLabel }: StatCardProp
         )}
         <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>
       </div>
-    </div>
+    </motion.div>
   )
 }
 

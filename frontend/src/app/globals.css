@@ -58,10 +58,10 @@
      Beim Swap NUR diese Light-Werte plus den .dark-Spiegel weiter unten
      tauschen; alle Seiten konsumieren ausschliesslich die semantischen
      Tokens, die hierauf verweisen. */
-  --brand-primary: #1b1b9e; /* Navy  -- Links, aktive Nav/Steps, Gradient-Start */
-  --brand-accent: #2b2bf0; /* Blau  -- Fokusringe, Hover-Border, Gradient-Ende */
-  --brand-soft: #c9cef5; /* Lavendel -- ruhige Akzentflaeche (kein Text-Traeger) */
-  --brand-positive: #57be77; /* Gruen -- positive Semantik / Zone "Vielversprechend" */
+  --brand-primary: #2f3a54; /* Indigo (entsaettigt) -- Links, aktive Nav/Steps */
+  --brand-accent: #4a5b82; /* Indigo hell -- Fokusringe, Hover-Border, Gradient-Ende */
+  --brand-soft: #e2e5ec; /* ruhige Akzentflaeche (kein Text-Traeger) */
+  --brand-positive: #6b7a4e; /* Moss -- positive Semantik / Zone "Vielversprechend" */
   --gradient-hero: linear-gradient(
     135deg,
     var(--brand-primary),
@@ -152,7 +152,7 @@
      auf --brand-positive harmonisiert -- LITERAL gehalten (nicht via var()), weil
      board-matrix diesen Token via getComputedStyle liest und var() dort NICHT als
      SVG-fill aufgeloest wird. Beim Swap synchron zu --brand-positive halten. --- */
-  --zone-win: #57be77; /* = --brand-positive */
+  --zone-win: #6b7a4e; /* = --brand-positive */
   --zone-win-fg: oklch(0.4 0.07 158);
   --zone-win-surface: oklch(0.975 0.018 158);
   --zone-win-border: oklch(0.88 0.04 158);
@@ -175,10 +175,10 @@
   /* === AECT Brand Tokens (Dark-Spiegel) === */
   /* Lavendel/Gruen entsaettigt, keine Volltonflaechen. WCAG-AA gegen die dunkle
      Flaeche geprueft. Beim Swap gemeinsam mit dem Light-Block oben pflegen. */
-  --brand-primary: #9aa2f2; /* helles Periwinkle -- Links/aktive Marken auf Dunkel */
-  --brand-accent: #8b93f5; /* Fokus/Hover-Akzent auf Dunkel */
-  --brand-soft: oklch(0.3 0.045 265); /* gedaempfte dunkle Flaeche, kein Vollton */
-  --brand-positive: #6fd08c; /* entsaettigtes Gruen fuer Dunkel */
+  --brand-primary: #9ba6c9; /* helles Indigo -- Links/aktive Marken auf Dunkel */
+  --brand-accent: #b3bedb; /* Fokus/Hover-Akzent auf Dunkel */
+  --brand-soft: oklch(0.28 0.02 260); /* gedaempfte dunkle Flaeche, kein Vollton */
+  --brand-positive: #8fa36e; /* aufgehelltes Moss fuer Dunkel */
   --gradient-hero: linear-gradient(
     135deg,
     #23237a,
@@ -231,7 +231,7 @@
   --ink-hover: color-mix(in oklch, var(--brand-primary), white 14%);
   --ink-subtle: var(--brand-soft);
 
-  --zone-win: #6fd08c; /* = --brand-positive (Dark), literal fuer getComputedStyle */
+  --zone-win: #8fa36e; /* = --brand-positive (Dark), literal fuer getComputedStyle */
   --zone-win-fg: oklch(0.82 0.1 158);
   --zone-win-surface: oklch(0.27 0.04 160);
   --zone-win-border: oklch(0.4 0.06 160);
@@ -352,6 +352,42 @@
   }
 }
 
+/* Pipeline-Visual der Startseite (Design-Reset v4.3). Ersetzt die frueheren
+   pipeline-node/pipeline-ping-Regeln der v4.2-Leiste.
+   Der Glow ist die EINZIGE im UI zugelassene Glow-Flaeche (frontend/CLAUDE.md):
+   radial, sehr geringe Deckkraft, an --brand-accent gebunden. */
+.pipeline-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 60% 45%,
+    color-mix(in oklch, var(--brand-accent), transparent 84%) 0%,
+    transparent 70%
+  );
+}
+
+/* Laufender Strichversatz auf der Kurve -- deutet die Fliessrichtung an. */
+@keyframes pipeline-dash {
+  to {
+    stroke-dashoffset: -130;
+  }
+}
+
+/* Auslaufender Ring je Knoten. Animiert die SVG-Geometrie-Eigenschaft r, die
+   in modernen Engines als CSS-Property animierbar ist; wo nicht, bleibt der
+   Ring schlicht auf seinem Attribut-Radius stehen -- kein kaputter Zustand. */
+@keyframes pipeline-ring-pulse {
+  0% {
+    r: 6;
+    opacity: 0.7;
+  }
+  100% {
+    r: 19;
+    opacity: 0;
+  }
+}
+
 @keyframes progress-indeterminate {
   0% {
     transform: translateX(-100%);
@@ -382,6 +418,15 @@
   }
   .stagger > * {
     animation: view-enter 0.28s var(--ease-settle) both;
+  }
+  .pipeline-path {
+    stroke-dasharray: 6 7;
+    opacity: 0.5;
+    animation: pipeline-dash 3.6s linear infinite;
+  }
+  .pipeline-ring {
+    opacity: 0.5;
+    animation: pipeline-ring-pulse 3.6s ease-out infinite;
   }
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
   .stagger > *:nth-child(2) { animation-delay: 40ms; }
@@ -437,6 +482,16 @@
   .animate-step-back,
   .stagger > * {
     animation: view-fade 0.2s ease-out both;
+  }
+  /* Pipeline: die Kurve bleibt als ruhige Linie stehen (gedaempft, damit sie
+     ohne die Strich-Animation nicht lauter wirkt als vorher), die pulsierenden
+     Ringe entfallen ersatzlos -- die gefuellten Knoten tragen die Aussage
+     allein. */
+  .pipeline-path {
+    opacity: 0.35;
+  }
+  .pipeline-ring {
+    display: none;
   }
 }
 
