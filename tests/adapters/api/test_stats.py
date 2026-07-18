@@ -6,8 +6,8 @@ und der nachfolgende GET /stats denselben Zustand sehen -- analog
 test_list_cases.py.
 
 Prueft die Funnel-Semantik: eingereicht (alle), bewertet (Board-Entscheidung,
-ReviewerDecision != PENDING), umgesetzt (Status IMPLEMENTED) und die Netto-
-Nutzen-Summe ueber APPROVED + IMPLEMENTED.
+ReviewerDecision != PENDING), freigegeben (Status APPROVED), umgesetzt (Status
+IMPLEMENTED) und die Netto-Nutzen-Summe ueber APPROVED + IMPLEMENTED.
 """
 
 from __future__ import annotations
@@ -88,19 +88,22 @@ async def test_stats_is_public() -> None:
     assert body == {
         "eingereicht": 0,
         "bewertet": 0,
+        "freigegeben": 0,
         "umgesetzt": 0,
         "netto_nutzen_freigegeben_eur": 0.0,
     }
 
 
 async def test_stats_funnel_and_released_net_benefit() -> None:
-    # Szenario trennt die drei Zaehler bewusst: "bewertet" folgt der
-    # Board-Entscheidung (ReviewerDecision != PENDING), "umgesetzt" dem Status.
+    # Szenario trennt die vier Zaehler bewusst: "bewertet" folgt der
+    # Board-Entscheidung (ReviewerDecision != PENDING), "freigegeben" und
+    # "umgesetzt" folgen dem Status.
     #   A: /decision approved  -> decision=approved, status=approved
     #   B: /status implemented -> decision=PENDING,  status=implemented
     #   C: /decision rejected  -> decision=rejected, status=rejected
     # => eingereicht=3, bewertet=2 (A,C -- B ist umgesetzt, aber unbewertet),
-    #    umgesetzt=1 (B), netto ueber status approved+implemented (A,B).
+    #    freigegeben=1 (A -- status approved), umgesetzt=1 (B), netto ueber
+    #    status approved+implemented (A,B).
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
@@ -147,6 +150,8 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
     # A (approved) + C (rejected) sind vom Board entschieden; B (nur implemented,
     # ohne Decision) zaehlt NICHT als bewertet.
     assert body["bewertet"] == 2
+    # Nur A steht im Status approved (C ist rejected, B bereits implemented).
+    assert body["freigegeben"] == 1
     assert body["umgesetzt"] == 1
     # Netto ueber Status approved (A) + implemented (B); rejected (C) faellt raus.
     assert body["netto_nutzen_freigegeben_eur"] == a_net + b_net

@@ -28,6 +28,9 @@ class StatsResponse(BaseModel):
     """Aggregierte Portfolio-Kennzahlen (V4-P7).
 
     eingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).
+    freigegeben: Cases mit Status APPROVED (freigegeben, aber noch nicht
+    umgesetzt) -- eigener Zwischenschritt-Zaehler, unabhaengig von
+    netto_nutzen_freigegeben_eur.
     netto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene
     (APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent
     mit ROIResponse (JSON-Serialisierbarkeit).
@@ -37,6 +40,7 @@ class StatsResponse(BaseModel):
 
     eingereicht: int
     bewertet: int
+    freigegeben: int
     umgesetzt: int
     netto_nutzen_freigegeben_eur: float
 
@@ -57,6 +61,7 @@ async def get_stats(
     return StatsResponse(
         eingereicht=stats.eingereicht,
         bewertet=stats.bewertet,
+        freigegeben=stats.freigegeben,
         umgesetzt=stats.umgesetzt,
         netto_nutzen_freigegeben_eur=float(stats.netto_nutzen_freigegeben_eur),
     )

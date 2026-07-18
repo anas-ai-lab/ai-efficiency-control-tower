@@ -151,7 +151,7 @@ export function NavTile({ href, title, description, icon }: NavTileProps) {
         aria-hidden
         variants={reduce ? undefined : iconVariants}
         transition={SPRING}
-        className="flex size-10 items-center justify-center rounded-xl border border-[var(--hairline)] bg-[var(--ink-subtle)] text-[var(--ink)]"
+        className="flex size-10 items-center justify-center rounded-xl border border-[var(--hairline)] bg-[var(--ink-subtle)] text-[var(--ink)] transition-colors duration-300 group-hover:border-transparent group-hover:bg-[var(--ink)] group-hover:text-[var(--ink-foreground)]"
       >
         {icon}
       </motion.span>

@@ -92,6 +92,11 @@ class PortfolioStats:
                    abgelehnt). Bewusst NICHT "Vorfilter bestanden": der Vorfilter
                    ist die maschinelle Vorbewertung, die Board-Entscheidung ist
                    die eigentliche Bewertung im Funnel.
+    freigegeben -- Cases im Lifecycle-Status APPROVED (das AI Board hat
+                   freigegeben, aber die Umsetzung ist noch nicht erfolgt).
+                   Eine andere Menge als netto_nutzen_freigegeben_eur, die
+                   APPROVED + IMPLEMENTED zusammen summiert -- dieser Zaehler
+                   zaehlt ausschliesslich den Zwischenschritt.
     umgesetzt   -- Cases im Lifecycle-Status IMPLEMENTED.
     netto_nutzen_freigegeben_eur -- Summe der Netto-Nutzen ueber alle Cases im
                    Status APPROVED oder IMPLEMENTED, deren ROI berechnet wurde
@@ -101,6 +106,7 @@ class PortfolioStats:
 
     eingereicht: int
     bewertet: int
+    freigegeben: int
     umgesetzt: int
     netto_nutzen_freigegeben_eur: Decimal
 

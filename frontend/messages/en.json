@@ -71,7 +71,7 @@
     "pipelineRag": "RAG",
     "pipelineLlm": "LLM",
     "pipelineHuman": "Human",
-    "pipelineCaption": "AI for ambiguity. Rules for clarity. People for accountability.",
+    "pipelineCaption": "Clear rules check the facts, vetted sources provide the evidence, a language model turns it into plain text — a person makes the final call.",
     "kpiSubmittedLabel": "Submitted ideas",
     "kpiSubmittedHint": "captured in total",
     "kpiEvaluatedLabel": "Evaluated ideas",

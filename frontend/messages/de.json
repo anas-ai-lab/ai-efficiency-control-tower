@@ -71,7 +71,7 @@
     "pipelineRag": "RAG",
     "pipelineLlm": "LLM",
     "pipelineHuman": "Mensch",
-    "pipelineCaption": "AI für Ambiguität. Regeln für Klarheit. Menschen für Verantwortung.",
+    "pipelineCaption": "Klare Regeln prüfen die Fakten, geprüfte Quellen liefern die Belege, ein Sprachmodell macht daraus einen verständlichen Text — entschieden wird am Ende von einem Menschen.",
     "kpiSubmittedLabel": "Eingereichte Ideen",
     "kpiSubmittedHint": "insgesamt erfasst",
     "kpiEvaluatedLabel": "Bewertete Ideen",

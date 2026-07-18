@@ -878,7 +878,8 @@ class TriageService:
 
         Ein einziger list_all()-Durchlauf, rein lesend -- kein LLM, keine
         Persistenz-Aenderung. Semantik: siehe PortfolioStats-Docstring
-        (Funnel eingereicht -> bewertet -> umgesetzt + freigegebener Netto-Nutzen).
+        (Funnel eingereicht -> bewertet -> freigegeben -> umgesetzt +
+        freigegebener Netto-Nutzen).
         """
         cases = self._repository.list_all()
         released_statuses = {CaseStatus.APPROVED, CaseStatus.IMPLEMENTED}
@@ -898,6 +899,7 @@ class TriageService:
             bewertet=sum(
                 1 for c in cases if c.reviewer_decision is not ReviewerDecision.PENDING
             ),
+            freigegeben=sum(1 for c in cases if c.status is CaseStatus.APPROVED),
             umgesetzt=sum(1 for c in cases if c.status is CaseStatus.IMPLEMENTED),
             netto_nutzen_freigegeben_eur=net_sum,
         )

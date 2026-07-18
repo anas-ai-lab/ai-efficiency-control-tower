@@ -604,6 +604,7 @@ export interface IdeationResponse {
 export interface StatsResponse {
   eingereicht: number;
   bewertet: number;
+  freigegeben: number;
   umgesetzt: number;
   netto_nutzen_freigegeben_eur: number;
 }
