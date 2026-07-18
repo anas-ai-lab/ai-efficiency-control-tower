@@ -1871,6 +1871,9 @@ export interface components {
          * @description Aggregierte Portfolio-Kennzahlen (V4-P7).
          *
          *     eingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).
+         *     freigegeben: Cases mit Status APPROVED (freigegeben, aber noch nicht
+         *     umgesetzt) -- eigener Zwischenschritt-Zaehler, unabhaengig von
+         *     netto_nutzen_freigegeben_eur.
          *     netto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene
          *     (APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent
          *     mit ROIResponse (JSON-Serialisierbarkeit).
@@ -1880,6 +1883,8 @@ export interface components {
             eingereicht: number;
             /** Bewertet */
             bewertet: number;
+            /** Freigegeben */
+            freigegeben: number;
             /** Umgesetzt */
             umgesetzt: number;
             /** Netto Nutzen Freigegeben Eur */

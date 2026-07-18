@@ -78,6 +78,8 @@
     "kpiEvaluatedHint": "Vorfilter bestanden",
     "kpiImplementedLabel": "Umgesetzte Use Cases",
     "kpiImplementedHint": "produktiv im Einsatz",
+    "kpiApprovedLabel": "Freigegebene Ideen in der Entwicklung",
+    "kpiApprovedHint": "in Umsetzung",
     "kpiShare": "{percent} der Einreichungen",
     "cardSubmitTitle": "Einreichen",
     "cardSubmitDesc": "Wenige Schritte, und deine Idee bekommt eine begründete Bewertung statt eines Bauchgefühls.",

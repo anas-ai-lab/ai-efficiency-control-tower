@@ -78,6 +78,8 @@
     "kpiEvaluatedHint": "passed the prefilter",
     "kpiImplementedLabel": "Implemented use cases",
     "kpiImplementedHint": "live in production",
+    "kpiApprovedLabel": "Approved ideas in development",
+    "kpiApprovedHint": "in implementation",
     "kpiShare": "{percent} of submissions",
     "cardSubmitTitle": "Submit",
     "cardSubmitDesc": "A few steps, and your idea gets a reasoned assessment instead of a gut feeling.",

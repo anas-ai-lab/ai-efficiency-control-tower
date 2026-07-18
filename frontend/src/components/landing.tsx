@@ -24,13 +24,17 @@ import { Button } from "@/components/ui/button";
 //
 // Die Gradient-Kachel mit dem AE-Monogramm rechts im Hero bleibt entfallen: sie
 // war das einzige Element, das Flaeche fuer sich beanspruchte, ohne etwas zu
-// sagen. Die Pipeline-Leiste darunter ist ausdruecklich KEIN Ersatz dafuer --
-// sie fuellt keine Luecke im Layout, sondern traegt den Leitsatz aus
-// aect-context.md ("AI fuer Ambiguitaet, Regeln fuer Klarheit, Menschen fuer
-// Verantwortung") als Inhalt: die vier Stationen Regeln -> RAG -> LLM -> Mensch
-// sind die tatsaechliche Verarbeitungskette des Systems. Der Unterschied ist der
+// sagen. Die Pipeline-Leiste ist ausdruecklich KEIN Ersatz dafuer -- sie fuellt
+// keine Luecke im Layout, sondern traegt den Leitsatz aus aect-context.md
+// ("AI fuer Ambiguitaet, Regeln fuer Klarheit, Menschen fuer Verantwortung")
+// als Inhalt: die vier Stationen Regeln -> RAG -> LLM -> Mensch sind die
+// tatsaechliche Verarbeitungskette des Systems. Der Unterschied ist der
 // Pruefstein fuer kuenftige Ergaenzungen im Hero: eine Aussage darf bleiben,
 // eine Flaeche nicht.
+//
+// Seit dem KPI-Umbau auf 2x2 steht die Pipeline-Leiste neben statt unter dem
+// Fliesstext -- aus reinem Kompositions-/Blickfolge-Grund (sie schliesst das
+// KPI-Raster rechts ab), nicht als neue Design-Ausnahme.
 
 interface NavCardDef {
   href: string;
@@ -125,7 +129,7 @@ export async function Landing({
 
           EINE bewusste Abweichung vom Mockup: die KPI-Karten bekommen KEINE
           Trend-Zahl und KEINE Sparkline. Der Entwurf zeigt dort ein Delta
-          ("+12 % zum Vormonat"); GET /stats liefert aber nur die drei
+          ("+12 % zum Vormonat"); GET /stats liefert aber nur die vier
           Mengen-Staende, keine Historie. Jede Kurve und jedes Delta an dieser
           Stelle waere erfunden -- siehe CLAUDE.md, "Keine erfundenen Zahlen".
           Was die Karten stattdessen tragen, ist der aus denselben Staenden
@@ -154,41 +158,53 @@ export async function Landing({
             </Link>
           </Button>
         </div>
-        <PipelineStrip
-          steps={[
-            t("pipelineRule"),
-            t("pipelineRag"),
-            t("pipelineLlm"),
-            t("pipelineHuman"),
-          ]}
-          caption={t("pipelineCaption")}
-        />
       </section>
 
-      {/* Kennzahlen. Ein Hairline-Raster traegt die drei Karten: die Fugen sind
-          die Linien (gap-px auf der Rule-Farbe), kein Kasten um jede Karte. */}
+      {/* Kennzahlen + Pipeline-Leiste. Ab lg zweispaltig: 2x2-Raster links,
+          Pipeline-Leiste rechts als eigene Spalte (siehe Kommentar oben). Auf
+          kleineren Breiten stapeln beide Bloecke untereinander. Ein
+          Hairline-Raster traegt die vier Karten: die Fugen sind die Linien
+          (gap-px auf der Rule-Farbe), kein Kasten um jede Karte. */}
       <section className="mt-20">
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[var(--hairline-rule)] bg-[var(--hairline-rule)] sm:grid-cols-3">
-          <StatCard
-            label={t("kpiSubmittedLabel")}
-            value={stats ? stats.eingereicht : null}
-            hint={t("kpiSubmittedHint")}
-            share={null}
-            shareLabel={null}
-          />
-          <StatCard
-            label={t("kpiEvaluatedLabel")}
-            value={stats ? stats.bewertet : null}
-            hint={t("kpiEvaluatedHint")}
-            share={stats ? shareOf(stats.bewertet) : null}
-            shareLabel={stats ? shareLabel(stats.bewertet) : null}
-          />
-          <StatCard
-            label={t("kpiImplementedLabel")}
-            value={stats ? stats.umgesetzt : null}
-            hint={t("kpiImplementedHint")}
-            share={stats ? shareOf(stats.umgesetzt) : null}
-            shareLabel={stats ? shareLabel(stats.umgesetzt) : null}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-stretch">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--hairline-rule)] bg-[var(--hairline-rule)]">
+            <StatCard
+              label={t("kpiSubmittedLabel")}
+              value={stats ? stats.eingereicht : null}
+              hint={t("kpiSubmittedHint")}
+              share={null}
+              shareLabel={null}
+            />
+            <StatCard
+              label={t("kpiEvaluatedLabel")}
+              value={stats ? stats.bewertet : null}
+              hint={t("kpiEvaluatedHint")}
+              share={stats ? shareOf(stats.bewertet) : null}
+              shareLabel={stats ? shareLabel(stats.bewertet) : null}
+            />
+            <StatCard
+              label={t("kpiApprovedLabel")}
+              value={stats ? stats.freigegeben : null}
+              hint={t("kpiApprovedHint")}
+              share={stats ? shareOf(stats.freigegeben) : null}
+              shareLabel={stats ? shareLabel(stats.freigegeben) : null}
+            />
+            <StatCard
+              label={t("kpiImplementedLabel")}
+              value={stats ? stats.umgesetzt : null}
+              hint={t("kpiImplementedHint")}
+              share={stats ? shareOf(stats.umgesetzt) : null}
+              shareLabel={stats ? shareLabel(stats.umgesetzt) : null}
+            />
+          </div>
+          <PipelineStrip
+            steps={[
+              t("pipelineRule"),
+              t("pipelineRag"),
+              t("pipelineLlm"),
+              t("pipelineHuman"),
+            ]}
+            caption={t("pipelineCaption")}
           />
         </div>
       </section>
