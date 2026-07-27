@@ -1042,6 +1042,97 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         assert report.business_summary.compliance_citations == ()
 
 
+class TestTriageServiceReportSharpenedSplitFields:
+    """Belegt die Trennung der geschaerften Fassung in zwei Felder (Soll-Zustand,
+    Soll-Beispiel) neben dem weiterhin bestehenden verketteten sharpened_text --
+    additiv auf der bereits getrennten Persistenz (sharpened_content_json)."""
+
+    async def test_structured_json_populates_both_split_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+        await service.accept_sharpening(case.id)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        bs = report.business_summary
+        assert bs.sharpened_desired_state is not None
+        assert bs.sharpened_desired_state.startswith("[mock]")
+        assert bs.sharpened_desired_example_process is not None
+        # sharpened_text bleibt der verkettete String (Abwaertskompatibilitaet).
+        assert bs.sharpened_text == "\n".join(
+            (
+                f"Soll-Zustand: {bs.sharpened_desired_state}",
+                f"Soll-Beispiel: {bs.sharpened_desired_example_process}",
+            )
+        )
+        details = bs.decision_report.details
+        assert details.sharpened_desired_state == bs.sharpened_desired_state
+        assert (
+            details.sharpened_desired_example_process
+            == bs.sharpened_desired_example_process
+        )
+
+    def test_legacy_raw_text_leaves_split_fields_none(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Vor ADR-0054 persistierte Cases tragen raw_text statt der beiden
+        # strukturierten Felder (Graceful Degradation) -- kein Datenverlust in
+        # der Anzeige, aber auch keine erfundene Aufteilung des Freitexts.
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        repo.update_field(
+            case.id, "sharpened_content_json", json.dumps({"raw_text": "Alter Text"})
+        )
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        bs = report.business_summary
+        assert bs.sharpened_desired_state is None
+        assert bs.sharpened_desired_example_process is None
+        assert bs.sharpened_text == "Alter Text"
+        details = bs.decision_report.details
+        assert details.sharpened_desired_state is None
+        assert details.sharpened_desired_example_process is None
+        assert details.sharpened_text == "Alter Text"
+
+    def test_no_sharpening_leaves_all_three_none(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        report = service.generate_report(case.id)
+
+        assert report is not None
+        bs = report.business_summary
+        assert bs.sharpened_desired_state is None
+        assert bs.sharpened_desired_example_process is None
+        assert bs.sharpened_text is None
+
+    async def test_override_sharpened_text_does_not_affect_split_fields(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        # Der Override-Pfad (ReportRequest.sharpened_text) ueberschreibt nur
+        # den verketteten String -- die getrennten Felder kommen ausschliesslich
+        # aus der Persistenz und bleiben von einem Override unberuehrt.
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.sharpen_case(case.id)
+        await service.accept_sharpening(case.id)
+
+        report = service.generate_report(case.id, sharpened_text="Override-Text")
+
+        assert report is not None
+        assert report.business_summary.sharpened_text == "Override-Text"
+        assert report.business_summary.sharpened_desired_state is not None
+        assert report.business_summary.sharpened_desired_example_process is not None
+
+
 class TestTriageServiceComplianceHintsPersistence:
     """Belegt ADR-0026: generate_compliance_hints() persistiert das
     Ergebnis (hint_text + citations) auf SubmittedCase, analog zu

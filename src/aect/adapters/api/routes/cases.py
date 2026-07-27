@@ -1135,9 +1135,18 @@ class DecisionKennzahlenResponse(BaseModel):
 
 
 class DecisionDetailsResponse(BaseModel):
-    """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein)."""
+    """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
+
+    sharpened_desired_state/sharpened_desired_example_process: dieselbe
+    geschaerfte Fassung wie sharpened_text, aber als zwei getrennte Felder
+    statt eines verketteten Strings. None, solange nie geschaerft wurde ODER
+    der Case einen vor ADR-0054 persistierten Legacy-Freitext (raw_text)
+    traegt -- in diesem Fall bleibt sharpened_text die einzige Quelle.
+    """
 
     sharpened_text: str | None
+    sharpened_desired_state: str | None
+    sharpened_desired_example_process: str | None
     solution_business: ManagementSolutionResponse | None
     compliance_hint_text: str | None
 
@@ -1178,6 +1187,12 @@ class BusinessSummaryResponse(BaseModel):
     reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
     Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
     sichtbar, ohne einen zweiten Endpoint abzufragen.
+
+    sharpened_desired_state/sharpened_desired_example_process: dieselbe
+    geschaerfte Fassung wie sharpened_text, getrennt in die beiden
+    strukturierten Felder statt eines verketteten Strings. Kommen
+    ausschliesslich aus der Persistenz -- der sharpened_text-Override im
+    Request-Body wirkt NICHT auf diese beiden Felder.
     """
 
     title: str
@@ -1188,6 +1203,8 @@ class BusinessSummaryResponse(BaseModel):
     decision_report: DecisionReportResponse
     solution_business: ManagementSolutionResponse | None
     sharpened_text: str | None
+    sharpened_desired_state: str | None
+    sharpened_desired_example_process: str | None
     compliance_hint_text: str | None
     compliance_citations: list[ComplianceCitationResponse]
     reviewer_decision: str
@@ -1290,6 +1307,10 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
                 contra_punkte=list(dr.contra_punkte),
                 details=DecisionDetailsResponse(
                     sharpened_text=dr.details.sharpened_text,
+                    sharpened_desired_state=dr.details.sharpened_desired_state,
+                    sharpened_desired_example_process=(
+                        dr.details.sharpened_desired_example_process
+                    ),
                     solution_business=_management_solution_response(
                         dr.details.solution_business
                     ),
@@ -1298,6 +1319,8 @@ def _to_report_response(report: ReportResult) -> ReportResponse:
             ),
             solution_business=_management_solution_response(business.solution_business),
             sharpened_text=business.sharpened_text,
+            sharpened_desired_state=business.sharpened_desired_state,
+            sharpened_desired_example_process=business.sharpened_desired_example_process,
             compliance_hint_text=business.compliance_hint_text,
             compliance_citations=[
                 ComplianceCitationResponse(

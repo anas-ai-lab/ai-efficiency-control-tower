@@ -1753,6 +1753,28 @@
             ],
             "title": "Sharpened Text"
           },
+          "sharpened_desired_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Desired State"
+          },
+          "sharpened_desired_example_process": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Desired Example Process"
+          },
           "compliance_hint_text": {
             "anyOf": [
               {
@@ -1809,6 +1831,8 @@
           "decision_report",
           "solution_business",
           "sharpened_text",
+          "sharpened_desired_state",
+          "sharpened_desired_example_process",
           "compliance_hint_text",
           "compliance_citations",
           "reviewer_decision",
@@ -1816,7 +1840,7 @@
           "decided_at"
         ],
         "title": "BusinessSummaryResponse",
-        "description": "Entscheider-Schicht des Reports.\n\ndecision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die\nfrueher redundante summary_text-Zeile ersatzlos.\n\nsolution_business (ADR-0054): strukturierte, technikfreie Management-Fassung\naus propose_solution() (Kernaussage + Nutzen-Stichpunkte statt Freitext-\nAbsatz); None, solange der Endpoint nicht lief.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen."
+        "description": "Entscheider-Schicht des Reports.\n\ndecision_report (V4-P6): die strukturierte Entscheider-Sicht -- ersetzt die\nfrueher redundante summary_text-Zeile ersatzlos.\n\nsolution_business (ADR-0054): strukturierte, technikfreie Management-Fassung\naus propose_solution() (Kernaussage + Nutzen-Stichpunkte statt Freitext-\nAbsatz); None, solange der Endpoint nicht lief.\n\ncompliance_hint_text/compliance_citations (ADR-0026): aus dem\npersistierten compliance_hints_json gelesen, kein Override moeglich\n(siehe ReportRequest-Docstring).\n\nreviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller\nHuman-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse\nsichtbar, ohne einen zweiten Endpoint abzufragen.\n\nsharpened_desired_state/sharpened_desired_example_process: dieselbe\ngeschaerfte Fassung wie sharpened_text, getrennt in die beiden\nstrukturierten Felder statt eines verketteten Strings. Kommen\nausschliesslich aus der Persistenz -- der sharpened_text-Override im\nRequest-Body wirkt NICHT auf diese beiden Felder."
       },
       "CaseDecisionResponse": {
         "properties": {
@@ -2220,6 +2244,28 @@
             ],
             "title": "Sharpened Text"
           },
+          "sharpened_desired_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Desired State"
+          },
+          "sharpened_desired_example_process": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpened Desired Example Process"
+          },
           "solution_business": {
             "anyOf": [
               {
@@ -2245,11 +2291,13 @@
         "type": "object",
         "required": [
           "sharpened_text",
+          "sharpened_desired_state",
+          "sharpened_desired_example_process",
           "solution_business",
           "compliance_hint_text"
         ],
         "title": "DecisionDetailsResponse",
-        "description": "Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein)."
+        "description": "Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).\n\nsharpened_desired_state/sharpened_desired_example_process: dieselbe\ngeschaerfte Fassung wie sharpened_text, aber als zwei getrennte Felder\nstatt eines verketteten Strings. None, solange nie geschaerft wurde ODER\nder Case einen vor ADR-0054 persistierten Legacy-Freitext (raw_text)\ntraegt -- in diesem Fall bleibt sharpened_text die einzige Quelle."
       },
       "DecisionKennzahlenResponse": {
         "properties": {
@@ -3414,6 +3462,10 @@
             "type": "integer",
             "title": "Bewertet"
           },
+          "freigegeben": {
+            "type": "integer",
+            "title": "Freigegeben"
+          },
           "umgesetzt": {
             "type": "integer",
             "title": "Umgesetzt"
@@ -3428,11 +3480,12 @@
         "required": [
           "eingereicht",
           "bewertet",
+          "freigegeben",
           "umgesetzt",
           "netto_nutzen_freigegeben_eur"
         ],
         "title": "StatsResponse",
-        "description": "Aggregierte Portfolio-Kennzahlen (V4-P7).\n\neingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).\nnetto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene\n(APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent\nmit ROIResponse (JSON-Serialisierbarkeit)."
+        "description": "Aggregierte Portfolio-Kennzahlen (V4-P7).\n\neingereicht/bewertet/umgesetzt: Funnel-Zaehler (siehe PortfolioStats).\nfreigegeben: Cases mit Status APPROVED (freigegeben, aber noch nicht\numgesetzt) -- eigener Zwischenschritt-Zaehler, unabhaengig von\nnetto_nutzen_freigegeben_eur.\nnetto_nutzen_freigegeben_eur: Summe der Netto-Nutzen ueber freigegebene\n(APPROVED) und umgesetzte (IMPLEMENTED) Cases. Decimal -> float, konsistent\nmit ROIResponse (JSON-Serialisierbarkeit)."
       },
       "StatusUpdateRequest": {
         "properties": {

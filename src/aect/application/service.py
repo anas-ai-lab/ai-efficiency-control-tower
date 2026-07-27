@@ -296,6 +296,29 @@ def _render_sharpened_content(content_json: str | None) -> str | None:
     )
 
 
+def _render_sharpened_fields(
+    content_json: str | None,
+) -> tuple[str | None, str | None]:
+    """Rendert die geschaerfte Fassung getrennt (Soll-Zustand, Soll-Beispiel).
+
+    Geschwisterfunktion zu _render_sharpened_content(): dieselbe Persistenz
+    (sharpened_content_json), aber ohne die beiden Felder zu einem String zu
+    verketten. content_json None ODER Graceful-Degradation-Legacy-Fall
+    (raw_text gesetzt, vor ADR-0054 persistiert) -> (None, None) -- der
+    Freitext wird nicht nachtraeglich in zwei Felder zerlegt, er bleibt
+    unveraendert ueber sharpened_text erreichbar.
+    """
+    if content_json is None:
+        return None, None
+    data = json.loads(content_json)
+    if data.get("raw_text") is not None:
+        return None, None
+    return (
+        str(data["sharpened_desired_state"]),
+        str(data["sharpened_desired_example_process"]),
+    )
+
+
 def _render_compliance_hints(
     content_json: str | None,
 ) -> tuple[str | None, tuple[ComplianceCitation, ...]]:
@@ -352,6 +375,8 @@ def _build_decision_report(
     use_case: UseCaseInput,
     explanation: TriageExplanation,
     sharpened_text: str | None,
+    sharpened_desired_state: str | None,
+    sharpened_desired_example_process: str | None,
     solution_business: ManagementSolution | None,
     compliance_hint_text: str | None,
     lang: Lang = DEFAULT_LANG,
@@ -366,6 +391,8 @@ def _build_decision_report(
         ),
         details=DecisionDetails(
             sharpened_text=sharpened_text,
+            sharpened_desired_state=sharpened_desired_state,
+            sharpened_desired_example_process=sharpened_desired_example_process,
             solution_business=solution_business,
             compliance_hint_text=compliance_hint_text,
         ),
@@ -423,6 +450,8 @@ def _build_business_summary(
     use_case: UseCaseInput,
     explanation: TriageExplanation,
     sharpened_text: str | None,
+    sharpened_desired_state: str | None,
+    sharpened_desired_example_process: str | None,
     solution_business: ManagementSolution | None,
     compliance_hint_text: str | None,
     compliance_citations: tuple[ComplianceCitation, ...],
@@ -457,12 +486,16 @@ def _build_business_summary(
             use_case,
             explanation,
             sharpened_text,
+            sharpened_desired_state,
+            sharpened_desired_example_process,
             solution_business,
             compliance_hint_text,
             lang,
         ),
         solution_business=solution_business,
         sharpened_text=sharpened_text,
+        sharpened_desired_state=sharpened_desired_state,
+        sharpened_desired_example_process=sharpened_desired_example_process,
         compliance_hint_text=compliance_hint_text,
         compliance_citations=compliance_citations,
         reviewer_decision=reviewer_decision,
@@ -2110,6 +2143,13 @@ class TriageService:
             if sharpened_text is not None
             else _render_sharpened_content(case.sharpened_content_json)
         )
+        # Die getrennten Soll-Felder kommen ausschliesslich aus der Persistenz --
+        # der sharpened_text-Override ist nur fuer den verketteten String
+        # gedacht (Vorschau/Tests des Fliesstexts), nicht fuer die Zwei-Felder-
+        # Anzeige.
+        sharpened_desired_state, sharpened_desired_example_process = (
+            _render_sharpened_fields(case.sharpened_content_json)
+        )
         # Beide Loesungs-Spalten tragen seit ADR-0054 strukturiertes JSON; die
         # read_*()-Leser bilden Legacy-Klartext auf das jeweilige Summary-Feld ab.
         # Das deckt zugleich den proposal_text-Override aus dem Request-Body, der
@@ -2131,6 +2171,8 @@ class TriageService:
                 case.use_case,
                 explanation,
                 effective_sharpened_text,
+                sharpened_desired_state,
+                sharpened_desired_example_process,
                 effective_solution_business,
                 compliance_hint_text,
                 compliance_citations,

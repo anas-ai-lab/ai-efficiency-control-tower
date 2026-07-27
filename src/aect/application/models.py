@@ -406,13 +406,22 @@ class DecisionKennzahlen:
 class DecisionDetails:
     """Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
 
-    sharpened_text: geschaerfte Beschreibung (falls akzeptiert). solution_business:
-    strukturierte Management-Fassung aus propose_solution() (ADR-0054, frueher ein
-    Freitext-Absatz). compliance_hint_text: RAG-gegruendeter Compliance-Hinweis.
-    Alle None, solange der jeweilige Schritt nicht ausgeloest wurde.
+    sharpened_text: geschaerfte Beschreibung (falls akzeptiert), als verketteter
+    String (Abwaertskompatibilitaet). sharpened_desired_state/
+    sharpened_desired_example_process: dieselbe geschaerfte Fassung getrennt in
+    die beiden strukturierten Felder -- None, wenn nie geschaerft wurde ODER
+    der Case einen vor ADR-0054 persistierten Graceful-Degradation-Freitext
+    (raw_text) traegt, der sich nicht nachtraeglich aufteilen laesst (in diesem
+    Legacy-Fall traegt weiterhin sharpened_text den unveraenderten Freitext).
+    solution_business: strukturierte Management-Fassung aus propose_solution()
+    (ADR-0054, frueher ein Freitext-Absatz). compliance_hint_text: RAG-
+    gegruendeter Compliance-Hinweis. Alle None, solange der jeweilige Schritt
+    nicht ausgeloest wurde.
     """
 
     sharpened_text: str | None
+    sharpened_desired_state: str | None
+    sharpened_desired_example_process: str | None
     solution_business: ManagementSolution | None
     compliance_hint_text: str | None
 
@@ -464,12 +473,19 @@ class BusinessSummary:
     frueheren Freitext-Absatzes. None, solange propose_solution() fuer diesen Case
     nie lief. Als untrusted LLM-Output unveraendert weitergereicht.
 
-    sharpened_text: LLM-Schaerfung des Cases. Default ist der persistierte
-    Wert aus sharpen_case() (Tag 42, ADR-0012); ein im Request-Body
-    uebergebener Wert ueberschreibt den persistierten (z. B. fuer Tests oder
-    Re-Sharpening ohne erneuten Persist). None, wenn weder persistiert noch
-    uebergeben. Als untrusted LLM-Output unveraendert weitergereicht
-    (aect-security-checklist v2.1).
+    sharpened_text: LLM-Schaerfung des Cases, als verketteter String. Default
+    ist der persistierte Wert aus sharpen_case() (Tag 42, ADR-0012); ein im
+    Request-Body uebergebener Wert ueberschreibt den persistierten (z. B. fuer
+    Tests oder Re-Sharpening ohne erneuten Persist). None, wenn weder
+    persistiert noch uebergeben. Als untrusted LLM-Output unveraendert
+    weitergereicht (aect-security-checklist v2.1).
+
+    sharpened_desired_state/sharpened_desired_example_process: dieselbe
+    geschaerfte Fassung als zwei getrennte Felder statt des verketteten Strings
+    -- kommen ausschliesslich aus der Persistenz (kein Request-Body-Override,
+    anders als sharpened_text: der Override-Pfad ist nur fuer eine Freitext-
+    Vorschau gedacht). Beide None, solange nie geschaerft wurde ODER der Case
+    einen vor ADR-0054 persistierten Legacy-Freitext (raw_text) traegt.
 
     compliance_hint_text/compliance_citations (ADR-0026): aus dem
     persistierten compliance_hints_json gelesen (generate_compliance_hints()).
@@ -496,6 +512,8 @@ class BusinessSummary:
     decision_report: DecisionReport
     solution_business: ManagementSolution | None
     sharpened_text: str | None
+    sharpened_desired_state: str | None
+    sharpened_desired_example_process: str | None
     compliance_hint_text: str | None
     compliance_citations: tuple[ComplianceCitation, ...]
     reviewer_decision: str

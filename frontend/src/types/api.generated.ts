@@ -973,6 +973,12 @@ export interface components {
          *     reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
          *     Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
          *     sichtbar, ohne einen zweiten Endpoint abzufragen.
+         *
+         *     sharpened_desired_state/sharpened_desired_example_process: dieselbe
+         *     geschaerfte Fassung wie sharpened_text, getrennt in die beiden
+         *     strukturierten Felder statt eines verketteten Strings. Kommen
+         *     ausschliesslich aus der Persistenz -- der sharpened_text-Override im
+         *     Request-Body wirkt NICHT auf diese beiden Felder.
          */
         BusinessSummaryResponse: {
             /** Title */
@@ -989,6 +995,10 @@ export interface components {
             solution_business: components["schemas"]["ManagementSolutionResponse"] | null;
             /** Sharpened Text */
             sharpened_text: string | null;
+            /** Sharpened Desired State */
+            sharpened_desired_state: string | null;
+            /** Sharpened Desired Example Process */
+            sharpened_desired_example_process: string | null;
             /** Compliance Hint Text */
             compliance_hint_text: string | null;
             /** Compliance Citations */
@@ -1200,10 +1210,20 @@ export interface components {
         /**
          * DecisionDetailsResponse
          * @description Ausklappbare Details des Entscheider-Reports (Frontend klappt sie ein).
+         *
+         *     sharpened_desired_state/sharpened_desired_example_process: dieselbe
+         *     geschaerfte Fassung wie sharpened_text, aber als zwei getrennte Felder
+         *     statt eines verketteten Strings. None, solange nie geschaerft wurde ODER
+         *     der Case einen vor ADR-0054 persistierten Legacy-Freitext (raw_text)
+         *     traegt -- in diesem Fall bleibt sharpened_text die einzige Quelle.
          */
         DecisionDetailsResponse: {
             /** Sharpened Text */
             sharpened_text: string | null;
+            /** Sharpened Desired State */
+            sharpened_desired_state: string | null;
+            /** Sharpened Desired Example Process */
+            sharpened_desired_example_process: string | null;
             solution_business: components["schemas"]["ManagementSolutionResponse"] | null;
             /** Compliance Hint Text */
             compliance_hint_text: string | null;
