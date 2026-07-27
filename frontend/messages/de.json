@@ -17,6 +17,11 @@
     "langSwitchConfirmBody": "Eingaben im Formular gehen verloren.",
     "langSwitchConfirmContinue": "Weiter"
   },
+  "filters": {
+    "reset": "Filter zurücksetzen",
+    "removeChip": "Filter „{label}“ entfernen",
+    "results": "{count} von {total} angezeigt"
+  },
   "apiErrors": {
     "caseNotFound": "Der Fall wurde nicht gefunden. Bitte die Triage erneut starten.",
     "notLoggedIn": "Nicht angemeldet — bitte als Admin einloggen, um diese Aktion auszuführen.",
@@ -428,7 +433,14 @@
     "fieldsRequired": "Beide Angaben sind Pflicht.",
     "actionDiscontinued": "Eingestellt",
     "actionReactivated": "Reaktiviert",
-    "actorPrefix": "durch {name}"
+    "actorPrefix": "durch {name}",
+    "filterStatus": "Status",
+    "allStatus": "Alle Status",
+    "filterTracking": "Beobachtung",
+    "allTracking": "Alle",
+    "trackingActive": "Aktiv beobachtet",
+    "trackingDiscontinued": "Eingestellt",
+    "emptyFiltered": "Kein Use Case entspricht den aktiven Filtern."
   },
   "board": {
     "metaTitle": "Board | AECT",
@@ -511,7 +523,6 @@
     "colStatus": "Status",
     "statusError": "Statuswechsel fehlgeschlagen.",
     "emptyFiltered": "Keine Use Cases entsprechen den Filtern.",
-    "count": "{count, plural, one {# Use Case} other {# Use Cases}} · {filtered} gefiltert",
     "pageLeadPublic": "Alle eingereichten Use Cases auf einen Blick: filtern nach Status, sortieren nach Einreichdatum."
   },
   "similarCases": {

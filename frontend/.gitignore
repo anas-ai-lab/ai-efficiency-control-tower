@@ -18,6 +18,8 @@
 /playwright-report
 /blob-report
 /playwright/.cache
+# Belege aus Testlaeufen (monitoring-filter.spec.ts), kein Quellstand
+/e2e/__screenshots__
 
 # next.js
 /.next/

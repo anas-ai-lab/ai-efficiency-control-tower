@@ -21,7 +21,9 @@ import {
 import type { CaseStatus, CaseSummary, TriageZone } from "@/types/api";
 import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
+import { readEnumParam, useFilterParams } from "@/lib/use-filter-params";
 import { useFormat } from "@/lib/use-format";
+import { ActiveFilters, EmptyResult } from "@/components/filter-bar";
 import {
   Select,
   SelectContent,
@@ -43,7 +45,9 @@ const STATUS_ORDER: CaseStatus[] = [
   "implemented",
 ];
 
-type StatusFilter = CaseStatus | "all";
+// Filter-State in den URL-SearchParams (lib/use-filter-params), nicht in
+// useState -- gleiches Muster wie Ideenliste und Monitoring.
+const FILTER_KEYS = ["status"] as const;
 
 // Quadranten-Trennwerte. WICHTIG: 50.000 EUR ist ein STATISCHER Naeherungswert,
 // optisch angelehnt an die LIKELY_WIN-Schwelle in zone_thresholds.yaml, aber
@@ -182,11 +186,13 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
   const fmt = useFormat();
   const router = useRouter();
   const tokens = useThemeTokens();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const tf = useTranslations("filters");
+  const filters = useFilterParams(FILTER_KEYS);
+  const statusFilter = readEnumParam(filters.get("status"), STATUS_ORDER);
 
   const filtered = useMemo(
     () =>
-      statusFilter === "all"
+      statusFilter === null
         ? cases
         : cases.filter((c) => c.status === statusFilter),
     [cases, statusFilter],
@@ -212,13 +218,14 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
 
   return (
     <div>
-      {/* Status-Filter */}
-      <div className="mb-5 flex flex-wrap items-end gap-4">
+      {/* Status-Filter -- steht immer, unabhaengig vom Ergebnis. */}
+      <div className="mb-4 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1.5">
           <span className="eyebrow">{t("status")}</span>
           <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            // "all" ist Anzeige-Wert fuer "kein Param"; in die URL wandert er nie.
+            value={statusFilter ?? "all"}
+            onValueChange={(v) => filters.set("status", v === "all" ? null : v)}
           >
             <SelectTrigger size="sm" className="w-[10rem]">
               <SelectValue />
@@ -239,14 +246,31 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
         </label>
       </div>
 
+      <ActiveFilters
+        chips={
+          statusFilter !== null
+            ? [{ key: "status", label: t("status"), value: ts(statusFilter) }]
+            : []
+        }
+        resultLabel={tf("results", {
+          count: filtered.length,
+          total: cases.length,
+        })}
+        onRemove={(key) => filters.remove(key as (typeof FILTER_KEYS)[number])}
+        onReset={filters.reset}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
         {/* Matrix */}
         <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
           {points.length === 0 ? (
-            <div className="flex h-[520px] items-center justify-center text-center">
-              <p className="text-sm text-muted-foreground">
-                {t("emptyFiltered")}
-              </p>
+            // Empty-State im Ergebnisbereich (im Matrix-Rahmen), mit Rueckweg,
+            // sobald ein Filter aktiv ist.
+            <div className="flex h-[520px] items-center justify-center">
+              <EmptyResult
+                message={t("emptyFiltered")}
+                onReset={filters.hasActive ? filters.reset : undefined}
+              />
             </div>
           ) : (
             // Achsentitel liegen in eigenen HTML-Guttern AUSSERHALB des SVG

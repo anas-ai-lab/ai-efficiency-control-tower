@@ -71,6 +71,40 @@ so wird exakt der Stack geprueft, den man sonst von Hand bedient.
   Code-Lesen findet das nicht: im Markup steht ein sauberer Bestaetigungs-Schritt.
   Darum ein Browser-Test statt einer Code-Regel.
 
+`monitoring-filter.spec.ts` (Guard fuer die beiden Monitoring-Defekte):
+
+- **`g) Leeres Filterergebnis behaelt Toolbar und Rueckweg`** -- setzt im
+  Monitoring einen Filter, der garantiert leer laeuft, und prueft, dass die
+  Filter-Leiste stehen bleibt, der Empty-State **im** Ergebnisbereich rendert,
+  der aktive Filter als entfernbarer Chip mit Trefferzahl sichtbar ist und alle
+  drei Rueckwege funktionieren (Reset in der Chip-Zeile, Reset im Empty-State,
+  Chip-X). Zusaetzlich: der Filter liegt in den SearchParams (ueberlebt Reload)
+  und das Zuruecksetzen **entfernt** den Param, statt ihn auf `all` zu setzen.
+  Der Defekt war ein Early-Return vor der Toolbar plus Filter-State in
+  `useState` -- leeres Ergebnis hiess: keine Bedienung mehr, auch nicht nach
+  Reload. *Braucht Frontend + Backend + Admin-Passwort.*
+- **`h) Statuswechsel aus der Ideenliste schlaegt auf Monitoring durch`** --
+  besucht `/monitoring` (legt den Router-Cache-Eintrag an), wechselt den Status
+  in der **Ideenliste** und geht per **Link-Klick** zurueck, zusaetzlich ueber
+  den Zurueck-Knopf. **Verhaltens-Guard, kein Regressions-Anker fuer die
+  Revalidierung**: gemessen gegen den Production-Build schlaegt der Wechsel auch
+  dann durch, wenn man saemtliche `revalidatePath`-Aufrufe aus
+  `updateCaseStatus` entfernt -- `/cases` und `/monitoring` sind `force-dynamic`
+  und laden mit `cache: "no-store"`, und Next 16 reicht dynamische Segmente
+  ohnehin nicht aus dem Client-Router-Cache weiter (`staleTimes.dynamic = 0`).
+  Der Test wuerde anschlagen, wenn eine dieser Voraussetzungen kippt.
+  *Braucht Frontend + Backend + Admin-Passwort.*
+
+  Zwei Fallen, die den ersten Entwurf dieses Tests wertlos gemacht haben und die
+  fuer jeden Frische-Test hier gelten: `page.goto()` ist ein Volldokument-Load
+  und leert den Client-Router-Cache -- ein solcher Test ist gruen, egal was die
+  Anwendung tut; und ein blankes `.count()` nach der Navigation misst den
+  Ladezustand (`loading.tsx`) statt der Seite. Also: nur Link-Klicks, und auf ein
+  sichtbares Element warten.
+
+  Test g schreibt `e2e/__screenshots__/monitoring-empty-state.png` (gitignored)
+  als Beleg fuer den Empty-State mit sichtbarer Toolbar.
+
 `nav-layout.spec.ts` (Guard fuer die Kopfleiste):
 
 - **`f) Kopfleiste kollidiert und clippt in keiner Breite`** -- prueft den Header

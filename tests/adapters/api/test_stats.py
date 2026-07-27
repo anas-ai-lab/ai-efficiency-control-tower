@@ -155,3 +155,51 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
     assert body["umgesetzt"] == 1
     # Netto ueber Status approved (A) + implemented (B); rejected (C) faellt raus.
     assert body["netto_nutzen_freigegeben_eur"] == a_net + b_net
+
+
+async def test_status_change_changes_monitoring_aggregation() -> None:
+    """Ein Statuswechsel veraendert die Monitoring-Aggregation -- vorher/nachher.
+
+    Regressions-Anker fuer den Defekt "Statusaenderung aus der Ideenliste
+    schlaegt nicht auf Monitoring durch". Der Fix sitzt im Frontend
+    (revalidateCaseViews deckt jetzt /monitoring und /board mit ab); dieser Test
+    haelt die Backend-Seite der Zusage fest: dieselbe Quelle, aus der Monitoring
+    seine Menge ableitet, aendert sich durch den Statuswechsel messbar.
+
+    Geprueft werden BEIDE Ableitungen, die die Monitoring-Ansicht speist:
+      - GET /stats  -> Aggregation freigegeben/umgesetzt/Netto-Summe
+      - GET /cases  -> die Zeilenmenge (Monitoring zeigt approved + implemented)
+    """
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        case = await client.post("/triage", json=_PASSING_PAYLOAD, headers=_AUTH)
+        case_id = case.json()["id"]
+        net = case.json()["roi"]["net_expected_benefit_eur"]
+
+        before = (await client.get("/stats")).json()
+        cases_before = (await client.get("/cases", headers=_AUTH)).json()
+
+        # submitted -> approved: der Case tritt in die Monitoring-Menge ein.
+        resp = await client.post(
+            f"/cases/{case_id}/status",
+            json={"status": "approved"},
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+
+        after = (await client.get("/stats")).json()
+        cases_after = (await client.get("/cases", headers=_AUTH)).json()
+
+    monitored = {"approved", "implemented"}
+
+    # Vorher: eingereicht, aber weder freigegeben noch in der Monitoring-Menge.
+    assert before["freigegeben"] == 0
+    assert before["netto_nutzen_freigegeben_eur"] == 0.0
+    assert [c for c in cases_before if c["status"] in monitored] == []
+
+    # Nachher: dieselbe Aggregation liefert ein anderes Ergebnis.
+    assert after["freigegeben"] == 1
+    assert after["netto_nutzen_freigegeben_eur"] == net
+    assert after != before
+    assert [c["id"] for c in cases_after if c["status"] in monitored] == [case_id]

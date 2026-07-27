@@ -17,6 +17,11 @@
     "langSwitchConfirmBody": "Your form entries will be lost.",
     "langSwitchConfirmContinue": "Continue"
   },
+  "filters": {
+    "reset": "Reset filters",
+    "removeChip": "Remove filter “{label}”",
+    "results": "{count} of {total} shown"
+  },
   "apiErrors": {
     "caseNotFound": "The case was not found. Please start the triage again.",
     "notLoggedIn": "Not signed in — please sign in as admin to perform this action.",
@@ -428,7 +433,14 @@
     "fieldsRequired": "Both fields are mandatory.",
     "actionDiscontinued": "Discontinued",
     "actionReactivated": "Reactivated",
-    "actorPrefix": "by {name}"
+    "actorPrefix": "by {name}",
+    "filterStatus": "Status",
+    "allStatus": "All statuses",
+    "filterTracking": "Tracking",
+    "allTracking": "All",
+    "trackingActive": "Actively tracked",
+    "trackingDiscontinued": "Discontinued",
+    "emptyFiltered": "No use case matches the active filters."
   },
   "board": {
     "metaTitle": "Board | AECT",
@@ -511,7 +523,6 @@
     "colStatus": "Status",
     "statusError": "Status change failed.",
     "emptyFiltered": "No use cases match the filters.",
-    "count": "{count, plural, one {# use case} other {# use cases}} · {filtered} filtered",
     "pageLeadPublic": "All submitted use cases at a glance: filter by status, sort by submission date."
   },
   "similarCases": {

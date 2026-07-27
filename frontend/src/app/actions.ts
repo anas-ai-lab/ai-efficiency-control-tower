@@ -215,16 +215,34 @@ export async function submitTriage(
   );
 }
 
-// Nach einer mutierenden Case-Aktion den Case-Detail-Pfad (und die Ideenliste,
-// deren Zellen sich mitaendern) revalidieren. Ohne das greift router.refresh()
-// im Prod-Build NICHT durch: die Server-Komponente rendert /cases/[id] aus dem
-// Full-Route-/Router-Cache statt aus frischen Backend-Daten -- der stale
-// Pending-Box-Befund nach dem Ansatz-Nachtrag (200 vom Backend, UI blieb
-// pending). revalidatePath invalidiert den Cache-Eintrag serverseitig, sodass
-// der anschliessende refresh/Navigation den neuen Stand zieht.
-function revalidateCase(caseId: string): void {
+// Alle Sichten, die aus demselben Case-Bestand abgeleitet sind. Jede mutierende
+// Case-Aktion revalidiert GENAU DIESE MENGE -- keine Aktion darf sich ihre
+// eigene, kleinere Teilmenge aussuchen.
+//
+// Ohne das greift router.refresh() im Prod-Build NICHT durch: die
+// Server-Komponente rendert aus dem Full-Route-/Router-Cache statt aus frischen
+// Backend-Daten -- der stale Pending-Box-Befund nach dem Ansatz-Nachtrag (200
+// vom Backend, UI blieb pending). revalidatePath invalidiert den Cache-Eintrag
+// serverseitig, sodass die anschliessende Navigation den neuen Stand zieht.
+//
+// Vorher standen hier nur /cases/[id] und /cases, obwohl drei weitere Sichten
+// aus demselben Bestand ableiten: /monitoring (Status approved/implemented aus
+// listCases), /board (Matrix + Status-Filter) und / (Portfolio-Kennzahlen aus
+// getStats, die freigegeben/umgesetzt zaehlen).
+//
+// Ehrlichkeitshalber: das Fehlen war nachweislich NICHT die Ursache eines
+// beobachteten Fehlers. Gemessen gegen den Production-Build schlaegt ein
+// Statuswechsel auch ohne jedes revalidatePath auf /monitoring durch -- alle
+// betroffenen Routen sind force-dynamic und laden no-store, und Next 16 reicht
+// dynamische Segmente nicht aus dem Client-Router-Cache weiter. Die
+// Vereinheitlichung steht hier, damit die Zusage nicht davon abhaengt: sobald
+// eine dieser Routen statisch/cachebar wird, traegt die Revalidierung sie
+// bereits mit, statt dass es jemand einzeln nachziehen muss.
+const CASE_VIEW_PATHS = ["/cases", "/board", "/monitoring", "/"] as const;
+
+function revalidateCaseViews(caseId: string): void {
   revalidatePath(`/cases/${caseId}`);
-  revalidatePath("/cases");
+  for (const path of CASE_VIEW_PATHS) revalidatePath(path);
 }
 
 export async function sharpenCase(
@@ -246,7 +264,7 @@ export async function acceptSharpening(
     `/cases/${caseId}/sharpen/accept`,
     RULE_TIMEOUT_MS,
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -281,7 +299,7 @@ export async function acceptSolution(
     `/cases/${caseId}/propose-solution/accept`,
     RULE_TIMEOUT_MS,
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -301,7 +319,7 @@ export async function generateComplianceHints(
     `/cases/${caseId}/compliance-hints`,
     LLM_TIMEOUT_MS,
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -338,7 +356,7 @@ export async function recordDecision(
     RULE_TIMEOUT_MS,
     JSON.stringify({ decision, note }),
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -408,7 +426,7 @@ export async function updateCaseStatus(
     RULE_TIMEOUT_MS,
     JSON.stringify({ status }),
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -428,7 +446,7 @@ export async function discontinueCase(
     RULE_TIMEOUT_MS,
     JSON.stringify({ reason, actor_name: actorName }),
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -442,7 +460,7 @@ export async function reinstateCase(
     RULE_TIMEOUT_MS,
     JSON.stringify({ reason, actor_name: actorName }),
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 
@@ -458,7 +476,7 @@ export async function setImplementationApproach(
     RULE_TIMEOUT_MS,
     JSON.stringify({ implementation_approach: approach }),
   );
-  revalidateCase(caseId);
+  revalidateCaseViews(caseId);
   return res;
 }
 

@@ -18,6 +18,8 @@ import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
 import { useFormat } from "@/lib/use-format";
 import { downloadCasesCsv } from "@/lib/csv";
+import { readEnumParam, useFilterParams } from "@/lib/use-filter-params";
+import { ActiveFilters, EmptyResult } from "@/components/filter-bar";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,12 +47,17 @@ const ZONE_ORDER: TriageZone[] = [
   "MARGINAL_GAIN",
 ];
 
-type StatusFilter = CaseStatus | "all";
+// Filter-State liegt in den URL-SearchParams (lib/use-filter-params), nicht in
+// useState: teilbar, reload-fest und immer aufloesbar. "kein Filter" ist die
+// Abwesenheit des Params -- deshalb gibt es hier keinen "all"-Wert mehr im
+// Typ, nur noch null.
+const FILTER_KEYS = ["status", "zone"] as const;
 // "pending" = evaluation_pending (kein Implementierungsansatz -> noch nicht
 // bewertet). "none" = echter Vorfilter-Fail (zone === null TROTZ Bewertung).
 // Bewusst getrennte Optionen: beide Faelle haben zone === null, meinen aber
 // Unterschiedliches -- nicht unter einer Option vermischen.
-type ZoneFilter = TriageZone | "none" | "pending" | "all";
+type ZoneFilter = TriageZone | "none" | "pending";
+const ZONE_FILTER_VALUES: ZoneFilter[] = [...ZONE_ORDER, "none", "pending"];
 type SortKey = "date" | "net";
 type SortDir = "asc" | "desc";
 
@@ -240,11 +247,13 @@ export function CasesTable({
   const t = useTranslations("cases");
   const ts = useTranslations("status");
   const tz = useTranslations("zones");
+  const tf = useTranslations("filters");
   const fmt = useFormat();
   const router = useRouter();
   const [rows, setRows] = useState<CaseSummaryView[]>(cases);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>("all");
+  const filters = useFilterParams(FILTER_KEYS);
+  const statusFilter = readEnumParam(filters.get("status"), STATUS_ORDER);
+  const zoneFilter = readEnumParam(filters.get("zone"), ZONE_FILTER_VALUES);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [pending, setPending] = useState<Record<string, boolean>>({});
@@ -254,7 +263,8 @@ export function CasesTable({
 
   const visible = useMemo(() => {
     const filtered = rows.filter((c) => {
-      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (statusFilter !== null && c.status !== statusFilter) return false;
+      if (zoneFilter === null) return true;
       // Zonen-Filter greift nur auf der Admin-Sicht -- die schmale Sicht fuehrt
       // keine Zone, also gibt es auch nichts zu filtern.
       if (!isAdminSummary(c)) return true;
@@ -262,8 +272,7 @@ export function CasesTable({
       if (zoneFilter === "pending") return c.evaluation_pending;
       // Ohne Bewertung: echter Vorfilter-Fail -- zone === null, aber NICHT pending.
       if (zoneFilter === "none") return c.zone === null && !c.evaluation_pending;
-      if (zoneFilter !== "all" && c.zone !== zoneFilter) return false;
-      return true;
+      return c.zone === zoneFilter;
     });
     const sorted = [...filtered].sort((a, b) => {
       if (sortKey === "net") {
@@ -321,19 +330,27 @@ export function CasesTable({
     router.push(`/cases/${id}`);
   }
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
-        <p className="text-sm text-muted-foreground">{t("emptyTitle")}</p>
-        <Link
-          href="/einreichen"
-          className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
-        >
-          {t("emptyCta")}
-        </Link>
-      </div>
-    );
-  }
+  // Kein Early-Return vor der Toolbar: auch bei leerer Liste bleibt die
+  // Filter-Leiste stehen, und der Empty-State rendert unten IM Tabellen-
+  // Container. Vorher verschluckte der Return hier die gesamte Toolbar.
+  const zoneLabel = (z: ZoneFilter): string => {
+    if (z === "none") return t("noAssessment");
+    if (z === "pending") return ts("evaluationPending");
+    return tz(`${z}.label`);
+  };
+
+  const chips = [
+    statusFilter !== null && {
+      key: "status",
+      label: t("status"),
+      value: ts(statusFilter),
+    },
+    zoneFilter !== null && {
+      key: "zone",
+      label: t("zone"),
+      value: zoneLabel(zoneFilter),
+    },
+  ].filter((c) => c !== false);
 
   return (
     <div>
@@ -342,8 +359,11 @@ export function CasesTable({
         <label className="flex flex-col gap-1.5">
           <span className="eyebrow">{t("status")}</span>
           <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            // "all" ist reiner Anzeige-Wert fuer "kein Param" -- er wandert nie
+            // in die URL (set(..., null) loescht den Param, statt ihn auf einen
+            // Default zu setzen).
+            value={statusFilter ?? "all"}
+            onValueChange={(v) => filters.set("status", v === "all" ? null : v)}
           >
             <SelectTrigger size="sm" className="w-[10rem]">
               <SelectValue />
@@ -368,8 +388,8 @@ export function CasesTable({
           <label className="flex flex-col gap-1.5">
             <span className="eyebrow">{t("zone")}</span>
             <Select
-              value={zoneFilter}
-              onValueChange={(v) => setZoneFilter(v as ZoneFilter)}
+              value={zoneFilter ?? "all"}
+              onValueChange={(v) => filters.set("zone", v === "all" ? null : v)}
             >
               <SelectTrigger size="sm" className="w-[11rem]">
                 <SelectValue />
@@ -406,6 +426,13 @@ export function CasesTable({
           {t("exportCsv")}
         </Button>
       </div>
+
+      <ActiveFilters
+        chips={chips}
+        resultLabel={tf("results", { count: visible.length, total: rows.length })}
+        onRemove={(key) => filters.remove(key as (typeof FILTER_KEYS)[number])}
+        onReset={filters.reset}
+      />
 
       {/* Tabelle */}
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -528,24 +555,35 @@ export function CasesTable({
                 </td>
               </tr>
             ))}
+            {/* Empty-State IM Ergebnisbereich (Tabellenkoerper), nicht an
+                dessen Stelle. Zwei Faelle: ohne aktive Filter gibt es wirklich
+                keine Use Cases (Hinweis + Einreichen-CTA), mit aktiven Filtern
+                traegt der Zustand seinen eigenen Rueckweg. */}
             {visible.length === 0 && (
               <tr>
-                <td
-                  colSpan={authenticated ? 6 : 4}
-                  className="px-4 py-10 text-center text-sm text-muted-foreground"
-                >
-                  {t("emptyFiltered")}
+                <td colSpan={authenticated ? 6 : 4} className="p-0">
+                  <EmptyResult
+                    message={
+                      filters.hasActive ? t("emptyFiltered") : t("emptyTitle")
+                    }
+                    onReset={filters.hasActive ? filters.reset : undefined}
+                  >
+                    <Link
+                      href="/einreichen"
+                      className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
+                    >
+                      {t("emptyCta")}
+                    </Link>
+                  </EmptyResult>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Anzahl */}
-      <p className="mt-3 text-xs text-muted-foreground tabular-nums">
-        {t("count", { count: rows.length, filtered: visible.length })}
-      </p>
+      {/* Die Trefferzahl steht jetzt in der Chip-Zeile ueber der Tabelle
+          (ActiveFilters), nicht mehr als zweite Zeile darunter -- eine Quelle,
+          direkt neben den Filtern, die sie erklaeren. */}
     </div>
   );
 }
