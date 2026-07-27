@@ -393,6 +393,21 @@
   }
 }
 
+/* Div-Variante von pipeline-ring-pulse fuer HTML-Knoten (cases-hero.tsx):
+   dort sind die Knoten <div>s statt SVG-<circle>s (siehe Kommentar dort),
+   ein SVG-Attribut wie r ist auf einem div nicht animierbar -- scale
+   uebernimmt optisch dieselbe Auslauf-Wirkung wie r 6 -> 19. */
+@keyframes pipeline-node-ring-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(3.17);
+    opacity: 0;
+  }
+}
+
 /* Ideenliste-Hero (rein dekorativ, /cases): 3 schwebende fiktive Idea-Karten
    ueber einer verkleinerten Fassung des Pipeline-Visuals. Der Mirror-Effekt
    ist ein Cursor-Spotlight ueber ::before, kein Klick-/Fokus-Zustand. */
@@ -467,6 +482,10 @@
     opacity: 0.5;
     animation: pipeline-ring-pulse 3.6s ease-out infinite;
   }
+  .pipeline-node-ring {
+    opacity: 0.5;
+    animation: pipeline-node-ring-pulse 3.6s ease-out infinite;
+  }
   .pipeline-glow {
     animation: pipeline-glow-breathe 6s ease-in-out infinite;
   }
@@ -536,6 +555,9 @@
     opacity: 0.35;
   }
   .pipeline-ring {
+    display: none;
+  }
+  .pipeline-node-ring {
     display: none;
   }
 }
