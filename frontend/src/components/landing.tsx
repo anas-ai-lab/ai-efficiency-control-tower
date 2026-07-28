@@ -167,12 +167,18 @@ export async function Landing({
           (gap-px auf der Rule-Farbe), kein Kasten um jede Karte. */}
       <section className="mt-20">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-stretch">
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--hairline-rule)] bg-[var(--hairline-rule)]">
+          {/* items-stretch (Default, hier explizit) + auto-rows-fr: alle vier
+              Kacheln exakt gleich hoch, unabhaengig davon, ob eine Zeile
+              (Karte 1 ohne Anteils-Block) weniger Inhalt traegt als die
+              andere -- kein min-height-Wert noetig. */}
+          <div className="grid grid-cols-2 items-stretch gap-px overflow-hidden rounded-2xl border border-[var(--hairline-rule)] bg-[var(--hairline-rule)] [grid-auto-rows:1fr]">
+            {/* Basis-Karte: nur Hauptzahl + Label, kein Anteil (es gibt keinen
+                Nenner fuer die Einreichungen selbst) -- konsistent mit der
+                Darstellung, die Karten 2-4 zeigen, wenn ihr Anteil einmal
+                fehlen sollte. */}
             <StatCard
               label={t("kpiSubmittedLabel")}
               value={stats ? stats.eingereicht : null}
-              share={null}
-              shareLabel={null}
             />
             <StatCard
               label={t("kpiEvaluatedLabel")}

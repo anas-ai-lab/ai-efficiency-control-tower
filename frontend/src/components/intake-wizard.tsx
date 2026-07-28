@@ -206,6 +206,103 @@ function SelectField({
   )
 }
 
+// --- Subgrid-Feldreihen (Schritt 2 + 3) --------------------------------
+// Problem: Felder mit unterschiedlich langen Labels/Hilfetexten standen
+// versetzt, weil jedes Feld seine eigene, unabhaengige Hoehe hatte. Loesung:
+// eine Feldreihe ist EIN gemeinsamer Grid-Container mit drei expliziten
+// Zeilen (Label / Control / Hilfetext); jedes Feld ist ein Subgrid-Item
+// (grid-rows-subgrid + row-span-3), das dieselben drei Zeilenspuren nutzt --
+// Label, Eingabefeld und Hilfetext liegen dadurch ueber die ganze Reihe auf
+// gleicher Hoehe, unabhaengig von der Textlaenge im Nachbarfeld. Tailwind v4
+// unterstuetzt grid-rows-subgrid nativ (kein Fallback noetig, siehe
+// node_modules/tailwindcss/dist/lib.js). Unter dem md-Breakpoint faellt die
+// Reihe auf eine Spalte zurueck; dort greift die normale Stapel-Reihenfolge
+// ohnehin, kein Subgrid noetig.
+function FieldRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-5 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_auto_auto] md:gap-y-2">
+      {children}
+    </div>
+  )
+}
+
+// Drei Subgrid-Zeilen: Label, Control, Hilfetext+Fehlermeldung. Eine fehlende
+// Hilfetext-Zeile bleibt als leere dritte Zeile stehen (sie reserviert die
+// Zeilenspur, statt sie zu ueberspringen) -- so bleibt die Zeilenzuordnung
+// ueber alle Felder der Reihe hinweg gleich.
+function GridFieldShell({
+  label,
+  help,
+  children,
+}: {
+  label: string
+  help?: string
+  children: React.ReactNode
+}) {
+  return (
+    <FormItem className="md:row-span-3 md:grid-rows-subgrid">
+      <FormLabel>{label}</FormLabel>
+      <div>{children}</div>
+      <div className="space-y-1">
+        {help && <HelpText>{help}</HelpText>}
+        <FormMessage />
+      </div>
+    </FormItem>
+  )
+}
+
+// Grid-Variante von SelectField: dieselben Select-Bausteine, aber der
+// Hilfetext ("note" bei SelectField) wandert NACH dem Control statt davor --
+// nur so haben alle Felder einer Subgrid-Reihe dieselbe Zeilenfolge
+// (Label -> Control -> Hilfetext). Betrifft ausschliesslich die hier
+// verwendeten Feldreihen, nicht das gemeinsame SelectField (Schritt 3/4).
+function GridSelectField({
+  form,
+  name,
+  label,
+  placeholder,
+  options,
+  enumKey,
+  help,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  name: Path<FormValues>
+  label: string
+  placeholder: string
+  options: { value: string; label: string }[]
+  enumKey: string
+  help?: string
+}) {
+  const te = useTranslations("enums")
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => {
+        const selected = typeof field.value === "string" ? field.value : ""
+        return (
+          <GridFieldShell label={label} help={help}>
+            <Select value={selected || undefined} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {options.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {te(`${enumKey}.${opt.value}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </GridFieldShell>
+        )
+      }}
+    />
+  )
+}
+
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[13rem_1fr] sm:gap-4">
@@ -543,12 +640,66 @@ export function IntakeWizard() {
             </>
           )}
 
-          {/* --- Schritt 2: Zeit & Häufigkeit --- */}
+          {/* --- Schritt 2: Zeit & Häufigkeit ---
+              Reihenfolge nach fachlicher Logik: erst wie OFT der Vorgang
+              vorkommt (Haeufigkeit/Menge), dann wie LANGE ein einzelner
+              Vorgang dauert (Zeitaufwand), erst danach die Kontextfelder
+              (Land/Kategorie), die selbst nichts messen, sondern nur den
+              Stundensatz fuer die spaeter daraus abgeleitete ROI-Rechnung
+              bestimmen -- Groessen vor Kontext. */}
           {step === 1 && (
             <>
               <SectionIntro>{t("sectionIntro.menge")}</SectionIntro>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <SelectField
+              <FieldRow>
+                <FormField
+                  control={form.control}
+                  name="occurrences_per_employee_per_year"
+                  render={({ field }) => (
+                    <GridFieldShell label={tf("occurrencesLabel")} help={tf("occurrencesHelp")}>
+                      <FormControl>
+                        <Input type="number" placeholder={tf("occurrencesPlaceholder")} {...field} />
+                      </FormControl>
+                    </GridFieldShell>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="affected_employees_count"
+                  render={({ field }) => (
+                    <GridFieldShell label={tf("employeesLabel")} help={tf("employeesHelp")}>
+                      <FormControl>
+                        <Input type="number" placeholder={tf("employeesPlaceholder")} {...field} />
+                      </FormControl>
+                    </GridFieldShell>
+                  )}
+                />
+              </FieldRow>
+              <FieldRow>
+                <FormField
+                  control={form.control}
+                  name="time_per_case_hours_current"
+                  render={({ field }) => (
+                    <GridFieldShell label={tf("timeCurrentLabel")} help={tf("timeCurrentHelp")}>
+                      <FormControl>
+                        <Input type="number" step="0.1" placeholder={tf("timeCurrentPlaceholder")} {...field} />
+                      </FormControl>
+                    </GridFieldShell>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="time_per_case_hours_with_ai"
+                  render={({ field }) => (
+                    <GridFieldShell label={tf("timeAiLabel")} help={tf("timeAiHelp")}>
+                      <FormControl>
+                        <Input type="number" step="0.1" placeholder={tf("timeAiPlaceholder")} {...field} />
+                      </FormControl>
+                    </GridFieldShell>
+                  )}
+                />
+              </FieldRow>
+              <FieldRow>
+                <GridSelectField
                   form={form}
                   name="country"
                   label={tf("countryLabel")}
@@ -556,76 +707,16 @@ export function IntakeWizard() {
                   options={COUNTRY_OPTIONS}
                   enumKey="country"
                 />
-                <SelectField
+                <GridSelectField
                   form={form}
                   name="employee_category"
                   label={tf("employeeCategoryLabel")}
                   placeholder={placeholder}
                   options={EMPLOYEE_CATEGORY_OPTIONS}
                   enumKey="employeeCategory"
-                  note={tf("employeeCategoryHelp")}
+                  help={tf("employeeCategoryHelp")}
                 />
-              </div>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="time_per_case_hours_current"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("timeCurrentLabel")}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" placeholder={tf("timeCurrentPlaceholder")} {...field} />
-                      </FormControl>
-                      <HelpText>{tf("timeCurrentHelp")}</HelpText>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="time_per_case_hours_with_ai"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("timeAiLabel")}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" placeholder={tf("timeAiPlaceholder")} {...field} />
-                      </FormControl>
-                      <HelpText>{tf("timeAiHelp")}</HelpText>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="occurrences_per_employee_per_year"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("occurrencesLabel")}</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder={tf("occurrencesPlaceholder")} {...field} />
-                      </FormControl>
-                      <HelpText>{tf("occurrencesHelp")}</HelpText>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="affected_employees_count"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("employeesLabel")}</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder={tf("employeesPlaceholder")} {...field} />
-                      </FormControl>
-                      <HelpText>{tf("employeesHelp")}</HelpText>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              </FieldRow>
             </>
           )}
 
@@ -643,35 +734,30 @@ export function IntakeWizard() {
                 helpKey="approach"
                 note={t("noteOptionalApproach")}
               />
-              <div className="grid gap-5 sm:grid-cols-2">
+              <FieldRow>
                 <FormField
                   control={form.control}
                   name="implementation_cost_eur"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("implCostLabel")}</FormLabel>
+                    <GridFieldShell label={tf("implCostLabel")} help={tf("implCostHelp")}>
                       <FormControl>
                         <Input type="number" min={0} placeholder={tf("implCostPlaceholder")} {...field} />
                       </FormControl>
-                      <HelpText>{tf("implCostHelp")}</HelpText>
-                      <FormMessage />
-                    </FormItem>
+                    </GridFieldShell>
                   )}
                 />
                 <FormField
                   control={form.control}
                   name="estimated_license_cost_eur"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{tf("licenseCostLabel")}</FormLabel>
+                    <GridFieldShell label={tf("licenseCostLabel")}>
                       <FormControl>
                         <Input type="number" min={0} placeholder={tf("licenseCostPlaceholder")} {...field} />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    </GridFieldShell>
                   )}
                 />
-              </div>
+              </FieldRow>
             </>
           )}
 

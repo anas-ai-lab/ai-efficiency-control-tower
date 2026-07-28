@@ -285,6 +285,18 @@
     letter-spacing: -0.02em;
     line-height: 1;
   }
+  /* Startseiten-KPI-Kacheln: einzige bewusste Ausnahme von der
+     .stat-value-Konvention (Zahlen sonst immer Mono). Die vier Kennzahlen
+     der Startseite sind die lautesten Zahlen im gesamten UI und tragen
+     deshalb den Display-Token (--font-heading), nicht Mono -- Anas'
+     Entscheidung, nicht aus dem Bestand abgeleitet. */
+  .kpi-value {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
   /* Eyebrow: gesperrte, kleine Sektions-Marke. */
   .eyebrow {
     font-size: 0.6875rem;

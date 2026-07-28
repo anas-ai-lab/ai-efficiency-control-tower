@@ -37,17 +37,18 @@ interface Point {
   y: number
 }
 
-// Ankerpunkt am Kartenrand, in Container-Koordinaten -- Richtung des
-// Rands haengt von der Position der Karte im Flow ab (unten links -> rechts
-// Rand, Mitte -> untere Kante, oben rechts -> linker Rand).
-function cardAnchor(index: number, rect: DOMRect, containerRect: DOMRect): Point {
-  if (index === 0) {
-    return { x: rect.right - containerRect.left, y: rect.top + rect.height / 2 - containerRect.top }
-  }
-  if (index === 1) {
-    return { x: rect.left + rect.width / 2 - containerRect.left, y: rect.bottom - containerRect.top }
-  }
+// Ankerpunkte am Kartenrand, in Container-Koordinaten: "Anfang" = linke
+// Kante, "Ende" = rechte Kante, unabhaengig von der vertikalen Position der
+// Karte im Flow. Damit ergeben sich fuer 3 Karten vier feste Ankerpunkte --
+// Ende Karte 1 -> Anfang Karte 2 -> Ende Karte 2 -> Anfang Karte 3 --, deren
+// mittleres Segment (innerhalb Karte 2) von der Karte selbst verdeckt wird
+// (die Karten liegen im DOM nach dem SVG und damit optisch darueber).
+function leftMid(rect: DOMRect, containerRect: DOMRect): Point {
   return { x: rect.left - containerRect.left, y: rect.top + rect.height / 2 - containerRect.top }
+}
+
+function rightMid(rect: DOMRect, containerRect: DOMRect): Point {
+  return { x: rect.right - containerRect.left, y: rect.top + rect.height / 2 - containerRect.top }
 }
 
 // Catmull-Rom-Tangente je Punkt, aus den beiden Nachbarn abgeleitet (an den
@@ -156,6 +157,15 @@ export function CasesHero({
     setPicked(shuffle(cases).slice(0, 3))
   }, [cases])
 
+  // Messung ausschliesslich im Effect (nie im Render) -- die Ankerpunkte
+  // haengen von echten, gelayouteten Kartenmassen ab, die es vor dem Mount
+  // noch nicht gibt. ResizeObserver auf Container UND jeder einzelnen Karte
+  // (statt einem globalen window-resize-Listener): eine Karte kann ihre
+  // Groesse auch ohne Fensteraenderung wechseln (z. B. Textumbruch nach
+  // Sprachwechsel), das faengt nur eine Beobachtung der Karten selbst ab.
+  // Zusaetzlich einmal nach document.fonts.ready neu gemessen -- vor dem
+  // Font-Load stehen die Karten in der Fallback-Schrift, ihre Breite (und
+  // damit die Ankerpunkte) verschiebt sich beim Nachladen.
   useLayoutEffect(() => {
     if (!picked || picked.length < 2) {
       setPathD(null)
@@ -166,27 +176,47 @@ export function CasesHero({
       const container = containerRef.current
       if (!container || !picked) return
       const containerRect = container.getBoundingClientRect()
-      const points: Point[] = []
+      const cardRects: DOMRect[] = []
       for (let i = 0; i < picked.length; i++) {
         const el = cardRefs.current[i]
         if (!el) return
-        points.push(cardAnchor(i, el.getBoundingClientRect(), containerRect))
+        cardRects.push(el.getBoundingClientRect())
       }
+
+      // 3 Karten -> vier feste Ankerpunkte (Ende 1 -> Anfang 2 -> Ende 2 ->
+      // Anfang 3). Weniger Karten (Edge-Case bei wenigen Einreichungen) ->
+      // einfache Punkt-zu-Punkt-Verbindung ueber Ende/Anfang.
+      const points: Point[] =
+        cardRects.length >= 3
+          ? [
+              rightMid(cardRects[0], containerRect),
+              leftMid(cardRects[1], containerRect),
+              rightMid(cardRects[1], containerRect),
+              leftMid(cardRects[2], containerRect),
+            ]
+          : [rightMid(cardRects[0], containerRect), leftMid(cardRects[1], containerRect)]
+
       setDims({ width: containerRect.width, height: containerRect.height })
       setPathD(buildSmoothPath(points))
     }
 
     measure()
 
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
-    function handleResize() {
-      if (resizeTimer) clearTimeout(resizeTimer)
-      resizeTimer = setTimeout(measure, 100)
+    const container = containerRef.current
+    const observer = new ResizeObserver(() => measure())
+    if (container) observer.observe(container)
+    for (const el of cardRefs.current) {
+      if (el) observer.observe(el)
     }
-    window.addEventListener("resize", handleResize)
+
+    let cancelled = false
+    document.fonts.ready.then(() => {
+      if (!cancelled) measure()
+    })
+
     return () => {
-      window.removeEventListener("resize", handleResize)
-      if (resizeTimer) clearTimeout(resizeTimer)
+      cancelled = true
+      observer.disconnect()
     }
   }, [picked])
 
@@ -198,21 +228,28 @@ export function CasesHero({
   }
 
   return (
-    <div className="hidden sm:block">
+    // mt-8: eine Abstandsstufe zum Lead-Absatz darueber (Ideenliste, /cases) --
+    // vorher lag "Top 3 Use Cases" ohne jeden Zwischenraum direkt am Lead-Text.
+    <div className="mt-8 hidden sm:block">
       <p className="eyebrow mb-3">{t("heroHeading")}</p>
       <div ref={containerRef} className="animate-view-enter relative mt-8 h-48 w-full">
-        <div className="pipeline-glow" aria-hidden />
-        <svg viewBox={`0 0 ${dims.width} ${dims.height}`} className="size-full overflow-visible">
-          {pathD !== null ? (
-            <path
-              className="pipeline-path"
-              fill="none"
-              stroke="var(--brand-accent)"
-              strokeWidth="1.4"
-              d={pathD}
-            />
-          ) : null}
-        </svg>
+        {/* Overlay erst nach der ersten Messung: vorher gibt es keine echten
+            Ankerpunkte, ein Rendern ohne Pfad wuerde beim Nachziehen der
+            Linie sichtbar springen. */}
+        {pathD !== null && (
+          <>
+            <div className="pipeline-glow" aria-hidden />
+            <svg viewBox={`0 0 ${dims.width} ${dims.height}`} className="size-full overflow-visible">
+              <path
+                className="pipeline-path"
+                fill="none"
+                stroke="var(--brand-accent)"
+                strokeWidth="1.4"
+                d={pathD}
+              />
+            </svg>
+          </>
+        )}
         {picked.map((caseItem, i) => (
           <IdeaCard
             key={caseItem.id}
