@@ -34,7 +34,7 @@ from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 from starlette.responses import Response
 
 from aect.adapters.api.dependencies import (
@@ -1478,15 +1478,17 @@ async def compliance_hints(
 
 
 class SketchNodeResponse(BaseModel):
-    """Ein Knoten der Architektur-Skizze (P11, ADR-0049).
+    """Ein Knoten der Architektur-Skizze (ADR-0055, Nachtrag ADR-0049).
 
-    kind: einer der fuenf generischen Bausteintypen (user/system/ai_service/
-    data_store/external) -- als String serialisiert (StrEnum.value).
+    layer: eine der fuenf generischen Fluss-Ebenen (source/processing/ai/
+    storage/output) -- als String serialisiert (StrEnum.value). Loest das
+    fruehere `kind`-Feld ab: nicht die Sorte des Bausteins, sondern seine
+    Position im Datenfluss.
     """
 
     id: str
     label: str
-    kind: str
+    layer: str
 
 
 class SketchEdgeResponse(BaseModel):
@@ -1500,10 +1502,13 @@ class SketchEdgeResponse(BaseModel):
 class ArchitectureSketchResponse(BaseModel):
     """On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).
 
-    nodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom
-    deterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM
-    emittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei
-    jedem Regenerieren (abgeleitetes Artefakt, kein Verlauf).
+    nodes/edges: das schema-validierte Graph-JSON (bis 20/30 Eintraege).
+    mermaid_source: die vom deterministischen Builder daraus erzeugte
+    Mermaid-Zeichenkette (das LLM emittiert nie Mermaid, nur den Graphen --
+    D18). Sie ist gruppiert, gekappt und in der angefragten Sprache betitelt und
+    zeigt daher WENIGER Knoten/Kanten als nodes/edges tragen (ADR-0055).
+    generated_at aendert sich bei jedem Regenerieren (abgeleitetes Artefakt,
+    kein Verlauf).
     """
 
     case_id: str
@@ -1529,7 +1534,7 @@ def _to_sketch_response(result: ArchitectureSketchResult) -> ArchitectureSketchR
     return ArchitectureSketchResponse(
         case_id=result.case_id,
         nodes=[
-            SketchNodeResponse(id=node.id, label=node.label, kind=node.kind.value)
+            SketchNodeResponse(id=node.id, label=node.label, layer=node.layer.value)
             for node in result.graph.nodes
         ],
         edges=[
@@ -1586,11 +1591,18 @@ async def generate_architecture_sketch(
         HTTPException 503: KI-Dienst nicht erreichbar.
     """
     try:
-        result = await service.generate_sketch(case_id)
+        result = await service.generate_sketch(case_id, lang=lang)
     except NoProposalForSketchError as exc:
+        # Typisiertes Detail (ADR-0055): der Client soll diesen Fall am stabilen
+        # `code` erkennen, nicht am uebersetzten Fliesstext -- ein
+        # Sprachwechsel darf die Fehlerbehandlung im Frontend nicht brechen.
+        # Analog dem 422-Muster bei /sharpen und /propose-solution.
         raise HTTPException(
             status_code=409,
-            detail=API_ERRORS[lang]["sketch_no_proposal"],
+            detail={
+                "code": "sketch_no_proposal",
+                "message": API_ERRORS[lang]["sketch_no_proposal"],
+            },
         ) from exc
     except InvalidLLMOutputError as exc:
         # Die KI-Antwort verletzt das Graph-Schema (ArchitectureSketch). Der
@@ -1636,12 +1648,17 @@ async def get_architecture_sketch(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> ArchitectureSketchEnvelope:
-    """Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
+    """Gibt die persistierte Architektur-Skizze eines Case zurueck (ADR-0049/0055).
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: require_admin (Session-Cookie ODER X-API-Key).
     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+
+    lang steuert die Subgraph-Titel: mermaid_source wird beim Lesen frisch aus
+    dem persistierten Graphen abgeleitet (ADR-0055), nicht aus der Spalte
+    gelesen -- deshalb braucht auch der READ-Endpoint die Sprache.
 
     200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt
     wurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide
@@ -1651,9 +1668,18 @@ async def get_architecture_sketch(
         HTTPException 404: case_id existiert nicht.
     """
     try:
-        result = await service.get_sketch(case_id)
+        result = await service.get_sketch(case_id, lang=lang)
     except CaseNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Case not found") from exc
+    except ValidationError:
+        # Der persistierte Graph folgt dem Vor-ADR-0055-Schema (`kind` statt
+        # `layer`). Kein 500: der Case ist intakt, nur sein abgeleitetes
+        # Artefakt ist es nicht. Behandelt wie "nie erzeugt" -- der Nutzer sieht
+        # den Erzeugen-Button und bekommt mit einem Klick eine neue Skizze.
+        # Migration waere hier der falsche Hebel: die Skizze ist per D20 ein
+        # wegwerfbares Derivat, kein Bestand.
+        structlog.get_logger().warning("sketch_schema_stale", case_id=case_id)
+        return ArchitectureSketchEnvelope(sketch=None)
 
     return ArchitectureSketchEnvelope(
         sketch=_to_sketch_response(result) if result is not None else None

@@ -599,7 +599,17 @@
     "generate": "Generate sketch",
     "generating": "Generating sketch …",
     "intro": "A generic architecture sketch from the solution proposal — five building-block types as a draft, not a binding target picture.",
-    "hint": "Takes a few seconds · AI call"
+    "hint": "Takes a few seconds · AI call",
+    "enlarge": "Enlarge",
+    "enlargeAria": "Open the architecture sketch in the large view",
+    "modalTitle": "Architecture sketch — large view",
+    "modalHint": "Scroll to zoom, drag to pan.",
+    "zoomLevel": "{percent} %",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset view",
+    "fullscreenEnter": "Full screen",
+    "fullscreenExit": "Exit full screen"
   },
   "llmAction": {
     "durationHint": "Usually takes 5–30 seconds · AI call"

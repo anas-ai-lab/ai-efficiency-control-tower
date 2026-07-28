@@ -17,7 +17,7 @@ from typing import Any
 import structlog
 
 from aect.application.cost_logger import log_llm_cost
-from aect.application.mermaid import build_mermaid
+from aect.application.mermaid import build_architecture_diagram
 from aect.application.models import (
     ArchitectureSketchResult,
     AufwandKennzahl,
@@ -1965,7 +1965,10 @@ class TriageService:
         return result, flagged
 
     async def generate_sketch(
-        self, case_id: str, prompt_version: str = "v1"
+        self,
+        case_id: str,
+        prompt_version: str = "v2",
+        lang: Lang = DEFAULT_LANG,
     ) -> ArchitectureSketchResult | None:
         """Erzeugt eine On-Demand-Architektur-Skizze fuer einen Case (P11, ADR-0049).
 
@@ -1985,7 +1988,10 @@ class TriageService:
         Persistenz (D20, abgeleitetes Artefakt): das Ergebnis wird als JSON auf
         case.architecture_sketch gespeichert (per-Feld-UPDATE, F-011).
         Regenerieren ueberschreibt (kein Verlauf, kein Audit-Log) -- generated_at
-        aendert sich bei jedem Aufruf.
+        aendert sich bei jedem Aufruf. Der mitgeschriebene mermaid_source-
+        Schluessel ist seit ADR-0055 nur noch Altbestands-Ballast: get_sketch()
+        leitet das Diagramm beim Lesen frisch aus `graph` ab (sonst waere die
+        Skizze fuer immer in der Sprache eingefroren, in der sie erzeugt wurde).
 
         Log-Event sketch_generated: case_id, node_count, edge_count,
         prompt_version -- KEINE Labels, kein Freitext (Logging-Allowlist).
@@ -2037,7 +2043,7 @@ class TriageService:
             neutralize_delimiters(description),
             neutralize_delimiters(proposal_text),
         )
-        mermaid_source = build_mermaid(sketch)
+        mermaid_source = build_architecture_diagram(sketch, lang)
         generated_at = self._clock.now()
 
         sketch_json = json.dumps(
@@ -2069,8 +2075,10 @@ class TriageService:
             prompt_version=prompt_version,
         )
 
-    async def get_sketch(self, case_id: str) -> ArchitectureSketchResult | None:
-        """Liest die persistierte Architektur-Skizze eines Case (P11, ADR-0049).
+    async def get_sketch(
+        self, case_id: str, lang: Lang = DEFAULT_LANG
+    ) -> ArchitectureSketchResult | None:
+        """Liest die persistierte Architektur-Skizze eines Case (ADR-0049/0055).
 
         Read-Pfad zu generate_sketch(). Die beiden None-Faelle sind sauber
         getrennt, damit die Route sie unterschiedlich mappen kann:
@@ -2078,8 +2086,18 @@ class TriageService:
         - Case existiert, aber es wurde nie eine Skizze erzeugt -> None
           (Route -> 200 {"sketch": null}).
 
+        mermaid_source wird beim Lesen FRISCH aus dem persistierten `graph`
+        abgeleitet; der gespeicherte mermaid_source-Schluessel wird ignoriert
+        (ADR-0055). Nur so traegt die Skizze die Sprache des Lesers und die
+        aktuelle Layout-Regel, statt beides zum Erzeugungszeitpunkt einzufrieren.
+        Der Graph selbst ist die einzige Wahrheit -- das Diagramm ist daraus
+        abgeleitet, wie schon in ADR-0049 festgehalten (D18).
+
         Raises:
             CaseNotFoundError: case_id existiert nicht.
+            ValidationError: der persistierte Graph folgt einem alten Schema
+                (z. B. `kind` statt `layer`) -- die Route mappt das auf
+                200 {"sketch": null} plus Log-Event, nicht auf 500.
         """
         case = await self._repository.get_async(case_id)
         if case is None:
@@ -2092,7 +2110,7 @@ class TriageService:
         return ArchitectureSketchResult(
             case_id=case.id,
             graph=graph,
-            mermaid_source=str(data["mermaid_source"]),
+            mermaid_source=build_architecture_diagram(graph, lang),
             generated_at=datetime.fromisoformat(str(data["generated_at"])),
             prompt_version=str(data["prompt_version"]),
         )

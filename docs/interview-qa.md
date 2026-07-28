@@ -216,10 +216,12 @@ Zwei Fehlerklassen fallen damit strukturell weg. Erstens Syntaxfehler: ein LLM,
 das Mermaid direkt schreibt, kann eine unbalancierte Klammer setzen, die das
 Rendering bricht -- eine ganze Fehlerklasse, die man sonst nur per Nachbearbeitung
 oder Prompt-Disziplin eindaemmt. Wir lassen das LLM stattdessen nur ein
-schema-validiertes Graph-JSON emittieren (Knoten mit id/label/kind, Kanten mit
-source/target), und eine reine, deterministische Funktion (`build_mermaid`) baut
-daraus die Mermaid-Syntax -- die ist per Konstruktion immer valide und
-snapshot-getestet. Zweitens Injection: der Diagramm-Text wird spaeter im Browser
+schema-validiertes Graph-JSON emittieren (Knoten mit id/label/layer, Kanten mit
+source/target), und eine reine, deterministische Funktion
+(`build_architecture_diagram`) baut daraus die Mermaid-Syntax -- die ist per
+Konstruktion immer valide und snapshot-getestet. Dieselbe Funktion verantwortet
+seit ADR-0055 auch das Layout (Gruppierung nach Fluss-Ebene, Kappung,
+Kanten-Filter): sonst entschiede das LLM ueber die Lesbarkeit des Bildes. Zweitens Injection: der Diagramm-Text wird spaeter im Browser
 gerendert, freier LLM-Text darin ist eine HTML-/Injection-Flaeche. Erschwerend
 ist die Eingabe der Skizze der `proposal_text`, der selbst LLM-Output ist -- eine
 Injection-Kette LLM->LLM. Mit dem Graph-JSON fliessen nur die Labels in den

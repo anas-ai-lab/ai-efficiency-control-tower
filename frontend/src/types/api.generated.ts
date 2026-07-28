@@ -731,11 +731,15 @@ export interface paths {
         };
         /**
          * Get Architecture Sketch
-         * @description Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).
+         * @description Gibt die persistierte Architektur-Skizze eines Case zurueck (ADR-0049/0055).
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
          *     Auth: require_admin (Session-Cookie ODER X-API-Key).
          *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+         *
+         *     lang steuert die Subgraph-Titel: mermaid_source wird beim Lesen frisch aus
+         *     dem persistierten Graphen abgeleitet (ADR-0055), nicht aus der Spalte
+         *     gelesen -- deshalb braucht auch der READ-Endpoint die Sprache.
          *
          *     200 {"sketch": null}, wenn der Case existiert, aber nie eine Skizze erzeugt
          *     wurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide
@@ -901,10 +905,13 @@ export interface components {
          * ArchitectureSketchResponse
          * @description On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).
          *
-         *     nodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom
-         *     deterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM
-         *     emittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei
-         *     jedem Regenerieren (abgeleitetes Artefakt, kein Verlauf).
+         *     nodes/edges: das schema-validierte Graph-JSON (bis 20/30 Eintraege).
+         *     mermaid_source: die vom deterministischen Builder daraus erzeugte
+         *     Mermaid-Zeichenkette (das LLM emittiert nie Mermaid, nur den Graphen --
+         *     D18). Sie ist gruppiert, gekappt und in der angefragten Sprache betitelt und
+         *     zeigt daher WENIGER Knoten/Kanten als nodes/edges tragen (ADR-0055).
+         *     generated_at aendert sich bei jedem Regenerieren (abgeleitetes Artefakt,
+         *     kein Verlauf).
          */
         ArchitectureSketchResponse: {
             /** Case Id */
@@ -1848,18 +1855,20 @@ export interface components {
         };
         /**
          * SketchNodeResponse
-         * @description Ein Knoten der Architektur-Skizze (P11, ADR-0049).
+         * @description Ein Knoten der Architektur-Skizze (ADR-0055, Nachtrag ADR-0049).
          *
-         *     kind: einer der fuenf generischen Bausteintypen (user/system/ai_service/
-         *     data_store/external) -- als String serialisiert (StrEnum.value).
+         *     layer: eine der fuenf generischen Fluss-Ebenen (source/processing/ai/
+         *     storage/output) -- als String serialisiert (StrEnum.value). Loest das
+         *     fruehere `kind`-Feld ab: nicht die Sorte des Bausteins, sondern seine
+         *     Position im Datenfluss.
          */
         SketchNodeResponse: {
             /** Id */
             id: string;
             /** Label */
             label: string;
-            /** Kind */
-            kind: string;
+            /** Layer */
+            layer: string;
         };
         /**
          * SolutionActionResponse
@@ -2983,7 +2992,9 @@ export interface operations {
     };
     get_architecture_sketch_cases__case_id__architecture_sketch_get: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;

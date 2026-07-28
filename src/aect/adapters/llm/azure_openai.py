@@ -173,8 +173,8 @@ class AzureOpenAIAdapter:
             InvalidLLMOutputError: rohe Antwort verletzt ArchitectureSketch.
             ConnectionError/TimeoutError: aus complete() durchgereicht.
         """
-        system_prompt = load_prompt("architecture_sketch", "system")
-        user_template = load_prompt("architecture_sketch", "user")
+        system_prompt = load_prompt("architecture_sketch", "system", version="v2")
+        user_template = load_prompt("architecture_sketch", "user", version="v2")
         user_content = user_template.format(
             title=title,
             description=description,

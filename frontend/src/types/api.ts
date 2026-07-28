@@ -541,18 +541,21 @@ export interface DiscontinueEventRequest {
   actor_name: string;
 }
 
-// ---- Architektur-Skizze (/cases/{id}/architecture-sketch, P11, ADR-0049) ---
-export type SketchNodeKind =
-  | "user"
-  | "system"
-  | "ai_service"
-  | "data_store"
-  | "external";
+// ---- Architektur-Skizze (/cases/{id}/architecture-sketch, ADR-0049/0055) ---
+// SketchLayer loest das fruehere SketchNodeKind ab: nicht die Sorte des
+// Bausteins, sondern seine Position im Datenfluss. Die Reihenfolge unten ist die
+// Links-nach-rechts-Reihenfolge im Diagramm.
+export type SketchLayer =
+  | "source"
+  | "processing"
+  | "ai"
+  | "storage"
+  | "output";
 
 export interface SketchNode {
   id: string;
   label: string;
-  kind: string; // SketchNodeKind als String serialisiert (StrEnum.value)
+  layer: string; // SketchLayer als String serialisiert (StrEnum.value)
 }
 
 export interface SketchEdge {
@@ -565,6 +568,9 @@ export interface ArchitectureSketchResponse {
   case_id: string;
   nodes: SketchNode[];
   edges: SketchEdge[];
+  // Gruppiert, gekappt (max. 12 Knoten / 15 Kanten) und in der angefragten
+  // Sprache betitelt -- zeigt daher weniger als nodes/edges tragen (ADR-0055).
+  // Wird beim Lesen frisch aus dem Graphen abgeleitet, nicht gespeichert.
   mermaid_source: string;
   generated_at: string; // ISO 8601, aendert sich bei jedem Regenerieren
   prompt_version: string;

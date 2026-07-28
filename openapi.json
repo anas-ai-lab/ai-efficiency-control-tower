@@ -1355,7 +1355,7 @@
           "cases"
         ],
         "summary": "Get Architecture Sketch",
-        "description": "Gibt die persistierte Architektur-Skizze eines Case zurueck (P11, ADR-0049).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\n200 {\"sketch\": null}, wenn der Case existiert, aber nie eine Skizze erzeugt\nwurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide\nFaelle ueber CaseNotFoundError vs. None).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Gibt die persistierte Architektur-Skizze eines Case zurueck (ADR-0049/0055).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nlang steuert die Subgraph-Titel: mermaid_source wird beim Lesen frisch aus\ndem persistierten Graphen abgeleitet (ADR-0055), nicht aus der Spalte\ngelesen -- deshalb braucht auch der READ-Endpoint die Sprache.\n\n200 {\"sketch\": null}, wenn der Case existiert, aber nie eine Skizze erzeugt\nwurde. 404, wenn der Case selbst nicht existiert (Service unterscheidet beide\nFaelle ueber CaseNotFoundError vs. None).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
         "operationId": "get_architecture_sketch_cases__case_id__architecture_sketch_get",
         "security": [
           {
@@ -1370,6 +1370,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -1629,7 +1643,7 @@
           "prompt_version"
         ],
         "title": "ArchitectureSketchResponse",
-        "description": "On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).\n\nnodes/edges: das schema-validierte Graph-JSON. mermaid_source: die vom\ndeterministischen Builder daraus erzeugte Mermaid-Zeichenkette (das LLM\nemittiert nie Mermaid, nur den Graphen -- D18). generated_at aendert sich bei\njedem Regenerieren (abgeleitetes Artefakt, kein Verlauf)."
+        "description": "On-Demand-Architektur-Skizze eines Case (P11, ADR-0049).\n\nnodes/edges: das schema-validierte Graph-JSON (bis 20/30 Eintraege).\nmermaid_source: die vom deterministischen Builder daraus erzeugte\nMermaid-Zeichenkette (das LLM emittiert nie Mermaid, nur den Graphen --\nD18). Sie ist gruppiert, gekappt und in der angefragten Sprache betitelt und\nzeigt daher WENIGER Knoten/Kanten als nodes/edges tragen (ADR-0055).\ngenerated_at aendert sich bei jedem Regenerieren (abgeleitetes Artefakt,\nkein Verlauf)."
       },
       "AufwandKennzahlResponse": {
         "properties": {
@@ -3392,19 +3406,19 @@
             "type": "string",
             "title": "Label"
           },
-          "kind": {
+          "layer": {
             "type": "string",
-            "title": "Kind"
+            "title": "Layer"
           }
         },
         "type": "object",
         "required": [
           "id",
           "label",
-          "kind"
+          "layer"
         ],
         "title": "SketchNodeResponse",
-        "description": "Ein Knoten der Architektur-Skizze (P11, ADR-0049).\n\nkind: einer der fuenf generischen Bausteintypen (user/system/ai_service/\ndata_store/external) -- als String serialisiert (StrEnum.value)."
+        "description": "Ein Knoten der Architektur-Skizze (ADR-0055, Nachtrag ADR-0049).\n\nlayer: eine der fuenf generischen Fluss-Ebenen (source/processing/ai/\nstorage/output) -- als String serialisiert (StrEnum.value). Loest das\nfruehere `kind`-Feld ab: nicht die Sorte des Bausteins, sondern seine\nPosition im Datenfluss."
       },
       "SolutionActionResponse": {
         "properties": {

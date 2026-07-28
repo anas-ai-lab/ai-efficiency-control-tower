@@ -102,6 +102,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0048](0048-ideation-drafts-no-invented-numbers.md) | Ideation-Entwuerfe ohne erfundene Zahlen (Regeln vor LLM) |
 | [0049](0049-architecture-sketch-structured-graph.md) | Architektur-Skizze als schema-validierter Graph statt LLM-Mermaid |
 | [0054](0054-strukturierter-loesungsvorschlag-ohne-schaerfungs-vorschlaege.md) | Strukturierter Loesungsvorschlag, Schaerfungs-Vorschlaege ersatzlos entfernt |
+| [0055](0055-sketch-layer-und-deterministisches-layout.md) | Skizzen-Fluss-Ebenen statt Bausteintypen, Layout im deterministischen Builder |
 
 ## Compliance, Observability & Deployment
 

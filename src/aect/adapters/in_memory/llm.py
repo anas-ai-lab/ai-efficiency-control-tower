@@ -14,8 +14,8 @@ from aect.application.structured_output import (
     IdeationResult,
     SharpenedContentV2,
     SketchEdge,
+    SketchLayer,
     SketchNode,
-    SketchNodeKind,
     SolutionProposalV3,
 )
 from aect.domain.i18n import Lang
@@ -195,21 +195,22 @@ class MockLLMAdapter:
         """Liefert deterministisch einen 3-Knoten-Graph (Tests, P11).
 
         Ignoriert die Eingaben bewusst (kein echter Call) und baut einen festen
-        Graphen user -> system -> data_store -- genug fuer den Mock-E2E-Pfad und
-        den Mermaid-Builder, ohne Netzwerk/Kosten.
+        Graphen source -> processing -> storage -- genug fuer den Mock-E2E-Pfad
+        und den Mermaid-Builder, ohne Netzwerk/Kosten. Drei belegte Ebenen, damit
+        der Builder-Pfad (Gruppierung + Subgraphen) im Mock ueberhaupt greift.
         """
         return ArchitectureSketch(
             nodes=[
-                SketchNode(id="user", label="Nutzer", kind=SketchNodeKind.USER),
+                SketchNode(id="user", label="Nutzer", layer=SketchLayer.SOURCE),
                 SketchNode(
                     id="system",
                     label="[mock] Verarbeitungs-System",
-                    kind=SketchNodeKind.SYSTEM,
+                    layer=SketchLayer.PROCESSING,
                 ),
                 SketchNode(
                     id="data_store",
                     label="Fall-Datenbank",
-                    kind=SketchNodeKind.DATA_STORE,
+                    layer=SketchLayer.STORAGE,
                 ),
             ],
             edges=[

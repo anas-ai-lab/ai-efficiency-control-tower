@@ -188,9 +188,9 @@ class TestParseStructuredLLMOutputSchemaViolations:
 
 _VALID_SKETCH: dict = {
     "nodes": [
-        {"id": "user", "label": "Sachbearbeiter", "kind": "user"},
-        {"id": "sys", "label": "Eingangs-System", "kind": "system"},
-        {"id": "db", "label": "Fall-Datenbank", "kind": "data_store"},
+        {"id": "user", "label": "Sachbearbeiter", "layer": "source"},
+        {"id": "sys", "label": "Eingangs-System", "layer": "processing"},
+        {"id": "db", "label": "Fall-Datenbank", "layer": "storage"},
     ],
     "edges": [
         {"source": "user", "target": "sys", "label": "reicht ein"},
@@ -217,6 +217,43 @@ class TestArchitectureSketchValid:
         result = parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
         assert result.edges == []
 
+    def test_fifteen_nodes_is_valid(self) -> None:
+        """ADR-0055: das Schema laesst mehr zu, als das Diagramm zeigt.
+
+        15 Knoten sind gueltig -- der Builder kappt sie auf 12 (Test in
+        tests/application/test_mermaid.py). Ein LLM, das grosszuegiger
+        modelliert, bekommt dafuer keinen 422.
+        """
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": f"n{i}", "label": f"Knoten {i}", "layer": "processing"}
+                for i in range(15)
+            ],
+            "edges": [],
+        }
+        result = parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+        assert len(result.nodes) == 15
+
+    def test_twenty_nodes_and_thirty_edges_is_valid(self) -> None:
+        """Die Schema-Obergrenzen selbst (20/30) sind noch gueltig."""
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": f"n{i}", "label": f"Knoten {i}", "layer": "ai"}
+                for i in range(20)
+            ],
+            "edges": [
+                {"source": f"n{i % 20}", "target": f"n{(i + 1) % 20}"}
+                for i in range(30)
+            ],
+        }
+        result = parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+        assert len(result.nodes) == 20
+        assert len(result.edges) == 30
+
 
 class TestArchitectureSketchViolations:
     def test_duplicate_node_id_raises(self) -> None:
@@ -224,8 +261,8 @@ class TestArchitectureSketchViolations:
 
         payload = {
             "nodes": [
-                {"id": "dup", "label": "A", "kind": "user"},
-                {"id": "dup", "label": "B", "kind": "system"},
+                {"id": "dup", "label": "A", "layer": "source"},
+                {"id": "dup", "label": "B", "layer": "processing"},
             ],
             "edges": [],
         }
@@ -237,21 +274,21 @@ class TestArchitectureSketchViolations:
 
         payload = {
             "nodes": [
-                {"id": "a", "label": "A", "kind": "user"},
-                {"id": "b", "label": "B", "kind": "system"},
+                {"id": "a", "label": "A", "layer": "source"},
+                {"id": "b", "label": "B", "layer": "processing"},
             ],
             "edges": [{"source": "a", "target": "ghost"}],
         }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
 
-    def test_eleven_nodes_raises(self) -> None:
+    def test_twentyone_nodes_raises(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
 
         payload = {
             "nodes": [
-                {"id": f"n{i}", "label": f"Knoten {i}", "kind": "system"}
-                for i in range(11)
+                {"id": f"n{i}", "label": f"Knoten {i}", "layer": "processing"}
+                for i in range(21)
             ],
             "edges": [],
         }
@@ -261,16 +298,35 @@ class TestArchitectureSketchViolations:
     def test_one_node_raises(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
 
-        payload = {"nodes": [{"id": "a", "label": "A", "kind": "user"}], "edges": []}
+        payload = {"nodes": [{"id": "a", "label": "A", "layer": "source"}], "edges": []}
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
 
-    def test_invalid_kind_raises(self) -> None:
+    def test_invalid_layer_raises(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
 
         payload = {
             "nodes": [
-                {"id": "a", "label": "A", "kind": "database"},
+                {"id": "a", "label": "A", "layer": "database"},
+                {"id": "b", "label": "B", "layer": "processing"},
+            ],
+            "edges": [],
+        }
+        with pytest.raises(InvalidLLMOutputError):
+            parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+
+    def test_legacy_kind_field_raises(self) -> None:
+        """Das Vor-ADR-0055-Feld `kind` scheitert hart (extra="forbid").
+
+        Wichtig fuer den Alt-Schema-Pfad: der persistierte Graph eines alten
+        Case laesst sich nicht mehr validieren, und GENAU das erkennt
+        GET /architecture-sketch, um sketch: null statt 500 zu liefern.
+        """
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "a", "label": "A", "kind": "user"},
                 {"id": "b", "label": "B", "kind": "system"},
             ],
             "edges": [],
@@ -283,8 +339,8 @@ class TestArchitectureSketchViolations:
 
         payload = {
             "nodes": [
-                {"id": "Has Space", "label": "A", "kind": "user"},
-                {"id": "b", "label": "B", "kind": "system"},
+                {"id": "Has Space", "label": "A", "layer": "source"},
+                {"id": "b", "label": "B", "layer": "processing"},
             ],
             "edges": [],
         }
@@ -296,10 +352,10 @@ class TestArchitectureSketchViolations:
 
         payload = {
             "nodes": [
-                {"id": "a", "label": "A", "kind": "user"},
-                {"id": "b", "label": "B", "kind": "system"},
+                {"id": "a", "label": "A", "layer": "source"},
+                {"id": "b", "label": "B", "layer": "processing"},
             ],
-            "edges": [{"source": "a", "target": "b"} for _ in range(16)],
+            "edges": [{"source": "a", "target": "b"} for _ in range(31)],
         }
         with pytest.raises(InvalidLLMOutputError):
             parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)

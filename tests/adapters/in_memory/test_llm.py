@@ -119,14 +119,14 @@ async def test_generate_ideation_returns_two_schema_conform_drafts(
 async def test_generate_architecture_sketch_returns_three_node_graph(
     adapter: MockLLMAdapter,
 ) -> None:
-    """P11: deterministischer 3-Knoten-Graph user -> system -> data_store."""
+    """ADR-0055: deterministischer 3-Knoten-Graph source -> processing -> storage."""
     sketch = await adapter.generate_architecture_sketch(
         case_id="case-1",
         title="Titel",
         description="Beschreibung",
         proposal_text="Vorschlag",
     )
-    assert [n.kind.value for n in sketch.nodes] == ["user", "system", "data_store"]
+    assert [n.layer.value for n in sketch.nodes] == ["source", "processing", "storage"]
     assert len(sketch.edges) == 2
 
 

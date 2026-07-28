@@ -193,9 +193,11 @@ nie geraten.
 **Architektur-Skizze (`/cases/{id}/architecture-sketch`)** -- erzeugt on-demand zu
 einem Case mit Loesungsvorschlag ein grobes Baustein-Diagramm. Das LLM emittiert
 NIE Mermaid-Syntax, sondern nur ein schema-validiertes Graph-JSON (Knoten mit
-id/label/kind, Kanten mit source/target/label, max. 10 Knoten, 5 Bausteintypen);
-ein deterministischer, reiner Builder (`build_mermaid`, `application/mermaid.py`)
-baut daraus die Mermaid-Zeichenkette (snapshot-getestet). Das eliminiert die
+id/label/layer, Kanten mit source/target/label, max. 20 Knoten, 5 Fluss-Ebenen);
+ein deterministischer, reiner Builder (`build_architecture_diagram`,
+`application/mermaid.py`) baut daraus die Mermaid-Zeichenkette -- inklusive
+Gruppierung nach Ebene, Kappung auf 12 Knoten und Verwerfen der
+Rueckwaertskanten (ADR-0055, snapshot-getestet). Das eliminiert die
 Syntaxfehler-Klasse strukturell und reduziert die Injection-Flaeche der Kette
 LLM->LLM (die Eingabe enthaelt `proposal_text`, selbst LLM-Output) auf escapte
 Labels ([ADR-0049](docs/adr/0049-architecture-sketch-structured-graph.md)). Die

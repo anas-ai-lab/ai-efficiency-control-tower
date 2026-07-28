@@ -599,7 +599,17 @@
     "generate": "Skizze erzeugen",
     "generating": "Skizze wird erzeugt …",
     "intro": "Eine generische Architektur-Skizze aus dem Lösungsvorschlag — fünf Bausteintypen als Entwurf, kein verbindliches Zielbild.",
-    "hint": "Dauert einige Sekunden · LLM-Call"
+    "hint": "Dauert einige Sekunden · LLM-Call",
+    "enlarge": "Vergrößern",
+    "enlargeAria": "Architektur-Skizze in der Großansicht öffnen",
+    "modalTitle": "Architektur-Skizze — Großansicht",
+    "modalHint": "Mausrad zoomt, Ziehen verschiebt.",
+    "zoomLevel": "{percent} %",
+    "zoomIn": "Hineinzoomen",
+    "zoomOut": "Herauszoomen",
+    "zoomReset": "Ansicht zurücksetzen",
+    "fullscreenEnter": "Vollbild",
+    "fullscreenExit": "Vollbild verlassen"
   },
   "llmAction": {
     "durationHint": "Dauert in der Regel 5–30 Sekunden · LLM-Call"

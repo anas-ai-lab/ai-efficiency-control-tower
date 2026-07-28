@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { useTranslations } from "next-intl";
-import { Loader2, RefreshCw } from "lucide-react";
+import {
+  Loader2,
+  Maximize,
+  Maximize2,
+  Minimize,
+  RefreshCw,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 
 import {
   generateArchitectureSketch,
@@ -11,12 +27,33 @@ import {
 import { LlmAction } from "@/components/llm-action";
 import { useTrackLlmCall } from "@/components/llm-busy";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useFormat } from "@/lib/use-format";
 import type { ArchitectureSketchResponse } from "@/types/api";
+
+// Zoom-Grenzen der Grossansicht. 0.5x zeigt auch eine breite Skizze ganz,
+// 4x reicht bis auf Label-Ebene -- darueber hinaus wird die SVG nur unscharf
+// skaliert, ohne mehr Information zu tragen.
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.25;
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
 
 // Liest das aktive App-Theme aus der .dark-Klasse auf <html> und reagiert auf
 // Wechsel. Der ThemeToggle togglet nur diese Klasse (kein next-themes, kein
 // Context) -- dieselbe MutationObserver-Bruecke wie in board-matrix.tsx.
+// Wird GENAU EINMAL je Skizze aufgerufen (in SketchDiagram) und als Wert an
+// Inline- und Modal-Ansicht durchgereicht: zwei Beobachter fuer dieselbe
+// Klasse waeren doppelte Arbeit an derselben Wahrheit.
 function useIsDark(): boolean {
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
@@ -34,15 +71,30 @@ function useIsDark(): boolean {
 
 // Rendert eine Mermaid-Quelle client-seitig zu SVG. mermaid wird lazy und nur
 // im Browser geladen (dynamic import IN diesem Effect -- nie im Server-Bundle).
-// Theme folgt dem App-Theme; bei Wechsel wird neu gezeichnet. Wirft mermaid
-// beim Parsen/Rendern, faellt die Anzeige auf den Quelltext zurueck (Zustand e).
-function MermaidDiagram({ source }: { source: string }) {
+// Theme kommt als Wert von aussen (siehe useIsDark); bei Wechsel wird neu
+// gezeichnet. Wirft mermaid beim Parsen/Rendern, faellt die Anzeige auf den
+// Quelltext zurueck (Zustand e).
+//
+// Die erzeugte SVG bekommt preserveAspectRatio="xMidYMid meet" per Attribut
+// gesetzt (nicht per String-Ersetzung an der sanitisierten Ausgabe) und traegt
+// per CSS !important die volle Container-Breite: mermaid schreibt ein
+// max-width in Pixeln als Inline-Style, das eine normale Klasse nicht schlagen
+// wuerde.
+function MermaidDiagram({
+  source,
+  isDark,
+  className,
+}: {
+  source: string;
+  isDark: boolean;
+  className?: string;
+}) {
   const t = useTranslations("sketch");
-  const isDark = useIsDark();
   const rawId = useId();
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const renderSeq = useRef(0);
+  const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,9 +131,16 @@ function MermaidDiagram({ source }: { source: string }) {
     };
   }, [source, isDark, rawId]);
 
+  // Skalierungsregel der SVG selbst: mittig einpassen, nichts abschneiden.
+  useEffect(() => {
+    hostRef.current
+      ?.querySelector("svg")
+      ?.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  }, [svg]);
+
   if (failed) {
     return (
-      <div>
+      <div className={className}>
         <div className="overflow-x-auto rounded-xl border border-border bg-muted/30 p-4">
           <pre className="text-xs leading-relaxed text-foreground/90">
             {source}
@@ -99,7 +158,7 @@ function MermaidDiagram({ source }: { source: string }) {
       <div
         role="status"
         aria-live="polite"
-        className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-6 text-sm text-muted-foreground"
+        className="flex items-center gap-2.5 px-4 py-6 text-sm text-muted-foreground"
       >
         <Loader2 className="size-4 animate-spin text-[var(--ink)]" />
         {t("drawing")}
@@ -109,10 +168,280 @@ function MermaidDiagram({ source }: { source: string }) {
 
   return (
     <div
-      className="mermaid-diagram overflow-x-auto rounded-xl border border-border bg-card p-4 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+      ref={hostRef}
+      className={`mermaid-diagram [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-full ${className ?? ""}`}
       // securityLevel "strict" -> mermaid liefert bereits sanitisierte SVG.
       dangerouslySetInnerHTML={{ __html: svg }}
     />
+  );
+}
+
+// Werkzeugleiste der Grossansicht. Sitzt IM Diagramm-Container, nicht im
+// Dialog-Rahmen: der Container ist das Vollbild-Element, eine Leiste
+// ausserhalb waere im Vollbild unsichtbar -- und damit auch der Weg zurueck.
+function ZoomToolbar({
+  zoom,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+  fullscreenAvailable,
+  isFullscreen,
+  onToggleFullscreen,
+}: {
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+  fullscreenAvailable: boolean;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+}) {
+  const t = useTranslations("sketch");
+  return (
+    <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-background/95 p-1 shadow-sm">
+      <span
+        aria-live="polite"
+        className="px-2 text-xs text-muted-foreground tnum"
+      >
+        {t("zoomLevel", { percent: Math.round(zoom * 100) })}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-11"
+        aria-label={t("zoomOut")}
+        title={t("zoomOut")}
+        disabled={zoom <= MIN_ZOOM}
+        onClick={onZoomOut}
+      >
+        <ZoomOut aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-11"
+        aria-label={t("zoomIn")}
+        title={t("zoomIn")}
+        disabled={zoom >= MAX_ZOOM}
+        onClick={onZoomIn}
+      >
+        <ZoomIn aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-11"
+        aria-label={t("zoomReset")}
+        title={t("zoomReset")}
+        onClick={onReset}
+      >
+        <RotateCcw aria-hidden />
+      </Button>
+      {fullscreenAvailable && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-11"
+          aria-label={t(isFullscreen ? "fullscreenExit" : "fullscreenEnter")}
+          title={t(isFullscreen ? "fullscreenExit" : "fullscreenEnter")}
+          onClick={onToggleFullscreen}
+        >
+          {isFullscreen ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// Skizze mit Inline-Ansicht und Grossansicht im Modal.
+//
+// Zoom und Pan laufen ausschliesslich ueber ein CSS-Transform auf einem
+// Wrapper um die fertige SVG -- mermaid.render() laeuft dabei NICHT erneut.
+// Das ist der Grund fuer den Zuschnitt: ein Rerender je Zoomschritt waere ein
+// vollstaendiger Layout-Lauf (dagre) pro Mausrad-Tick.
+function SketchDiagram({ source }: { source: string }) {
+  const t = useTranslations("sketch");
+  const isDark = useIsDark();
+  const [open, setOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [fullscreenAvailable, setFullscreenAvailable] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Vollbild-Verfuegbarkeit erst im Browser lesen (kein document beim SSR).
+  // Ist sie false, wird der Knopf gar nicht erst gerendert -- ein Knopf, der
+  // nur eine Fehlermeldung produzieren kann, ist kein Angebot.
+  useEffect(() => {
+    setFullscreenAvailable(document.fullscreenEnabled);
+    const onChange = () => setIsFullscreen(document.fullscreenElement !== null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // Mausrad-Zoom als nativer Listener mit { passive: false }: React haengt
+  // wheel am Root passiv ein, ein preventDefault() im onWheel-Prop bliebe
+  // wirkungslos (und die Seite hinter dem Modal wuerde mitscrollen).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setZoom((current) => clampZoom(current - event.deltaY * 0.002 * current));
+    };
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, [open]);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      resetView();
+      dragOriginRef.current = null;
+      setIsDragging(false);
+      if (document.fullscreenElement !== null) {
+        void document.exitFullscreen().catch(() => {});
+      }
+    }
+  }
+
+  function toggleFullscreen() {
+    const stage = stageRef.current;
+    if (stage === null) return;
+    if (document.fullscreenElement !== null) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void stage.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function handleMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    dragOriginRef.current = { x: event.clientX, y: event.clientY };
+    setIsDragging(true);
+  }
+
+  // Der Versatz wird durch den Zoom geteilt: translate steht INNERHALB des
+  // scale(), ein Pixel Mausweg ist dort nur 1/zoom Einheiten.
+  function handleMouseMove(event: ReactMouseEvent<HTMLDivElement>) {
+    const origin = dragOriginRef.current;
+    if (origin === null) return;
+    const dx = event.clientX - origin.x;
+    const dy = event.clientY - origin.y;
+    dragOriginRef.current = { x: event.clientX, y: event.clientY };
+    setPan((current) => ({
+      x: current.x + dx / zoom,
+      y: current.y + dy / zoom,
+    }));
+  }
+
+  function endDrag() {
+    dragOriginRef.current = null;
+    setIsDragging(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <div className="w-full">
+        {/* Das Diagramm selbst oeffnet die Grossansicht. Als <button>, damit
+            es per Tastatur erreichbar ist und Radix den Fokus danach wieder
+            dorthin zurueckgibt. */}
+        <button
+          type="button"
+          aria-label={t("enlargeAria")}
+          onClick={() => setOpen(true)}
+          className="block w-full cursor-zoom-in rounded-xl border border-border bg-card p-4 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/35"
+        >
+          {/* Feste Buehnenhoehe statt mitwachsender SVG: zusammen mit
+              preserveAspectRatio="xMidYMid meet" fuellt die Skizze die Flaeche
+              mittig aus, egal ob sie breit oder hoch geraten ist. */}
+          <MermaidDiagram
+            source={source}
+            isDark={isDark}
+            className="h-[420px] w-full"
+          />
+        </button>
+        <div className="mt-2 flex justify-end">
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" size="sm">
+              <Maximize2 aria-hidden />
+              {t("enlarge")}
+            </Button>
+          </DialogTrigger>
+        </div>
+      </div>
+
+      <DialogContent
+        className="max-h-[90vh] w-[90vw] max-w-[90vw] overflow-y-auto"
+        // Im Vollbild schliesst Escape ZUERST das Vollbild, nicht das Modal.
+        // Radix wuerde sonst beides auf einmal beenden; ein Druck, zwei
+        // verlorene Zustaende.
+        onEscapeKeyDown={(event) => {
+          if (document.fullscreenElement !== null) {
+            event.preventDefault();
+            void document.exitFullscreen().catch(() => {});
+          }
+        }}
+      >
+        <DialogTitle className="pr-10 text-sm font-medium">
+          {t("modalTitle")}
+        </DialogTitle>
+        <DialogDescription className="text-xs">
+          {t("modalHint")}
+        </DialogDescription>
+
+        <div
+          ref={stageRef}
+          className="relative mt-3 h-[70vh] min-h-[420px] overflow-hidden rounded-xl border border-border bg-card [&:fullscreen]:mt-0 [&:fullscreen]:h-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+        >
+          <ZoomToolbar
+            zoom={zoom}
+            onZoomIn={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+            onZoomOut={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+            onReset={resetView}
+            fullscreenAvailable={fullscreenAvailable}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+          />
+          <div
+            ref={viewportRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={endDrag}
+            onMouseLeave={endDrag}
+            // Kein touch-action: none -- die nativen Pinch-Gesten auf dem
+            // Handy bleiben damit erhalten.
+            className={`flex h-full items-center justify-center p-4 ${
+              isDragging ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            <div
+              className="h-full w-full origin-center"
+              style={{
+                transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+              }}
+            >
+              <MermaidDiagram
+                source={source}
+                isDark={isDark}
+                className="h-full w-full"
+              />
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -191,7 +520,7 @@ export function SketchView({
   if (sketch !== null) {
     return (
       <SectionShell>
-        <MermaidDiagram source={sketch.mermaid_source} />
+        <SketchDiagram source={sketch.mermaid_source} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
             {t("generatedAt", { date: fmt.dateShort(sketch.generated_at) })}

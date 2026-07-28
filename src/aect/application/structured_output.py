@@ -156,24 +156,32 @@ class IdeationResult(BaseModel):
     drafts: list[IdeationDraft] = Field(min_length=1, max_length=3)
 
 
-class SketchNodeKind(StrEnum):
-    """Bausteintyp eines Architektur-Skizzen-Knotens (P11, Vertrag Paragraph 3.7).
+class SketchLayer(StrEnum):
+    """Fluss-Ebene eines Architektur-Skizzen-Knotens (ADR-0055, Nachtrag ADR-0049).
 
-    Bewusst genau fuenf generische Typen -- keine firmenspezifische Terminologie
-    (IP-Regel SDR-0002 Paragraph 5). Jeder Typ bestimmt die Mermaid-Knotenform
-    im deterministischen Builder (application/mermaid.py): user=Stadium,
-    system=Rechteck, ai_service=Hexagon, data_store=Zylinder, external=Subroutine.
+    Loest SketchNodeKind ab. Bedeutungswechsel, kein Rename: `kind` beschrieb die
+    *Sorte* eines Bausteins (Mensch, System, KI, Ablage, Extern), `layer`
+    beschreibt seine *Position im Datenfluss*. Nur die zweite Information kann
+    der Builder zu einem Layout verdichten -- die Enum-Reihenfolge unten IST die
+    Links-nach-rechts-Reihenfolge der Skizze, und sie definiert, welche Kante
+    vorwaerts (behalten) und welche rueckwaerts (verworfen) laeuft.
+
+    Bewusst genau fuenf Ebenen, generisch benannt -- keine firmenspezifische
+    Terminologie (IP-Regel SDR-0002 Paragraph 5). Jede Ebene bestimmt die
+    Mermaid-Knotenform im deterministischen Builder (application/mermaid.py):
+    source=Stadium, processing=Rechteck, ai=Hexagon, storage=Zylinder,
+    output=Subroutine.
 
     Kein Config-Key -> gehoert NICHT in domain/types.py (dort liegt der StrEnum-
     Anker ausschliesslich fuer TOML-Config-Keys). Dieses Enum ist Teil des
     LLM-Output-Schemas und lebt daher bei den uebrigen Schema-Typen.
     """
 
-    USER = "user"
-    SYSTEM = "system"
-    AI_SERVICE = "ai_service"
-    DATA_STORE = "data_store"
-    EXTERNAL = "external"
+    SOURCE = "source"
+    PROCESSING = "processing"
+    AI = "ai"
+    STORAGE = "storage"
+    OUTPUT = "output"
 
 
 # Node-IDs sind Mermaid-Bezeichner: kleingeschrieben, alphanumerisch + Unterstrich,
@@ -186,18 +194,21 @@ class SketchNode(BaseModel):
     """Ein Knoten der Architektur-Skizze (P11).
 
     id: Mermaid-Bezeichner (Pattern _NODE_ID_PATTERN). label: Anzeigetext,
-    1-60 Zeichen -- wird im Builder escaped, bevor er in die Mermaid-Form geht.
-    kind: einer der fuenf SketchNodeKind-Typen.
+    1-60 Zeichen -- wird im Builder escaped und auf 40 Zeichen gekappt, bevor er
+    in die Mermaid-Form geht. layer: eine der fuenf SketchLayer-Ebenen
+    (ADR-0055).
 
     extra="forbid": unerwartete Felder im LLM-Output sind ein Validierungsfehler
-    (OWASP LLM10). frozen=True: nach Validierung unveraenderlich.
+    (OWASP LLM10) -- das alte `kind`-Feld scheitert dadurch hart, statt still
+    als Unbekanntes durchzurutschen. frozen=True: nach Validierung
+    unveraenderlich.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str = Field(pattern=_NODE_ID_PATTERN)
     label: str = Field(min_length=1, max_length=60)
-    kind: SketchNodeKind
+    layer: SketchLayer
 
 
 class SketchEdge(BaseModel):
@@ -226,19 +237,24 @@ class ArchitectureSketch(BaseModel):
     Mermaid-Zeichenkette. Das eliminiert die Syntaxfehler-Klasse und minimiert
     die Injection-Flaeche (ADR-0049).
 
-    nodes: 2-10 Knoten (bewusst begrenzt -- eine Skizze, kein vollstaendiges
-    Architekturbild). edges: 0-15 Kanten. Der Model-Validator erzwingt zwei
-    Invarianten, die einzelne Felder nicht sehen: Node-IDs sind eindeutig, und
-    jede Kante referenziert existierende Knoten -- sonst ValidationError (kein
-    500, die Route mappt auf 502 wie bei jedem anderen kaputten LLM-Output).
+    nodes: 2-20 Knoten, edges: 0-30 Kanten. Die Schema-Grenze ist bewusst
+    weiter als das, was das Diagramm zeigt (ADR-0055): der Builder kappt
+    deterministisch auf 12 Knoten / 15 Kanten. Ein LLM, das 15 Knoten fuer
+    sinnvoll haelt, bekommt dafuer keinen 422 -- es entscheidet nur nicht mehr
+    ueber die Lesbarkeit der Skizze. Erst jenseits von 20/30 ist die Antwort
+    tatsaechlich unverwertbar (Token-Flooding-Grenze, OWASP LLM10).
+
+    Der Model-Validator erzwingt zwei Invarianten, die einzelne Felder nicht
+    sehen: Node-IDs sind eindeutig, und jede Kante referenziert existierende
+    Knoten -- sonst ValidationError (kein 500, die Route mappt auf 422).
 
     extra="forbid"/frozen=True analog SketchNode/SketchEdge.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    nodes: list[SketchNode] = Field(min_length=2, max_length=10)
-    edges: list[SketchEdge] = Field(max_length=15)
+    nodes: list[SketchNode] = Field(min_length=2, max_length=20)
+    edges: list[SketchEdge] = Field(max_length=30)
 
     @model_validator(mode="after")
     def _check_referential_integrity(self) -> ArchitectureSketch:

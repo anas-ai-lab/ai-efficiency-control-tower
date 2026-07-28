@@ -164,13 +164,13 @@ class _OverlongLabelSketchLLM:
         raw = json.dumps(
             {
                 "nodes": [
-                    {"id": "nutzer", "label": "Sachbearbeiter", "kind": "user"},
+                    {"id": "nutzer", "label": "Sachbearbeiter", "layer": "source"},
                     {
                         "id": "klassifikation",
                         "label": self._OVERLONG_LABEL,
-                        "kind": "ai_service",
+                        "layer": "ai",
                     },
-                    {"id": "db", "label": "Fall-Datenbank", "kind": "data_store"},
+                    {"id": "db", "label": "Fall-Datenbank", "layer": "storage"},
                 ],
                 "edges": [{"source": "nutzer", "target": "klassifikation"}],
             }
@@ -311,7 +311,11 @@ async def test_sketch_without_proposal_returns_409() -> None:
             headers={"X-API-Key": TEST_API_KEY},
         )
     assert response.status_code == 409
-    assert "Lösungsvorschlag" in response.json()["detail"]
+    # ADR-0055: typisiertes Detail -- der Client erkennt den Fall am stabilen
+    # `code`, nicht am uebersetzten Text.
+    detail = response.json()["detail"]
+    assert detail["code"] == "sketch_no_proposal"
+    assert "Lösungsvorschlag" in detail["message"]
 
 
 async def test_sketch_e2e_generates_persists_and_reads() -> None:
@@ -329,10 +333,14 @@ async def test_sketch_e2e_generates_persists_and_reads() -> None:
         assert post.status_code == 200
         body = post.json()
         assert body["case_id"] == case_id
-        assert body["prompt_version"] == "v1"
-        # Mock-Adapter: user -> system -> data_store.
+        assert body["prompt_version"] == "v2"
+        # Mock-Adapter: source -> processing -> storage.
         assert len(body["nodes"]) == 3
-        assert {n["kind"] for n in body["nodes"]} == {"user", "system", "data_store"}
+        assert {n["layer"] for n in body["nodes"]} == {
+            "source",
+            "processing",
+            "storage",
+        }
         assert body["mermaid_source"].startswith("flowchart LR")
         # Label-Klammern des Mock-Knotens ("[mock] ...") werden escaped.
         assert "[mock]" not in body["mermaid_source"]
@@ -388,6 +396,73 @@ async def test_get_sketch_none_when_never_generated() -> None:
         )
     assert response.status_code == 200
     assert response.json() == {"sketch": None}
+
+
+async def test_get_sketch_lang_switches_subgraph_titles() -> None:
+    """ADR-0055: mermaid_source wird beim LESEN neu abgeleitet, in lang-Sprache.
+
+    Erzeugt wird auf Deutsch, gelesen auf Englisch -- die Subgraph-Titel folgen
+    dem Lesen, nicht dem Erzeugen. Das ist der Grund, warum der persistierte
+    mermaid_source ignoriert wird.
+    """
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await _add_proposal(client, case_id)
+        post = await client.post(
+            f"/cases/{case_id}/architecture-sketch?lang=de",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        get_en = await client.get(
+            f"/cases/{case_id}/architecture-sketch?lang=en",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert '"Eingang"' in post.json()["mermaid_source"]
+    source_en = get_en.json()["sketch"]["mermaid_source"]
+    assert '"Input"' in source_en
+    assert '"Eingang"' not in source_en
+
+
+async def test_get_sketch_with_stale_schema_returns_null_and_logs() -> None:
+    """Ein vor ADR-0055 persistierter Graph (`kind`) -> 200 sketch: null, kein 500.
+
+    Die Skizze ist ein wegwerfbares Derivat (D20): sie neu erzeugen zu lassen
+    ist billiger und ehrlicher als eine Migration -- aber sie darf den
+    Case-Abruf nicht mit einem 500 vergiften.
+    """
+    repo = InMemoryRepository()
+    app = _make_app(repository=repo)
+    stale = json.dumps(
+        {
+            "graph": {
+                "nodes": [
+                    {"id": "a", "label": "A", "kind": "user"},
+                    {"id": "b", "label": "B", "kind": "system"},
+                ],
+                "edges": [],
+            },
+            "mermaid_source": "flowchart LR\n    a([A])\n    b[B]",
+            "generated_at": "2026-01-01T00:00:00+00:00",
+            "prompt_version": "v1",
+        }
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        case_id = await _create_case(client)
+        await repo.update_field_async(case_id, "architecture_sketch", stale)
+        with capture_logs() as logs:
+            response = await client.get(
+                f"/cases/{case_id}/architecture-sketch",
+                headers={"X-API-Key": TEST_API_KEY},
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"sketch": None}
+    assert any(entry["event"] == "sketch_schema_stale" for entry in logs)
 
 
 async def test_get_sketch_unknown_case_returns_404() -> None:
