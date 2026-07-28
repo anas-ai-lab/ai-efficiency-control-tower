@@ -62,11 +62,12 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8001/api/v2/heartbeat 
 ### 1.4 Demo-Datenbank frisch seeden
 
 ```bash
-uv run python scripts/seed_demo.py --reset             # legt aect_demo.db neu an (9 Cases)
+uv run python scripts/seed_demo.py --reset             # legt aect_demo.db neu an (10 Cases)
 ```
 
 Erwartete Zonen-Verteilung (deterministisch): demo-001/002/008/009 LIKELY_WIN,
-demo-003/004/007 CALCULATED_RISK, demo-005 MARGINAL_GAIN, demo-006 Vorfilter-Fail.
+demo-003/004/007/010 CALCULATED_RISK, demo-005 MARGINAL_GAIN, demo-006
+Vorfilter-Fail.
 
 ### 1.5 Backend starten (gegen die Demo-DB)
 

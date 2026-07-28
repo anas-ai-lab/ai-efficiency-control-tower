@@ -2,20 +2,24 @@
 
 Zweck: eine reproduzierbare Datenbasis fuer den Demo-Build (interner Vorgesetzter)
 -- Portfolio-Read (/cases), Board-Matrix (/board) und Monitoring haben sofort
-Inhalt, ohne dass jemand das Intake-Formular neun Mal ausfuellt.
+Inhalt, ohne dass jemand das Intake-Formular zehn Mal ausfuellt.
 
 Eigenschaften (bewusst so gewaehlt):
-  - 9 GENERISCHE Cases, kein Firmenbezug (IP-Trennung: keine echten Cases,
+  - 10 GENERISCHE Cases, kein Firmenbezug (IP-Trennung: keine echten Cases,
     Plattform-Namen oder Zahlen -- rein illustrative Prozesse).
   - verteilt ueber Zonen (LIKELY_WIN / CALCULATED_RISK / MARGINAL_GAIN),
-    Laender (de/at/ch), Status (submitted/in_review/approved/implemented) und
-    Datenschutzklassen (no_personal_data/pseudonymous/personal/sensitive).
+    Laender (de/at/ch), Status (submitted/in_review/approved/implemented/
+    rejected) und Datenschutzklassen (no_personal_data/pseudonymous/personal/
+    sensitive).
   - demo-006 hat ein negatives Zeitdelta (Zeit mit AI > heute) -> der Vorfilter
     lehnt ab, im UI sichtbar als Fall ohne Zone.
   - demo-002 (Composite genau 4) und demo-007 (Composite genau 7) liegen exakt
     auf einer Zonengrenze -- Konfidenz-Score entsprechend niedrig.
   - demo-008 zeigt die Handlungsdruck-Hochstufung (Basis CALCULATED_RISK, durch
     alle drei Druck-Flags nach LIKELY_WIN gehoben).
+  - demo-010 ist der einzige abgelehnte Case: tragfaehige Zahlen, aber ein
+    Board-Nein -- die Entscheidung folgt nicht allein dem Nettonutzen. Er ist
+    zugleich der einzige Case mit gefuelltem desired_example_process.
 
 KEIN Azure-Call: die LLM-Felder (Schaerfung, Loesungsvorschlag, Compliance,
 Skizze) bleiben leer -- der Seed nutzt nur die deterministische Regel-Pipeline.
@@ -358,6 +362,51 @@ _SPECS: list[dict[str, Any]] = [
             "implementation_approach": ImplementationApproach.DEVELOPMENT_ON_EXISTING,
             "estimated_license_cost_eur": 0.0,
             "data_classification": DataClassification.NO_PERSONAL_DATA,
+        },
+    },
+    {
+        "id": "demo-010",  # einziger abgelehnter Case: Board-Nein trotz Zahlen
+        "status": CaseStatus.REJECTED,
+        "use_case": {
+            "title": "Bewerbungseingaenge nach Anforderungsprofil vorsortieren",
+            "submitter": "Demo Einreicher",
+            "department": "Personalabteilung",
+            "country": Country.DE,
+            "current_state": (
+                "Recruiter sichten jede eingehende Bewerbung vollstaendig und "
+                "gleichen Qualifikation, Berufserfahrung und Verfuegbarkeit "
+                "manuell gegen das Anforderungsprofil der Stelle ab. Bei stark "
+                "nachgefragten Ausschreibungen entsteht dadurch ein Rueckstau; "
+                "Rueckmeldungen an Bewerber verzoegern sich um mehrere Tage."
+            ),
+            "desired_state": (
+                "Ein System gleicht die Unterlagen gegen das Anforderungsprofil "
+                "ab und erzeugt eine begruendete Vorsortierung mit Belegstellen "
+                "aus der Bewerbung. Die Entscheidung ueber jede Einladung bleibt "
+                "beim Recruiter, der aber auf einer vorstrukturierten Liste "
+                "arbeitet statt auf dem unsortierten Eingang."
+            ),
+            "example_process": (
+                "Eine Bewerbung auf eine ausgeschriebene Fachstelle wird gegen "
+                "die geforderten Qualifikationen geprueft und mit einer kurzen "
+                "Notiz in die Vorauswahl eingeordnet."
+            ),
+            "desired_example_process": (
+                "Die Bewerbung erscheint mit einem Abgleich gegen das "
+                "Anforderungsprofil und den belegenden Textstellen; der Recruiter "
+                "bestaetigt oder verwirft die Einordnung mit einem Klick."
+            ),
+            "time_per_case_hours_current": 0.6,
+            "time_per_case_hours_with_ai": 0.25,
+            "occurrences_per_employee_per_year": 450,
+            "affected_employees_count": 10,
+            "employee_category": EmployeeCategory.PROFESSIONAL,
+            "evidence_level": EvidenceLevel.SIMILAR_PROJECT,
+            "adoption_type": AdoptionType.RECOMMENDED_STANDARD,
+            "implementation_approach": ImplementationApproach.API_INTEGRATION,
+            "estimated_license_cost_eur": 9000.0,
+            "implementation_cost_eur": 25000.0,
+            "data_classification": DataClassification.PERSONAL,
         },
     },
 ]
