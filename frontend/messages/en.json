@@ -69,7 +69,7 @@
   },
   "landing": {
     "eyebrow": "AI Efficiency Control Tower",
-    "heroTitle": "From idea to a well-founded decision.",
+    "heroTitle": "Your next AI idea deserves more than a gut feeling.",
     "heroLead": "Got an idea where AI would genuinely save time? Describe it in a few sentences — we'll work out the value, effort and risk.",
     "heroCtaLabel": "Submit an idea",
     "pipelineRule": "Rules",
@@ -78,13 +78,9 @@
     "pipelineHuman": "Human",
     "pipelineCaption": "Clear rules check the facts, vetted sources provide the evidence, a language model turns it into plain text — a person makes the final call.",
     "kpiSubmittedLabel": "Submitted ideas",
-    "kpiSubmittedHint": "captured in total",
     "kpiEvaluatedLabel": "Evaluated ideas",
-    "kpiEvaluatedHint": "passed the prefilter",
     "kpiImplementedLabel": "Implemented use cases",
-    "kpiImplementedHint": "live in production",
     "kpiApprovedLabel": "Approved ideas in development",
-    "kpiApprovedHint": "in implementation",
     "kpiShare": "{percent} of submissions",
     "cardSubmitTitle": "Submit",
     "cardSubmitDesc": "A few steps, and your idea gets a reasoned assessment instead of a gut feeling.",
@@ -95,10 +91,7 @@
     "cardBoardTitle": "Board",
     "cardBoardDesc": "Portfolio matrix: benefit against feasibility, each case a point.",
     "cardMonitoringTitle": "Monitoring",
-    "cardMonitoringDesc": "Maintain approved and implemented use cases — status and progress notes.",
-    "adminPrompt": "Do you manage the portfolio?",
-    "adminLink": "Admin login",
-    "adminSuffix": "— unlocks Board, Monitoring and the editing actions."
+    "cardMonitoringDesc": "Maintain approved and implemented use cases — status and progress notes."
   },
   "login": {
     "metaTitle": "Admin login | AECT",
@@ -138,7 +131,7 @@
       "body": "“{title}” has been submitted and saved.",
       "toCase": "Go to case",
       "toList": "Go to Idea List",
-      "next": "Next, the AI Board assesses the case: benefit, effort and data protection are reviewed, and the result appears on the case detail page."
+      "next": "The use case is now being assessed. Once the result is ready, you'll find it in the Idea List."
     },
     "selectPlaceholder": "Please select",
     "noteOptionalApproach": "Optional",
@@ -159,7 +152,7 @@
       "exampleHelp": "Describe how this process or task actually runs today — step by step.",
       "desiredExampleLabel": "Example (target state)",
       "desiredExamplePlaceholder": "How the same task should look after AI is used",
-      "desiredExampleHelp": "Optional — how the task should look after AI is used.",
+      "desiredExampleHelp": "Optional — how the task looks with AI.",
       "countryLabel": "Country",
       "employeeCategoryLabel": "Employee level",
       "timeCurrentLabel": "Time / case today (hrs)",
@@ -226,7 +219,6 @@
       "strategicHint": "Part of the corporate strategy or a board objective."
     },
     "review": {
-      "intro": "Please review your entries. After submitting, AECT assesses the use case; you see the result on the case detail page.",
       "yes": "Yes",
       "no": "No",
       "hoursUnit": "hrs",
@@ -269,7 +261,7 @@
       "menge": "This is where you capture how much time the task costs and how often it occurs. AECT uses this to calculate the possible time saved and the benefit in euros.",
       "umsetzung": "This is where you estimate how the solution would be built and what it costs. That gives the effort which is weighed against the benefit.",
       "daten": "This is where you classify which data is involved and how binding the use should be. It drives data protection notes and the reliability of the estimate.",
-      "pruefen": "This is where you see all your entries again at a glance. Nothing has been saved yet — only the submit button files the use case."
+      "pruefen": "This is where you see all your entries again at a glance. Nothing has been saved yet — only the submit button files the use case. Please review your entries."
     }
   },
   "result": {
@@ -525,7 +517,7 @@
     "colStatus": "Status",
     "statusError": "Status change failed.",
     "emptyFiltered": "No use cases match the filters.",
-    "pageLeadPublic": "All submitted use cases at a glance: filter by status, sort by submission date."
+    "pageLeadPublic": "All submitted use cases at a glance"
   },
   "similarCases": {
     "title": "Similar use cases",
@@ -747,7 +739,6 @@
     }
   },
   "contact": {
-    "role": "Contact AI Admin",
     "hint": "Questions about a submission or the process? Get in touch."
   },
   "boardDecision": {

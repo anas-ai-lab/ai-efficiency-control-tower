@@ -69,7 +69,7 @@
   },
   "landing": {
     "eyebrow": "AI Efficiency Control Tower",
-    "heroTitle": "Von der Idee zur belastbaren Entscheidung.",
+    "heroTitle": "Deine nächste AI-Idee verdient mehr als ein Bauchgefühl.",
     "heroLead": "Du hast eine Idee, wo AI wirklich Zeit spart? Beschreib sie in ein paar Sätzen — Nutzen, Aufwand und Risiko rechnen wir aus.",
     "heroCtaLabel": "Idee einreichen",
     "pipelineRule": "Regeln",
@@ -78,13 +78,9 @@
     "pipelineHuman": "Mensch",
     "pipelineCaption": "Klare Regeln prüfen die Fakten, geprüfte Quellen liefern die Belege, ein Sprachmodell macht daraus einen verständlichen Text — entschieden wird am Ende von einem Menschen.",
     "kpiSubmittedLabel": "Eingereichte Ideen",
-    "kpiSubmittedHint": "insgesamt erfasst",
     "kpiEvaluatedLabel": "Bewertete Ideen",
-    "kpiEvaluatedHint": "Vorfilter bestanden",
     "kpiImplementedLabel": "Umgesetzte Use Cases",
-    "kpiImplementedHint": "produktiv im Einsatz",
     "kpiApprovedLabel": "Freigegebene Ideen in der Entwicklung",
-    "kpiApprovedHint": "in Umsetzung",
     "kpiShare": "{percent} der Einreichungen",
     "cardSubmitTitle": "Einreichen",
     "cardSubmitDesc": "Wenige Schritte, und deine Idee bekommt eine begründete Bewertung statt eines Bauchgefühls.",
@@ -95,10 +91,7 @@
     "cardBoardTitle": "Board",
     "cardBoardDesc": "Portfolio-Matrix: Nutzen gegen Machbarkeit, jeder Case ein Punkt.",
     "cardMonitoringTitle": "Monitoring",
-    "cardMonitoringDesc": "Freigegebene und umgesetzte Use Cases pflegen — Status und Verlaufsnotizen.",
-    "adminPrompt": "Verwaltest du das Portfolio?",
-    "adminLink": "Admin-Login",
-    "adminSuffix": "— schaltet Board, Monitoring und die Bearbeitungs-Aktionen frei."
+    "cardMonitoringDesc": "Freigegebene und umgesetzte Use Cases pflegen — Status und Verlaufsnotizen."
   },
   "login": {
     "metaTitle": "Admin-Login | AECT",
@@ -138,7 +131,7 @@
       "body": "„{title}“ ist eingereicht und gespeichert.",
       "toCase": "Zum Fall",
       "toList": "Zur Ideenliste",
-      "next": "Als Nächstes bewertet das AI Board den Fall: Nutzen, Aufwand und Datenschutz werden geprüft, das Ergebnis erscheint auf der Fall-Detailseite."
+      "next": "Der Use Case wird jetzt bewertet. Sobald das Ergebnis vorliegt, findest du es in der Ideenliste."
     },
     "selectPlaceholder": "Bitte wählen",
     "noteOptionalApproach": "Optional",
@@ -159,7 +152,7 @@
       "exampleHelp": "Beschreibe, wie dieser Prozess oder diese Aufgabe heute tatsächlich abläuft — Schritt für Schritt.",
       "desiredExampleLabel": "Beispiel (Soll-Zustand)",
       "desiredExamplePlaceholder": "Wie derselbe Vorgang nach AI-Einsatz aussehen soll",
-      "desiredExampleHelp": "Optional — wie der Vorgang nach AI-Einsatz aussehen soll.",
+      "desiredExampleHelp": "Optional — wie der Vorgang mit AI aussehen soll.",
       "countryLabel": "Land",
       "employeeCategoryLabel": "Mitarbeiterlevel",
       "timeCurrentLabel": "Zeit / Vorgang heute (Std.)",
@@ -226,7 +219,6 @@
       "strategicHint": "Teil der Unternehmensstrategie oder eines Vorstandsziels."
     },
     "review": {
-      "intro": "Bitte prüfe deine Eingaben. Nach dem Absenden bewertet AECT den Use Case; das Ergebnis siehst du auf der Fall-Detailseite.",
       "yes": "Ja",
       "no": "Nein",
       "hoursUnit": "Std.",
@@ -269,7 +261,7 @@
       "menge": "Hier erfasst du, wie viel Zeit der Vorgang kostet und wie oft er vorkommt. Daraus berechnet AECT den möglichen Zeitgewinn und den Nutzen in Euro.",
       "umsetzung": "Hier schätzt du, wie die Lösung gebaut würde und was sie kostet. Daraus ergibt sich der Aufwand, der dem Nutzen gegenübergestellt wird.",
       "daten": "Hier ordnest du ein, mit welchen Daten gearbeitet wird und wie verbindlich die Nutzung sein soll. Das steuert Datenschutz-Hinweise und die Verlässlichkeit der Schätzung.",
-      "pruefen": "Hier siehst du alle Eingaben noch einmal im Überblick. Nichts ist bisher gespeichert — erst der Absende-Button reicht den Use Case ein."
+      "pruefen": "Hier siehst du alle Eingaben noch einmal im Überblick. Nichts ist bisher gespeichert — erst der Absende-Button reicht den Use Case ein. Bitte prüfe deine Eingaben."
     }
   },
   "result": {
@@ -525,7 +517,7 @@
     "colStatus": "Status",
     "statusError": "Statuswechsel fehlgeschlagen.",
     "emptyFiltered": "Keine Use Cases entsprechen den Filtern.",
-    "pageLeadPublic": "Alle eingereichten Use Cases auf einen Blick: filtern nach Status, sortieren nach Einreichdatum."
+    "pageLeadPublic": "Alle eingereichten Use Cases auf einen Blick"
   },
   "similarCases": {
     "title": "Ähnliche Use Cases",
@@ -747,7 +739,6 @@
     }
   },
   "contact": {
-    "role": "Ansprechpartner AI Admin",
     "hint": "Fragen zur Einreichung oder zum Verfahren? Melde dich gerne."
   },
   "boardDecision": {

@@ -171,28 +171,24 @@ export async function Landing({
             <StatCard
               label={t("kpiSubmittedLabel")}
               value={stats ? stats.eingereicht : null}
-              hint={t("kpiSubmittedHint")}
               share={null}
               shareLabel={null}
             />
             <StatCard
               label={t("kpiEvaluatedLabel")}
               value={stats ? stats.bewertet : null}
-              hint={t("kpiEvaluatedHint")}
               share={stats ? shareOf(stats.bewertet) : null}
               shareLabel={stats ? shareLabel(stats.bewertet) : null}
             />
             <StatCard
               label={t("kpiApprovedLabel")}
               value={stats ? stats.freigegeben : null}
-              hint={t("kpiApprovedHint")}
               share={stats ? shareOf(stats.freigegeben) : null}
               shareLabel={stats ? shareLabel(stats.freigegeben) : null}
             />
             <StatCard
               label={t("kpiImplementedLabel")}
               value={stats ? stats.umgesetzt : null}
-              hint={t("kpiImplementedHint")}
               share={stats ? shareOf(stats.umgesetzt) : null}
               shareLabel={stats ? shareLabel(stats.umgesetzt) : null}
             />
@@ -224,22 +220,10 @@ export async function Landing({
         </div>
       </section>
 
-      {/* Dezenter Admin-Login -- nur fuer Anonyme; Eingeloggte sehen Status +
-          Logout im Header. */}
-      {!authenticated && (
-        <section className="mt-20 border-t border-[var(--hairline)] pt-8">
-          <p className="text-sm text-muted-foreground">
-            {t("adminPrompt")}{" "}
-            <Link
-              href="/login"
-              className="rounded-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 outline-none hover:decoration-[var(--ink)] focus-visible:ring-2 focus-visible:ring-ring/40"
-            >
-              {t("adminLink")}
-            </Link>{" "}
-            {t("adminSuffix")}
-          </p>
-        </section>
-      )}
+      {/* Kein sichtbarer Admin-Einstieg mehr auf der Startseite: die Seite
+          richtet sich an Einreichende, nicht an die Verwaltung. /login bleibt
+          unter seiner URL erreichbar; Eingeloggte sehen Status + Logout im
+          Header und Board/Monitoring in der Nav. */}
     </main>
   );
 }

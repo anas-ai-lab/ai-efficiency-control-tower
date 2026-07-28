@@ -777,10 +777,12 @@ export function IntakeWizard() {
           {/* --- Schritt 5: Pruefen & Absenden (KEINE Berechnung/Score/Zone). --- */}
           {step === 4 && (
             <div className="space-y-6">
+              {/* Genau EIN Einleitungstext. Vorher standen hier zwei Absaetze
+                  direkt untereinander mit fast gleichem Inhalt; der zweite ist
+                  samt Katalog-Eintrag ersatzlos entfallen, sein Schlusssatz
+                  ("Bitte pruefe deine Eingaben.") steckt jetzt am Ende von
+                  sectionIntro.pruefen. */}
               <SectionIntro>{t("sectionIntro.pruefen")}</SectionIntro>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {t("review.intro")}
-              </p>
 
               <div className="space-y-4">
                 <ReviewSection

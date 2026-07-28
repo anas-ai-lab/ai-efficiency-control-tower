@@ -23,17 +23,20 @@ export function ContactCard() {
   const t = useTranslations("contact")
 
   return (
-    <aside className="mb-10 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--hairline-rule)] bg-card px-5 py-4">
-      <span
-        aria-hidden
-        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[var(--hairline)] bg-muted text-muted-foreground"
-      >
-        <Mail className="size-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="eyebrow">{t("role")}</p>
-        <p className="mt-0.5 text-sm text-foreground">
-          <span className="font-medium">{CONTACT_NAME}</span>
+    <aside className="mb-10 rounded-xl border border-[var(--hairline-rule)] bg-card px-5 py-4">
+      {/* Die Einladung steht oben und in Fliesstext-Groesse -- sie ist der
+          Grund, warum die Karte da ist. Frueher lief sie als kleingedruckte
+          Randnotiz rechts mit und verschwand unter sm ganz. */}
+      <p className="text-sm leading-relaxed text-foreground">{t("hint")}</p>
+      <p className="mt-3 flex items-center gap-3 text-sm">
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[var(--hairline)] bg-muted text-muted-foreground"
+        >
+          <Mail className="size-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="font-medium text-foreground">{CONTACT_NAME}</span>
           <span className="mx-1.5 text-border" aria-hidden>
             ·
           </span>
@@ -43,10 +46,7 @@ export function ContactCard() {
           >
             {CONTACT_MAIL}
           </a>
-        </p>
-      </div>
-      <p className="ml-auto hidden max-w-xs text-xs leading-relaxed text-muted-foreground sm:block">
-        {t("hint")}
+        </span>
       </p>
     </aside>
   )

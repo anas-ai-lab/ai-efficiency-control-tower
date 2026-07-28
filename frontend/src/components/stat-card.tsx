@@ -25,7 +25,6 @@ import { useFormat } from "@/lib/use-format"
 export interface StatCardProps {
   label: string
   value: number | null
-  hint: string
   // Anteil an den Einreichungen (0..1) oder null fuer die Basis-Karte.
   share: number | null
   shareLabel: string | null
@@ -64,7 +63,7 @@ const TILT_SPRING = {
   mass: 0.5,
 }
 
-export function StatCard({ label, value, hint, share, shareLabel }: StatCardProps) {
+export function StatCard({ label, value, share, shareLabel }: StatCardProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const inView = useInView(ref, { once: true, margin: "-64px" })
   const fmt = useFormat()
@@ -120,32 +119,31 @@ export function StatCard({ label, value, hint, share, shareLabel }: StatCardProp
         <p className="eyebrow">{label}</p>
         {/* Zahl-Hierarchie: die Kennzahl ist das lauteste Element der Karte --
             gross, Mono, tabular-nums, damit die Ziffern beim Hochzaehlen nicht
-            springen. Label und Hinweis bleiben deutlich darunter. */}
+            springen. Das Label bleibt deutlich darueber. */}
         <p className="stat-value tnum mt-3 text-[2.5rem] text-foreground sm:text-[2.75rem]">
           {value === null ? dash : fmt.number(Math.round(display))}
         </p>
       </div>
 
-      <div className="mt-5">
-        {/* Kontext-Hairline: der Anteil an den Einreichungen als feine Linie,
-            keine Ampel, kein Balkendiagramm. Die Grundlinie ist immer da, der
-            gefuellte Teil waechst beim Sichtbarwerden mit. */}
-        {share !== null && shareLabel !== null && (
-          <div className="mb-3">
+      {/* Kontext-Hairline: der Anteil an den Einreichungen als feine Linie,
+          keine Ampel, kein Balkendiagramm. Die Grundlinie ist immer da, der
+          gefuellte Teil waechst beim Sichtbarwerden mit. Die Basis-Karte
+          (share === null) traegt keinen Kontext -- dann faellt der ganze Block
+          weg statt eine leere Flaeche zu reservieren. */}
+      {share !== null && shareLabel !== null && (
+        <div className="mt-5">
+          <div
+            aria-hidden
+            className="h-px w-full overflow-hidden bg-[var(--hairline-rule)]"
+          >
             <div
-              aria-hidden
-              className="h-px w-full overflow-hidden bg-[var(--hairline-rule)]"
-            >
-              <div
-                className="h-full bg-[var(--ink)] transition-[width] duration-700 [transition-timing-function:var(--ease-spring)] motion-reduce:transition-none"
-                style={{ width: inView ? `${Math.round(share * 100)}%` : "0%" }}
-              />
-            </div>
-            <p className="tnum mt-2 text-xs text-muted-foreground">{shareLabel}</p>
+              className="h-full bg-[var(--ink)] transition-[width] duration-700 [transition-timing-function:var(--ease-spring)] motion-reduce:transition-none"
+              style={{ width: inView ? `${Math.round(share * 100)}%` : "0%" }}
+            />
           </div>
-        )}
-        <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>
-      </div>
+          <p className="tnum mt-2 text-xs text-muted-foreground">{shareLabel}</p>
+        </div>
+      )}
     </motion.div>
   )
 }
