@@ -45,11 +45,6 @@ export async function SimilarCasesPanel({
                 <span className="font-mono text-foreground tabular-nums">
                   {fmt.percent1(p.similarity_score)}
                 </span>
-                {p.suggest_combine && (
-                  <span className="text-[var(--ink)]">
-                    {t("suggestCombine")}
-                  </span>
-                )}
               </span>
             </li>
           );

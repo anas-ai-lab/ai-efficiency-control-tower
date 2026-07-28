@@ -529,7 +529,6 @@
   },
   "similarCases": {
     "title": "Ähnliche Use Cases",
-    "suggestCombine": "Zusammenführung prüfen",
     "footer": "Ähnlichkeit basiert auf Text-Embeddings von Titel und Ist-Beschreibung — kein inhaltliches Urteil."
   },
   "caseInputs": {

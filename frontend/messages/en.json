@@ -529,7 +529,6 @@
   },
   "similarCases": {
     "title": "Similar use cases",
-    "suggestCombine": "Review for merge",
     "footer": "Similarity is based on text embeddings of title and current-state description — not a judgment of content."
   },
   "caseInputs": {
