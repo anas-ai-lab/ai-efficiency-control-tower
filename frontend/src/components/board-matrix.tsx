@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import {
   CartesianGrid,
@@ -19,6 +19,11 @@ import {
 } from "recharts";
 
 import type { CaseStatus, CaseSummary, TriageZone } from "@/types/api";
+import {
+  computeAxisTicks,
+  computeNiceDomainMax,
+  formatAxisTickValue,
+} from "@/lib/board-format";
 import { ZONE_CONFIG, type ZoneKey } from "@/lib/formatters";
 import { STATUS_CONFIG } from "@/lib/status";
 import { readEnumParam, useFilterParams } from "@/lib/use-filter-params";
@@ -49,13 +54,18 @@ const STATUS_ORDER: CaseStatus[] = [
 // useState -- gleiches Muster wie Ideenliste und Monitoring.
 const FILTER_KEYS = ["status"] as const;
 
-// Quadranten-Trennwerte. WICHTIG: 50.000 EUR ist ein STATISCHER Naeherungswert,
-// optisch angelehnt an die LIKELY_WIN-Schwelle in zone_thresholds.yaml, aber
-// NICHT aus der Config gelesen -- das Backend exponiert die Schwellen nicht.
-// Das ist eine reine Lese-Hilfslinie, KEINE Geschaeftsregel. y = 5 ist die
-// Mitte der Composite-Skala (Aufwand-Score 1-9, zones.py _COMPOSITE_MIN/MAX).
-const QUADRANT_X = 50_000;
+// Machbarkeits-Mittellinie: y = 5 ist die Mitte der Composite-Skala
+// (Aufwand-Score 1-9, zones.py _COMPOSITE_MIN/MAX). Reine Lese-Hilfslinie,
+// KEINE Geschaeftsregel -- die Triage-Zone transportiert die Punktfarbe.
+// Ein Gegenstueck auf der x-Achse gibt es bewusst nicht mehr: bei realer
+// Wertverteilung (ueberwiegend fuenfstellige Nettonutzen) lagen praktisch alle
+// Punkte auf einer Seite der frueheren 50.000-EUR-Linie, womit drei der vier
+// aufgespannten Quadranten dauerhaft leer blieben.
 const QUADRANT_Y = 5;
+
+// Ab dieser Achsengrenze werden die Ticks in Millionen verkuerzt; darunter
+// bleibt der volle EUR-Betrag lesbar.
+const COMPACT_TICK_THRESHOLD = 1_000_000;
 
 // Punkt fuer die Matrix. Nur Cases mit vollstaendiger Bewertung landen hier
 // (zone != null impliziert net/composite/hours != null -- gleiche None-Semantik
@@ -184,6 +194,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
   const ts = useTranslations("status");
   const tz = useTranslations("zones");
   const fmt = useFormat();
+  const locale = useLocale();
   const router = useRouter();
   const tokens = useThemeTokens();
   const tf = useTranslations("filters");
@@ -206,15 +217,23 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
   // Cases ohne Bewertung (Vorfilter nicht bestanden) -- nach demselben Filter.
   const unscoredCount = filtered.length - points.length;
 
-  // x-Domain so waehlen, dass die Quadranten-Hilfslinie bei 50.000 immer sichtbar
-  // ist (Nettonutzen kann rechnerisch auch negativ sein -> 0 mit einschliessen).
-  const xDomain = useMemo<[number, number]>(() => {
-    const xs = points.map((p) => p.x);
-    const min = Math.min(0, ...xs);
-    const max = Math.max(QUADRANT_X, ...xs);
-    const pad = Math.max(1, (max - min) * 0.08);
-    return [min === 0 ? 0 : min - pad, max + pad];
-  }, [points]);
+  // x-Achse: Obergrenze auf die naechste runde Zahl ueber dem hoechsten Wert,
+  // Untergrenze 0 (Nettonutzen kann rechnerisch negativ sein -> dann der
+  // kleinste Wert). Datenbasis sind ALLE Cases, nicht die gefilterte
+  // Teilmenge: eine Achse, die bei jedem Filterklick neu skaliert, veraendert
+  // die optische Distanz zwischen zwei Punkten, ohne dass sich deren Werte
+  // geaendert haben -- und verzerrt damit genau die Portfolio-Einordnung, fuer
+  // die das Chart da ist.
+  const { xDomain, xTicks } = useMemo(() => {
+    const xs = cases
+      .map((c) => c.net_expected_benefit_eur)
+      .filter((v): v is number => v !== null);
+    const max = computeNiceDomainMax(Math.max(0, ...xs));
+    return {
+      xDomain: [Math.min(0, ...xs), max] as [number, number],
+      xTicks: computeAxisTicks(max),
+    };
+  }, [cases]);
 
   return (
     <div>
@@ -294,8 +313,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               </div>
 
               <div>
-                {/* relative traegt die absolut positionierten Quadranten-Ecklabels. */}
-                <div className="relative h-[440px] w-full sm:h-[520px]">
+                <div className="h-[440px] w-full sm:h-[520px]">
                   {tokens !== null && (
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart
@@ -307,9 +325,19 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                           dataKey="x"
                           name="Nettonutzen"
                           domain={xDomain}
+                          ticks={xTicks}
                           height={30}
                           tickMargin={8}
-                          tickFormatter={(v: number) => fmt.eur(v)}
+                          // Millionen-Kurzform erst, wenn die Achse selbst dort
+                          // liegt -- bei fuenfstelligen Portfolios waere "0,1 Mio"
+                          // schlechter lesbar als der volle Betrag.
+                          tickFormatter={(v: number) =>
+                            xDomain[1] >= COMPACT_TICK_THRESHOLD
+                              ? t("xAxisTickCompact", {
+                                  value: formatAxisTickValue(v, locale),
+                                })
+                              : fmt.eur(v)
+                          }
                           tick={{ fontSize: 11, fill: tokens.muted }}
                           stroke={tokens.border}
                           tickLine={{ stroke: tokens.border }}
@@ -340,13 +368,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                           content={<MatrixTooltip />}
                           cursor={{ strokeDasharray: "3 3", stroke: tokens.muted }}
                         />
-                        {/* Quadranten-Hilfslinien (siehe QUADRANT_X-Kommentar). */}
-                        <ReferenceLine
-                          x={QUADRANT_X}
-                          stroke={tokens.muted}
-                          strokeDasharray="4 4"
-                          strokeOpacity={0.5}
-                        />
+                        {/* Machbarkeits-Mittellinie (siehe QUADRANT_Y-Kommentar). */}
                         <ReferenceLine
                           y={QUADRANT_Y}
                           stroke={tokens.muted}
@@ -374,19 +396,6 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
                       </ScatterChart>
                     </ResponsiveContainer>
                   )}
-
-                  {/* Quadranten-Ecklabels: dezent an den Ecken der Plotflaeche.
-                      Naeherung -- sie markieren die vier Quadranten, die die
-                      Hilfslinien aufspannen (oben = hohe Machbarkeit). Positionen
-                      an die Margins + YAxis-Breite (links ~44px) angepasst. */}
-                  <div className="pointer-events-none absolute inset-0 hidden select-none text-[10px] font-medium tracking-wide text-muted-foreground/70 uppercase sm:block">
-                    <span className="absolute top-2 left-14">{t("quadNiceToHave")}</span>
-                    <span className="absolute top-2 right-6">{t("quadQuickWins")}</span>
-                    <span className="absolute bottom-11 left-14">{t("quadAvoid")}</span>
-                    <span className="absolute right-6 bottom-11 text-right">
-                      {t("quadStrategic")}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Unteres Band: x-Achsentitel. */}

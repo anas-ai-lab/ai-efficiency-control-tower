@@ -214,6 +214,11 @@ jobs:
       - name: Lint — eslint
         run: npm run --prefix frontend lint
 
+      # Unit-Tests der framework-freien lib/-Funktionen (vitest). Playwright-e2e
+      # bleibt davon getrennt -- die brauchen einen laufenden Server.
+      - name: Unit-Tests — vitest
+        run: npm run --prefix frontend test
+
       # Paritaet de<->en UND Code -> Katalog. Zweiteres faengt einen
       # Katalog-Cleanup, der einen noch referenzierten Key entfernt --
       # next-intl wirft dort nicht, es rendert den Pfad als Text.
