@@ -598,7 +598,7 @@
     "noProposalTooltip": "First generate and accept a solution proposal.",
     "generate": "Generate sketch",
     "generating": "Generating sketch …",
-    "intro": "A generic architecture sketch from the solution proposal — five building-block types as a draft, not a binding target picture.",
+    "intro": "A generic architecture sketch from the solution proposal — five flow layers (Input, Processing, AI components, Storage, Output) as a draft, not a binding target picture.",
     "hint": "Takes a few seconds · AI call",
     "enlarge": "Enlarge",
     "enlargeAria": "Open the architecture sketch in the large view",

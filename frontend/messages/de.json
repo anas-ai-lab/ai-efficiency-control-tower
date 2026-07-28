@@ -598,7 +598,7 @@
     "noProposalTooltip": "Zuerst einen Lösungsvorschlag erzeugen und übernehmen.",
     "generate": "Skizze erzeugen",
     "generating": "Skizze wird erzeugt …",
-    "intro": "Eine generische Architektur-Skizze aus dem Lösungsvorschlag — fünf Bausteintypen als Entwurf, kein verbindliches Zielbild.",
+    "intro": "Eine generische Architektur-Skizze aus dem Lösungsvorschlag — fünf Fluss-Ebenen (Eingang, Verarbeitung, KI-Bausteine, Datenhaltung, Ausgabe) als Entwurf, kein verbindliches Zielbild.",
     "hint": "Dauert einige Sekunden · LLM-Call",
     "enlarge": "Vergrößern",
     "enlargeAria": "Architektur-Skizze in der Großansicht öffnen",
