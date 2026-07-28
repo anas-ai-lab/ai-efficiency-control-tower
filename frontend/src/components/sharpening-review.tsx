@@ -210,7 +210,7 @@ export function SharpeningReview({
   onResolved,
 }: {
   sharpened: SharpenedCaseResponse
-  onResolved: () => void
+  onResolved: (action: "accept" | "reject") => void
 }) {
   const t = useTranslations("sharpening")
   const [pending, setPending] = useState<"accept" | "reject" | null>(null)
@@ -251,7 +251,7 @@ export function SharpeningReview({
       } else {
         await rejectSharpening(sharpened.case_id)
       }
-      onResolved()
+      onResolved(action)
     } catch (e) {
       setError(
         e instanceof Error ? e.message : t("actionError"),

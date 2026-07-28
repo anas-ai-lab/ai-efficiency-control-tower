@@ -190,7 +190,13 @@ export default async function CaseDetailPage({
 
         {/* ===== Bereich 1: Use Case ===== */}
         <AreaSection title={t("areaUseCase")} id="use-case">
-          <CaseInputs eingaben={eingaben} caseId={detail.id} isAdmin={authenticated} />
+          <CaseInputs
+            eingaben={eingaben}
+            caseId={detail.id}
+            isAdmin={authenticated}
+            sharpenedDesiredState={summary?.sharpened_desired_state ?? null}
+            sharpenedDesiredExample={summary?.sharpened_desired_example_process ?? null}
+          />
         </AreaSection>
 
         {/* ===== Bereich 2: Analyse & Empfehlung -- NUR Admin (V4.1-S8) =====

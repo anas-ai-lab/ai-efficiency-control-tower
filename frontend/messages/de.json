@@ -319,7 +319,9 @@
     "complianceError": "Compliance-Prüfung fehlgeschlagen.",
     "complianceHint": "RAG-gestützte Hinweise (EU AI Act Art. 50, ggf. DSGVO Art. 35) · LLM-Aktion.",
     "complianceChecking": "Compliance-Hinweise werden geprüft …",
-    "complianceNone": "Keine spezifischen Compliance-Hinweise für diesen Fall."
+    "complianceNone": "Keine spezifischen Compliance-Hinweise für diesen Fall.",
+    "sharpenAccepted": "Geschärfte Version übernommen.",
+    "sharpenRejected": "Entwurf verworfen."
   },
   "decision": {
     "approved": "Freigegeben",
@@ -559,6 +561,9 @@
     "rowEvidence": "Evidenzlevel",
     "rowPressure": "Handlungsdruck",
     "rowNotes": "Anmerkungen",
+    "originalBadge": "Original",
+    "sharpenedDesiredState": "Geschärfte Version (Soll-Zustand)",
+    "sharpenedDesiredExample": "Geschärfte Version (Soll-Beispiel)",
     "hoursUnit": "Std.",
     "yes": "Ja",
     "no": "Nein",

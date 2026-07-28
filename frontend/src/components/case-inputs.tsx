@@ -17,22 +17,49 @@ function Row({
   label,
   value,
   hint,
+  originalBadge,
+  sharpened,
 }: {
   label: string
   value: string
   // Optionaler Erklaersatz unter dem Wert -- nur dort, wo der nackte Wert die
   // Wirkung nicht verraet (aktuell die PII-Angabe).
   hint?: string
+  // Nur gesetzt, wenn dieses Feld eine akzeptierte geschaerfte Fassung hat --
+  // markiert den Originalwert dann per Label (nicht nur ueber die Position)
+  // als das Original.
+  originalBadge?: string
+  // Akzeptierte Schaerfung (S4/P3): eigener Punkt direkt unter dem Original,
+  // gleiche Typo-Skala, ueber Label + Rahmen/Hintergrund (--ink) abgesetzt.
+  // Kein leerer Platzhalter -- nur gerendert, wenn tatsaechlich geschaerft.
+  sharpened?: { label: string; value: string }
 }) {
   return (
     <div className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[13rem_1fr] sm:gap-4">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dt className="text-sm text-muted-foreground">
+        {label}
+        {originalBadge !== undefined && (
+          <span className="ml-1.5 text-[0.6875rem] font-normal text-muted-foreground/70">
+            ({originalBadge})
+          </span>
+        )}
+      </dt>
       <dd className="text-sm whitespace-pre-wrap text-foreground/90">
         {value.length > 0 ? value : "—"}
         {hint !== undefined && (
           <span className="mt-1 block max-w-prose text-xs leading-relaxed text-muted-foreground">
             {hint}
           </span>
+        )}
+        {sharpened !== undefined && (
+          <div className="mt-3 rounded-lg border border-[var(--ink)]/25 bg-[var(--ink-subtle)]/40 p-3">
+            <p className="mb-1 text-xs font-medium text-[var(--ink)]">
+              {sharpened.label}
+            </p>
+            <p className="whitespace-pre-wrap text-sm text-foreground/90">
+              {sharpened.value}
+            </p>
+          </div>
         )}
       </dd>
     </div>
@@ -58,14 +85,21 @@ export async function CaseInputs({
   eingaben: e,
   caseId,
   isAdmin = false,
+  sharpenedDesiredState = null,
+  sharpenedDesiredExample = null,
 }: {
   eingaben: UseCaseInput
   caseId: string
   isAdmin?: boolean
+  // Akzeptierte Schaerfung (S4/P3, aus report.business_summary) -- nur fuer
+  // Admins mit ausgewertetem Case gesetzt, sonst null (keine Rendering).
+  sharpenedDesiredState?: string | null
+  sharpenedDesiredExample?: string | null
 }) {
   const t = await getTranslations("caseInputs")
   const te = await getTranslations("enums")
   const fmt = bindFormat(await getFormatter())
+  const originalBadge = t("originalBadge")
 
   const druck =
     [
@@ -84,9 +118,27 @@ export async function CaseInputs({
         <Group title={t("groupDescription")}>
           <Row label={t("rowTitle")} value={e.title} />
           <Row label={t("rowCurrentState")} value={e.current_state} />
-          <Row label={t("rowDesiredState")} value={e.desired_state} />
+          <Row
+            label={t("rowDesiredState")}
+            value={e.desired_state}
+            originalBadge={sharpenedDesiredState !== null ? originalBadge : undefined}
+            sharpened={
+              sharpenedDesiredState !== null
+                ? { label: t("sharpenedDesiredState"), value: sharpenedDesiredState }
+                : undefined
+            }
+          />
           <Row label={t("rowExample")} value={e.example_process} />
-          <Row label={t("rowDesiredExample")} value={e.desired_example_process ?? ""} />
+          <Row
+            label={t("rowDesiredExample")}
+            value={e.desired_example_process ?? ""}
+            originalBadge={sharpenedDesiredExample !== null ? originalBadge : undefined}
+            sharpened={
+              sharpenedDesiredExample !== null
+                ? { label: t("sharpenedDesiredExample"), value: sharpenedDesiredExample }
+                : undefined
+            }
+          />
         </Group>
 
         <Group title={t("groupMaster")}>

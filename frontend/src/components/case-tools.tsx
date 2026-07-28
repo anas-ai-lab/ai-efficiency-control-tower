@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
@@ -9,7 +10,6 @@ import type {
   SharpenedCaseResponse,
 } from "@/types/api";
 import { generateComplianceHints, sharpenCase } from "@/app/actions";
-import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
 import { useTrackLlmCall } from "@/components/llm-busy";
 import { SharpeningReview } from "@/components/sharpening-review";
@@ -32,12 +32,19 @@ interface Props {
 
 export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
   const t = useTranslations("caseTools");
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   // Meldet die LLM-Calls an die Detailseite, damit die Entscheidung (Bereich 3)
   // solange gesperrt bleibt statt in der Server-Action-Queue zu haengen.
   const trackLlmCall = useTrackLlmCall();
   const [sharpenBusy, setSharpenBusy] = useState(false);
   const [sharpenError, setSharpenError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SharpenedCaseResponse | null>(null);
+  // Erfolgs-Feedback nach Uebernehmen/Verwerfen (kein globaler Toast, s.
+  // Frontend-CLAUDE.md). Verschwindet beim naechsten Schaerfen-Lauf.
+  const [draftFeedback, setDraftFeedback] = useState<
+    "accepted" | "rejected" | null
+  >(null);
 
   const [complianceBusy, setComplianceBusy] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
@@ -48,6 +55,7 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
   async function handleSharpen() {
     setSharpenBusy(true);
     setSharpenError(null);
+    setDraftFeedback(null);
     try {
       setDraft(await trackLlmCall(() => sharpenCase(caseId)));
     } catch (e) {
@@ -57,9 +65,17 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
     }
   }
 
-  function handleDraftResolved() {
+  // Kein hardRefresh()/window.location.reload() mehr (Endlos-Reload-Befund):
+  // acceptSharpening() revalidiert die Detailroute bereits serverseitig
+  // (revalidateCaseViews in actions.ts), router.refresh() zieht die frische
+  // RSC-Nutzlast (Original-Soll-Felder in CaseInputs, ein Server Component
+  // ohne eigenen State) OHNE Full-Reload und ohne Verlust des Client-State.
+  function handleDraftResolved(action: "accept" | "reject") {
     setDraft(null);
-    hardRefresh();
+    setDraftFeedback(action === "accept" ? "accepted" : "rejected");
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   async function handleCompliance() {
@@ -99,6 +115,18 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
       </p>
 
       <ActionError message={sharpenError} className="mt-3" />
+
+      {draftFeedback !== null && draft === null && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-3 text-sm text-[var(--ink)]"
+        >
+          {draftFeedback === "accepted"
+            ? t("sharpenAccepted")
+            : t("sharpenRejected")}
+        </p>
+      )}
 
       {draft !== null && (
         <div className="mt-5">

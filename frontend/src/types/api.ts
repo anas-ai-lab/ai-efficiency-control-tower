@@ -376,6 +376,10 @@ export interface BusinessSummary {
   decision_report: DecisionReport; // V4-P6
   solution_business: ManagementSolution | null; // ADR-0054, null solange nicht erzeugt
   sharpened_text: string | null;
+  // Dieselbe geschaerfte Fassung wie sharpened_text, getrennt in die beiden
+  // strukturierten Felder statt eines verketteten Strings (P3/P4).
+  sharpened_desired_state: string | null;
+  sharpened_desired_example_process: string | null;
   compliance_hint_text: string | null;
   compliance_citations: ComplianceCitation[];
   // Human-in-the-Loop Decision-Record (ADR-0043)
