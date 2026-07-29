@@ -161,11 +161,15 @@ function TooltipBody({ p }: { p: MatrixPoint }) {
   const zone = ZONE_CONFIG[p.zone as ZoneKey];
   return (
     <div className="max-w-[16rem] rounded-lg border border-border bg-popover px-3 py-2.5 text-xs shadow-md">
-      <p className="line-clamp-2 font-medium text-popover-foreground">{p.title}</p>
+      <p className="line-clamp-2 font-medium text-popover-foreground">
+        {p.title}
+      </p>
       <p className="mt-0.5 text-muted-foreground">{p.department}</p>
       <div className="mt-2 flex items-center gap-1.5">
         <span className={cn("size-1.5 rounded-full", zone.dot)} aria-hidden />
-        <span className={cn("font-medium", zone.text)}>{tz(`${p.zone}.label`)}</span>
+        <span className={cn("font-medium", zone.text)}>
+          {tz(`${p.zone}.label`)}
+        </span>
       </div>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
         <dt className="text-muted-foreground">{t("tipNet")}</dt>
@@ -181,9 +185,7 @@ function TooltipBody({ p }: { p: MatrixPoint }) {
           {fmt.number(p.z)}
         </dd>
         <dt className="text-muted-foreground">{t("tipStatus")}</dt>
-        <dd className="text-right text-popover-foreground">
-          {ts(p.status)}
-        </dd>
+        <dd className="text-right text-popover-foreground">{ts(p.status)}</dd>
       </dl>
     </div>
   );
@@ -254,7 +256,10 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               {STATUS_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>
                   <span
-                    className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      STATUS_CONFIG[s].dot,
+                    )}
                     aria-hidden
                   />
                   {ts(s)}
@@ -281,7 +286,7 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
         {/* Matrix */}
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
           {points.length === 0 ? (
             // Empty-State im Ergebnisbereich (im Matrix-Rahmen), mit Rueckweg,
             // sobald ein Filter aktiv ist.
@@ -297,114 +302,139 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
             // Labels -- die ausschliesslich im SVG-margin bzw. in der Achsen-
             // breite gezeichnet werden -- strukturell nicht ueberlappen:
             // disjunkte Layout-Boxen, unabhaengig von Label-Laenge/Viewport.
-            <div className="grid grid-cols-[1.25rem_1fr] gap-x-1">
-              {/* Linke Schiene: vertikaler y-Achsentitel (unter dem x-Band
-                  ausgerichtet via pb-6). */}
-              <div className="flex items-center justify-center pb-6">
-                <span
-                  className="text-xs font-medium tracking-wide whitespace-nowrap text-muted-foreground"
-                  style={{
-                    writingMode: "vertical-rl",
-                    transform: "rotate(180deg)",
-                  }}
-                >
-                  {t("yAxisTitle")}
-                </span>
-              </div>
-
-              <div>
-                <div className="h-[440px] w-full sm:h-[520px]">
-                  {tokens !== null && (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ScatterChart
-                        margin={{ top: 12, right: 18, bottom: 8, left: 4 }}
-                      >
-                        <CartesianGrid stroke={tokens.border} strokeDasharray="3 3" />
-                        <XAxis
-                          type="number"
-                          dataKey="x"
-                          name="Nettonutzen"
-                          domain={xDomain}
-                          ticks={xTicks}
-                          height={30}
-                          tickMargin={8}
-                          // Millionen-Kurzform erst, wenn die Achse selbst dort
-                          // liegt -- bei fuenfstelligen Portfolios waere "0,1 Mio"
-                          // schlechter lesbar als der volle Betrag.
-                          tickFormatter={(v: number) =>
-                            xDomain[1] >= COMPACT_TICK_THRESHOLD
-                              ? t("xAxisTickCompact", {
-                                  value: formatAxisTickValue(v, locale),
-                                })
-                              : fmt.eur(v)
-                          }
-                          tick={{ fontSize: 11, fill: tokens.muted }}
-                          stroke={tokens.border}
-                          tickLine={{ stroke: tokens.border }}
-                        />
-                        <YAxis
-                          type="number"
-                          dataKey="y"
-                          name="Machbarkeit"
-                          // Invertiert via reversed (eine absteigende Domain wird von
-                          // recharts wieder aufsteigend normalisiert): oben = niedriger
-                          // Aufwand-Score 1 = hohe Machbarkeit, unten = 9.
-                          reversed
-                          domain={[1, 9]}
-                          tickCount={5}
-                          width={40}
-                          tickMargin={6}
-                          tick={{ fontSize: 11, fill: tokens.muted }}
-                          stroke={tokens.border}
-                          tickLine={{ stroke: tokens.border }}
-                        />
-                        <ZAxis
-                          type="number"
-                          dataKey="z"
-                          range={[60, 400]}
-                          name="Stunden/Jahr"
-                        />
-                        <Tooltip
-                          content={<MatrixTooltip />}
-                          cursor={{ strokeDasharray: "3 3", stroke: tokens.muted }}
-                        />
-                        {/* Machbarkeits-Mittellinie (siehe QUADRANT_Y-Kommentar). */}
-                        <ReferenceLine
-                          y={QUADRANT_Y}
-                          stroke={tokens.muted}
-                          strokeDasharray="4 4"
-                          strokeOpacity={0.5}
-                        />
-                        <Scatter
-                          data={points}
-                          onClick={(node: unknown) => {
-                            const id = (node as { payload?: MatrixPoint })?.payload
-                              ?.id;
-                            if (id) router.push(`/cases/${id}`);
-                          }}
-                          className="cursor-pointer"
-                        >
-                          {points.map((p) => (
-                            <Cell
-                              key={p.id}
-                              fill={tokens[p.zone]}
-                              fillOpacity={0.75}
-                              stroke={tokens[p.zone]}
-                            />
-                          ))}
-                        </Scatter>
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                  )}
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[42rem] grid-cols-[1.25rem_1fr] gap-x-1 md:min-w-0">
+                {/* Linke Schiene: vertikaler y-Achsentitel (unter dem x-Band
+                    ausgerichtet via pb-6). */}
+                <div className="flex items-center justify-center pb-6">
+                  <span
+                    className="text-xs font-medium tracking-wide whitespace-nowrap text-muted-foreground"
+                    style={{
+                      writingMode: "vertical-rl",
+                      transform: "rotate(180deg)",
+                    }}
+                  >
+                    {t("yAxisTitle")}
+                  </span>
                 </div>
 
-                {/* Unteres Band: x-Achsentitel. */}
-                <p className="mt-1.5 text-center text-xs font-medium tracking-wide text-muted-foreground">
-                  {t("xAxisTitle")}
-                </p>
+                <div>
+                  <div className="h-[440px] w-full sm:h-[520px]">
+                    {tokens !== null && (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart
+                          margin={{ top: 12, right: 18, bottom: 8, left: 4 }}
+                        >
+                          <CartesianGrid
+                            stroke={tokens.border}
+                            strokeDasharray="3 3"
+                          />
+                          <XAxis
+                            type="number"
+                            dataKey="x"
+                            name="Nettonutzen"
+                            domain={xDomain}
+                            ticks={xTicks}
+                            height={30}
+                            tickMargin={8}
+                            // Millionen-Kurzform erst, wenn die Achse selbst dort
+                            // liegt -- bei fuenfstelligen Portfolios waere "0,1 Mio"
+                            // schlechter lesbar als der volle Betrag.
+                            tickFormatter={(v: number) =>
+                              xDomain[1] >= COMPACT_TICK_THRESHOLD
+                                ? t("xAxisTickCompact", {
+                                    value: formatAxisTickValue(v, locale),
+                                  })
+                                : fmt.eur(v)
+                            }
+                            tick={{ fontSize: 11, fill: tokens.muted }}
+                            stroke={tokens.border}
+                            tickLine={{ stroke: tokens.border }}
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="y"
+                            name="Machbarkeit"
+                            // Invertiert via reversed (eine absteigende Domain wird von
+                            // recharts wieder aufsteigend normalisiert): oben = niedriger
+                            // Aufwand-Score 1 = hohe Machbarkeit, unten = 9.
+                            reversed
+                            domain={[1, 9]}
+                            tickCount={5}
+                            width={40}
+                            tickMargin={6}
+                            tick={{ fontSize: 11, fill: tokens.muted }}
+                            stroke={tokens.border}
+                            tickLine={{ stroke: tokens.border }}
+                          />
+                          <ZAxis
+                            type="number"
+                            dataKey="z"
+                            range={[60, 400]}
+                            name="Stunden/Jahr"
+                          />
+                          <Tooltip
+                            content={<MatrixTooltip />}
+                            cursor={{
+                              strokeDasharray: "3 3",
+                              stroke: tokens.muted,
+                            }}
+                          />
+                          {/* Machbarkeits-Mittellinie (siehe QUADRANT_Y-Kommentar). */}
+                          <ReferenceLine
+                            y={QUADRANT_Y}
+                            stroke={tokens.muted}
+                            strokeDasharray="4 4"
+                            strokeOpacity={0.5}
+                          />
+                          <Scatter
+                            data={points}
+                            onClick={(node: unknown) => {
+                              const id = (node as { payload?: MatrixPoint })
+                                ?.payload?.id;
+                              if (id) router.push(`/cases/${id}`);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {points.map((p) => (
+                              <Cell
+                                key={p.id}
+                                fill={tokens[p.zone]}
+                                fillOpacity={0.75}
+                                stroke={tokens[p.zone]}
+                              />
+                            ))}
+                          </Scatter>
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* Unteres Band: x-Achsentitel. */}
+                  <p className="mt-1.5 text-center text-xs font-medium tracking-wide text-muted-foreground">
+                    {t("xAxisTitle")}
+                  </p>
+                </div>
               </div>
             </div>
           )}
+
+          {/* Horizontale Zonenfarb-Legende -- gleiche Farbquelle (ZONE_CONFIG)
+              wie die vertikale Liste im "How to read"-Panel, dort bleibt sie
+              zusaetzlich bestehen. */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+            {(
+              ["LIKELY_WIN", "CALCULATED_RISK", "MARGINAL_GAIN"] as ZoneKey[]
+            ).map((z) => (
+              <div key={z} className="flex items-center gap-1.5">
+                <span
+                  className={cn("size-2 rounded-full", ZONE_CONFIG[z].dot)}
+                  aria-hidden
+                />
+                <span className={ZONE_CONFIG[z].text}>{tz(`${z}.label`)}</span>
+              </div>
+            ))}
+          </div>
 
           {/* Achsen-Untertitel + Blasen-Legende */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
@@ -458,11 +488,18 @@ export function BoardMatrix({ cases }: { cases: CaseSummary[] }) {
               <dd>
                 <ul className="mt-1 space-y-1">
                   {(
-                    ["LIKELY_WIN", "CALCULATED_RISK", "MARGINAL_GAIN"] as ZoneKey[]
+                    [
+                      "LIKELY_WIN",
+                      "CALCULATED_RISK",
+                      "MARGINAL_GAIN",
+                    ] as ZoneKey[]
                   ).map((z) => (
                     <li key={z} className="flex items-center gap-2">
                       <span
-                        className={cn("size-2 rounded-full", ZONE_CONFIG[z].dot)}
+                        className={cn(
+                          "size-2 rounded-full",
+                          ZONE_CONFIG[z].dot,
+                        )}
                         aria-hidden
                       />
                       <span className={ZONE_CONFIG[z].text}>

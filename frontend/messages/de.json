@@ -450,7 +450,7 @@
     "tipHours": "Stunden/Jahr",
     "tipStatus": "Status",
     "yAxisTitle": "Machbarkeit · leichter umsetzbar ↑",
-    "xAxisTitle": "Erwarteter Nettonutzen / Jahr",
+    "xAxisTitle": "Erwarteter Nettonutzen / Jahr →",
     "xAxisTickCompact": "{value} Mio €",
     "effortScoreNote": "Aufwand-Score 1–9, invertiert",
     "bubbleNote": "Blasengröße = eingesparte Stunden/Jahr",

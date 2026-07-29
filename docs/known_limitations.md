@@ -287,24 +287,25 @@ Statusverlauf gebraucht wird.
 
 ---
 
-## 17. Board-Quadranten-Linien sind Platzhalter, keine Schwellen
+## 17. Board-Machbarkeits-Mittellinie ist Platzhalter, keine Schwelle
 
-**Was:** Die Board-Matrix (v3, ADR-0047) zeigt zwei gestrichelte
-Quadranten-Linien (x = 50.000 EUR, y = 6) und vier Ecklabels ("Quick Wins",
-"Nice to have", "Strategische Wetten", "Vermeiden"). Diese Werte sind statisch im
-Frontend hartcodiert (`board-matrix.tsx`, `QUADRANT_X`/`QUADRANT_Y`), NICHT aus
-`config/zone_thresholds.yaml` gelesen.
+**Was:** Die Board-Matrix (v3, ADR-0047; X-Achse ueberarbeitet 2026-07-28)
+zeigt eine gestrichelte Machbarkeits-Mittellinie (y = 5, Composite-Skala 1-9).
+Der Wert ist statisch im Frontend hartcodiert (`board-matrix.tsx`,
+`QUADRANT_Y`), NICHT aus `config/zone_thresholds.yaml` gelesen. Eine
+X-Achsen-Schwellenlinie samt Ecklabels ("Quick Wins" etc.) gab es frueher,
+ist inzwischen ersatzlos entfernt: die X-Achse skaliert dynamisch aus den
+Daten (Nice-Number-Domain), eine feste Linie darauf ergaebe keinen Sinn mehr.
 
-**Konsequenz:** Die Linien sind eine visuelle Lese-Hilfe zur groben Gruppierung,
-KEINE Geschaeftsregel. Die tatsaechliche Triage-Zone transportiert die
-Punktfarbe -- nicht die Position relativ zur Linie. Das Backend exponiert die
-echten Schwellen bewusst nicht (IP-Trennung), darum kann die Board-Ansicht sie
-nicht spiegeln. Ein Punkt links der 50.000-Linie ist nicht automatisch
-MARGINAL_GAIN.
+**Konsequenz:** Die verbleibende Linie ist eine visuelle Lese-Hilfe zur groben
+Gruppierung, KEINE Geschaeftsregel. Die tatsaechliche Triage-Zone transportiert
+die Punktfarbe -- nicht die Position relativ zur Linie. Das Backend exponiert
+die echten Schwellen bewusst nicht (IP-Trennung), darum kann die Board-Ansicht
+sie nicht spiegeln.
 
 **Bewusst so:** Eine aus der Config gelesene Schwellen-Linie wuerde den
 Eindruck einer zweiten, eventuell abweichenden Klassifikation erzeugen. Die
-Farbe ist die einzige Wahrheit; die Linien sind Dekoration mit Orientierungswert.
+Farbe ist die einzige Wahrheit; die Linie ist Dekoration mit Orientierungswert.
 
 ---
 

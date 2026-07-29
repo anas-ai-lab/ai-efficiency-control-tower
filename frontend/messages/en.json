@@ -450,7 +450,7 @@
     "tipHours": "Hours/year",
     "tipStatus": "Status",
     "yAxisTitle": "Feasibility · easier to implement ↑",
-    "xAxisTitle": "Expected net benefit / year",
+    "xAxisTitle": "Expected net benefit / year →",
     "xAxisTickCompact": "{value}M €",
     "effortScoreNote": "Effort score 1–9, inverted",
     "bubbleNote": "Bubble size = hours saved/year",
