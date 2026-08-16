@@ -229,45 +229,6 @@ export function CaseReport({ report }: { report: ReportResponse }) {
             </section>
           )}
 
-          {td.roi_theoretical_potential_eur !== null && (
-            <section className="rounded-xl border border-border bg-card px-5 py-4">
-              <Label>{t("roi")}</Label>
-              <dl className="space-y-2 text-sm">
-                <div className="flex items-baseline justify-between gap-4">
-                  <dt className="text-muted-foreground">{t("theoretical")}</dt>
-                  <dd className="stat-value text-foreground tabular-nums">
-                    {fmt.eur(td.roi_theoretical_potential_eur)}
-                  </dd>
-                </div>
-                {td.roi_net_expected_benefit_eur !== null && (
-                  <div className="flex items-baseline justify-between gap-4 border-t border-border pt-2">
-                    <dt className="text-muted-foreground">{t("netExpected")}</dt>
-                    <dd className="stat-value font-medium text-foreground tabular-nums">
-                      {fmt.eur(td.roi_net_expected_benefit_eur)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </section>
-          )}
-
-          {td.composite_total !== null && (
-            <section className="rounded-xl border border-border bg-card px-5 py-4">
-              <Label>{t("effortScore")}</Label>
-              <div className="flex items-baseline gap-2">
-                <span className="stat-value text-2xl text-foreground">
-                  {td.composite_total}
-                  <span className="text-base text-muted-foreground">/9</span>
-                </span>
-                {td.composite_effort_label !== null && (
-                  <span className="text-sm text-muted-foreground">
-                    {te(`effortLabel.${td.composite_effort_label}`)}
-                  </span>
-                )}
-              </div>
-            </section>
-          )}
-
           {td.feasibility_flags.length > 0 && (
             <section>
               <Label>{t("feasibilityFlags")}</Label>
