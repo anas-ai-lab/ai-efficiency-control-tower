@@ -6,3 +6,11 @@
 # Begruendung wie im pip-audit-Ignore (Job "security", ci.yml). Re-Check
 # bei jedem Dependency-Update.
 GHSA-537c-gmf6-5ccf
+
+# CVE-2026-69247 / CVE-2026-69249: cryptography 46.0.7, Fixes erst in
+# 50.0.0 bzw. 49.0.0. presidio-anonymizer 2.2.364 wurde am 2026-08-16
+# verifiziert: Es erzwingt cryptography>=48.0.1,<49.0.0 und loest 48.0.1 auf,
+# daher bleiben die HIGH-CVEs ohne Upgrade-Pfad. Re-Check bei jedem
+# Dependency-Update.
+CVE-2026-69247
+CVE-2026-69249
