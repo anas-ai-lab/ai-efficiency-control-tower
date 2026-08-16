@@ -14,7 +14,12 @@ import { isAdminDetail } from "@/lib/case-view";
 import { BoardDecisionNotice } from "@/components/board-decision-notice";
 import { CaseDecision } from "@/components/case-decision";
 import { CaseInputs } from "@/components/case-inputs";
-import { CaseReport } from "@/components/case-report";
+import {
+  CaseReport,
+  ComplianceHints,
+  SharpenedDescription,
+  TextBlock,
+} from "@/components/case-report";
 import { CaseResult } from "@/components/case-result";
 import { CaseStatusControl } from "@/components/case-status-control";
 import { CaseTools } from "@/components/case-tools";
@@ -107,6 +112,7 @@ export default async function CaseDetailPage({
   const { id } = await params;
   const t = await getTranslations("detailPage");
   const ts = await getTranslations("status");
+  const tci = await getTranslations("caseInputs");
   const fmt = bindFormat(await getFormatter());
 
   // GET /cases/{id}: read-only Sicht auf den Case. Schema-Split (V4.1-S8) --
@@ -282,8 +288,37 @@ export default async function CaseDetailPage({
         {/* ===== Bereich 3: Entscheidung & Report ===== */}
         {report !== null && summary !== null && (
           <AreaSection title={t("areaDecision")}>
-            {authenticated && (
+            {summary.sharpened_text !== null ? (
+              <SharpenedDescription text={summary.sharpened_text} />
+            ) : (
               <div className="space-y-6">
+                <TextBlock
+                  title={tci("rowDesiredState")}
+                  text={eingaben.desired_state}
+                />
+                <TextBlock
+                  title={tci("rowDesiredExample")}
+                  text={eingaben.desired_example_process ?? ""}
+                />
+              </div>
+            )}
+
+            {summary.compliance_hint_text !== null && (
+              <div className="mt-6">
+                <ComplianceHints
+                  text={summary.compliance_hint_text}
+                  citations={summary.compliance_citations}
+                />
+              </div>
+            )}
+
+            <div className="mt-10">
+              <p className="eyebrow mb-3">{t("report")}</p>
+              <CaseReport report={report} sketch={initialSketch} />
+            </div>
+
+            {authenticated && (
+              <div className="mt-10 space-y-6">
                 <div>
                   <p className="eyebrow mb-2">{t("status")}</p>
                   <CaseStatusControl
@@ -298,10 +333,6 @@ export default async function CaseDetailPage({
                 />
               </div>
             )}
-            <div className={authenticated ? "mt-10" : ""}>
-              <p className="eyebrow mb-3">{t("report")}</p>
-              <CaseReport report={report} sketch={initialSketch} />
-            </div>
           </AreaSection>
         )}
       </main>

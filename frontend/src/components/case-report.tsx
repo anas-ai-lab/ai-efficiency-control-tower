@@ -27,7 +27,7 @@ function Label({ children }: { children: React.ReactNode }) {
   return <p className="eyebrow mb-2">{children}</p>
 }
 
-function TextBlock({ title, text }: { title: string; text: string }) {
+export function TextBlock({ title, text }: { title: string; text: string }) {
   if (text.trim().length === 0) return null
   return (
     <section>
@@ -59,6 +59,35 @@ function Citations({ citations }: { citations: ComplianceCitation[] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+export function SharpenedDescription({ text }: { text: string }) {
+  const t = useTranslations("report")
+  return (
+    <section className="border-l-2 border-[var(--ink)] pl-4">
+      <Label>{t("sharpenedDescription")}</Label>
+      <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+        {text}
+      </p>
+    </section>
+  )
+}
+
+export function ComplianceHints({
+  text,
+  citations,
+}: {
+  text: string
+  citations: ComplianceCitation[]
+}) {
+  const t = useTranslations("report")
+  return (
+    <section>
+      <Label>{t("complianceHints")}</Label>
+      <p className="text-sm leading-relaxed text-foreground/90">{text}</p>
+      <Citations citations={citations} />
+    </section>
   )
 }
 
@@ -171,27 +200,6 @@ export function CaseReport({
             <section>
               <Label>{t("solutionBusiness")}</Label>
               <ManagementSolutionView solution={bs.solution_business} />
-            </section>
-          )}
-
-          {/* Geschaerfte Beschreibung (akzeptierte Fassung). */}
-          {bs.sharpened_text !== null && (
-            <section className="border-l-2 border-[var(--ink)] pl-4">
-              <Label>{t("sharpenedDescription")}</Label>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                {bs.sharpened_text}
-              </p>
-            </section>
-          )}
-
-          {/* Compliance. */}
-          {bs.compliance_hint_text !== null && (
-            <section>
-              <Label>{t("complianceHints")}</Label>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {bs.compliance_hint_text}
-              </p>
-              <Citations citations={bs.compliance_citations} />
             </section>
           )}
         </div>
