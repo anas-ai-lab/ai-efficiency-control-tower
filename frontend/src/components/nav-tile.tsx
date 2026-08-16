@@ -10,7 +10,7 @@ import {
   type Variants,
 } from "motion/react"
 
-import { LEAF_ORIGIN_ATTR } from "@/components/leaf-transition"
+import { LEAF_ORIGIN_ATTR } from "@/lib/leaf-origin"
 
 // Navigations-Kachel der Startseite (v4.2).
 //

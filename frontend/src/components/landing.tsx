@@ -11,7 +11,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import type { StatsResponse } from "@/types/api";
 import { bindFormat } from "@/lib/format";
-import { LEAF_ORIGIN_ATTR } from "@/components/leaf-transition";
+import { LEAF_ORIGIN_ATTR } from "@/lib/leaf-origin";
 import { NavTile } from "@/components/nav-tile";
 import { PipelineStrip } from "@/components/pipeline-strip";
 import { StatCard } from "@/components/stat-card";

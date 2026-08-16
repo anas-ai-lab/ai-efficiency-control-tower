@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
-import { LEAF_ORIGIN_ATTR } from "@/components/leaf-transition";
+import { LEAF_ORIGIN_ATTR } from "@/lib/leaf-origin";
 
 // Primaer-Navigation im Header. Client-Komponente nur wegen usePathname
 // (aktiver Link) -- das Layout selbst bleibt Server Component. Dezente

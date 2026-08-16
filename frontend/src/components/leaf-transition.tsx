@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react"
 
+import { LEAF_ORIGIN_ATTR } from "@/lib/leaf-origin"
+
 // Seitenwechsel-Effekt (v4.2): beim Klick auf einen Navigations-Link oder eine
 // Startseiten-Kachel wehen einige wenige, stilisierte Blaetter vom Klickpunkt
 // aus ueber den Screen, waehrend die Zielseite oeffnet.
@@ -19,8 +21,6 @@ import { useEffect, useRef } from "react"
 // Ausloeser ist ein data-Attribut, kein Pfad-Vergleich: alles mit
 // data-leaf-origin sendet Blaetter, alles andere (Theme-Toggle, Sprach-Toggle,
 // Logout, Formular-Buttons) nicht.
-export const LEAF_ORIGIN_ATTR = "data-leaf-origin"
-
 // Performance-Budget: wenige, grosse Partikel statt vieler kleiner. 14 Blaetter
 // x ~1.4s bleiben auf Mittelklasse-Mobile weit unter einem Frame-Budget; der
 // Loop haelt an, sobald das letzte Blatt durch ist (kein Dauer-rAF).
