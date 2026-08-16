@@ -8,10 +8,9 @@ import { ChevronDown, Loader2 } from "lucide-react"
 import type { CaseStatus, CaseSummary, MonitoringEntry } from "@/types/api"
 import { listMonitoringEntries } from "@/app/actions"
 import { ActiveFilters, EmptyResult } from "@/components/filter-bar"
-import { CaseStatusControl } from "@/components/case-status-control"
 import { DiscontinueControl } from "@/components/discontinue-control"
 import { MonitoringTimeline } from "@/components/monitoring-timeline"
-import { ZoneBadge } from "@/components/status-badge"
+import { StatusBadge, ZoneBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -26,7 +25,7 @@ import { useFormat } from "@/lib/use-format"
 import { cn } from "@/lib/utils"
 
 // Monitoring-Bereich (V4-P7): eine Zeile pro freigegebenem/umgesetztem Case mit
-// direkt pflegbarem Status-Select und aufklappbarer append-only Zeitleiste. Die
+// Status-Badge und aufklappbarer append-only Zeitleiste. Die
 // Zeitleiste wird erst beim Aufklappen geladen (listMonitoringEntries), damit
 // die Seite nicht N Requests beim ersten Rendern absetzt. Der Case-Name verlinkt
 // die Fall-Detailseite (nicht die Ideenliste).
@@ -129,7 +128,7 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
             ? "—"
             : fmt.eur(c.net_expected_benefit_eur)}
         </div>
-        <CaseStatusControl caseId={c.id} initialStatus={c.status} />
+        <StatusBadge status={c.status} />
         <DiscontinueControl
           caseId={c.id}
           discontinued={discontinued}
@@ -167,7 +166,11 @@ function MonitoringRow({ c }: { c: CaseSummary }) {
               {error}
             </p>
           ) : (
-            <MonitoringTimeline caseId={c.id} initialEntries={entries ?? []} />
+            <MonitoringTimeline
+              caseId={c.id}
+              initialEntries={entries ?? []}
+              discontinued={discontinued}
+            />
           )}
         </div>
       )}

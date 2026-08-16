@@ -405,6 +405,7 @@
     "saving": "Saving …",
     "addEntry": "Add entry",
     "noteSaveError": "The entry could not be saved.",
+    "timelineLocked": "This use case is discontinued — new entries are locked. Reactivate it to add entries again.",
     "discontinue": "Discontinue use case",
     "discontinueTooltip": "Marks the use case as no longer actively monitored — the lifecycle status stays unchanged.",
     "reinstate": "Reactivate use case",
@@ -432,7 +433,7 @@
     "allStatus": "All statuses",
     "filterTracking": "Tracking",
     "allTracking": "All",
-    "trackingActive": "Actively tracked",
+    "trackingActive": "Active",
     "trackingDiscontinued": "Discontinued",
     "emptyFiltered": "No use case matches the active filters."
   },

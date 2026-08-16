@@ -25,9 +25,11 @@ const NOTE_MAX = 2000;
 export function MonitoringTimeline({
   caseId,
   initialEntries,
+  discontinued,
 }: {
   caseId: string;
   initialEntries: MonitoringEntry[];
+  discontinued: boolean;
 }) {
   const t = useTranslations("monitoring");
   const fmt = useFormat();
@@ -61,28 +63,35 @@ export function MonitoringTimeline({
       <p className="eyebrow mb-3">{t("timelineTitle")}</p>
 
       {/* Notiz hinzufuegen */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-        <Textarea
-          placeholder={t("notePlaceholder")}
-          value={note}
-          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-          maxLength={NOTE_MAX}
-          disabled={pending}
-          rows={3}
-        />
-        <div className="mt-2 flex items-center justify-between gap-4">
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {note.length} / {NOTE_MAX}
-          </span>
-          <Button
-            onClick={handleAdd}
-            disabled={pending || note.trim().length === 0}
-          >
-            {pending ? t("saving") : t("addEntry")}
-          </Button>
+      {!discontinued && (
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+          <Textarea
+            placeholder={t("notePlaceholder")}
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+            maxLength={NOTE_MAX}
+            disabled={pending}
+            rows={3}
+          />
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {note.length} / {NOTE_MAX}
+            </span>
+            <Button
+              onClick={handleAdd}
+              disabled={pending || note.trim().length === 0}
+            >
+              {pending ? t("saving") : t("addEntry")}
+            </Button>
+          </div>
+          <ActionError message={error} className="mt-3" />
         </div>
-        <ActionError message={error} className="mt-3" />
-      </div>
+      )}
+      {discontinued && (
+        <p className="rounded-xl border border-border bg-muted/30 px-4 py-3.5 text-sm text-muted-foreground">
+          {t("timelineLocked")}
+        </p>
+      )}
 
       {/* Zeitleiste */}
       {entries.length === 0 ? (
