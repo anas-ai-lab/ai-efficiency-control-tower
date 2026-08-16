@@ -255,6 +255,32 @@
         ]
       }
     },
+    "/cases/top": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "List Top Cases",
+        "description": "Top 3 Use Cases nach Netto-Nutzen, oeffentlich (Ticket 4b).\n\nGibt den Nutzenwert selbst NIE preis, siehe TopCaseRef/TopCaseResponse.\nAuth: PUBLIC (analog GET /stats). Rate Limit: 60/Minute.",
+        "operationId": "list_top_cases_cases_top_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TopCaseResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Top Cases Cases Top Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}": {
       "delete": {
         "tags": [
@@ -3764,6 +3790,26 @@
         ],
         "title": "TechnicalSolutionResponse",
         "description": "Technik-Ebene des Loesungsvorschlags (ADR-0054).\n\nFeste Felder statt Fliesstext-Wand. Die vier Stichpunkt-Listen sind bei\nLegacy-Cases leer (analog ManagementSolutionResponse.benefits)."
+      },
+      "TopCaseResponse": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "case_id",
+          "title"
+        ],
+        "title": "TopCaseResponse",
+        "description": "Oeffentliche Top-3-Referenz (Ticket 4b) -- bewusst NUR id + title.\n\nKein Geldwert, keine Zone, kein Score. extra=\"forbid\" verhindert, dass ein\nkuenftiges Feld hier versehentlich mitgereicht wird."
       },
       "TriageResponse": {
         "properties": {
