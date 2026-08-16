@@ -12,6 +12,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import type { StatsResponse } from "@/types/api";
 import { bindFormat } from "@/lib/format";
 import { LEAF_ORIGIN_ATTR } from "@/lib/leaf-origin";
+import { ContactCard } from "@/components/contact-card";
 import { NavTile } from "@/components/nav-tile";
 import { PipelineStrip } from "@/components/pipeline-strip";
 import { StatCard } from "@/components/stat-card";
@@ -40,6 +41,7 @@ interface NavCardDef {
   href: string;
   titleKey: string;
   descKey: string;
+  hideForAdmin?: boolean;
   // Fertiges Element statt Komponenten-Referenz -- siehe Begruendung an
   // NavTileProps.icon (RSC-Grenze).
   icon: React.ReactNode;
@@ -57,12 +59,14 @@ const PUBLIC_CARDS: NavCardDef[] = [
     href: "/einreichen",
     titleKey: "cardSubmitTitle",
     descKey: "cardSubmitDesc",
+    hideForAdmin: true,
     icon: <ClipboardList className={ICON_CLASS} />,
   },
   {
     href: "/ideation",
     titleKey: "cardIdeasTitle",
     descKey: "cardIdeasDesc",
+    hideForAdmin: true,
     icon: <Lightbulb className={ICON_CLASS} />,
   },
   {
@@ -109,10 +113,13 @@ export async function Landing({
     return share === null ? null : t("kpiShare", { percent: fmt.percent(share) });
   };
 
-  const cards = authenticated ? [...PUBLIC_CARDS, ...ADMIN_CARDS] : PUBLIC_CARDS;
+  const cards = authenticated
+    ? [...PUBLIC_CARDS.filter((c) => !c.hideForAdmin), ...ADMIN_CARDS]
+    : PUBLIC_CARDS;
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-20 sm:px-6 sm:py-24">
+      {!authenticated && <ContactCard />}
       {/* Hero: einspaltig, viel Luft, kein dekoratives Gegengewicht. Die Breite
           ist bewusst auf ~2/3 begrenzt -- eine Zeile, die ueber die volle
           Kachelbreite laeuft, liest sich nicht mehr.
