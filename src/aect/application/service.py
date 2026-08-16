@@ -108,6 +108,7 @@ from aect.domain.i18n import (
 from aect.domain.routing import collect_routing_signals
 from aect.domain.sharpening_guard import build_allowlist, find_violations
 from aect.domain.solution_guard import find_vocabulary_violations
+from aect.domain.top_cases import TopCaseRef, select_top_cases
 
 # Canonical Retrieval-Queries fuer Compliance-Hinweise (ADR-0024). Bewusst
 # fest, nicht aus Use-Case-Freitext abgeleitet -- vermeidet jede
@@ -905,6 +906,20 @@ class TriageService:
     def list_cases(self) -> list[SubmittedCase]:
         """Alle bisher eingereichten Cases."""
         return self._repository.list_all()
+
+    def list_top_cases(self, limit: int = 3) -> list[TopCaseRef]:
+        """Oeffentliche Top-Cases nach Netto-Nutzen (Ticket 4b).
+
+        Filtert auf bewertete (roi is not None), nicht eingestellte Cases und
+        gibt NIE den Geldwert selbst zurueck, nur id + title (siehe TopCaseRef).
+        """
+        cases = self._repository.list_all()
+        candidates = [
+            (c.id, c.use_case.title, c.result.roi.net_expected_benefit_eur)
+            for c in cases
+            if c.result.roi is not None and not c.discontinued
+        ]
+        return select_top_cases(candidates, limit=limit)
 
     def compute_stats(self) -> PortfolioStats:
         """Aggregiert die Portfolio-Kennzahlen fuer die Startseite (V4-P7).

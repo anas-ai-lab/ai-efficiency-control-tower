@@ -1,9 +1,10 @@
 """Cases-Endpoint -- listet eingereichte Use Cases.
 
 Security (aect-security-checklist v2.1, Phase B; V4-P-Auth):
-  Auth-Matrix: PUBLIC sind GET /cases (Liste/Ideenliste) und GET /cases/{id}
-  (read-only Sicht des eigenen Case -- E9/SDR-0003: der anonyme Einreicher
-  liest den gespeicherten Stand, ohne etwas auszuloesen).
+  Auth-Matrix: PUBLIC sind GET /cases (Liste/Ideenliste), GET /cases/top
+  (isolierte Top-3-Referenzen, Ticket 4b) und GET /cases/{id} (read-only Sicht
+  des eigenen Case -- E9/SDR-0003: der anonyme Einreicher liest den
+  gespeicherten Stand, ohne etwas auszuloesen).
   Alle uebrigen Routen dieses Moduls verlangen require_admin (Session-Cookie
   ODER X-API-Key) -- inkl. der lesenden Admin-Sichten (similarity-pairs,
   monitoring, architecture-sketch GET) und aller POST-Trigger.
@@ -299,6 +300,35 @@ async def list_similarity_pairs(
         ],
         cases_without_embedding=result.cases_without_embedding,
     )
+
+
+class TopCaseResponse(BaseModel):
+    """Oeffentliche Top-3-Referenz (Ticket 4b) -- bewusst NUR id + title.
+
+    Kein Geldwert, keine Zone, kein Score. extra="forbid" verhindert, dass ein
+    kuenftiges Feld hier versehentlich mitgereicht wird.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: str
+    title: str
+
+
+@router.get("/top", response_model=list[TopCaseResponse])
+@limiter.limit("60/minute")
+async def list_top_cases(
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+) -> list[TopCaseResponse]:
+    """Top 3 Use Cases nach Netto-Nutzen, oeffentlich (Ticket 4b).
+
+    Gibt den Nutzenwert selbst NIE preis, siehe TopCaseRef/TopCaseResponse.
+    Auth: PUBLIC (analog GET /stats). Rate Limit: 60/Minute.
+    """
+    top = service.list_top_cases()
+    return [TopCaseResponse(case_id=ref.case_id, title=ref.title) for ref in top]
 
 
 @router.delete("/{case_id}", status_code=204)

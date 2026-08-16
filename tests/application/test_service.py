@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime
 import json
 from collections.abc import Sequence
+from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 from structlog.testing import capture_logs
@@ -34,6 +36,7 @@ from aect.application.structured_output import (
 )
 from aect.domain import UseCaseInput
 from aect.domain.roi import ROIConfig
+from aect.domain.top_cases import TopCaseRef
 from aect.domain.types import (
     CaseStatus,
     DataClassification,
@@ -383,6 +386,56 @@ class TestTriageServiceList:
         service.submit_use_case(sample_use_case)
         service.submit_use_case(sample_use_case)
         assert len(service.list_cases()) == 2
+
+    def test_top_cases_filters_unvalued_and_discontinued_cases(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(
+            roi_config,
+            ids=["high", "low", "discontinued", "unvalued", "middle"],
+        )
+
+        def submit(title: str) -> SubmittedCase:
+            return service.submit_use_case(
+                sample_use_case.model_copy(update={"title": title})
+            )
+
+        high = submit("Hoechster Case")
+        low = submit("Niedrigster Case")
+        discontinued = submit("Eingestellter Case")
+        unvalued = service.submit_use_case(
+            sample_use_case.model_copy(
+                update={
+                    "title": "Unbewerteter Case",
+                    "implementation_approach": None,
+                }
+            )
+        )
+        middle = submit("Mittlerer Case")
+
+        for case, net_benefit in (
+            (high, Decimal("100")),
+            (low, Decimal("10")),
+            (discontinued, Decimal("1000")),
+            (middle, Decimal("50")),
+        ):
+            assert case.result.roi is not None
+            case.result = replace(
+                case.result,
+                roi=replace(
+                    case.result.roi,
+                    net_expected_benefit_eur=net_benefit,
+                ),
+            )
+        discontinued.discontinued = True
+        assert unvalued.result.evaluation_pending is True
+        assert unvalued.result.roi is None
+
+        assert service.list_top_cases() == [
+            TopCaseRef(case_id="high", title="Hoechster Case"),
+            TopCaseRef(case_id="middle", title="Mittlerer Case"),
+            TopCaseRef(case_id="low", title="Niedrigster Case"),
+        ]
 
 
 class TestTriageServiceSharpen:
