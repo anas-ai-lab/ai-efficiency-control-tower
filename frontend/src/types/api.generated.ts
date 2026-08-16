@@ -204,6 +204,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Top Cases
+         * @description Top 3 Use Cases nach Netto-Nutzen, oeffentlich (Ticket 4b).
+         *
+         *     Gibt den Nutzenwert selbst NIE preis, siehe TopCaseRef/TopCaseResponse.
+         *     Auth: PUBLIC (analog GET /stats). Rate Limit: 60/Minute.
+         */
+        get: operations["list_top_cases_cases_top_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}": {
         parameters: {
             query?: never;
@@ -2019,6 +2042,19 @@ export interface components {
             open_assumptions: string[];
         };
         /**
+         * TopCaseResponse
+         * @description Oeffentliche Top-3-Referenz (Ticket 4b) -- bewusst NUR id + title.
+         *
+         *     Kein Geldwert, keine Zone, kein Score. extra="forbid" verhindert, dass ein
+         *     kuenftiges Feld hier versehentlich mitgereicht wird.
+         */
+        TopCaseResponse: {
+            /** Case Id */
+            case_id: string;
+            /** Title */
+            title: string;
+        };
+        /**
          * TriageResponse
          * @description Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.
          *
@@ -2413,6 +2449,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimilarityPairsResponse"];
+                };
+            };
+        };
+    };
+    list_top_cases_cases_top_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopCaseResponse"][];
                 };
             };
         };
