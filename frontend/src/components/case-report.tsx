@@ -4,11 +4,13 @@ import { CheckCircle2, Circle, XCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import type {
+  ArchitectureSketchResponse,
   ComplianceCitation,
   ReportResponse,
   ReviewerDecision,
 } from "@/types/api"
 import { useFormat } from "@/lib/use-format"
+import { SketchDiagram } from "@/components/sketch-view"
 import {
   ManagementSolutionView,
   TechnicalSolutionView,
@@ -60,7 +62,13 @@ function Citations({ citations }: { citations: ComplianceCitation[] }) {
   )
 }
 
-export function CaseReport({ report }: { report: ReportResponse }) {
+export function CaseReport({
+  report,
+  sketch,
+}: {
+  report: ReportResponse
+  sketch: ArchitectureSketchResponse | null
+}) {
   const t = useTranslations("report")
   const td_ = useTranslations("decision")
   const te = useTranslations("enums")
@@ -217,6 +225,9 @@ export function CaseReport({ report }: { report: ReportResponse }) {
           </section>
 
           <TextBlock title={t("architecture")} text={tr.architektur_kurzfassung} />
+          {sketch !== null && (
+            <SketchDiagram source={sketch.mermaid_source} />
+          )}
           <TextBlock title={t("dataSituation")} text={tr.datenlage} />
           <TextBlock title={t("risks")} text={tr.risiken} />
           <TextBlock title={t("openQuestions")} text={tr.offene_technische_fragen} />

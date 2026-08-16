@@ -300,7 +300,7 @@ export default async function CaseDetailPage({
             )}
             <div className={authenticated ? "mt-10" : ""}>
               <p className="eyebrow mb-3">{t("report")}</p>
-              <CaseReport report={report} />
+              <CaseReport report={report} sketch={initialSketch} />
             </div>
           </AreaSection>
         )}

@@ -263,7 +263,7 @@ function ZoomToolbar({
 // Wrapper um die fertige SVG -- mermaid.render() laeuft dabei NICHT erneut.
 // Das ist der Grund fuer den Zuschnitt: ein Rerender je Zoomschritt waere ein
 // vollstaendiger Layout-Lauf (dagre) pro Mausrad-Tick.
-function SketchDiagram({ source }: { source: string }) {
+export function SketchDiagram({ source }: { source: string }) {
   const t = useTranslations("sketch");
   const isDark = useIsDark();
   const [open, setOpen] = useState(false);
