@@ -75,3 +75,41 @@ async def test_chroma_retriever_real_round_trip() -> None:
         assert dsfa_chunk.metadata["citation"] == "DSGVO Art. 35 (synthetisch)"
     finally:
         client.delete_collection(name=collection_name)
+
+
+@pytest.mark.skipif(
+    not _RUN_LIVE,
+    reason="AECT_RUN_CHROMA_LIVE=1 setzen, Container muss laufen.",
+)
+async def test_chroma_retriever_deletes_chunks_by_source_id() -> None:
+    import chromadb
+    from sentence_transformers import SentenceTransformer
+
+    from aect.adapters.rag.embedder import SentenceTransformerEmbedder
+    from aect.adapters.rag.retriever import ChromaRetriever
+
+    client = chromadb.HttpClient(host="127.0.0.1", port=8001)
+    embedder = SentenceTransformerEmbedder(SentenceTransformer("all-MiniLM-L6-v2"))
+    source_id = "live-delete-source"
+    document = "Dieser synthetische Chunk prueft die Loeschung nach Quellen-ID."
+
+    collection_name = f"aect-live-delete-{uuid.uuid4().hex[:8]}"
+    collection = client.get_or_create_collection(name=collection_name)
+    try:
+        vectors = await embedder.embed([document])
+        collection.add(
+            ids=["live-delete-chunk"],
+            embeddings=[list(vectors[0])],
+            documents=[document],
+            metadatas=[{"source_id": source_id}],
+        )
+        seeded = collection.get(where={"source_id": source_id})
+        assert seeded["ids"] == ["live-delete-chunk"]
+
+        retriever = ChromaRetriever(collection, embedder)
+        await retriever.delete_by_source_id(source_id)
+
+        remaining = collection.get(where={"source_id": source_id})
+        assert remaining["ids"] == []
+    finally:
+        client.delete_collection(name=collection_name)

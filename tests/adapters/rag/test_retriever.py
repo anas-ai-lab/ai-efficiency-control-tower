@@ -33,6 +33,7 @@ class _FakeCollection:
         self.last_n_results: int | None = None
         self.last_query_embeddings: list[list[float]] | None = None
         self.last_include: list[str] | None = None
+        self.last_delete_where: Mapping[str, Any] | None = None
 
     def query(
         self,
@@ -44,6 +45,9 @@ class _FakeCollection:
         self.last_query_embeddings = query_embeddings
         self.last_include = include
         return self._response
+
+    def delete(self, *, where: Mapping[str, Any]) -> None:
+        self.last_delete_where = where
 
 
 def _response(
@@ -194,3 +198,14 @@ async def test_retrieve_missing_metadata_entry_defaults_to_empty(
     results = await retriever.retrieve("q")
     assert results[0].metadata == {"citation": "Quelle A"}
     assert results[1].metadata == {}
+
+
+async def test_delete_by_source_id_forwards_where_filter_as_keyword(
+    embedder: _FakeEmbedder,
+) -> None:
+    collection = _FakeCollection(_response([], [], []))
+    retriever = ChromaRetriever(collection, embedder)
+
+    await retriever.delete_by_source_id("source-to-delete")
+
+    assert collection.last_delete_where == {"source_id": "source-to-delete"}

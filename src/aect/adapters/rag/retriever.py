@@ -55,7 +55,7 @@ class ChromaCollection(Protocol):
         include: list[str],
     ) -> Mapping[str, Any]: ...
 
-    def delete(self, where: Mapping[str, Any]) -> None:
+    def delete(self, *, where: Mapping[str, Any]) -> None:
         """Loescht alle Records, die dem where-Filter entsprechen.
 
         Erfuellt von chromadb.Collection.delete(where=...). Fuer den
@@ -110,7 +110,7 @@ class ChromaRetriever:
         blockierende .delete()-Netz-Call laeuft in asyncio.to_thread, analog
         retrieve() (ADR-0019). Idempotent: kein Treffer -> No-op.
         """
-        await asyncio.to_thread(self._collection.delete, {"source_id": source_id})
+        await asyncio.to_thread(self._collection.delete, where={"source_id": source_id})
 
     @staticmethod
     def _parse(raw: Mapping[str, Any]) -> list[RetrievedChunk]:
