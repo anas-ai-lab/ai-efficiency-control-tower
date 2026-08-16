@@ -24,6 +24,7 @@ import type {
   SolutionProposalResponse,
   StatsResponse,
   StatusUpdateResponse,
+  TopCaseResponse,
   TriageResponse,
   UseCaseInput,
 } from "@/types/api";
@@ -379,6 +380,13 @@ export async function listCases(): Promise<CaseSummaryView[]> {
 // Startseite. Regelbasiert (ein list_all-Durchlauf) -> RULE_TIMEOUT_MS.
 export async function getStats(): Promise<StatsResponse> {
   return apiFetch<StatsResponse>("/stats", RULE_TIMEOUT_MS, undefined, "GET");
+}
+
+// GET /cases/top (public, Ticket 4b): die 3 Cases mit dem hoechsten
+// Netto-Nutzen -- der Betrag selbst kommt nie mit (TopCaseResponse hat
+// nur case_id + title). Regelbasiert -> RULE_TIMEOUT_MS.
+export async function getTopCases(): Promise<TopCaseResponse[]> {
+  return apiFetch<TopCaseResponse[]>("/cases/top", RULE_TIMEOUT_MS, undefined, "GET");
 }
 
 // GET /cases/{id} (public, E9/SDR-0003): read-only Sicht auf einen Case.

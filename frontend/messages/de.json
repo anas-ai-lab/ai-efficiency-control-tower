@@ -313,7 +313,8 @@
     "complianceChecking": "Compliance-Hinweise werden geprüft …",
     "complianceNone": "Keine spezifischen Compliance-Hinweise für diesen Fall.",
     "sharpenAccepted": "Geschärfte Version übernommen.",
-    "sharpenRejected": "Entwurf verworfen."
+    "sharpenRejected": "Entwurf verworfen.",
+    "sharpenLocked": "Der Fall wurde bereits geschärft und übernommen — eine erneute Schärfung ist nicht mehr möglich."
   },
   "decision": {
     "approved": "Freigegeben",

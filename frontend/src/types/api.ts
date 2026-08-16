@@ -618,3 +618,8 @@ export interface StatsResponse {
   umgesetzt: number;
   netto_nutzen_freigegeben_eur: number;
 }
+
+export interface TopCaseResponse {
+  case_id: string;
+  title: string;
+}

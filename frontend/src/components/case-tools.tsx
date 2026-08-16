@@ -28,9 +28,10 @@ interface Props {
   caseId: string;
   hasSolution: boolean;
   hasCompliance: boolean;
+  hasSharpened: boolean;
 }
 
-export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
+export function CaseTools({ caseId, hasSolution, hasCompliance, hasSharpened }: Props) {
   const t = useTranslations("caseTools");
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -103,13 +104,19 @@ export function CaseTools({ caseId, hasSolution, hasCompliance }: Props) {
         <Button
           variant="outline"
           onClick={handleSharpen}
-          disabled={sharpenBusy || draft !== null}
+          disabled={sharpenBusy || draft !== null || hasSharpened}
+          title={hasSharpened ? t("sharpenLocked") : undefined}
         >
           {sharpenBusy && <Loader2 className="size-4 animate-spin" />}
           {t("sharpen")}
         </Button>
         <SolutionModal caseId={caseId} hasSolution={hasSolution} />
       </div>
+      {hasSharpened && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {t("sharpenLocked")}
+        </p>
+      )}
       <p className="mt-2 text-xs text-muted-foreground">
         {t("llmHint")}
       </p>

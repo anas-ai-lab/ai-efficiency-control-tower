@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { checkAuth, listCases, listSimilarityPairs } from "@/app/actions";
+import { checkAuth, getTopCases, listCases, listSimilarityPairs } from "@/app/actions";
 import { CasesHero } from "@/components/cases-hero";
 import { CasesTable } from "@/components/cases-table";
 import { ContactCard } from "@/components/contact-card";
 import { RetryButton } from "@/components/retry-button";
-import type { CaseSummaryView, SimilarityPair } from "@/types/api";
+import type { CaseSummaryView, SimilarityPair, TopCaseResponse } from "@/types/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("cases");
@@ -23,6 +23,7 @@ export default async function CasesPage() {
   let cases: CaseSummaryView[] = [];
   let loadError: string | null = null;
   let pairs: SimilarityPair[] = [];
+  let topCases: TopCaseResponse[] = [];
 
   // Beide Calls parallel anstossen. Die Dedup-Paare sind optional: .catch()
   // wird sofort angehaengt (kein unhandled rejection), ein Fehlschlag laesst
@@ -35,6 +36,11 @@ export default async function CasesPage() {
     return null;
   });
 
+  const topCasesPromise = getTopCases().catch((e) => {
+    console.error("getTopCases fehlgeschlagen -- Ideenliste ohne Top-3-Hero:", e);
+    return [];
+  });
+
   try {
     cases = await listCases();
   } catch (e) {
@@ -43,6 +49,7 @@ export default async function CasesPage() {
   }
 
   pairs = (await pairsPromise)?.pairs ?? [];
+  topCases = await topCasesPromise;
 
   // V4-P-Auth: der Statuswechsel in der Zeile ist Admin-only (read-only Badge
   // fuer Anonyme).
@@ -61,7 +68,7 @@ export default async function CasesPage() {
         {authenticated ? t("pageLead") : t("pageLeadPublic")}
       </p>
 
-      <CasesHero cases={cases} authenticated={authenticated} />
+      <CasesHero topCases={topCases} />
 
       <div className="mt-8">
         {loadError !== null ? (

@@ -313,7 +313,8 @@
     "complianceChecking": "Checking compliance guidance …",
     "complianceNone": "No specific compliance guidance for this case.",
     "sharpenAccepted": "Refined version accepted.",
-    "sharpenRejected": "Draft discarded."
+    "sharpenRejected": "Draft discarded.",
+    "sharpenLocked": "This case has already been refined and accepted — a further refinement is not possible."
   },
   "decision": {
     "approved": "Approved",

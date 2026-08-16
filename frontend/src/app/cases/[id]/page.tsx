@@ -178,6 +178,7 @@ export default async function CaseDetailPage({
             caseId={detail.id}
             hasSolution={summary.solution_business !== null}
             hasCompliance={summary.compliance_hint_text !== null}
+            hasSharpened={summary.sharpened_text !== null}
           />
           <SketchView
             caseId={detail.id}
