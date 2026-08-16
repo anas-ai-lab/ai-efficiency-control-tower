@@ -13,6 +13,10 @@ import { bindFormat } from "@/lib/format";
 import { isAdminDetail } from "@/lib/case-view";
 import { BoardDecisionNotice } from "@/components/board-decision-notice";
 import { CaseDecision } from "@/components/case-decision";
+import {
+  CaseDetailTabs,
+  JumpToUseCaseButton,
+} from "@/components/case-detail-tabs";
 import { CaseInputs } from "@/components/case-inputs";
 import {
   CaseReport,
@@ -42,28 +46,6 @@ export async function generateMetadata(): Promise<Metadata> {
 // Immer frisch: nach Admin-Aktionen (Schaerfen/Loesung/Compliance/Entscheidung/
 // Statuswechsel) muss GET /cases/{id} den neuen Stand liefern.
 export const dynamic = "force-dynamic";
-
-// Ein Bereich der Detailseite (S4): drei klar getrennte Segmente statt einer
-// langen Sektionsliste. Trennlinie + kraeftige Ueberschrift grenzen sie ab.
-function AreaSection({
-  title,
-  children,
-  id,
-}: {
-  title: string;
-  children: React.ReactNode;
-  // Anker fuer den Sprung aus der Freigabe-Sperre zum Umsetzungsansatz (S9).
-  id?: string;
-}) {
-  return (
-    <section id={id} className="mt-12 scroll-mt-6 border-t border-border pt-8">
-      <h2 className="text-lg font-semibold tracking-tight text-foreground">
-        {title}
-      </h2>
-      <div className="mt-6">{children}</div>
-    </section>
-  );
-}
 
 // Ruhiger Zwischenzustand (Pending / "wird geprueft") -- Uhr-Icon + zwei Zeilen.
 function StatusBox({ heading, body }: { heading: string; body: React.ReactNode }) {
@@ -170,6 +152,125 @@ export default async function CaseDetailPage({
   const evaluated = admin !== null && !admin.evaluation_pending;
   const summary = report?.business_summary ?? null;
 
+  const useCaseContent = (
+    <CaseInputs
+      eingaben={eingaben}
+      caseId={detail.id}
+      isAdmin={authenticated}
+      sharpenedDesiredState={summary?.sharpened_desired_state ?? null}
+      sharpenedDesiredExample={summary?.sharpened_desired_example_process ?? null}
+    />
+  );
+
+  const analysisContent = admin !== null ? (
+    <>
+      {admin.evaluation_pending ? (
+        <StatusBox heading={ts("evaluationPending")} body={t("pendingBody")} />
+      ) : (
+        triage !== null && <CaseResult triage={triage} />
+      )}
+
+      {/* Admin-Werkzeuge + Skizze nur bei ausgewertetem Case
+          (report != null). */}
+      {evaluated && report !== null && summary !== null && (
+        <div className="mt-8 space-y-6">
+          <CaseTools
+            caseId={detail.id}
+            hasSolution={summary.solution_business !== null}
+            hasCompliance={summary.compliance_hint_text !== null}
+          />
+          <SketchView
+            caseId={detail.id}
+            initialSketch={initialSketch}
+            hasSolution={summary.solution_business !== null}
+          />
+        </div>
+      )}
+
+      <div className="mt-8">
+        <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
+      </div>
+    </>
+  ) : null;
+
+  const decisionContent =
+    admin === null ? (
+      detail.decision !== null ? (
+        <BoardDecisionNotice decision={detail.decision} />
+      ) : (
+        <StatusBox
+          heading={t("reviewingHeading")}
+          body={t("reviewingBody", {
+            date: fmt.dateShort(detail.submitted_at),
+          })}
+        />
+      )
+    ) : admin.evaluation_pending ? (
+      <div className="rounded-xl border border-[var(--zone-risk-border)] bg-[var(--zone-risk-surface)] px-5 py-4">
+        <p className="flex items-center gap-2 text-sm font-medium text-[var(--zone-risk-fg)]">
+          <Lock className="size-4 shrink-0" aria-hidden />
+          {t("decisionBlockedTitle")}
+        </p>
+        <p className="mt-2 max-w-prose text-sm leading-relaxed text-foreground/85">
+          {t("decisionBlockedBody")}
+        </p>
+        <JumpToUseCaseButton className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]">
+          {t("decisionBlockedLink")}
+        </JumpToUseCaseButton>
+      </div>
+    ) : report !== null && summary !== null ? (
+      <>
+        {summary.sharpened_text !== null ? (
+          <SharpenedDescription text={summary.sharpened_text} />
+        ) : (
+          <div className="space-y-6">
+            <TextBlock
+              title={tci("rowDesiredState")}
+              text={eingaben.desired_state}
+            />
+            <TextBlock
+              title={tci("rowDesiredExample")}
+              text={eingaben.desired_example_process ?? ""}
+            />
+          </div>
+        )}
+
+        {summary.compliance_hint_text !== null && (
+          <div className="mt-6">
+            <ComplianceHints
+              text={summary.compliance_hint_text}
+              citations={summary.compliance_citations}
+            />
+          </div>
+        )}
+
+        <div className="mt-10">
+          <p className="eyebrow mb-3">{t("report")}</p>
+          <CaseReport report={report} sketch={initialSketch} />
+        </div>
+
+        {authenticated && (
+          <div className="mt-10 space-y-6">
+            <div>
+              <p className="eyebrow mb-2">{t("status")}</p>
+              <CaseStatusControl
+                caseId={detail.id}
+                initialStatus={detail.status}
+              />
+            </div>
+            <CaseDecision
+              caseId={detail.id}
+              reviewerDecision={summary.reviewer_decision}
+              reviewerNote={summary.reviewer_note}
+            />
+          </div>
+        )}
+      </>
+    ) : null;
+
+  const decisionTitle =
+    admin !== null ? t("areaDecision") : t("areaBoardDecision");
+
   // LlmBusyProvider klammert Bereich 2 (Werkzeuge) und Bereich 3
   // (Entscheidung): die Werkzeuge melden ihre laufenden LLM-Calls an, die
   // Entscheidung sperrt solange mit sichtbarem Grund (s. llm-busy.tsx). Die
@@ -194,147 +295,14 @@ export default async function CaseDetailPage({
           <StatusBadge status={detail.status} />
         </div>
 
-        {/* ===== Bereich 1: Use Case ===== */}
-        <AreaSection title={t("areaUseCase")} id="use-case">
-          <CaseInputs
-            eingaben={eingaben}
-            caseId={detail.id}
-            isAdmin={authenticated}
-            sharpenedDesiredState={summary?.sharpened_desired_state ?? null}
-            sharpenedDesiredExample={summary?.sharpened_desired_example_process ?? null}
-          />
-        </AreaSection>
-
-        {/* ===== Bereich 2: Analyse & Empfehlung -- NUR Admin (V4.1-S8) =====
-            Die Bewertung ist Board-Material. Der Einreicher bekommt statt der
-            Herleitung die Entscheidung (Bereich 3). */}
-        {admin !== null && (
-          <AreaSection title={t("areaAnalysis")}>
-            {admin.evaluation_pending ? (
-              <StatusBox
-                heading={ts("evaluationPending")}
-                body={t("pendingBody")}
-              />
-            ) : (
-              triage !== null && <CaseResult triage={triage} />
-            )}
-
-            {/* Admin-Werkzeuge + Skizze nur bei ausgewertetem Case
-                (report != null). */}
-            {evaluated && report !== null && summary !== null && (
-              <div className="mt-8 space-y-6">
-                <CaseTools
-                  caseId={detail.id}
-                  hasSolution={summary.solution_business !== null}
-                  hasCompliance={summary.compliance_hint_text !== null}
-                />
-                <SketchView
-                  caseId={detail.id}
-                  initialSketch={initialSketch}
-                  hasSolution={summary.solution_business !== null}
-                />
-              </div>
-            )}
-
-            <div className="mt-8">
-              <SimilarCasesPanel caseId={detail.id} pairs={similarityPairs} />
-            </div>
-          </AreaSection>
-        )}
-
-        {/* ===== Bereich 3 (public): Entscheidung des AI Board =====
-            Das einzige Board-Ergebnis, das der Einreicher sieht. Vor der
-            Entscheidung ein ruhiger Wartezustand statt einer leeren Sektion. */}
-        {admin === null && (
-          <AreaSection title={t("areaBoardDecision")}>
-            {detail.decision !== null ? (
-              <BoardDecisionNotice decision={detail.decision} />
-            ) : (
-              <StatusBox
-                heading={t("reviewingHeading")}
-                body={t("reviewingBody", {
-                  date: fmt.dateShort(detail.submitted_at),
-                })}
-              />
-            )}
-          </AreaSection>
-        )}
-
-        {/* ===== Bereich 3 (Admin, Fall unbewertet): Freigabe gesperrt =====
-            Ohne Umsetzungsansatz gibt es keine Bewertung -- und damit nichts,
-            worueber das Board entscheiden koennte. Bis V4.1-S8 verschwand der
-            ganze Bereich wortlos (report === null): der Admin sah keine Buttons
-            und keinen Grund. Jetzt steht beides da, mit dem Weg zum Feld. */}
-        {admin !== null && admin.evaluation_pending && (
-          <AreaSection title={t("areaDecision")}>
-            <div className="rounded-xl border border-[var(--zone-risk-border)] bg-[var(--zone-risk-surface)] px-5 py-4">
-              <p className="flex items-center gap-2 text-sm font-medium text-[var(--zone-risk-fg)]">
-                <Lock className="size-4 shrink-0" aria-hidden />
-                {t("decisionBlockedTitle")}
-              </p>
-              <p className="mt-2 max-w-prose text-sm leading-relaxed text-foreground/85">
-                {t("decisionBlockedBody")}
-              </p>
-              <Link
-                href="#use-case"
-                className="mt-3 inline-block text-sm font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-4 hover:decoration-[var(--ink)]"
-              >
-                {t("decisionBlockedLink")}
-              </Link>
-            </div>
-          </AreaSection>
-        )}
-
-        {/* ===== Bereich 3: Entscheidung & Report ===== */}
-        {report !== null && summary !== null && (
-          <AreaSection title={t("areaDecision")}>
-            {summary.sharpened_text !== null ? (
-              <SharpenedDescription text={summary.sharpened_text} />
-            ) : (
-              <div className="space-y-6">
-                <TextBlock
-                  title={tci("rowDesiredState")}
-                  text={eingaben.desired_state}
-                />
-                <TextBlock
-                  title={tci("rowDesiredExample")}
-                  text={eingaben.desired_example_process ?? ""}
-                />
-              </div>
-            )}
-
-            {summary.compliance_hint_text !== null && (
-              <div className="mt-6">
-                <ComplianceHints
-                  text={summary.compliance_hint_text}
-                  citations={summary.compliance_citations}
-                />
-              </div>
-            )}
-
-            <div className="mt-10">
-              <p className="eyebrow mb-3">{t("report")}</p>
-              <CaseReport report={report} sketch={initialSketch} />
-            </div>
-
-            {authenticated && (
-              <div className="mt-10 space-y-6">
-                <div>
-                  <p className="eyebrow mb-2">{t("status")}</p>
-                  <CaseStatusControl
-                    caseId={detail.id}
-                    initialStatus={detail.status}
-                  />
-                </div>
-                <CaseDecision
-                  caseId={detail.id}
-                  reviewerDecision={summary.reviewer_decision}
-                  reviewerNote={summary.reviewer_note}
-                />
-              </div>
-            )}
-          </AreaSection>
-        )}
+        <CaseDetailTabs
+          useCaseTitle={t("areaUseCase")}
+          useCaseContent={useCaseContent}
+          analysisTitle={admin !== null ? t("areaAnalysis") : null}
+          analysisContent={analysisContent}
+          decisionTitle={decisionTitle}
+          decisionContent={decisionContent}
+        />
       </main>
     </LlmBusyProvider>
   );
