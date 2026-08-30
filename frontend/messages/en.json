@@ -325,7 +325,8 @@
     "saving": "Saving …",
     "approve": "Approve",
     "reject": "Reject",
-    "analysisRunning": "Analysis running — decision possible once it has finished."
+    "analysisRunning": "Analysis running — decision possible once it has finished.",
+    "submit": "Apply decision"
   },
   "report": {
     "tabDecision": "Decision-maker",
@@ -572,9 +573,6 @@
     "cancel": "Cancel",
     "reevalHint": "Adding this triggers a full re-assessment of the case.",
     "saveError": "Save failed."
-  },
-  "statusControl": {
-    "error": "Status change failed."
   },
   "sketch": {
     "section": "Architecture sketch",

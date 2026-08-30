@@ -325,7 +325,8 @@
     "saving": "Wird gespeichert …",
     "approve": "Freigeben",
     "reject": "Ablehnen",
-    "analysisRunning": "Analyse läuft — Entscheidung erst nach Abschluss möglich."
+    "analysisRunning": "Analyse läuft — Entscheidung erst nach Abschluss möglich.",
+    "submit": "Entscheidung uebernehmen"
   },
   "report": {
     "tabDecision": "Entscheider",
@@ -572,9 +573,6 @@
     "cancel": "Abbrechen",
     "reevalHint": "Ergänzen löst eine vollständige Neubewertung des Falls aus.",
     "saveError": "Speichern fehlgeschlagen."
-  },
-  "statusControl": {
-    "error": "Statuswechsel fehlgeschlagen."
   },
   "sketch": {
     "section": "Architektur-Skizze",

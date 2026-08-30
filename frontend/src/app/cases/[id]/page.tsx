@@ -25,7 +25,6 @@ import {
   TextBlock,
 } from "@/components/case-report";
 import { CaseResult } from "@/components/case-result";
-import { CaseStatusControl } from "@/components/case-status-control";
 import { CaseTools } from "@/components/case-tools";
 import { LlmBusyProvider } from "@/components/llm-busy";
 import { SimilarCasesPanel } from "@/components/similar-cases-panel";
@@ -251,20 +250,12 @@ export default async function CaseDetailPage({
         </div>
 
         {authenticated && (
-          <div className="mt-10 space-y-6">
-            <div>
-              <p className="eyebrow mb-2">{t("status")}</p>
-              <CaseStatusControl
-                caseId={detail.id}
-                initialStatus={detail.status}
-              />
-            </div>
-            <CaseDecision
-              caseId={detail.id}
-              reviewerDecision={summary.reviewer_decision}
-              reviewerNote={summary.reviewer_note}
-            />
-          </div>
+          <CaseDecision
+            caseId={detail.id}
+            initialStatus={detail.status}
+            reviewerDecision={summary.reviewer_decision}
+            reviewerNote={summary.reviewer_note}
+          />
         )}
       </>
     ) : null;

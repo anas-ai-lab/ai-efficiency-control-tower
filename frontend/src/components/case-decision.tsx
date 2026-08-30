@@ -4,29 +4,41 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 
-import type { ReviewerDecision } from "@/types/api";
+import type { CaseStatus, ReviewerDecision } from "@/types/api";
 import { updateCaseStatus } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
+import { STATUS_CONFIG } from "@/lib/status";
 import { ActionError } from "@/components/action-error";
 import { useLlmBusy } from "@/components/llm-busy";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
-// Reviewer-Entscheidung (Human-in-the-Loop, ADR-0043) -- Bereich 3
-// "Entscheidung & Report" der Detailseite (S4). Bewusst OHNE Werkzeug-Buttons
-// (Zielgruppe: Entscheider). Aus der frueheren CaseAdminActions herausgeloest;
-// router.refresh() -> hardRefresh() (Prod-Cache).
-//
-// Solange ein Werkzeug aus Bereich 2 einen LLM-Call offen hat (useLlmBusy),
-// ist die Entscheidung gesperrt UND der Grund steht daneben. Ohne die Sperre
-// landete der Klick in der serialisierten Server-Action-Warteschlange und der
-// Button behauptete minutenlang "Wird gespeichert …" (s. llm-busy.tsx).
+// Status und Entscheidung werden gemeinsam gespeichert, weil getrennte Pfade vor C1 case.status und case.reviewer_decision auseinanderlaufen liessen.
 
 interface Props {
   caseId: string;
+  initialStatus: CaseStatus;
   reviewerDecision: ReviewerDecision;
   reviewerNote: string | null;
 }
+
+const STATUS_ORDER: CaseStatus[] = [
+  "submitted",
+  "in_review",
+  "approved",
+  "already_exists",
+  "rejected",
+  "implemented",
+];
 
 const DECISION_VIEW: Record<
   ReviewerDecision,
@@ -37,34 +49,65 @@ const DECISION_VIEW: Record<
   pending: { icon: Circle, tone: "text-muted-foreground" },
 };
 
-export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) {
+export function CaseDecision({
+  caseId,
+  initialStatus,
+  reviewerDecision,
+  reviewerNote,
+}: Props) {
   const t = useTranslations("decision");
+  const ts = useTranslations("status");
+  const [selectedStatus, setSelectedStatus] = useState<CaseStatus>(initialStatus);
   const [note, setNote] = useState(reviewerNote ?? "");
-  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Laeuft parallel eine Analyse (Bereich 2)? Dann waere jeder Klick nur eine
-  // stille Wartemarke -- lieber sperren und den Grund zeigen.
   const analysisRunning = useLlmBusy();
-  const waiting = analysisRunning && busy === null;
+  const waiting = analysisRunning && !busy;
 
   const view = DECISION_VIEW[reviewerDecision];
   const Icon = view.icon;
 
-  async function handleDecide(decision: "approved" | "rejected") {
-    setBusy(decision);
+  async function handleSubmit() {
+    setBusy(true);
     setError(null);
     try {
-      await updateCaseStatus(caseId, decision, note);
+      const trimmed = note.trim();
+      const res = await updateCaseStatus(
+        caseId, selectedStatus, trimmed.length > 0 ? trimmed : null,
+      );
       hardRefresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"));
-      setBusy(null);
+      setBusy(false);
     }
   }
 
   return (
     <div className="rounded-2xl border border-border bg-muted/30 p-5">
       <div className="flex items-center gap-2">
+        <StatusBadge status={selectedStatus} />
+        <Select
+          value={selectedStatus}
+          disabled={busy}
+          onValueChange={(v) => setSelectedStatus(v as CaseStatus)}
+        >
+          <SelectTrigger size="sm" className="w-[9.75rem]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>
+                <span
+                  className={cn("size-1.5 rounded-full", STATUS_CONFIG[s].dot)}
+                  aria-hidden
+                />
+                {ts(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
         <Icon className={`size-4 ${view.tone}`} />
         <span className="text-sm font-medium text-foreground">{t(reviewerDecision)}</span>
       </div>
@@ -74,7 +117,7 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
         value={note}
         onChange={(e) => setNote(e.target.value)}
         maxLength={2000}
-        disabled={busy !== null}
+        disabled={busy}
         rows={2}
       />
       <ActionError message={error} className="mt-3" />
@@ -90,17 +133,10 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
       )}
       <div className="mt-3 flex gap-2">
         <Button
-          onClick={() => handleDecide("approved")}
-          disabled={busy !== null || analysisRunning}
+          onClick={handleSubmit}
+          disabled={busy || analysisRunning}
         >
-          {busy === "approved" ? t("saving") : t("approve")}
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={() => handleDecide("rejected")}
-          disabled={busy !== null || analysisRunning}
-        >
-          {busy === "rejected" ? t("saving") : t("reject")}
+          {busy ? t("saving") : t("submit")}
         </Button>
       </div>
     </div>
