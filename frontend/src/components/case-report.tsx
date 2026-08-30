@@ -94,9 +94,13 @@ export function ComplianceHints({
 export function CaseReport({
   report,
   sketch,
+  decisionControls,
 }: {
   report: ReportResponse
   sketch: ArchitectureSketchResponse | null
+  // Die Entscheidung liegt in der Entscheider-Sicht, damit ihre Bedienelemente
+  // dort stehen, wo die Entscheidung getroffen wird.
+  decisionControls?: React.ReactNode
 }) {
   const t = useTranslations("report")
   const td_ = useTranslations("decision")
@@ -176,6 +180,31 @@ export function CaseReport({
             </div>
           </dl>
 
+          {/* Der Vorfilter ist eine Bewertungsschranke, keine Entwicklungsinformation. */}
+          <section className="rounded-xl border border-border bg-card p-5">
+            <Label>{t("prefilter")}</Label>
+            {td.passed_vorfilter ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-[var(--zone-win)]" />
+                <span className="text-sm text-foreground">{t("passed")}</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <XCircle className="size-4 text-destructive" />
+                  <span className="text-sm text-foreground">{t("notPassed")}</span>
+                </div>
+                {td.vorfilter_failed_criteria.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {td.vorfilter_failed_criteria.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
+
           <TextBlock title={t("toDecide")} text={dr.zu_entscheiden} />
 
           {dr.contra_punkte.length > 0 && (
@@ -202,36 +231,18 @@ export function CaseReport({
               <ManagementSolutionView solution={bs.solution_business} />
             </section>
           )}
+
+          {decisionControls !== undefined && (
+            <div className="border-t border-border pt-6">
+              {decisionControls}
+            </div>
+          )}
         </div>
       </TabsContent>
 
       {/* --- Technische Sicht (technical_report). --- */}
       <TabsContent value="technisch">
         <div className="space-y-6 pt-6">
-          <section className="rounded-xl border border-border bg-card p-5">
-            <Label>{t("prefilter")}</Label>
-            {td.passed_vorfilter ? (
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-[var(--zone-win)]" />
-                <span className="text-sm text-foreground">{t("passed")}</span>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <XCircle className="size-4 text-destructive" />
-                  <span className="text-sm text-foreground">{t("notPassed")}</span>
-                </div>
-                {td.vorfilter_failed_criteria.length > 0 && (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-                    {td.vorfilter_failed_criteria.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </section>
-
           <TextBlock title={t("architecture")} text={tr.architektur_kurzfassung} />
           {sketch !== null && (
             <SketchDiagram source={sketch.mermaid_source} />

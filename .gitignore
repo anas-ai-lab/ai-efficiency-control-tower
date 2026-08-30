@@ -74,3 +74,4 @@ mutants/
 graphify-out/
 *.db-shm
 *.db-wal
+artifacts/

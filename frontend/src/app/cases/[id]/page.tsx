@@ -246,17 +246,21 @@ export default async function CaseDetailPage({
 
         <div className="mt-10">
           <p className="eyebrow mb-3">{t("report")}</p>
-          <CaseReport report={report} sketch={initialSketch} />
-        </div>
-
-        {authenticated && (
-          <CaseDecision
-            caseId={detail.id}
-            initialStatus={detail.status}
-            reviewerDecision={summary.reviewer_decision}
-            reviewerNote={summary.reviewer_note}
+          <CaseReport
+            report={report}
+            sketch={initialSketch}
+            decisionControls={
+              authenticated ? (
+                <CaseDecision
+                  caseId={detail.id}
+                  initialStatus={detail.status}
+                  reviewerDecision={summary.reviewer_decision}
+                  reviewerNote={summary.reviewer_note}
+                />
+              ) : undefined
+            }
           />
-        )}
+        </div>
       </>
     ) : null;
 
