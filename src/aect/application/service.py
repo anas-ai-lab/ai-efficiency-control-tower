@@ -639,6 +639,19 @@ def _strip_dangling_citation_markers(
     return cleaned, dangling
 
 
+# Status, unter denen ein Case oeffentlich als Top-Case erscheinen darf
+# (Ticket 4b, Nachtrag): nur freigegeben oder bereits umgesetzt. Ein
+# frisch eingereichter, noch unentschiedener Case ist kein Aushaengeschild
+# -- er wuerde sonst allein durch seinen Netto-Nutzen in die Top-3
+# rutschen, ohne dass ihn ein Mensch geprueft hat. Dieselbe Menge, unter
+# demselben Namen, wird von compute_stats() fuer die Zaehler freigegeben/
+# netto_nutzen_freigegeben_eur wiederverwendet (Schritt 2) -- eine
+# Quelle, kein zweites, potenziell abweichendes Set an zwei Stellen.
+_PUBLIC_RELEASED_STATUSES: frozenset[CaseStatus] = frozenset(
+    {CaseStatus.APPROVED, CaseStatus.IMPLEMENTED}
+)
+
+
 class TriageService:
     """Orchestriert Use-Case-Einreichung: ID -> Zeitstempel -> Domain -> Persistenz.
 
@@ -921,12 +934,16 @@ class TriageService:
 
         Filtert auf bewertete (roi is not None), nicht eingestellte Cases und
         gibt NIE den Geldwert selbst zurueck, nur id + title (siehe TopCaseRef).
+        Nur freigegebene oder umgesetzte Cases erscheinen oeffentlich, denn ein
+        eingereichter, aber unentschiedener Case ist kein Aushaengeschild.
         """
         cases = self._repository.list_all()
         candidates = [
             (c.id, c.use_case.title, c.result.roi.net_expected_benefit_eur)
             for c in cases
-            if c.result.roi is not None and not c.discontinued
+            if c.result.roi is not None
+            and not c.discontinued
+            and c.status in _PUBLIC_RELEASED_STATUSES
         ]
         return select_top_cases(candidates, limit=limit)
 
@@ -939,12 +956,11 @@ class TriageService:
         freigegebener Netto-Nutzen).
         """
         cases = self._repository.list_all()
-        released_statuses = {CaseStatus.APPROVED, CaseStatus.IMPLEMENTED}
         net_sum = sum(
             (
                 c.result.roi.net_expected_benefit_eur
                 for c in cases
-                if c.status in released_statuses and c.result.roi is not None
+                if c.status in _PUBLIC_RELEASED_STATUSES and c.result.roi is not None
             ),
             Decimal("0"),
         )

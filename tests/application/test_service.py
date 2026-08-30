@@ -427,6 +427,7 @@ class TestTriageServiceList:
                     net_expected_benefit_eur=net_benefit,
                 ),
             )
+            case.status = CaseStatus.APPROVED
         discontinued.discontinued = True
         assert unvalued.result.evaluation_pending is True
         assert unvalued.result.roi is None
@@ -436,6 +437,129 @@ class TestTriageServiceList:
             TopCaseRef(case_id="middle", title="Mittlerer Case"),
             TopCaseRef(case_id="low", title="Niedrigster Case"),
         ]
+
+    def test_top_cases_excludes_submitted_and_orders_released_cases(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(
+            roi_config, ids=["submitted", "approved", "implemented"]
+        )
+        submitted = service.submit_use_case(
+            sample_use_case.model_copy(update={"title": "Eingereicht"})
+        )
+        approved = service.submit_use_case(
+            sample_use_case.model_copy(update={"title": "Freigegeben"})
+        )
+        implemented = service.submit_use_case(
+            sample_use_case.model_copy(update={"title": "Umgesetzt"})
+        )
+
+        for case, status, net_benefit in (
+            (submitted, CaseStatus.SUBMITTED, Decimal("300")),
+            (approved, CaseStatus.APPROVED, Decimal("200")),
+            (implemented, CaseStatus.IMPLEMENTED, Decimal("100")),
+        ):
+            assert case.result.roi is not None
+            case.status = status
+            case.result = replace(
+                case.result,
+                roi=replace(
+                    case.result.roi,
+                    net_expected_benefit_eur=net_benefit,
+                ),
+            )
+
+        assert service.list_top_cases(limit=3) == [
+            TopCaseRef(case_id="approved", title="Freigegeben"),
+            TopCaseRef(case_id="implemented", title="Umgesetzt"),
+        ]
+
+    def test_top_cases_excludes_in_review_case_at_large_limit(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.result.roi is not None
+        case.status = CaseStatus.IN_REVIEW
+        case.result = replace(
+            case.result,
+            roi=replace(
+                case.result.roi,
+                net_expected_benefit_eur=Decimal("1000"),
+            ),
+        )
+
+        assert service.list_top_cases(limit=10) == []
+
+    def test_top_cases_excludes_discontinued_approved_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.result.roi is not None
+        case.status = CaseStatus.APPROVED
+        case.discontinued = True
+
+        assert service.list_top_cases() == []
+
+    def test_top_cases_excludes_already_existing_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.result.roi is not None
+        case.status = CaseStatus.ALREADY_EXISTS
+
+        assert service.list_top_cases() == []
+
+    def test_top_cases_excludes_rejected_case(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.result.roi is not None
+        case.status = CaseStatus.REJECTED
+
+        assert service.list_top_cases() == []
+
+    def test_top_cases_returns_only_available_released_cases(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        assert case.result.roi is not None
+        case.status = CaseStatus.IMPLEMENTED
+
+        assert service.list_top_cases() == [
+            TopCaseRef(case_id="id-001", title=sample_use_case.title)
+        ]
+
+    def test_compute_stats_keeps_released_net_benefit_semantics(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(
+            roi_config, ids=["submitted", "approved", "implemented"]
+        )
+        submitted = service.submit_use_case(sample_use_case)
+        approved = service.submit_use_case(sample_use_case)
+        implemented = service.submit_use_case(sample_use_case)
+
+        for case, status, net_benefit in (
+            (submitted, CaseStatus.SUBMITTED, Decimal("300")),
+            (approved, CaseStatus.APPROVED, Decimal("200")),
+            (implemented, CaseStatus.IMPLEMENTED, Decimal("100")),
+        ):
+            assert case.result.roi is not None
+            case.status = status
+            case.result = replace(
+                case.result,
+                roi=replace(
+                    case.result.roi,
+                    net_expected_benefit_eur=net_benefit,
+                ),
+            )
+
+        assert service.compute_stats().netto_nutzen_freigegeben_eur == Decimal("300")
 
 
 class TestTriageServiceSharpen:
