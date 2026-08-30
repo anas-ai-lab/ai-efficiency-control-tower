@@ -515,6 +515,9 @@
     "colZone": "Zone",
     "colNet": "Net benefit",
     "colStatus": "Status",
+    "discontinuedBadge": "Discontinued",
+    "discontinuedHint": "Status can only be changed in monitoring —",
+    "discontinuedHintLink": "open there",
     "statusError": "Status change failed.",
     "emptyFiltered": "No use cases match the filters.",
     "pageLeadPublic": "All submitted use cases at a glance"

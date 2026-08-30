@@ -21,6 +21,7 @@ import { downloadCasesCsv } from "@/lib/csv";
 import { readEnumParam, useFilterParams } from "@/lib/use-filter-params";
 import { ActiveFilters, EmptyResult } from "@/components/filter-bar";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -488,7 +489,10 @@ export function CasesTable({
                     goToCase(c.id);
                   }
                 }}
-                className="cursor-pointer border-b border-border/60 outline-none transition-colors last:border-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
+                className={cn(
+                  "cursor-pointer border-b border-border/60 outline-none transition-colors last:border-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40",
+                  c.discontinued && "border-l-2 border-l-destructive/60 bg-destructive/5",
+                )}
               >
                 <td className="max-w-xs px-4 py-3">
                   <div className="flex items-start gap-2">
@@ -497,6 +501,11 @@ export function CasesTable({
                     </span>
                     {similarityIndex.has(c.id) && (
                       <SimilarityBadge info={similarityIndex.get(c.id)!} />
+                    )}
+                    {c.discontinued && (
+                      <Badge variant="destructive" className="shrink-0">
+                        {t("discontinuedBadge")}
+                      </Badge>
                     )}
                   </div>
                 </td>
@@ -527,13 +536,26 @@ export function CasesTable({
                   </>
                 )}
                 {/* Status-Zelle: Klick/Tastatur hier navigiert NICHT (stopPropagation).
-                    Nur Admins wechseln den Status; Anonyme sehen die Badge. */}
+                    Die Ideenliste sperrt eingestellte Cases hier, weil discontinued kein Lifecycle-Status ist und POST /status serverseitig erlaubt bleibt; Monitoring ist der einzige Ort dafuer. */}
                 <td
                   className="px-4 py-3"
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
-                  {authenticated ? (
+                  {c.discontinued ? (
+                    <>
+                      <StatusBadge status={c.status} />
+                      <p className="mt-1.5 max-w-[12rem] text-xs text-muted-foreground">
+                        {t("discontinuedHint")}{" "}
+                        <Link
+                          href="/monitoring"
+                          className="font-medium text-[var(--ink)] underline decoration-[var(--ink)]/40 underline-offset-2 hover:decoration-[var(--ink)]"
+                        >
+                          {t("discontinuedHintLink")}
+                        </Link>
+                      </p>
+                    </>
+                  ) : authenticated ? (
                     <>
                       <StatusSelect
                         value={c.status}

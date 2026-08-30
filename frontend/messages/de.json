@@ -515,6 +515,9 @@
     "colZone": "Zone",
     "colNet": "Nettonutzen",
     "colStatus": "Status",
+    "discontinuedBadge": "Eingestellt",
+    "discontinuedHint": "Status nur im Monitoring aenderbar —",
+    "discontinuedHintLink": "dort oeffnen",
     "statusError": "Statuswechsel fehlgeschlagen.",
     "emptyFiltered": "Keine Use Cases entsprechen den Filtern.",
     "pageLeadPublic": "Alle eingereichten Use Cases auf einen Blick"
