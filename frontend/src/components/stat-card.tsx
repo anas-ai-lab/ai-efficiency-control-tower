@@ -108,11 +108,12 @@ export function StatCard({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={reduce ? undefined : { rotateX, rotateY, transformPerspective: 800 }}
-      className="group relative flex h-full flex-col overflow-hidden bg-card px-6 py-7"
+      className="group relative grid h-full grid-rows-[auto_1fr_auto] overflow-hidden bg-card px-6 py-7"
     >
       {/* Spotlight -- transparent 90% statt 88% wie bei den Nav-Kacheln: die
           drei Karten stehen ohne Fugen direkt nebeneinander, dort faellt eine
-          Aufhellung staerker auf als bei den freistehenden Kacheln. */}
+          Aufhellung staerker auf als bei den freistehenden Kacheln. Absolut
+          positioniert -- belegt keine eigene Grid-Zeile. */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -121,27 +122,36 @@ export function StatCard({
             "radial-gradient(circle at var(--mx,50%) var(--my,50%), color-mix(in oklch, var(--brand-accent), transparent 90%), transparent 60%)",
         }}
       />
-      <p className="eyebrow shrink-0">{label}</p>
+      {/* .eyebrow: 0.6875rem font-size * 1 line-height = 0.6875rem je Zeile,
+          zwei Zeilen = 1.375rem min-h -- reserviert Platz fuer das laengste
+          Label ("Freigegebene Ideen in der Entwicklung"), unabhaengig davon
+          ob eine Karte nur eine Zeile braucht. */}
+      <p className="eyebrow shrink-0 min-h-[1.375rem]">{label}</p>
 
-      {/* Zahl-Hierarchie: die Kennzahl ist das lauteste Element der Karte und
-          steht vertikal mittig in der verbleibenden Kachelflaeche (flex-1 +
-          justify-center) -- unabhaengig von Stellenzahl oder Label-Laenge.
-          Display-Token statt Mono (siehe .kpi-value in globals.css), feste
-          Zeilenhoehe (line-height:1) verhindert einen Layout-Shift waehrend
-          der Hochzaehl-Animation. Der Anteilswert rueckt direkt darunter,
-          klar untergeordnet -- keine eigene Flaeche am unteren Kachelrand. */}
-      <div className="flex flex-1 flex-col justify-center">
+      {/* Zahl-Zone: eigene Grid-Zeile, oben ausgerichtet (justify-start statt
+          justify-center) -- bei fester Label-Hoehe darueber und fester
+          Anteils-Hoehe darunter startet die Zahl auf allen vier Karten an
+          derselben Y-Position. Display-Token statt Mono (siehe .kpi-value in
+          globals.css), feste Zeilenhoehe (line-height:1) verhindert einen
+          Layout-Shift waehrend der Hochzaehl-Animation. */}
+      <div className="flex flex-col items-start justify-start">
         <p className="kpi-value tnum text-[3.75rem] text-foreground sm:text-[4.5rem]">
           {value === null ? dash : fmt.number(Math.round(display))}
         </p>
+      </div>
 
-        {/* Kontext-Hairline: der Anteil an den Einreichungen als feine Linie,
-            keine Ampel, kein Balkendiagramm. Die Grundlinie ist immer da, der
-            gefuellte Teil waechst beim Sichtbarwerden mit. Die Basis-Karte
-            (share === null) traegt keinen Kontext -- dann faellt der ganze
-            Block weg statt eine leere Flaeche zu reservieren. */}
+      {/* Anteils-Zone: dritte Grid-Zeile, IMMER gerendert -- die vier Zahlen
+          sitzen nur dann auf einer Grundlinie, wenn jede Karte dieselben drei
+          Zonenhoehen hat. Der reservierte Leerraum auf der Basis-Karte ist
+          der Preis fuer die Ausrichtung. Hoehe: Hairline 1px + mt-2 0.5rem +
+          text-xs-Zeile (kein eigener Wert in globals.css -- Tailwind-Default
+          0.75rem/1rem line-height) = calc(1.5rem + 1px) min-h. */}
+      <div
+        className="mt-4 max-w-32 min-h-[calc(1.5rem+1px)]"
+        aria-hidden={share === null || shareLabel === null ? "true" : undefined}
+      >
         {share !== null && shareLabel !== null && (
-          <div className="mt-4 max-w-32">
+          <>
             <div
               aria-hidden
               className="h-px w-full overflow-hidden bg-[var(--hairline-rule)]"
@@ -154,7 +164,7 @@ export function StatCard({
             <p className="tnum mt-2 text-xs text-[var(--muted-foreground)]">
               {shareLabel}
             </p>
-          </div>
+          </>
         )}
       </div>
     </motion.div>
