@@ -18,6 +18,8 @@ ungepruefte strukturierte Felder.
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from enum import StrEnum
 from typing import Annotated
 
@@ -189,6 +191,95 @@ class SketchLayer(StrEnum):
 # (die ID steht unescaped links vor der Knotenform, anders als das Label).
 _NODE_ID_PATTERN = r"^[a-z0-9_]{1,24}$"
 
+_UMLAUT_MAP: dict[str, str] = {
+    "ä": "ae",
+    "ö": "oe",
+    "ü": "ue",
+    "Ä": "ae",
+    "Ö": "oe",
+    "Ü": "ue",
+    "ß": "ss",
+}
+_INVALID_RUN_RE: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_node_id(raw: str) -> str:
+    """Normalisiere eine Node-ID deterministisch auf das sichere Pattern.
+
+    Die Reihenfolge ist zwingend: Beim Beispiel "R\u00fcckerstattung" muss die
+    Umlaut-Map vor NFKD laufen, sonst entstuende "ruckerstattung" statt
+    "rueckerstattung".
+    """
+    text = raw
+    for source, replacement in _UMLAUT_MAP.items():
+        text = text.replace(source, replacement)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = text.lower()
+    text = _INVALID_RUN_RE.sub("_", text)
+    text = text.strip("_")
+    text = text[:24].rstrip("_")
+    return text or "node"
+
+
+def _normalize_sketch_ids(data: object) -> object:
+    """Normalisiere Node-IDs und loese Kanten deterministisch auf."""
+    if not isinstance(data, dict):
+        return data
+    nodes = data.get("nodes")
+    if not isinstance(nodes, list):
+        return data
+
+    id_map: dict[str, str] = {}
+    used_slugs: set[str] = set()
+    new_nodes: list[object] = []
+
+    for node in nodes:
+        if not isinstance(node, dict) or not isinstance(node.get("id"), str):
+            new_nodes.append(node)
+            continue
+        original_id = node["id"]
+        base_slug = _slugify_node_id(original_id)
+        final_slug = base_slug
+        suffix_index = 2
+        while final_slug in used_slugs:
+            suffix = f"_{suffix_index}"
+            trimmed = base_slug[: 24 - len(suffix)].rstrip("_") or "node"
+            final_slug = f"{trimmed}{suffix}"
+            suffix_index += 1
+        used_slugs.add(final_slug)
+        id_map.setdefault(original_id, final_slug)
+        new_nodes.append({**node, "id": final_slug})
+
+    edges = data.get("edges")
+    new_edges: list[object] | None = None
+    if isinstance(edges, list):
+        new_edges = []
+        for edge in edges:
+            if not isinstance(edge, dict):
+                new_edges.append(edge)
+                continue
+            resolved_edge: dict[str, object] = dict(edge)
+            keep = True
+            for key in ("source", "target"):
+                value = edge.get(key)
+                if not isinstance(value, str):
+                    continue
+                resolved = id_map.get(value)
+                if resolved is None:
+                    candidate = _slugify_node_id(value)
+                    resolved = candidate if candidate in used_slugs else None
+                if resolved is None:
+                    keep = False
+                    break
+                resolved_edge[key] = resolved
+            if keep:
+                new_edges.append(resolved_edge)
+
+    result: dict[str, object] = {**data, "nodes": new_nodes}
+    if new_edges is not None:
+        result["edges"] = new_edges
+    return result
+
 
 class SketchNode(BaseModel):
     """Ein Knoten der Architektur-Skizze (P11).
@@ -255,6 +346,16 @@ class ArchitectureSketch(BaseModel):
 
     nodes: list[SketchNode] = Field(min_length=2, max_length=20)
     edges: list[SketchEdge] = Field(max_length=30)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_ids(cls, data: object) -> object:
+        """Repariere LLM-IDs deterministisch vor der Feldvalidierung.
+
+        Das Fehlerbild "manchmal geht's" entsteht durch nichtdeterministischen
+        LLM-Output, nicht durch Zufall, bei dem ein Retry helfen wuerde.
+        """
+        return _normalize_sketch_ids(data)
 
     @model_validator(mode="after")
     def _check_referential_integrity(self) -> ArchitectureSketch:

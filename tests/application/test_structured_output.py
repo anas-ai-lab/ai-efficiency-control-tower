@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from aect.application.structured_output import (
     InvalidLLMOutputError,
     SharpenedContentV2,
     SolutionProposalV3,
+    _slugify_node_id,
     parse_structured_llm_output,
 )
 
@@ -199,6 +201,147 @@ _VALID_SKETCH: dict = {
 }
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("SAP_S4", "sap_s4"),
+        ("crm-system", "crm_system"),
+        ("groß", "gross"),
+        ("Rückerstattung", "rueckerstattung"),
+        ("Vertrags-DB ✓", "vertrags_db"),
+        ("foo___bar", "foo_bar"),
+        ("", "node"),
+        ("already_valid_id", "already_valid_id"),
+    ],
+)
+def test_slugify_node_id(raw: str, expected: str) -> None:
+    assert _slugify_node_id(raw) == expected
+
+
+class TestArchitectureSketchIdNormalization:
+    def test_colliding_node_ids_receive_deterministic_suffix(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "Kunde", "label": "A", "layer": "source"},
+                {"id": "kunde", "label": "B", "layer": "processing"},
+            ],
+            "edges": [],
+        }
+
+        result = ArchitectureSketch.model_validate(payload)
+
+        assert [node.id for node in result.nodes] == ["kunde", "kunde_2"]
+
+    def test_edge_resolves_already_normalized_node_reference(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "SAP S4", "label": "SAP", "layer": "processing"},
+                {"id": "db", "label": "Datenbank", "layer": "storage"},
+            ],
+            "edges": [{"source": "sap_s4", "target": "db"}],
+        }
+
+        result = ArchitectureSketch.model_validate(payload)
+
+        assert result.nodes[0].id == "sap_s4"
+        assert result.edges[0].source == result.nodes[0].id
+
+    def test_unresolved_edge_is_dropped(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "a", "label": "A", "layer": "source"},
+                {"id": "b", "label": "B", "layer": "processing"},
+            ],
+            "edges": [
+                {"source": "a", "target": "b"},
+                {"source": "a", "target": "does_not_exist_anywhere"},
+            ],
+        }
+
+        result = ArchitectureSketch.model_validate(payload)
+
+        assert [node.id for node in result.nodes] == ["a", "b"]
+        assert [(edge.source, edge.target) for edge in result.edges] == [("a", "b")]
+
+    def test_non_string_edge_target_reaches_field_validation(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "source", "label": "Quelle", "layer": "source"},
+                {"id": "target", "label": "Ziel", "layer": "output"},
+            ],
+            "edges": [{"source": "source", "target": 42}],
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ArchitectureSketch.model_validate(payload)
+
+        assert any(
+            error["loc"] == ("edges", 0, "target") and error["type"] == "string_type"
+            for error in exc_info.value.errors()
+        )
+
+    def test_missing_edges_remains_a_missing_required_field(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "source", "label": "Quelle", "layer": "source"},
+                {"id": "target", "label": "Ziel", "layer": "output"},
+            ]
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ArchitectureSketch.model_validate(payload)
+
+        assert any(
+            error["loc"] == ("edges",) and error["type"] == "missing"
+            for error in exc_info.value.errors()
+        )
+
+    def test_identical_long_ids_are_trimmed_before_suffix(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        original_id = "a" * 30
+        payload = {
+            "nodes": [
+                {"id": original_id, "label": "A", "layer": "source"},
+                {"id": original_id, "label": "B", "layer": "processing"},
+            ],
+            "edges": [],
+        }
+
+        result = ArchitectureSketch.model_validate(payload)
+
+        assert [node.id for node in result.nodes] == ["a" * 24, f"{'a' * 22}_2"]
+        assert all(len(node.id) <= 24 for node in result.nodes)
+
+    def test_conforming_ids_remain_unchanged(self) -> None:
+        from aect.application.structured_output import ArchitectureSketch
+
+        payload = {
+            "nodes": [
+                {"id": "server_1", "label": "Server", "layer": "processing"},
+                {"id": "db_primary", "label": "DB", "layer": "storage"},
+            ],
+            "edges": [{"source": "server_1", "target": "db_primary"}],
+        }
+
+        result = ArchitectureSketch.model_validate(payload)
+
+        assert [node.id for node in result.nodes] == ["server_1", "db_primary"]
+        assert [(edge.source, edge.target) for edge in result.edges] == [
+            ("server_1", "db_primary")
+        ]
+
+
 class TestArchitectureSketchValid:
     def test_valid_graph_parses(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
@@ -257,30 +400,36 @@ class TestArchitectureSketchValid:
 
 class TestArchitectureSketchViolations:
     def test_duplicate_node_id_raises(self) -> None:
-        from aect.application.structured_output import ArchitectureSketch
+        from aect.application.structured_output import ArchitectureSketch, SketchNode
 
         payload = {
             "nodes": [
-                {"id": "dup", "label": "A", "layer": "source"},
-                {"id": "dup", "label": "B", "layer": "processing"},
+                SketchNode(id="dup", label="A", layer="source"),
+                SketchNode(id="dup", label="B", layer="processing"),
             ],
             "edges": [],
         }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+        with pytest.raises(ValidationError, match="node ids must be unique"):
+            ArchitectureSketch.model_validate(payload)
 
     def test_edge_to_unknown_id_raises(self) -> None:
-        from aect.application.structured_output import ArchitectureSketch
+        from aect.application.structured_output import (
+            ArchitectureSketch,
+            SketchEdge,
+            SketchNode,
+        )
 
         payload = {
             "nodes": [
-                {"id": "a", "label": "A", "layer": "source"},
-                {"id": "b", "label": "B", "layer": "processing"},
+                SketchNode(id="a", label="A", layer="source"),
+                SketchNode(id="b", label="B", layer="processing"),
             ],
-            "edges": [{"source": "a", "target": "ghost"}],
+            "edges": [SketchEdge(source="a", target="ghost")],
         }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+        with pytest.raises(
+            ValidationError, match="edge references unknown node id: ghost"
+        ):
+            ArchitectureSketch.model_validate(payload)
 
     def test_twentyone_nodes_raises(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
@@ -335,17 +484,21 @@ class TestArchitectureSketchViolations:
             parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
 
     def test_invalid_node_id_pattern_raises(self) -> None:
-        from aect.application.structured_output import ArchitectureSketch
+        from aect.application.structured_output import SketchNode
 
         payload = {
-            "nodes": [
-                {"id": "Has Space", "label": "A", "layer": "source"},
-                {"id": "b", "label": "B", "layer": "processing"},
-            ],
-            "edges": [],
+            "id": "Has Space",
+            "label": "A",
+            "layer": "source",
         }
-        with pytest.raises(InvalidLLMOutputError):
-            parse_structured_llm_output(json.dumps(payload), ArchitectureSketch)
+
+        with pytest.raises(ValidationError) as exc_info:
+            SketchNode.model_validate(payload)
+
+        assert any(
+            error["loc"] == ("id",) and error["type"] == "string_pattern_mismatch"
+            for error in exc_info.value.errors()
+        )
 
     def test_too_many_edges_raises(self) -> None:
         from aect.application.structured_output import ArchitectureSketch
