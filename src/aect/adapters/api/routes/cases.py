@@ -59,7 +59,10 @@ from aect.application.service import (
     NoProposalForSketchError,
     NoSharpeningDraftError,
     NoSolutionDraftError,
+    NoSolutionForRefineError,
     SharpeningNumberViolationError,
+    SolutionAlreadyGeneratedError,
+    SolutionRefineLimitError,
     SolutionVocabularyViolationError,
     TriageService,
 )
@@ -911,6 +914,48 @@ class SolutionProposalResponse(BaseModel):
     management: ManagementSolutionResponse
     technical: TechnicalSolutionResponse
     prompt_version: str
+    refines_remaining: int
+
+
+class RefineSolutionRequest(BaseModel):
+    """Nutzer-Feedback fuer eine AI-Ueberarbeitung der Loesung."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feedback: _RequiredText
+
+
+_SolutionBullet = Annotated[str, Field(min_length=5, max_length=200)]
+
+
+class SaveManagementSolutionRequest(BaseModel):
+    """Validierte Management-Ebene einer manuell gespeicherten Loesung."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    summary: str = Field(min_length=30, max_length=700)
+    benefits: list[_SolutionBullet] = Field(min_length=1, max_length=3)
+
+
+class SaveTechnicalSolutionRequest(BaseModel):
+    """Validierte Technik-Ebene einer manuell gespeicherten Loesung."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    architecture_summary: str = Field(min_length=30, max_length=700)
+    components: list[_SolutionBullet] = Field(min_length=2, max_length=6)
+    data_flow: list[_SolutionBullet] = Field(min_length=2, max_length=6)
+    integration_points: list[_SolutionBullet] = Field(min_length=1, max_length=5)
+    open_assumptions: list[_SolutionBullet] = Field(min_length=1, max_length=5)
+
+
+class SaveSolutionRequest(BaseModel):
+    """Vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    management: SaveManagementSolutionRequest
+    technical: SaveTechnicalSolutionRequest
 
 
 @router.post("/{case_id}/propose-solution", response_model=SolutionProposalResponse)
@@ -946,6 +991,14 @@ async def propose_solution(
     """
     try:
         proposal = await service.propose_solution(case_id, lang=lang)
+    except SolutionAlreadyGeneratedError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "solution_already_generated",
+                "message": API_ERRORS[lang]["solution_already_generated"],
+            },
+        ) from exc
     except SolutionVocabularyViolationError as exc:
         # Der Business-Absatz nutzt verbotene technische Begriffe -- auch der Retry
         # hat sie nicht entfernt. 422 (LLM-Call gelang, Inhalt unverwertbar), die
@@ -968,6 +1021,8 @@ async def propose_solution(
 
     if proposal is None:
         raise HTTPException(status_code=404, detail="Case not found")
+    case = service.get_case(proposal.case_id)
+    assert case is not None
 
     return SolutionProposalResponse(
         case_id=proposal.case_id,
@@ -977,6 +1032,7 @@ async def propose_solution(
         ),
         technical=_technical_solution_response(proposal.technical),
         prompt_version=proposal.prompt_version,
+        refines_remaining=service.solution_refines_remaining(case),
     )
 
 
@@ -1052,6 +1108,108 @@ async def reject_solution(
     if updated is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return SolutionActionResponse(case_id=case_id, status="rejected")
+
+
+@router.post(
+    "/{case_id}/propose-solution/refine",
+    response_model=SolutionProposalResponse,
+)
+@limiter.limit("10/minute")
+async def refine_solution(
+    case_id: str,
+    body: RefineSolutionRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+    __: None = Depends(require_token_budget),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
+) -> SolutionProposalResponse:
+    """Erzeugt innerhalb des festen Budgets einen Loesungs-Refine-Draft."""
+    try:
+        proposal = await service.refine_solution(case_id, body.feedback, lang=lang)
+    except NoSolutionForRefineError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "solution_no_base",
+                "message": API_ERRORS[lang]["solution_no_base"],
+            },
+        ) from exc
+    except SolutionRefineLimitError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "solution_refine_limit",
+                "message": API_ERRORS[lang]["solution_refine_limit"],
+            },
+        ) from exc
+    except SolutionVocabularyViolationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason": "forbidden_vocabulary",
+                "message": API_ERRORS[lang]["solution_forbidden_vocab"],
+                "violations": exc.violations,
+            },
+        ) from exc
+    except InvalidLLMOutputError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=API_ERRORS[lang]["solution_schema"].format(exc=exc),
+        ) from exc
+
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case = service.get_case(proposal.case_id)
+    assert case is not None
+    return SolutionProposalResponse(
+        case_id=proposal.case_id,
+        management=ManagementSolutionResponse(
+            summary=proposal.management.summary,
+            benefits=list(proposal.management.benefits),
+        ),
+        technical=_technical_solution_response(proposal.technical),
+        prompt_version=proposal.prompt_version,
+        refines_remaining=service.solution_refines_remaining(case),
+    )
+
+
+@router.post("/{case_id}/solution", response_model=SolutionProposalResponse)
+@limiter.limit("10/minute")
+async def save_solution(
+    case_id: str,
+    body: SaveSolutionRequest,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> SolutionProposalResponse:
+    """Speichert eine vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf."""
+    management = ManagementSolution(
+        summary=body.management.summary,
+        benefits=tuple(body.management.benefits),
+    )
+    technical = TechnicalSolution(
+        architecture_summary=body.technical.architecture_summary,
+        components=tuple(body.technical.components),
+        data_flow=tuple(body.technical.data_flow),
+        integration_points=tuple(body.technical.integration_points),
+        open_assumptions=tuple(body.technical.open_assumptions),
+    )
+    case = await service.save_solution(case_id, management, technical)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return SolutionProposalResponse(
+        case_id=case.id,
+        management=ManagementSolutionResponse(
+            summary=management.summary,
+            benefits=list(management.benefits),
+        ),
+        technical=_technical_solution_response(technical),
+        prompt_version="manual",
+        refines_remaining=service.solution_refines_remaining(case),
+    )
 
 
 class ComplianceCitationResponse(BaseModel):

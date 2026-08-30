@@ -173,6 +173,9 @@ class SubmittedCase:
     TriageService.set_discontinued() -- dediziertes Per-Feld-UPDATE (F-011),
     kein save() der ganzen Zeile.
 
+    solution_refine_count: zaehlt die verbrauchten AI-Ueberarbeitungen des
+    Loesungsvorschlags. Obergrenze 3 (_SOLUTION_REFINE_LIMIT in service.py).
+
     IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
@@ -213,6 +216,7 @@ class SubmittedCase:
     status: CaseStatus = CaseStatus.SUBMITTED
     status_updated_at: datetime | None = None
     discontinued: bool = False
+    solution_refine_count: int = 0
 
 
 @dataclass(frozen=True)

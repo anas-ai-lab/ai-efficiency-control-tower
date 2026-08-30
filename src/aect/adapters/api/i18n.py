@@ -30,6 +30,12 @@ API_ERRORS: dict[Lang, dict[str, str]] = {
         ),
         "solution_schema": "KI-Antwort verletzt das Lösungs-Schema: {exc}",
         "no_solution_draft": "Kein offener Lösungs-Entwurf für diesen Case.",
+        "solution_already_generated": (
+            "Für diesen Case wurde bereits eine Lösung übernommen. Bitte die "
+            "Überarbeitung oder das manuelle Speichern verwenden."
+        ),
+        "solution_refine_limit": "Das Überarbeitungsbudget für diese Lösung ist ausgeschöpft.",
+        "solution_no_base": "Keine übernommene Lösung vorhanden, die überarbeitet werden kann.",
         "sketch_no_proposal": (
             "Für diesen Use Case liegt kein Lösungsvorschlag vor -- Skizze "
             "nicht möglich."
@@ -54,6 +60,12 @@ API_ERRORS: dict[Lang, dict[str, str]] = {
         ),
         "solution_schema": "AI response violates the solution schema: {exc}",
         "no_solution_draft": "No open solution draft for this case.",
+        "solution_already_generated": (
+            "A solution has already been accepted for this case. Please use "
+            "refinement or manual saving."
+        ),
+        "solution_refine_limit": "The refinement budget for this solution is exhausted.",
+        "solution_no_base": "There is no accepted solution to refine.",
         "sketch_no_proposal": (
             "There is no solution proposal for this use case -- a sketch is not "
             "possible."

@@ -95,6 +95,13 @@ class InMemoryRepository:
             return
         case.discontinued = discontinued
 
+    def set_solution_refine_count(self, case_id: str, count: int) -> None:
+        """Setzt den Refine-Zaehler. No-op bei unbekannter case_id."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.solution_refine_count = count
+
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None:
@@ -161,6 +168,9 @@ class InMemoryRepository:
 
     async def set_discontinued_async(self, case_id: str, discontinued: bool) -> None:
         self.set_discontinued(case_id, discontinued)
+
+    async def set_solution_refine_count_async(self, case_id: str, count: int) -> None:
+        self.set_solution_refine_count(case_id, count)
 
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
         self.add_monitoring_entry(entry)

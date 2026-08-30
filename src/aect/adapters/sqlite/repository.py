@@ -132,7 +132,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     sharpening_draft        TEXT,
     solution_business       TEXT,
     solution_draft          TEXT,
-    discontinued            INTEGER NOT NULL DEFAULT 0
+    discontinued            INTEGER NOT NULL DEFAULT 0,
+    solution_refine_count   INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -159,8 +160,8 @@ _INSERT_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "discontinued, solution_refine_count) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
@@ -168,7 +169,7 @@ _SELECT_BY_ID_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued "
+    "discontinued, solution_refine_count "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -177,7 +178,7 @@ _SELECT_ALL_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued "
+    "discontinued, solution_refine_count "
     "FROM submitted_cases ORDER BY submitted_at ASC"
 )
 
@@ -228,6 +229,10 @@ _UPDATE_STATUS_SQL = (
 # analog _UPDATE_STATUS_SQL (F-011). Kein Eintrag in _UPDATE_FIELD_SQL, weil
 # der Wert ein bool ist (int 0/1), nicht der str | None-Vertrag von update_field.
 _SET_DISCONTINUED_SQL = "UPDATE submitted_cases SET discontinued = ? WHERE id = ?"
+
+_SET_SOLUTION_REFINE_COUNT_SQL = (
+    "UPDATE submitted_cases SET solution_refine_count = ? WHERE id = ?"
+)
 
 # reevaluate (ADR-0050): dediziertes UPDATE beider zusammengehoeriger Blob-
 # Spalten (use_case_json + result_json) in einem Statement, analog
@@ -420,7 +425,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (17-Tupel) -> SubmittedCase."""
+    """SQLite-Row (19-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -440,6 +445,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         solution_business,
         solution_draft,
         discontinued_int,
+        solution_refine_count_int,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -483,6 +489,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         ),
         solution_draft=(str(solution_draft) if solution_draft is not None else None),
         discontinued=bool(discontinued_int),
+        solution_refine_count=int(solution_refine_count_int),
     )
 
 
@@ -587,6 +594,11 @@ class SQLiteRepository:
                     "ALTER TABLE submitted_cases ADD COLUMN discontinued "
                     "INTEGER NOT NULL DEFAULT 0"
                 )
+            if "solution_refine_count" not in columns:
+                conn.execute(
+                    "ALTER TABLE submitted_cases ADD COLUMN solution_refine_count "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
             # action/actor_name (V4.1-S10): dieselbe PRAGMA-Strategie, aber auf
             # monitoring_entries. Bewusst OHNE NOT NULL/DEFAULT -- Altbestands-
             # Eintraege sind freie Notizen ohne Aktion und Person; NULL sagt
@@ -645,6 +657,7 @@ class SQLiteRepository:
                     case.solution_business,
                     case.solution_draft,
                     int(case.discontinued),
+                    case.solution_refine_count,
                 ),
             )
 
@@ -735,6 +748,11 @@ class SQLiteRepository:
         """
         with connect(self._db_path) as conn:
             conn.execute(_SET_DISCONTINUED_SQL, (int(discontinued), case_id))
+
+    def set_solution_refine_count(self, case_id: str, count: int) -> None:
+        """Setzt den vom Service berechneten Refine-Zaehler (F-011)."""
+        with connect(self._db_path) as conn:
+            conn.execute(_SET_SOLUTION_REFINE_COUNT_SQL, (count, case_id))
 
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
@@ -832,6 +850,10 @@ class SQLiteRepository:
     async def set_discontinued_async(self, case_id: str, discontinued: bool) -> None:
         """Async-Wrapper um set_discontinued() via asyncio.to_thread (V4.1-S7)."""
         await asyncio.to_thread(self.set_discontinued, case_id, discontinued)
+
+    async def set_solution_refine_count_async(self, case_id: str, count: int) -> None:
+        """Async-Wrapper um set_solution_refine_count() via asyncio.to_thread."""
+        await asyncio.to_thread(self.set_solution_refine_count, case_id, count)
 
     async def reevaluate_async(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult

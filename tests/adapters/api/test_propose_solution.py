@@ -50,6 +50,30 @@ _VALID_PAYLOAD: dict = {
     "data_classification": "no_personal_data",
 }
 
+_SAVE_SOLUTION_PAYLOAD = {
+    "management": {
+        "summary": (
+            "Die API verbindet den Ablauf mit dem Zielsystem und entlastet die "
+            "Fachkraft bei der Vorbereitung. Die endgueltige Entscheidung bleibt "
+            "beim Menschen."
+        ),
+        "benefits": ["Die Fachkraft konzentriert sich auf unklare Vorgaenge."],
+    },
+    "technical": {
+        "architecture_summary": "Ein Dienst verarbeitet Vorgaenge und uebergibt sie an das Zielsystem.",
+        "components": [
+            "Eingang: nimmt Vorgaenge entgegen.",
+            "Verarbeitung: bereitet Vorgaenge auf.",
+        ],
+        "data_flow": [
+            "Eingang -> Verarbeitung -> Datensatz",
+            "Datensatz -> Zielsystem -> Fachkraft",
+        ],
+        "integration_points": ["Zielsystem der Fachabteilung."],
+        "open_assumptions": ["Die Vorgaenge liegen digital vor."],
+    },
+}
+
 
 def _make_app() -> FastAPI:
     """Repository ausserhalb der Lambda -- State muss zwischen 'Case anlegen'
@@ -107,6 +131,7 @@ async def test_propose_solution_existing_case_returns_proposal() -> None:
     data = response.json()
     assert data["case_id"] == case_id
     assert data["prompt_version"] == "v4"
+    assert data["refines_remaining"] == 3
     # Zweigeteilt + strukturiert (ADR-0054): Management-Ebene technikfrei mit
     # Kernaussage + Nutzen-Stichpunkten, Technik-Ebene mit festen Feldern.
     assert "[mock]" in data["technical"]["architecture_summary"]
@@ -185,17 +210,58 @@ async def test_solution_accept_applies_draft() -> None:
             f"/cases/{case_id}/propose-solution/accept",
             headers={"X-API-Key": TEST_API_KEY},
         )
+        locked = await client.post(
+            f"/cases/{case_id}/propose-solution",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
         report = await client.post(
             f"/cases/{case_id}/report", headers={"X-API-Key": TEST_API_KEY}
         )
 
     assert accept.status_code == 200
     assert accept.json() == {"case_id": case_id, "status": "accepted"}
+    assert locked.status_code == 409
+    assert locked.json()["detail"]["code"] == "solution_already_generated"
     technical = report.json()["technical_detail"]["solution_technical"]
     assert technical is not None
     assert "[mock]" in technical["architecture_summary"]
     # Die Struktur ueberlebt die Persistenz (ADR-0054) -- kein Klartext-Dump.
     assert len(technical["components"]) >= 2
+
+
+async def test_manual_save_and_refine_expose_remaining_budget() -> None:
+    app = _make_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/triage", json=_VALID_PAYLOAD, headers={"X-API-Key": TEST_API_KEY}
+        )
+        case_id = created.json()["id"]
+        no_base = await client.post(
+            f"/cases/{case_id}/propose-solution/refine",
+            json={"feedback": "Bitte kuerzer formulieren."},
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        saved = await client.post(
+            f"/cases/{case_id}/solution",
+            json=_SAVE_SOLUTION_PAYLOAD,
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        refined = await client.post(
+            f"/cases/{case_id}/propose-solution/refine",
+            json={"feedback": "Bitte kuerzer formulieren."},
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+    assert no_base.status_code == 409
+    assert no_base.json()["detail"]["code"] == "solution_no_base"
+    assert saved.status_code == 200
+    assert saved.json()["prompt_version"] == "manual"
+    assert saved.json()["refines_remaining"] == 3
+    assert refined.status_code == 200
+    assert refined.json()["prompt_version"] == "v1"
+    assert refined.json()["refines_remaining"] == 2
 
 
 async def test_solution_reject_discards_draft() -> None:

@@ -643,6 +643,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/propose-solution/refine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refine Solution
+         * @description Erzeugt innerhalb des festen Budgets einen Loesungs-Refine-Draft.
+         */
+        post: operations["refine_solution_cases__case_id__propose_solution_refine_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/solution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Solution
+         * @description Speichert eine vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf.
+         */
+        post: operations["save_solution_cases__case_id__solution_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/report": {
         parameters: {
             query?: never;
@@ -1600,6 +1640,14 @@ export interface components {
             prefilter_fail_reason: string | null;
         };
         /**
+         * RefineSolutionRequest
+         * @description Nutzer-Feedback fuer eine AI-Ueberarbeitung der Loesung.
+         */
+        RefineSolutionRequest: {
+            /** Feedback */
+            feedback: string;
+        };
+        /**
          * ReportRequest
          * @description Optionale LLM-Narrative fuer den Report -- Override der Persistenz.
          *
@@ -1648,6 +1696,40 @@ export interface components {
             risk_flags: string[];
             /** Requires Human Review */
             requires_human_review: boolean;
+        };
+        /**
+         * SaveManagementSolutionRequest
+         * @description Validierte Management-Ebene einer manuell gespeicherten Loesung.
+         */
+        SaveManagementSolutionRequest: {
+            /** Summary */
+            summary: string;
+            /** Benefits */
+            benefits: string[];
+        };
+        /**
+         * SaveSolutionRequest
+         * @description Vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf.
+         */
+        SaveSolutionRequest: {
+            management: components["schemas"]["SaveManagementSolutionRequest"];
+            technical: components["schemas"]["SaveTechnicalSolutionRequest"];
+        };
+        /**
+         * SaveTechnicalSolutionRequest
+         * @description Validierte Technik-Ebene einer manuell gespeicherten Loesung.
+         */
+        SaveTechnicalSolutionRequest: {
+            /** Architecture Summary */
+            architecture_summary: string;
+            /** Components */
+            components: string[];
+            /** Data Flow */
+            data_flow: string[];
+            /** Integration Points */
+            integration_points: string[];
+            /** Open Assumptions */
+            open_assumptions: string[];
         };
         /**
          * ScoreBreakdownResponse
@@ -1848,6 +1930,8 @@ export interface components {
             technical: components["schemas"]["TechnicalSolutionResponse"];
             /** Prompt Version */
             prompt_version: string;
+            /** Refines Remaining */
+            refines_remaining: number;
         };
         /**
          * StatsResponse
@@ -2865,6 +2949,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SolutionActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refine_solution_cases__case_id__propose_solution_refine_post: {
+        parameters: {
+            query?: {
+                lang?: "de" | "en";
+            };
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefineSolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolutionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_solution_cases__case_id__solution_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveSolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SolutionProposalResponse"];
                 };
             };
             /** @description Validation Error */

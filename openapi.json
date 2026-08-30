@@ -1116,6 +1116,136 @@
         }
       }
     },
+    "/cases/{case_id}/propose-solution/refine": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Refine Solution",
+        "description": "Erzeugt innerhalb des festen Budgets einen Loesungs-Refine-Draft.",
+        "operationId": "refine_solution_cases__case_id__propose_solution_refine_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefineSolutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolutionProposalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/solution": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Save Solution",
+        "description": "Speichert eine vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf.",
+        "operationId": "save_solution_cases__case_id__solution_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSolutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolutionProposalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/report": {
       "post": {
         "tags": [
@@ -2902,6 +3032,23 @@
         ],
         "title": "ROIResponse"
       },
+      "RefineSolutionRequest": {
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Feedback"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "feedback"
+        ],
+        "title": "RefineSolutionRequest",
+        "description": "Nutzer-Feedback fuer eine AI-Ueberarbeitung der Loesung."
+      },
       "ReportRequest": {
         "properties": {
           "sharpened_text": {
@@ -3012,6 +3159,118 @@
           "requires_human_review"
         ],
         "title": "RoutingResponse"
+      },
+      "SaveManagementSolutionRequest": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 700,
+            "minLength": 30,
+            "title": "Summary"
+          },
+          "benefits": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 5
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Benefits"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "summary",
+          "benefits"
+        ],
+        "title": "SaveManagementSolutionRequest",
+        "description": "Validierte Management-Ebene einer manuell gespeicherten Loesung."
+      },
+      "SaveSolutionRequest": {
+        "properties": {
+          "management": {
+            "$ref": "#/components/schemas/SaveManagementSolutionRequest"
+          },
+          "technical": {
+            "$ref": "#/components/schemas/SaveTechnicalSolutionRequest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "management",
+          "technical"
+        ],
+        "title": "SaveSolutionRequest",
+        "description": "Vollstaendige manuelle Loesungsfassung ohne LLM-Aufruf."
+      },
+      "SaveTechnicalSolutionRequest": {
+        "properties": {
+          "architecture_summary": {
+            "type": "string",
+            "maxLength": 700,
+            "minLength": 30,
+            "title": "Architecture Summary"
+          },
+          "components": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 5
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 2,
+            "title": "Components"
+          },
+          "data_flow": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 5
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 2,
+            "title": "Data Flow"
+          },
+          "integration_points": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 5
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Integration Points"
+          },
+          "open_assumptions": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 5
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Open Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "architecture_summary",
+          "components",
+          "data_flow",
+          "integration_points",
+          "open_assumptions"
+        ],
+        "title": "SaveTechnicalSolutionRequest",
+        "description": "Validierte Technik-Ebene einer manuell gespeicherten Loesung."
       },
       "ScoreBreakdownResponse": {
         "properties": {
@@ -3347,6 +3606,10 @@
           "prompt_version": {
             "type": "string",
             "title": "Prompt Version"
+          },
+          "refines_remaining": {
+            "type": "integer",
+            "title": "Refines Remaining"
           }
         },
         "type": "object",
@@ -3354,7 +3617,8 @@
           "case_id",
           "management",
           "technical",
-          "prompt_version"
+          "prompt_version",
+          "refines_remaining"
         ],
         "title": "SolutionProposalResponse",
         "description": "Zweigeteilter, strukturierter Loesungsvorschlag (ADR-0054).\n\nmanagement: technikfreie Fassung fuer die Geschaeftsleitung.\ntechnical: strukturierte technische Fassung."

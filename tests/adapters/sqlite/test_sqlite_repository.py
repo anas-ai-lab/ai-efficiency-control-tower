@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from aect.adapters.sqlite.repository import SQLiteRepository
+from aect.adapters.sqlite.repository import SQLiteRepository, _serialize_result
 from aect.application.models import MonitoringEntry, SubmittedCase
 from aect.domain.models import UseCaseInput
 from aect.domain.pipeline import evaluate_use_case
@@ -1006,6 +1006,60 @@ class TestDiscontinuedColumn:
                 row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
             }
         assert "discontinued" in columns
+
+
+class TestSolutionRefineCountColumn:
+    def test_set_refine_count_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+
+        repo.set_solution_refine_count(sample_case.id, 2)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.solution_refine_count == 2
+
+    def test_legacy_case_loads_with_default_refine_count(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Ein echter Altbestand ohne die Spalte bleibt nach Migration lesbar."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL, "
+                "sharpened_content_json TEXT, proposal_text TEXT, "
+                "compliance_hints_json TEXT, embedding TEXT, "
+                "reviewer_decision TEXT NOT NULL DEFAULT 'pending', "
+                "reviewer_note TEXT, decided_at TEXT, "
+                "status TEXT NOT NULL DEFAULT 'submitted', status_updated_at TEXT, "
+                "architecture_sketch TEXT, sharpening_draft TEXT, "
+                "solution_business TEXT, solution_draft TEXT, "
+                "discontinued INTEGER NOT NULL DEFAULT 0)"
+            )
+            conn.execute(
+                "INSERT INTO submitted_cases ("
+                "id, submitted_at, use_case_json, result_json, reviewer_decision, "
+                "status, discontinued) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    sample_case.id,
+                    sample_case.submitted_at.isoformat(),
+                    sample_case.use_case.model_dump_json(),
+                    _serialize_result(sample_case.result),
+                    sample_case.reviewer_decision.value,
+                    sample_case.status.value,
+                    int(sample_case.discontinued),
+                ),
+            )
+
+        migrated = SQLiteRepository(db_path).get(sample_case.id)
+
+        assert migrated is not None
+        assert migrated.solution_refine_count == 0
 
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ from structlog.testing import capture_logs
 from aect.adapters.in_memory.llm import MockLLMAdapter
 from aect.adapters.in_memory.repository import InMemoryRepository
 from aect.adapters.in_memory.retriever import MockRetriever
-from aect.application.models import SubmittedCase
+from aect.application.models import ManagementSolution, SubmittedCase, TechnicalSolution
 from aect.application.ports.llm import (
     LLMMessage,
     LLMPort,
@@ -25,10 +25,17 @@ from aect.application.ports.llm import (
 from aect.application.ports.retriever import RetrievedChunk
 from aect.application.service import (
     CaseNotFoundError,
+    NoSolutionForRefineError,
     SharpeningNumberViolationError,
+    SolutionAlreadyGeneratedError,
+    SolutionRefineLimitError,
     SolutionVocabularyViolationError,
     TriageService,
     _strip_dangling_citation_markers,
+)
+from aect.application.solution_content import (
+    read_management_solution,
+    read_technical_solution,
 )
 from aect.application.structured_output import (
     InvalidLLMOutputError,
@@ -1090,6 +1097,169 @@ class TestTriageServiceProposeSolutionPersistence:
         assert "[mock]" in stored.proposal_text
         assert stored.solution_business is not None
         assert stored.solution_draft is None
+
+
+def _manual_management(summary: str = _CLEAN_BUSINESS) -> ManagementSolution:
+    return ManagementSolution(
+        summary=summary,
+        benefits=("Die Sachbearbeitung konzentriert sich auf Zweifelsfaelle.",),
+    )
+
+
+def _manual_technical() -> TechnicalSolution:
+    return TechnicalSolution(
+        architecture_summary="Eine technische Fassung fuer den manuellen Test.",
+        components=(
+            "Texterkennung: liest die benoetigten Felder aus.",
+            "Klassifizierung: markiert unklare Vorgaenge.",
+        ),
+        data_flow=(
+            "Eingang -> Texterkennung -> Datensatz",
+            "Datensatz -> Klassifizierung -> Zielsystem",
+        ),
+        integration_points=("Zielsystem der Fachabteilung.",),
+        open_assumptions=("Die Dokumente liegen digital lesbar vor.",),
+    )
+
+
+class TestTriageServiceSolutionBudget:
+    async def test_propose_after_accepted_solution_is_locked(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.propose_solution(case.id)
+        await service.accept_solution(case.id)
+
+        with pytest.raises(SolutionAlreadyGeneratedError):
+            await service.propose_solution(case.id)
+
+    async def test_rejected_draft_can_be_proposed_again(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.propose_solution(case.id)
+        await service.reject_solution(case.id)
+
+        proposal = await service.propose_solution(case.id)
+
+        assert proposal is not None
+
+    async def test_refine_requires_accepted_solution(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(NoSolutionForRefineError):
+            await service.refine_solution(case.id, "Bitte kuerzer formulieren.")
+
+    async def test_three_refines_succeed_and_fourth_hits_limit(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.save_solution(case.id, _manual_management(), _manual_technical())
+
+        for _ in range(3):
+            proposal = await service.refine_solution(case.id, "Bitte praezisieren.")
+            assert proposal is not None
+
+        with pytest.raises(SolutionRefineLimitError) as exc:
+            await service.refine_solution(case.id, "Noch einmal praezisieren.")
+        assert exc.value.limit == 3
+
+    async def test_two_refines_persist_count_after_repository_reload(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.save_solution(case.id, _manual_management(), _manual_technical())
+
+        await service.refine_solution(case.id, "Bitte konkreter formulieren.")
+        await service.refine_solution(case.id, "Bitte klarer strukturieren.")
+
+        reloaded = repo.get(case.id)
+        assert reloaded is not None
+        assert reloaded.solution_refine_count == 2
+
+    async def test_save_solution_roundtrips_without_changing_refine_count(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        repo.set_solution_refine_count(case.id, 2)
+        management = _manual_management()
+        technical = _manual_technical()
+
+        saved = await service.save_solution(case.id, management, technical)
+
+        assert saved is not None
+        reloaded = repo.get(case.id)
+        assert reloaded is not None
+        assert read_management_solution(reloaded.solution_business) == management
+        assert read_technical_solution(reloaded.proposal_text) == technical
+        assert reloaded.solution_refine_count == 2
+
+    async def test_refine_retries_once_after_schema_error(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        llm = _ScriptedLLM(["nicht valides JSON", _solution_json("[retry]")])
+        service, _ = _make_service(roi_config, llm=llm)
+        case = service.submit_use_case(sample_use_case)
+        await service.save_solution(case.id, _manual_management(), _manual_technical())
+
+        proposal = await service.refine_solution(case.id, "Bitte nachschärfen.")
+
+        assert proposal is not None
+        assert llm.calls == 2
+
+    async def test_failed_refine_does_not_consume_budget(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        llm = _ScriptedLLM(["nicht valides JSON", "weiterhin nicht valide"])
+        service, repo = _make_service(roi_config, llm=llm)
+        case = service.submit_use_case(sample_use_case)
+        await service.save_solution(case.id, _manual_management(), _manual_technical())
+
+        with pytest.raises(InvalidLLMOutputError):
+            await service.refine_solution(case.id, "Bitte nachschärfen.")
+
+        assert llm.calls == 2
+        reloaded = repo.get(case.id)
+        assert reloaded is not None
+        assert reloaded.solution_refine_count == 0
+
+    async def test_refine_logs_never_contain_feedback_text(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.save_solution(case.id, _manual_management(), _manual_technical())
+        feedback = "VERTRAULICHES-FEEDBACK-123"
+
+        with capture_logs() as logs:
+            await service.refine_solution(case.id, feedback)
+
+        assert all(feedback not in str(log) for log in logs)
+
+    async def test_save_solution_allows_forbidden_llm_vocabulary(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        management = _manual_management(
+            "Die API verbindet den Ablauf mit dem Zielsystem und laesst die "
+            "Fachkraft die Entscheidung treffen."
+        )
+
+        saved = await service.save_solution(case.id, management, _manual_technical())
+
+        assert saved is not None
+        reloaded = repo.get(case.id)
+        assert reloaded is not None
+        assert read_management_solution(reloaded.solution_business) == management
 
 
 class TestTriageServiceGenerateReportUsesPersistedText:

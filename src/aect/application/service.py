@@ -132,6 +132,7 @@ _MOCK_SOURCE_PREFIX = "mock-"
 # Standardwerte fuer semantische Embedding-Aehnlichkeit, methodisch zeigbar.
 _DEDUP_THRESHOLD_AWARENESS = 0.75  # ab hier: Hinweis "Aehnliches existiert"
 _DEDUP_THRESHOLD_COMBINE = 0.90  # ab hier zusaetzlich: "zusammenlegen?"
+_SOLUTION_REFINE_LIMIT = 3
 
 # Ableitung reviewer_decision aus CaseStatus (ersetzt den getrennten
 # Decision-Record aus ADR-0043 -- siehe ADR-0056). Nicht enthaltene
@@ -275,6 +276,40 @@ class NoSolutionDraftError(Exception):
 
     def __init__(self, case_id: str) -> None:
         super().__init__(f"No open solution draft: {case_id}")
+        self.case_id = case_id
+
+
+class SolutionAlreadyGeneratedError(Exception):
+    """Loesungsvorschlag wurde fuer diesen Case bereits generiert (Refine-
+    Budget-Lock). propose_solution() ist danach gesperrt -- Ueberarbeitung
+    laeuft ueber refine_solution(), manuelle Aenderung ueber save_solution().
+    Route mappt auf 409.
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"Solution already generated: {case_id}")
+        self.case_id = case_id
+
+
+class SolutionRefineLimitError(Exception):
+    """Refine-Budget (_SOLUTION_REFINE_LIMIT) fuer diesen Case erschoepft.
+    Route mappt auf 409.
+    """
+
+    def __init__(self, case_id: str, limit: int) -> None:
+        super().__init__(f"Solution refine limit reached ({limit}): {case_id}")
+        self.case_id = case_id
+        self.limit = limit
+
+
+class NoSolutionForRefineError(Exception):
+    """Refine angefordert, aber der Case hat keine uebernommene Loesung
+    (proposal_text leer/None). Ohne bestehende Fassung gibt es nichts zu
+    ueberarbeiten. Route mappt auf 409.
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"No accepted solution to refine: {case_id}")
         self.case_id = case_id
 
 
@@ -1536,6 +1571,8 @@ class TriageService:
         case = await self._repository.get_async(case_id)
         if case is None:
             return None
+        if case.proposal_text is not None and case.proposal_text.strip():
+            raise SolutionAlreadyGeneratedError(case.id)
 
         _flag_injection_in_fields(
             {
@@ -1728,6 +1765,149 @@ class TriageService:
             raise NoSolutionDraftError(case.id)
         await self._repository.update_field_async(case.id, "solution_draft", None)
         return await self._repository.get_async(case.id)
+
+    async def refine_solution(
+        self,
+        case_id: str,
+        feedback: str,
+        prompt_version: str = "v1",
+        lang: Lang = DEFAULT_LANG,
+    ) -> SolutionProposal | None:
+        """Ueberarbeitet eine uebernommene Loesung innerhalb des AI-Budgets."""
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        if case.proposal_text is None or not case.proposal_text.strip():
+            raise NoSolutionForRefineError(case.id)
+        if case.solution_refine_count >= _SOLUTION_REFINE_LIMIT:
+            raise SolutionRefineLimitError(case.id, _SOLUTION_REFINE_LIMIT)
+
+        _flag_injection_in_fields({"feedback": feedback}, case_id=case.id)
+
+        existing_management = read_management_solution(case.solution_business)
+        if existing_management is None:
+            existing_management = ManagementSolution("", ())
+        existing_technical = read_technical_solution(case.proposal_text)
+        assert existing_technical is not None
+
+        system_prompt = with_language(
+            load_prompt("propose_solution", "system", "refine_v1"), lang
+        )
+        user_template = load_prompt("propose_solution", "user", "refine_v1")
+        user_content = user_template.format(
+            title=neutralize_delimiters(case.use_case.title),
+            existing_management_summary=neutralize_delimiters(
+                existing_management.summary
+            ),
+            existing_management_benefits=neutralize_delimiters(
+                "; ".join(existing_management.benefits)
+            ),
+            existing_technical=neutralize_delimiters(
+                render_technical_text(existing_technical)
+            ),
+            feedback=neutralize_delimiters(feedback),
+        )
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_content),
+        ]
+        response = await self._llm.complete(messages)
+        log_llm_cost(
+            case_id=case.id,
+            messages=messages,
+            response=response,
+            operation="refine_solution",
+        )
+
+        parsed, schema_error, violations = self._validate_solution(response.content)
+        if parsed is None or violations:
+            logger = structlog.get_logger()
+            logger.warning(
+                "solution_guard_retry",
+                case_id=case.id,
+                reason="vocabulary" if violations else "schema",
+                violations=violations,
+            )
+            correction = self._solution_correction(schema_error, violations)
+            retry_messages = [
+                *messages,
+                LLMMessage(role="assistant", content=response.content),
+                LLMMessage(role="user", content=correction),
+            ]
+            retry_response = await self._llm.complete(retry_messages)
+            log_llm_cost(
+                case_id=case.id,
+                messages=retry_messages,
+                response=retry_response,
+                operation="refine_solution_retry",
+            )
+            parsed, schema_error, violations = self._validate_solution(
+                retry_response.content
+            )
+
+        if parsed is None:
+            structlog.get_logger().warning(
+                "solution_schema_invalid_after_retry", case_id=case.id
+            )
+            raise schema_error or InvalidLLMOutputError("LLM-Output ohne Schema")
+        if violations:
+            structlog.get_logger().warning(
+                "solution_vocabulary_violation_after_retry",
+                case_id=case.id,
+                violations=violations,
+            )
+            raise SolutionVocabularyViolationError(case.id, violations)
+
+        management = management_from_schema(parsed)
+        technical = technical_from_schema(parsed)
+        draft_json = json.dumps(
+            {
+                "solution_business": dump_management(management),
+                "solution_technical": dump_technical(technical),
+                "prompt_version": prompt_version,
+                "created_at": self._clock.now().isoformat(),
+            }
+        )
+        await self._repository.update_field_async(case.id, "solution_draft", draft_json)
+        new_count = case.solution_refine_count + 1
+        await self._repository.set_solution_refine_count_async(case.id, new_count)
+        structlog.get_logger().info(
+            "solution_refined",
+            case_id=case.id,
+            refine_count=new_count,
+            prompt_version=prompt_version,
+        )
+        return SolutionProposal(
+            case_id=case.id,
+            management=management,
+            technical=technical,
+            prompt_version=prompt_version,
+        )
+
+    async def save_solution(
+        self,
+        case_id: str,
+        management: ManagementSolution,
+        technical: TechnicalSolution,
+    ) -> SubmittedCase | None:
+        """Speichert eine manuelle Loesungsfassung ohne LLM-Aufruf.
+
+        Dieser Pfad ist unbegrenzt nutzbar und beruehrt solution_refine_count nie.
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            return None
+        await self._repository.update_field_async(
+            case.id, "solution_business", dump_management(management)
+        )
+        await self._repository.update_field_async(
+            case.id, "proposal_text", dump_technical(technical)
+        )
+        return await self._repository.get_async(case.id)
+
+    def solution_refines_remaining(self, case: SubmittedCase) -> int:
+        """Gibt das verbleibende Refine-Budget gegen die kanonische Grenze zurueck."""
+        return max(0, _SOLUTION_REFINE_LIMIT - case.solution_refine_count)
 
     async def generate_compliance_hints(
         self, case_id: str, prompt_version: str = "v1", lang: Lang = DEFAULT_LANG
