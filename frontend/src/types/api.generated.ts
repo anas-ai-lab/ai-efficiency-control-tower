@@ -227,6 +227,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Trashed Cases
+         * @description Listet die Cases im Papierkorb -- Stufe eins des Loeschens (ADR-0057).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key) -- kein Schema-Split wie
+         *     bei GET /cases, der Papierkorb ist ausschliesslich eine Admin-Sicht.
+         *     Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+         *
+         *     Mapping identisch zum Admin-Zweig von list_cases(), plus deleted_at.
+         *     Sortierung kommt aus dem Repository (zuletzt geloescht zuerst).
+         */
+        get: operations["list_trashed_cases_cases_trash_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trash Case
+         * @description Verschiebt einen Case in den Papierkorb -- Stufe eins (ADR-0057).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE.
+         *
+         *     204 No Content bei Erfolg, auch beim zweiten Aufruf auf denselben Case:
+         *     der Service ist idempotent und behaelt den ersten Zeitstempel. Geloescht
+         *     wird hier nichts -- das ist DELETE /cases/{id} (Stufe zwei).
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         */
+        post: operations["trash_case_cases__case_id__trash_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Case
+         * @description Holt einen Case aus dem Papierkorb zurueck (ADR-0057).
+         *
+         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+         *     Auth: require_admin (Session-Cookie ODER X-API-Key).
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog trash/DELETE.
+         *
+         *     204 No Content bei Erfolg. Ein Case, der gar nicht im Papierkorb liegt,
+         *     ergibt 409 mit code "case_not_in_trash" (nicht 404 -- er existiert ja,
+         *     nur die Handlung passt nicht zu seinem Zustand). lang steuert nur den
+         *     anzeigbaren Text; der code bleibt stabil.
+         *
+         *     Raises:
+         *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: Case liegt nicht im Papierkorb.
+         */
+        post: operations["restore_case_cases__case_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}": {
         parameters: {
             query?: never;
@@ -259,7 +351,11 @@ export interface paths {
         post?: never;
         /**
          * Delete Case
-         * @description Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).
+         * @description Loescht einen Case kaskadiert und endgueltig (DSGVO Art. 17, ADR-0038).
+         *
+         *     Dies ist Stufe ZWEI des zweistufigen Loeschens (ADR-0057): der Case muss
+         *     zuvor ueber POST /cases/{id}/trash im Papierkorb gelandet sein, sonst 409.
+         *     Pfad, Methode und Erfolgs-Statuscode bleiben unveraendert.
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
          *     Auth: require_admin (Session-Cookie ODER X-API-Key).
@@ -271,6 +367,7 @@ export interface paths {
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
+         *         HTTPException 409: Case liegt nicht im Papierkorb.
          */
         delete: operations["delete_case_cases__case_id__delete"];
         options?: never;
@@ -2076,6 +2173,49 @@ export interface components {
             title: string;
         };
         /**
+         * TrashedCaseSummary
+         * @description Case-Zeile im Papierkorb -- zusaetzlich der Loeschzeitpunkt (ADR-0057).
+         *
+         *     Admin-only, kein Public-Gegenstueck: der Papierkorb ist keine oeffentliche
+         *     Sicht. GET /cases/trash traegt deshalb require_admin statt des
+         *     is_admin_request-Schema-Splits von GET /cases.
+         */
+        TrashedCaseSummary: {
+            /** Id */
+            id: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Title */
+            title: string;
+            /** Department */
+            department: string;
+            /** Status */
+            status: string;
+            /** Discontinued */
+            discontinued: boolean;
+            /** Zone */
+            zone: string | null;
+            /** Net Expected Benefit Eur */
+            net_expected_benefit_eur: number | null;
+            /** Composite Total */
+            composite_total: number | null;
+            /** Hours Per Year */
+            hours_per_year: number | null;
+            /** Is Actionable */
+            is_actionable: boolean;
+            /** Evaluation Pending */
+            evaluation_pending: boolean;
+            /** Feasibility Score */
+            feasibility_score: number | null;
+            /** Feasibility Definition */
+            feasibility_definition: string;
+            /** Deleted At */
+            deleted_at: string | null;
+        };
+        /**
          * TriageResponse
          * @description Vollstaendiges Triage-Ergebnis fuer einen eingereichten Use Case.
          *
@@ -2494,6 +2634,97 @@ export interface operations {
             };
         };
     };
+    list_trashed_cases_cases_trash_get: {
+        parameters: {
+            query?: {
+                lang?: "de" | "en";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashedCaseSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trash_case_cases__case_id__trash_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_case_cases__case_id__restore_post: {
+        parameters: {
+            query?: {
+                lang?: "de" | "en";
+            };
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_case_detail_cases__case_id__get: {
         parameters: {
             query?: {
@@ -2529,7 +2760,9 @@ export interface operations {
     };
     delete_case_cases__case_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: "de" | "en";
+            };
             header?: never;
             path: {
                 case_id: string;

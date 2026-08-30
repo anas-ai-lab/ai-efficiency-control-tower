@@ -257,6 +257,8 @@ async def test_delete_case_removes_monitoring_entries() -> None:
             headers=_AUTH,
         )
 
+        # Zweistufig (ADR-0057): erst Papierkorb, dann endgueltig.
+        await client.post(f"/cases/{case_id}/trash", headers=_AUTH)
         await client.delete(f"/cases/{case_id}", headers=_AUTH)
         # Case weg -> GET Monitoring 404 (kein verwaister Eintrag abrufbar).
         listed = await client.get(f"/cases/{case_id}/monitoring", headers=_AUTH)

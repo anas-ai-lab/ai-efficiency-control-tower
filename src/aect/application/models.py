@@ -176,6 +176,13 @@ class SubmittedCase:
     solution_refine_count: zaehlt die verbrauchten AI-Ueberarbeitungen des
     Loesungsvorschlags. Obergrenze 3 (_SOLUTION_REFINE_LIMIT in service.py).
 
+    deleted_at (zweistufiges Loeschen, ADR-0057): gesetzt bei Soft-Delete
+    (Papierkorb, Stufe eins), None = aktiv oder wiederhergestellt. Ein Case mit
+    gesetztem deleted_at faellt aus list_all() heraus (Filter zentral in
+    _SELECT_ALL_SQL), bleibt aber per ID ladbar. Physisches Loeschen
+    (DELETE /cases/{id}, Stufe zwei, DSGVO Art. 17 / ADR-0038) setzt dieses
+    Feld NICHT -- die Zeile verschwindet dann vollstaendig.
+
     IP-Trennung (vertraglich bedingt): enthaelt keine firmenspezifischen Werte.
     Diese liegen ausschliesslich in roi_config.toml / zone_thresholds.yaml.
     """
@@ -217,6 +224,7 @@ class SubmittedCase:
     status_updated_at: datetime | None = None
     discontinued: bool = False
     solution_refine_count: int = 0
+    deleted_at: datetime | None = None
 
 
 @dataclass(frozen=True)

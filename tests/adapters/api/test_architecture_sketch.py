@@ -489,6 +489,11 @@ async def test_delete_case_removes_sketch() -> None:
             headers={"X-API-Key": TEST_API_KEY},
         )
 
+        # Zweistufig (ADR-0057): erst Papierkorb, dann endgueltig.
+        trashed = await client.post(
+            f"/cases/{case_id}/trash", headers={"X-API-Key": TEST_API_KEY}
+        )
+        assert trashed.status_code == 204
         deleted = await client.delete(
             f"/cases/{case_id}", headers={"X-API-Key": TEST_API_KEY}
         )

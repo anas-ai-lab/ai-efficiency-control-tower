@@ -7,6 +7,11 @@ ist derselbe Aufruf, den DELETE /cases/{case_id} intern nutzt
 (adapters/api/routes/cases.py); eine eigene Loeschimplementierung haette
 riskiert, dass beide Pfade auseinanderlaufen.
 
+Seit ADR-0057 ist dieser Pfad zweistufig: soft_delete_case() (Papierkorb),
+dann delete_case() (physisch). Der Job durchlaeuft beide Stufen im selben
+Lauf, statt den Guard zu umgehen -- die Frist bleibt unveraendert, der
+Papierkorb ist hier nur ein Durchgangszustand von Millisekunden.
+
 Feldname-Praezisierung: SubmittedCase hat KEIN `created_at`-Feld -- der
 Zeitstempel heisst `submitted_at` (application/models.py, per Clock-Port
 bei submit_use_case() gesetzt).
@@ -63,9 +68,16 @@ async def enforce_retention(
     """Fuehrt einen Retention-Lauf aus.
 
     dry_run=True: listet nur auf, loescht nichts.
-    dry_run=False: ruft fuer jeden abgelaufenen Case service.delete_case()
-    auf -- derselbe kaskadierte Pfad (Repository + Vektor-Store +
-    Audit-Log) wie DELETE /cases/{case_id}.
+    dry_run=False: durchlaeuft fuer jeden abgelaufenen Case BEIDE Stufen des
+    Loeschpfads (ADR-0057) -- soft_delete_case() (Papierkorb) und danach
+    delete_case() (physisch, kaskadiert: Repository + Vektor-Store +
+    Audit-Log). Dasselbe Paar, das DELETE /cases/{case_id} als zweiten Schritt
+    voraussetzt; keine zweite Loeschlogik, kein Umgehen des Guards.
+
+    Der Zwischenschritt ist kein Aufschub: beide Stufen laufen im selben
+    Durchlauf. Die Retention-Frist bleibt damit unveraendert scharf -- ein
+    abgelaufener Case ist nach diesem Lauf physisch weg, nicht im Papierkorb
+    geparkt (das waere eine Abschwaechung von Art. 5(1)(e)).
 
     Returns:
         Case-IDs, die abgelaufen sind (bei dry_run: die WUERDEN geloescht
@@ -79,6 +91,9 @@ async def enforce_retention(
         return expired
 
     for case_id in expired:
+        # Stufe eins + Stufe zwei nacheinander (ADR-0057): delete_case()
+        # verlangt einen Case im Papierkorb.
+        await service.soft_delete_case(case_id)
         await service.delete_case(case_id)
     logger.info("retention_enforced", case_count=len(expired), case_ids=expired)
     return expired

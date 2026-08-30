@@ -25,6 +25,7 @@ from aect.application.ports.llm import (
 from aect.application.ports.retriever import RetrievedChunk
 from aect.application.service import (
     CaseNotFoundError,
+    CaseNotInTrashError,
     NoSolutionForRefineError,
     SharpeningNumberViolationError,
     SolutionAlreadyGeneratedError,
@@ -1577,6 +1578,9 @@ class TestTriageServiceDelete:
     ) -> None:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        # Stufe eins ist Pflicht (ADR-0057): delete_case() loescht nur aus dem
+        # Papierkorb heraus.
+        await service.soft_delete_case(case.id)
         await service.delete_case(case.id)
         assert repo.get(case.id) is None
 
@@ -1601,6 +1605,7 @@ class TestTriageServiceDelete:
             llm=MockLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)
+        await service.soft_delete_case(case.id)
         await service.delete_case(case.id)
         assert spy.deleted == [case.id]
 
@@ -1609,6 +1614,7 @@ class TestTriageServiceDelete:
     ) -> None:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        await service.soft_delete_case(case.id)
         with capture_logs() as logs:
             await service.delete_case(case.id)
         events = [e for e in logs if e.get("event") == "case_deleted"]
@@ -1629,10 +1635,248 @@ class TestTriageServiceDelete:
             llm=MockLLMAdapter(),
         )
         case = service.submit_use_case(sample_use_case)
+        await service.soft_delete_case(case.id)
         with capture_logs() as logs:
             await service.delete_case(case.id)  # darf NICHT werfen
         assert repo.get(case.id) is None  # Repository-Loeschung steht
         assert any(e.get("event") == "chromadb_delete_failed" for e in logs)
+
+
+# ---------------------------------------------------------------------------
+# Zweistufiges Loeschen -- Papierkorb (ADR-0057)
+# ---------------------------------------------------------------------------
+
+# Die Sequential-Clock wird auch von submit_use_case() angezapft (submitted_at)
+# -- die Einreichungs-Zeitstempel stehen deshalb VOR den Papierkorb-Werten in
+# der Liste, sonst verschiebt sich alles um einen Tick.
+_SUBMIT_TIME_A = datetime.datetime(2026, 6, 1, 9, 0, 0, tzinfo=datetime.UTC)
+_SUBMIT_TIME_B = datetime.datetime(2026, 6, 2, 9, 0, 0, tzinfo=datetime.UTC)
+_TRASH_TIME_FIRST = datetime.datetime(2026, 6, 11, 9, 0, 0, tzinfo=datetime.UTC)
+_TRASH_TIME_SECOND = datetime.datetime(2026, 6, 12, 9, 0, 0, tzinfo=datetime.UTC)
+
+
+def _make_service_with_clock(
+    roi_config: ROIConfig,
+    clock: object,
+    ids: list[str] | None = None,
+) -> tuple[TriageService, InMemoryRepository]:
+    """Wie _make_service, aber mit frei waehlbarer Clock -- die Papierkorb-Tests
+    pruefen den Zeitstempel exakt, nicht nur "ist gesetzt"."""
+    repo = InMemoryRepository()
+    service = TriageService(
+        repository=repo,
+        clock=clock,  # type: ignore[arg-type]
+        id_generator=_FakeIdGenerator(ids=ids or ["id-001", "id-002", "id-003"]),
+        roi_config=roi_config,
+        retriever=MockRetriever(),
+        llm=MockLLMAdapter(),
+    )
+    return service, repo
+
+
+class TestTriageServiceTrash:
+    async def test_trashed_case_vanishes_from_all_four_views(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 1: list_cases, compute_stats, list_top_cases und
+        list_similarity_pairs -- alle vier einzeln geprueft, nicht eine
+        stellvertretend."""
+        service, repo = _make_service_with_embedder(
+            roi_config, _ConstantEmbedder([1.0, 0.0, 0.0]), ids=["c-1", "c-2"]
+        )
+        first = service.submit_use_case(sample_use_case)
+        second = service.submit_use_case(sample_use_case)
+        # Identische Vektoren -> Cosinus 1.0, sicher ueber der Awareness-Schwelle.
+        _seed_embedding(repo, first, [1.0, 0.0, 0.0])
+        _seed_embedding(repo, second, [1.0, 0.0, 0.0])
+        # APPROVED + roi -> zaehlt in list_top_cases UND im Netto-Nutzen.
+        await service.update_status(first.id, CaseStatus.APPROVED)
+        await service.update_status(second.id, CaseStatus.APPROVED)
+
+        before_stats = service.compute_stats()
+        assert before_stats.eingereicht == 2
+        assert before_stats.freigegeben == 2
+        assert before_stats.bewertet == 2
+        assert {r.case_id for r in service.list_top_cases()} == {first.id, second.id}
+        assert len((await service.list_similarity_pairs()).pairs) == 1
+
+        await service.soft_delete_case(first.id)
+
+        # 1. Ideenliste
+        assert [c.id for c in service.list_cases()] == [second.id]
+        # 2. Kennzahlen -- in KEINEM Zaehler mehr, auch nicht im Netto-Nutzen.
+        after_stats = service.compute_stats()
+        assert after_stats.eingereicht == 1
+        assert after_stats.bewertet == 1
+        assert after_stats.freigegeben == 1
+        assert after_stats.umgesetzt == 0
+        assert (
+            after_stats.netto_nutzen_freigegeben_eur
+            < before_stats.netto_nutzen_freigegeben_eur
+        )
+        # 3. Top-Cases
+        assert [r.case_id for r in service.list_top_cases()] == [second.id]
+        # 4. Dedup-Paare -- das einzige Paar braucht beide Cases.
+        pairs = await service.list_similarity_pairs()
+        assert pairs.pairs == []
+
+    async def test_trashed_case_is_still_reachable_by_id(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 2: nur aus den Listen verschwunden, nicht aus der DB."""
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        await service.soft_delete_case(case.id)
+
+        loaded = service.get_case(case.id)
+        assert loaded is not None
+        assert loaded.id == case.id
+        assert loaded.deleted_at == _FIXED_TIME
+
+    async def test_restore_brings_case_back_into_the_views(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 3: zurueck in list_cases UND in compute_stats."""
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.soft_delete_case(case.id)
+        assert service.list_cases() == []
+        assert service.compute_stats().eingereicht == 0
+
+        await service.restore_case(case.id)
+
+        assert [c.id for c in service.list_cases()] == [case.id]
+        assert service.compute_stats().eingereicht == 1
+        assert service.list_trashed() == []
+
+    async def test_delete_of_active_case_raises_not_in_trash(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 4: Stufe zwei ohne Stufe eins -- und der Case ueberlebt."""
+        service, repo = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(CaseNotInTrashError):
+            await service.delete_case(case.id)
+
+        assert repo.get(case.id) is not None
+        assert service.get_case(case.id) is not None
+        assert [c.id for c in service.list_cases()] == [case.id]
+
+    async def test_trash_then_delete_removes_case_and_monitoring(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 5: die DSGVO-Kaskade bleibt vollstaendig erhalten."""
+        service, repo = _make_service(roi_config, ids=["case-1", "m-1"])
+        case = service.submit_use_case(sample_use_case)
+        await service.add_monitoring_note(case.id, "wird mitgeloescht")
+        assert repo.list_monitoring_entries(case.id) != []
+
+        await service.soft_delete_case(case.id)
+        await service.delete_case(case.id)
+
+        assert repo.get(case.id) is None
+        assert repo.list_monitoring_entries(case.id) == []
+        assert service.list_trashed() == []
+
+    async def test_restore_of_active_case_raises_not_in_trash(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 6."""
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with pytest.raises(CaseNotInTrashError):
+            await service.restore_case(case.id)
+
+    async def test_trash_twice_keeps_the_first_timestamp(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 7: idempotent -- der zweite Aufruf wirft nicht UND setzt
+        keinen neuen Zeitstempel. Die Sequential-Clock macht den Unterschied
+        sichtbar: waere der zweite Aufruf nicht idempotent, staende dort
+        _TRASH_TIME_SECOND."""
+        clock = _SequentialClock(
+            [_SUBMIT_TIME_A, _TRASH_TIME_FIRST, _TRASH_TIME_SECOND]
+        )
+        service, _ = _make_service_with_clock(roi_config, clock, ids=["c-1"])
+        case = service.submit_use_case(sample_use_case)
+
+        await service.soft_delete_case(case.id)
+        await service.soft_delete_case(case.id)  # darf NICHT werfen
+
+        stored = service.get_case(case.id)
+        assert stored is not None
+        assert stored.deleted_at == _TRASH_TIME_FIRST
+
+    async def test_trash_missing_case_raises_case_not_found(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        with pytest.raises(CaseNotFoundError):
+            await service.soft_delete_case("does-not-exist")
+
+    async def test_restore_missing_case_raises_case_not_found(
+        self, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        with pytest.raises(CaseNotFoundError):
+            await service.restore_case("does-not-exist")
+
+    async def test_list_trashed_is_newest_first(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        """Testfall 10: absteigend nach deleted_at, kontrollierte Zeitstempel."""
+        clock = _SequentialClock(
+            [
+                _SUBMIT_TIME_A,
+                _SUBMIT_TIME_B,
+                _TRASH_TIME_FIRST,
+                _TRASH_TIME_SECOND,
+            ]
+        )
+        service, _ = _make_service_with_clock(roi_config, clock, ids=["c-alt", "c-neu"])
+        older = service.submit_use_case(sample_use_case)
+        newer = service.submit_use_case(sample_use_case)
+
+        await service.soft_delete_case(older.id)  # _TRASH_TIME_FIRST
+        await service.soft_delete_case(newer.id)  # _TRASH_TIME_SECOND
+
+        trashed = service.list_trashed()
+        assert [c.id for c in trashed] == [newer.id, older.id]
+        assert [c.deleted_at for c in trashed] == [
+            _TRASH_TIME_SECOND,
+            _TRASH_TIME_FIRST,
+        ]
+
+    async def test_trash_emits_audit_log_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+
+        with capture_logs() as logs:
+            await service.soft_delete_case(case.id)
+
+        events = [e for e in logs if e.get("event") == "case_trashed"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
+        assert events[0]["trashed_at"] == _FIXED_TIME.isoformat()
+
+    async def test_restore_emits_audit_log_event(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.soft_delete_case(case.id)
+
+        with capture_logs() as logs:
+            await service.restore_case(case.id)
+
+        events = [e for e in logs if e.get("event") == "case_restored"]
+        assert len(events) == 1
+        assert events[0]["case_id"] == case.id
 
 
 # ---------------------------------------------------------------------------
@@ -2181,6 +2425,7 @@ class TestTriageServiceMonitoring:
         await service.add_monitoring_note(case.id, "wird mitgeloescht")
         assert repo.list_monitoring_entries(case.id) != []
 
+        await service.soft_delete_case(case.id)
         await service.delete_case(case.id)
 
         # DSGVO-Kaskade (Art. 17): kein verwaister Eintrag zurueck.

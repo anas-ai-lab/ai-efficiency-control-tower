@@ -281,13 +281,166 @@
         }
       }
     },
+    "/cases/trash": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "List Trashed Cases",
+        "description": "Listet die Cases im Papierkorb -- Stufe eins des Loeschens (ADR-0057).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key) -- kein Schema-Split wie\nbei GET /cases, der Papierkorb ist ausschliesslich eine Admin-Sicht.\nRate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.\n\nMapping identisch zum Admin-Zweig von list_cases(), plus deleted_at.\nSortierung kommt aus dem Repository (zuletzt geloescht zuerst).",
+        "operationId": "list_trashed_cases_cases_trash_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashedCaseSummary"
+                  },
+                  "title": "Response List Trashed Cases Cases Trash Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/trash": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Trash Case",
+        "description": "Verschiebt einen Case in den Papierkorb -- Stufe eins (ADR-0057).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog DELETE.\n\n204 No Content bei Erfolg, auch beim zweiten Aufruf auf denselben Case:\nder Service ist idempotent und behaelt den ersten Zeitstempel. Geloescht\nwird hier nichts -- das ist DELETE /cases/{id} (Stufe zwei).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "operationId": "trash_case_cases__case_id__trash_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/restore": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Restore Case",
+        "description": "Holt einen Case aus dem Papierkorb zurueck (ADR-0057).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender Zugriff, analog trash/DELETE.\n\n204 No Content bei Erfolg. Ein Case, der gar nicht im Papierkorb liegt,\nergibt 409 mit code \"case_not_in_trash\" (nicht 404 -- er existiert ja,\nnur die Handlung passt nicht zu seinem Zustand). lang steuert nur den\nanzeigbaren Text; der code bleibt stabil.\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case liegt nicht im Papierkorb.",
+        "operationId": "restore_case_cases__case_id__restore_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}": {
       "delete": {
         "tags": [
           "cases"
         ],
         "summary": "Delete Case",
-        "description": "Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den\nLLM-Endpoints streng gehalten.\n\n204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404\ngemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.",
+        "description": "Loescht einen Case kaskadiert und endgueltig (DSGVO Art. 17, ADR-0038).\n\nDies ist Stufe ZWEI des zweistufigen Loeschens (ADR-0057): der Case muss\nzuvor ueber POST /cases/{id}/trash im Papierkorb gelandet sein, sonst 409.\nPfad, Methode und Erfolgs-Statuscode bleiben unveraendert.\n\nrequest/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).\nAuth: require_admin (Session-Cookie ODER X-API-Key).\nRate Limit: 10/Minute -- schreibender/loeschender Zugriff, analog den\nLLM-Endpoints streng gehalten.\n\n204 No Content bei Erfolg. CaseNotFoundError aus dem Service wird auf 404\ngemappt (HTTP-Exceptions in der Adapter-Schicht, ADR-0004).\n\nRaises:\n    HTTPException 404: case_id existiert nicht.\n    HTTPException 409: Case liegt nicht im Papierkorb.",
         "operationId": "delete_case_cases__case_id__delete",
         "security": [
           {
@@ -302,6 +455,20 @@
             "schema": {
               "type": "string",
               "title": "Case Id"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "de",
+                "en"
+              ],
+              "type": "string",
+              "default": "de",
+              "title": "Lang"
             }
           }
         ],
@@ -3983,6 +4150,135 @@
         ],
         "title": "TopCaseResponse",
         "description": "Oeffentliche Top-3-Referenz (Ticket 4b) -- bewusst NUR id + title.\n\nKein Geldwert, keine Zone, kein Score. extra=\"forbid\" verhindert, dass ein\nkuenftiges Feld hier versehentlich mitgereicht wird."
+      },
+      "TrashedCaseSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "department": {
+            "type": "string",
+            "title": "Department"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "discontinued": {
+            "type": "boolean",
+            "title": "Discontinued"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone"
+          },
+          "net_expected_benefit_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Expected Benefit Eur"
+          },
+          "composite_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composite Total"
+          },
+          "hours_per_year": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Year"
+          },
+          "is_actionable": {
+            "type": "boolean",
+            "title": "Is Actionable"
+          },
+          "evaluation_pending": {
+            "type": "boolean",
+            "title": "Evaluation Pending"
+          },
+          "feasibility_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feasibility Score"
+          },
+          "feasibility_definition": {
+            "type": "string",
+            "title": "Feasibility Definition"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "submitted_at",
+          "title",
+          "department",
+          "status",
+          "discontinued",
+          "zone",
+          "net_expected_benefit_eur",
+          "composite_total",
+          "hours_per_year",
+          "is_actionable",
+          "evaluation_pending",
+          "feasibility_score",
+          "feasibility_definition",
+          "deleted_at"
+        ],
+        "title": "TrashedCaseSummary",
+        "description": "Case-Zeile im Papierkorb -- zusaetzlich der Loeschzeitpunkt (ADR-0057).\n\nAdmin-only, kein Public-Gegenstueck: der Papierkorb ist keine oeffentliche\nSicht. GET /cases/trash traegt deshalb require_admin statt des\nis_admin_request-Schema-Splits von GET /cases."
       },
       "TriageResponse": {
         "properties": {

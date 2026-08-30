@@ -56,6 +56,7 @@ from aect.application.models import (
 )
 from aect.application.service import (
     CaseNotFoundError,
+    CaseNotInTrashError,
     NoProposalForSketchError,
     NoSharpeningDraftError,
     NoSolutionDraftError,
@@ -158,6 +159,17 @@ class CaseSummary(PublicCaseSummary):
     # ist der ueberall referenzierte Definitions-String.
     feasibility_score: int | None
     feasibility_definition: str
+
+
+class TrashedCaseSummary(CaseSummary):
+    """Case-Zeile im Papierkorb -- zusaetzlich der Loeschzeitpunkt (ADR-0057).
+
+    Admin-only, kein Public-Gegenstueck: der Papierkorb ist keine oeffentliche
+    Sicht. GET /cases/trash traegt deshalb require_admin statt des
+    is_admin_request-Schema-Splits von GET /cases.
+    """
+
+    deleted_at: datetime | None
 
 
 @router.get("", response_model=list[CaseSummary] | list[PublicCaseSummary])
@@ -334,6 +346,132 @@ async def list_top_cases(
     return [TopCaseResponse(case_id=ref.case_id, title=ref.title) for ref in top]
 
 
+# Routing-Reihenfolge (siehe Hinweis bei /similarity-pairs): die literale Route
+# "/cases/trash" MUSS vor der parametrisierten GET "/cases/{case_id}" stehen,
+# sonst landet "/trash" dort als case_id="trash".
+@router.get("/trash", response_model=list[TrashedCaseSummary])
+@limiter.limit("60/minute")
+async def list_trashed_cases(
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
+) -> list[TrashedCaseSummary]:
+    """Listet die Cases im Papierkorb -- Stufe eins des Loeschens (ADR-0057).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key) -- kein Schema-Split wie
+    bei GET /cases, der Papierkorb ist ausschliesslich eine Admin-Sicht.
+    Rate Limit: 60/Minute -- lesender Zugriff, analog GET /cases.
+
+    Mapping identisch zum Admin-Zweig von list_cases(), plus deleted_at.
+    Sortierung kommt aus dem Repository (zuletzt geloescht zuerst).
+    """
+    cases = service.list_trashed()
+
+    summaries: list[TrashedCaseSummary] = []
+    for case in cases:
+        r = case.result
+        summaries.append(
+            TrashedCaseSummary(
+                id=case.id,
+                submitted_at=case.submitted_at,
+                title=case.use_case.title,
+                department=case.use_case.department,
+                status=case.status.value,
+                zone=(r.zone.final_zone.value if r.zone is not None else None),
+                net_expected_benefit_eur=(
+                    float(r.roi.net_expected_benefit_eur) if r.roi is not None else None
+                ),
+                composite_total=(
+                    r.composite.total if r.composite is not None else None
+                ),
+                hours_per_year=r.roi.hours_per_year if r.roi is not None else None,
+                is_actionable=r.is_actionable,
+                evaluation_pending=r.evaluation_pending,
+                feasibility_score=(
+                    feasibility_from_composite(r.composite.total)
+                    if r.composite is not None
+                    else None
+                ),
+                feasibility_definition=FEASIBILITY_DEFINITION[lang],
+                discontinued=case.discontinued,
+                deleted_at=case.deleted_at,
+            )
+        )
+    return summaries
+
+
+@router.post("/{case_id}/trash", status_code=204)
+@limiter.limit("10/minute")
+async def trash_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+) -> Response:
+    """Verschiebt einen Case in den Papierkorb -- Stufe eins (ADR-0057).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE.
+
+    204 No Content bei Erfolg, auch beim zweiten Aufruf auf denselben Case:
+    der Service ist idempotent und behaelt den ersten Zeitstempel. Geloescht
+    wird hier nichts -- das ist DELETE /cases/{id} (Stufe zwei).
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+    """
+    try:
+        await service.soft_delete_case(case_id)
+    except CaseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Case not found") from exc
+    return Response(status_code=204)
+
+
+@router.post("/{case_id}/restore", status_code=204)
+@limiter.limit("10/minute")
+async def restore_case(
+    case_id: str,
+    request: Request,
+    response: Response,
+    service: TriageService = Depends(get_triage_service),  # noqa: B008
+    _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
+) -> Response:
+    """Holt einen Case aus dem Papierkorb zurueck (ADR-0057).
+
+    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
+    Auth: require_admin (Session-Cookie ODER X-API-Key).
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog trash/DELETE.
+
+    204 No Content bei Erfolg. Ein Case, der gar nicht im Papierkorb liegt,
+    ergibt 409 mit code "case_not_in_trash" (nicht 404 -- er existiert ja,
+    nur die Handlung passt nicht zu seinem Zustand). lang steuert nur den
+    anzeigbaren Text; der code bleibt stabil.
+
+    Raises:
+        HTTPException 404: case_id existiert nicht.
+        HTTPException 409: Case liegt nicht im Papierkorb.
+    """
+    try:
+        await service.restore_case(case_id)
+    except CaseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Case not found") from exc
+    except CaseNotInTrashError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "case_not_in_trash",
+                "message": API_ERRORS[lang]["case_not_in_trash"],
+            },
+        ) from exc
+    return Response(status_code=204)
+
+
 @router.delete("/{case_id}", status_code=204)
 @limiter.limit("10/minute")
 async def delete_case(
@@ -342,8 +480,13 @@ async def delete_case(
     response: Response,
     service: TriageService = Depends(get_triage_service),  # noqa: B008
     _: str = Depends(require_admin),
+    lang: Lang = Query(default=DEFAULT_LANG),  # noqa: B008
 ) -> Response:
-    """Loescht einen Case kaskadiert (DSGVO Art. 17, ADR-0038).
+    """Loescht einen Case kaskadiert und endgueltig (DSGVO Art. 17, ADR-0038).
+
+    Dies ist Stufe ZWEI des zweistufigen Loeschens (ADR-0057): der Case muss
+    zuvor ueber POST /cases/{id}/trash im Papierkorb gelandet sein, sonst 409.
+    Pfad, Methode und Erfolgs-Statuscode bleiben unveraendert.
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: require_admin (Session-Cookie ODER X-API-Key).
@@ -355,11 +498,20 @@ async def delete_case(
 
     Raises:
         HTTPException 404: case_id existiert nicht.
+        HTTPException 409: Case liegt nicht im Papierkorb.
     """
     try:
         await service.delete_case(case_id)
     except CaseNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Case not found") from exc
+    except CaseNotInTrashError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "case_not_in_trash",
+                "message": API_ERRORS[lang]["case_not_in_trash"],
+            },
+        ) from exc
     return Response(status_code=204)
 
 

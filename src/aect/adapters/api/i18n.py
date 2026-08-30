@@ -36,6 +36,10 @@ API_ERRORS: dict[Lang, dict[str, str]] = {
         ),
         "solution_refine_limit": "Das Überarbeitungsbudget für diese Lösung ist ausgeschöpft.",
         "solution_no_base": "Keine übernommene Lösung vorhanden, die überarbeitet werden kann.",
+        "case_not_in_trash": (
+            "Dieser Case liegt nicht im Papierkorb. Endgültiges Löschen und "
+            "Wiederherstellen sind nur von dort aus möglich."
+        ),
         "sketch_no_proposal": (
             "Für diesen Use Case liegt kein Lösungsvorschlag vor -- Skizze "
             "nicht möglich."
@@ -66,6 +70,10 @@ API_ERRORS: dict[Lang, dict[str, str]] = {
         ),
         "solution_refine_limit": "The refinement budget for this solution is exhausted.",
         "solution_no_base": "There is no accepted solution to refine.",
+        "case_not_in_trash": (
+            "This case is not in the trash. Permanent deletion and restoring "
+            "are only possible from there."
+        ),
         "sketch_no_proposal": (
             "There is no solution proposal for this use case -- a sketch is not "
             "possible."

@@ -313,6 +313,16 @@ class NoSolutionForRefineError(Exception):
         self.case_id = case_id
 
 
+class CaseNotInTrashError(Exception):
+    """Restore oder endgueltiges Loeschen angefordert, aber der Case ist
+    nicht im Papierkorb (deleted_at ist None). Route mappt auf 409.
+    """
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"Case not in trash: {case_id}")
+        self.case_id = case_id
+
+
 def _render_sharpened_content(content_json: str | None) -> str | None:
     """Rendert den persistierten Schaerfungs-Inhalt zu lesbarem Text.
 
@@ -961,7 +971,13 @@ class TriageService:
         return self._repository.get(case_id)
 
     def list_cases(self) -> list[SubmittedCase]:
-        """Alle bisher eingereichten Cases."""
+        """Alle bisher eingereichten Cases -- ohne den Papierkorb (ADR-0057).
+
+        Kein Filter hier: list_all() liefert bereits nur aktive Cases. Diese
+        Methode (und ebenso compute_stats/list_top_cases/list_similarity_pairs)
+        bleibt deshalb unveraendert -- es gibt genau EINE Filterstelle, im
+        Repository.
+        """
         return self._repository.list_all()
 
     def list_top_cases(self, limit: int = 3) -> list[TopCaseRef]:
@@ -1012,11 +1028,69 @@ class TriageService:
             netto_nutzen_freigegeben_eur=net_sum,
         )
 
+    async def soft_delete_case(self, case_id: str) -> None:
+        """Verschiebt einen Case in den Papierkorb -- Stufe eins (ADR-0057).
+
+        Setzt ausschliesslich deleted_at. Nichts wird geloescht: der Case faellt
+        nur aus list_all() heraus (Filter zentral im Repository) und bleibt per
+        ID vollstaendig erhalten, damit restore_case() bzw. delete_case() ihn
+        greifen koennen.
+
+        Idempotent: ein bereits getrashter Case loest keinen Fehler aus und
+        BEHAELT seinen urspruenglichen Zeitstempel -- ein zweiter Aufruf darf
+        den Zeitpunkt der eigentlichen Loeschhandlung nicht ueberschreiben.
+
+        Raises:
+            CaseNotFoundError: case_id existiert nicht.
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if case.deleted_at is not None:
+            return
+        trashed_at = self._clock.now()
+        await self._repository.set_deleted_at_async(case_id, trashed_at)
+        structlog.get_logger().info(
+            "case_trashed", case_id=case_id, trashed_at=trashed_at.isoformat()
+        )
+
+    async def restore_case(self, case_id: str) -> None:
+        """Holt einen Case aus dem Papierkorb zurueck (ADR-0057).
+
+        Setzt deleted_at auf None -- der Case erscheint danach wieder in allen
+        Sichten, die ueber list_all() laufen. Sonst bleibt alles unveraendert
+        (Status, Entscheidung, Monitoring-Zeitleiste haben den Papierkorb-
+        Aufenthalt ueberlebt, weil nie etwas geloescht wurde).
+
+        Raises:
+            CaseNotFoundError: case_id existiert nicht.
+            CaseNotInTrashError: der Case liegt nicht im Papierkorb.
+        """
+        case = await self._repository.get_async(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if case.deleted_at is None:
+            raise CaseNotInTrashError(case_id)
+        await self._repository.set_deleted_at_async(case_id, None)
+        structlog.get_logger().info("case_restored", case_id=case_id)
+
+    def list_trashed(self) -> list[SubmittedCase]:
+        """Alle Cases im Papierkorb, zuletzt geloescht zuerst (ADR-0057)."""
+        return self._repository.list_deleted()
+
     async def delete_case(self, case_id: str) -> None:
         """Loescht einen Case kaskadiert: Repository + Vektor-Store + Audit-Log.
 
-        DSGVO Art. 17 (ADR-0038): echte Loeschung, kein Soft-Delete. Ablauf:
-        1. Existenz pruefen -> CaseNotFoundError wenn fehlend (Route -> 404).
+        Stufe ZWEI des zweistufigen Loeschens (ADR-0057): endgueltig und nur
+        aus dem Papierkorb heraus. Ein Case muss also zuvor ueber
+        soft_delete_case() dorthin gewandert sein -- der direkte Sprung von
+        "aktiv" auf "physisch geloescht" ist nicht mehr moeglich, weil genau
+        dieser Fehlklick irreversibel war.
+
+        DSGVO Art. 17 (ADR-0038): echte Loeschung, kein Anonymisieren, kein
+        Archiv. Ablauf:
+        1. Existenz pruefen -> CaseNotFoundError wenn fehlend (Route -> 404),
+           danach Papierkorb-Zustand pruefen -> CaseNotInTrashError (-> 409).
         2. Aus dem Repository loeschen (primaere, persistente Quelle). Der
            Repository-Delete loescht die Monitoring-Eintraege des Case in
            derselben Operation mit (Monitoring-ADR) -- die append-only
@@ -1036,10 +1110,14 @@ class TriageService:
 
         Raises:
             CaseNotFoundError: case_id existiert nicht.
+            CaseNotInTrashError: der Case liegt nicht im Papierkorb (Stufe eins
+                fehlt).
         """
         case = await self._repository.get_async(case_id)
         if case is None:
             raise CaseNotFoundError(case_id)
+        if case.deleted_at is None:
+            raise CaseNotInTrashError(case_id)
 
         await self._repository.delete_async(case_id)
 

@@ -36,7 +36,30 @@ class InMemoryRepository:
         return self._store.get(case_id)
 
     def list_all(self) -> list[SubmittedCase]:
-        return list(self._store.values())
+        """Alle AKTIVEN Cases (ADR-0057) -- der Papierkorb bleibt draussen.
+
+        Der Filter gehoert zum Port-Vertrag von list_all(), nicht zu einem
+        einzelnen Adapter: das SQLite-Gegenstueck filtert in _SELECT_ALL_SQL.
+        Beide Implementierungen haben je genau EINE Filterstelle; kein Aufrufer
+        (list_cases/compute_stats/list_top_cases/list_similarity_pairs) baut
+        den Filter nach.
+        """
+        return [c for c in self._store.values() if c.deleted_at is None]
+
+    def list_deleted(self) -> list[SubmittedCase]:
+        """Alle Cases im Papierkorb, zuletzt geloescht zuerst (ADR-0057).
+
+        Sekundaerschluessel id: zwei Cases mit identischem Zeitstempel bleiben
+        sonst reihenfolge-instabil (dieselbe Ueberlegung wie bei
+        list_monitoring_entries). Das (deleted_at, case)-Paar wird vorab
+        gebildet, damit der Sortierschluessel ohne Optional-Narrowing auskommt.
+        """
+        trashed = [
+            (c.deleted_at, c) for c in self._store.values() if c.deleted_at is not None
+        ]
+        return [
+            c for _, c in sorted(trashed, key=lambda p: (p[0], p[1].id), reverse=True)
+        ]
 
     def delete(self, case_id: str) -> None:
         """Loescht einen Case + seine Monitoring-Eintraege (DSGVO Art. 17,
@@ -102,6 +125,14 @@ class InMemoryRepository:
             return
         case.solution_refine_count = count
 
+    def set_deleted_at(self, case_id: str, value: datetime | None) -> None:
+        """Setzt (Papierkorb) oder loescht (Wiederherstellen) den Loeschzeitpunkt
+        (ADR-0057). No-op bei unbekannter case_id (analog set_discontinued)."""
+        case = self._store.get(case_id)
+        if case is None:
+            return
+        case.deleted_at = value
+
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None:
@@ -139,6 +170,9 @@ class InMemoryRepository:
     async def list_all_async(self) -> list[SubmittedCase]:
         return self.list_all()
 
+    async def list_deleted_async(self) -> list[SubmittedCase]:
+        return self.list_deleted()
+
     async def delete_async(self, case_id: str) -> None:
         self.delete(case_id)
 
@@ -171,6 +205,9 @@ class InMemoryRepository:
 
     async def set_solution_refine_count_async(self, case_id: str, count: int) -> None:
         self.set_solution_refine_count(case_id, count)
+
+    async def set_deleted_at_async(self, case_id: str, value: datetime | None) -> None:
+        self.set_deleted_at(case_id, value)
 
     async def add_monitoring_entry_async(self, entry: MonitoringEntry) -> None:
         self.add_monitoring_entry(entry)

@@ -1063,6 +1063,172 @@ class TestSolutionRefineCountColumn:
 
 
 # ---------------------------------------------------------------------------
+# deleted_at -- zweistufiges Loeschen / Papierkorb (ADR-0057)
+# ---------------------------------------------------------------------------
+
+
+class TestDeletedAtColumn:
+    def test_default_is_none(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.deleted_at is None
+
+    def test_set_deleted_at_survives_reload(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        trashed_at = datetime(2026, 7, 1, 12, 30, 0, tzinfo=UTC)
+        repo = SQLiteRepository(db_path)
+        repo.save(sample_case)
+
+        repo.set_deleted_at(sample_case.id, trashed_at)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.deleted_at == trashed_at
+
+    def test_save_roundtrips_deleted_at(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """save() ist die vierte SQL-Stelle (INSERT) -- auch sie fuehrt die
+        Spalte, nicht nur das dedizierte UPDATE."""
+        sample_case.deleted_at = datetime(2026, 7, 2, 8, 0, 0, tzinfo=UTC)
+        SQLiteRepository(db_path).save(sample_case)
+
+        reloaded = SQLiteRepository(db_path).get(sample_case.id)
+        assert reloaded is not None
+        assert reloaded.deleted_at == sample_case.deleted_at
+
+    def test_set_deleted_at_none_restores(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        repo.save(sample_case)
+        repo.set_deleted_at(sample_case.id, datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC))
+
+        repo.set_deleted_at(sample_case.id, None)
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.deleted_at is None
+        assert [c.id for c in repo.list_all()] == [sample_case.id]
+
+    def test_set_deleted_at_unknown_id_is_noop(self, repo: SQLiteRepository) -> None:
+        repo.set_deleted_at("never-existed", datetime(2026, 7, 1, tzinfo=UTC))
+
+    def test_list_all_excludes_trashed_but_get_still_finds_it(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        """Der Kern von ADR-0057: EIN Filter in _SELECT_ALL_SQL, und
+        _SELECT_BY_ID_SQL bleibt ausdruecklich ungefiltert."""
+        repo.save(sample_case)
+        repo.set_deleted_at(sample_case.id, datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC))
+
+        assert repo.list_all() == []
+        assert repo.get(sample_case.id) is not None
+        assert [c.id for c in repo.list_deleted()] == [sample_case.id]
+
+    def test_list_deleted_is_newest_first(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        """Testfall 10 auf Persistenz-Ebene: ORDER BY deleted_at DESC."""
+        older = sample_case
+        newer = SubmittedCase(
+            id="test-case-002",
+            submitted_at=sample_case.submitted_at,
+            use_case=sample_case.use_case,
+            result=sample_case.result,
+        )
+        repo.save(older)
+        repo.save(newer)
+
+        repo.set_deleted_at(older.id, datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC))
+        repo.set_deleted_at(newer.id, datetime(2026, 7, 3, 12, 0, 0, tzinfo=UTC))
+
+        assert [c.id for c in repo.list_deleted()] == [newer.id, older.id]
+
+    def test_set_deleted_at_does_not_touch_other_fields(
+        self, repo: SQLiteRepository, sample_case: SubmittedCase
+    ) -> None:
+        sample_case.proposal_text = "Bestehender Vorschlag"
+        repo.save(sample_case)
+
+        repo.set_deleted_at(sample_case.id, datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC))
+
+        loaded = repo.get(sample_case.id)
+        assert loaded is not None
+        assert loaded.proposal_text == "Bestehender Vorschlag"
+        assert loaded.status == CaseStatus.SUBMITTED
+
+    def test_legacy_case_loads_with_deleted_at_none(
+        self, db_path: Path, sample_case: SubmittedCase
+    ) -> None:
+        """Testfall 9: ein echter Altbestand OHNE die Spalte bleibt lesbar und
+        gilt als aktiv (NULL = nicht im Papierkorb)."""
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL, "
+                "sharpened_content_json TEXT, proposal_text TEXT, "
+                "compliance_hints_json TEXT, embedding TEXT, "
+                "reviewer_decision TEXT NOT NULL DEFAULT 'pending', "
+                "reviewer_note TEXT, decided_at TEXT, "
+                "status TEXT NOT NULL DEFAULT 'submitted', status_updated_at TEXT, "
+                "architecture_sketch TEXT, sharpening_draft TEXT, "
+                "solution_business TEXT, solution_draft TEXT, "
+                "discontinued INTEGER NOT NULL DEFAULT 0, "
+                "solution_refine_count INTEGER NOT NULL DEFAULT 0)"
+            )
+            conn.execute(
+                "INSERT INTO submitted_cases ("
+                "id, submitted_at, use_case_json, result_json, reviewer_decision, "
+                "status, discontinued, solution_refine_count) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    sample_case.id,
+                    sample_case.submitted_at.isoformat(),
+                    sample_case.use_case.model_dump_json(),
+                    _serialize_result(sample_case.result),
+                    sample_case.reviewer_decision.value,
+                    sample_case.status.value,
+                    int(sample_case.discontinued),
+                    sample_case.solution_refine_count,
+                ),
+            )
+
+        migrated_repo = SQLiteRepository(db_path)
+        migrated = migrated_repo.get(sample_case.id)
+
+        assert migrated is not None
+        assert migrated.deleted_at is None
+        # Der Altbestand ist aktiv, nicht im Papierkorb verschwunden.
+        assert [c.id for c in migrated_repo.list_all()] == [sample_case.id]
+        assert migrated_repo.list_deleted() == []
+
+    def test_migration_adds_column_to_legacy_table(self, db_path: Path) -> None:
+        from aect.adapters.sqlite.connection import connect
+
+        with connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE submitted_cases ("
+                "id TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, "
+                "use_case_json TEXT NOT NULL, result_json TEXT NOT NULL)"
+            )
+
+        SQLiteRepository(db_path)
+
+        with connect(db_path) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(submitted_cases)")
+            }
+        assert "deleted_at" in columns
+
+
+# ---------------------------------------------------------------------------
 # monitoring_entries.action/actor_name (V4.1-S10)
 # ---------------------------------------------------------------------------
 

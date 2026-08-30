@@ -133,7 +133,8 @@ CREATE TABLE IF NOT EXISTS submitted_cases (
     solution_business       TEXT,
     solution_draft          TEXT,
     discontinued            INTEGER NOT NULL DEFAULT 0,
-    solution_refine_count   INTEGER NOT NULL DEFAULT 0
+    solution_refine_count   INTEGER NOT NULL DEFAULT 0,
+    deleted_at              TEXT
 )
 """
 
@@ -160,8 +161,8 @@ _INSERT_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued, solution_refine_count) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "discontinued, solution_refine_count, deleted_at) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL = (
@@ -169,7 +170,7 @@ _SELECT_BY_ID_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued, solution_refine_count "
+    "discontinued, solution_refine_count, deleted_at "
     "FROM submitted_cases WHERE id = ?"
 )
 
@@ -178,8 +179,21 @@ _SELECT_ALL_SQL = (
     "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
     "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
     "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
-    "discontinued, solution_refine_count "
-    "FROM submitted_cases ORDER BY submitted_at ASC"
+    "discontinued, solution_refine_count, deleted_at "
+    "FROM submitted_cases WHERE deleted_at IS NULL ORDER BY submitted_at ASC"
+)
+
+# _SELECT_DELETED_SQL (zweistufiges Loeschen, ADR-0057): das Gegenstueck zu
+# _SELECT_ALL_SQL -- exakt die Cases, die dessen WHERE-Klausel ausschliesst.
+# Zuletzt geloescht zuerst (ORDER BY deleted_at DESC), weil ein Papierkorb von
+# der juengsten Fehlhandlung her gelesen wird.
+_SELECT_DELETED_SQL = (
+    "SELECT id, submitted_at, use_case_json, result_json, "
+    "sharpened_content_json, proposal_text, compliance_hints_json, embedding, "
+    "reviewer_decision, reviewer_note, decided_at, status, status_updated_at, "
+    "architecture_sketch, sharpening_draft, solution_business, solution_draft, "
+    "discontinued, solution_refine_count, deleted_at "
+    "FROM submitted_cases WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
 )
 
 _DELETE_BY_ID_SQL = "DELETE FROM submitted_cases WHERE id = ?"
@@ -233,6 +247,12 @@ _SET_DISCONTINUED_SQL = "UPDATE submitted_cases SET discontinued = ? WHERE id = 
 _SET_SOLUTION_REFINE_COUNT_SQL = (
     "UPDATE submitted_cases SET solution_refine_count = ? WHERE id = ?"
 )
+
+# set_deleted_at (zweistufiges Loeschen, ADR-0057): dediziertes UPDATE der einen
+# Spalte, analog _SET_DISCONTINUED_SQL (F-011). Setzt den Papierkorb-Zeitstempel
+# (Stufe eins) bzw. NULL beim Wiederherstellen. Loescht NICHTS -- das physische
+# Loeschen bleibt _DELETE_BY_ID_SQL + die Monitoring-Kaskade in delete().
+_SET_DELETED_AT_SQL = "UPDATE submitted_cases SET deleted_at = ? WHERE id = ?"
 
 # reevaluate (ADR-0050): dediziertes UPDATE beider zusammengehoeriger Blob-
 # Spalten (use_case_json + result_json) in einem Statement, analog
@@ -425,7 +445,7 @@ def _deserialize_result(json_str: str) -> TriageResult:
 
 
 def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
-    """SQLite-Row (19-Tupel) -> SubmittedCase."""
+    """SQLite-Row (20-Tupel) -> SubmittedCase."""
     (
         case_id,
         submitted_at_str,
@@ -446,6 +466,7 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         solution_draft,
         discontinued_int,
         solution_refine_count_int,
+        deleted_at_str,
     ) = row
     embedding = (
         [float(x) for x in json.loads(str(embedding_json))]
@@ -490,6 +511,11 @@ def _row_to_case(row: tuple[Any, ...]) -> SubmittedCase:
         solution_draft=(str(solution_draft) if solution_draft is not None else None),
         discontinued=bool(discontinued_int),
         solution_refine_count=int(solution_refine_count_int),
+        deleted_at=(
+            datetime.fromisoformat(str(deleted_at_str))
+            if deleted_at_str is not None
+            else None
+        ),
     )
 
 
@@ -599,6 +625,10 @@ class SQLiteRepository:
                     "ALTER TABLE submitted_cases ADD COLUMN solution_refine_count "
                     "INTEGER NOT NULL DEFAULT 0"
                 )
+            # deleted_at (ADR-0057): dieselbe PRAGMA-Strategie. Nullable ohne
+            # DEFAULT -- NULL heisst "aktiv", und genau das ist der Altbestand.
+            if "deleted_at" not in columns:
+                conn.execute("ALTER TABLE submitted_cases ADD COLUMN deleted_at TEXT")
             # action/actor_name (V4.1-S10): dieselbe PRAGMA-Strategie, aber auf
             # monitoring_entries. Bewusst OHNE NOT NULL/DEFAULT -- Altbestands-
             # Eintraege sind freie Notizen ohne Aktion und Person; NULL sagt
@@ -658,6 +688,11 @@ class SQLiteRepository:
                     case.solution_draft,
                     int(case.discontinued),
                     case.solution_refine_count,
+                    (
+                        case.deleted_at.isoformat()
+                        if case.deleted_at is not None
+                        else None
+                    ),
                 ),
             )
 
@@ -673,9 +708,21 @@ class SQLiteRepository:
         return _row_to_case(row)
 
     def list_all(self) -> list[SubmittedCase]:
-        """Alle gespeicherten Cases, chronologisch nach submitted_at."""
+        """Alle AKTIVEN Cases, chronologisch nach submitted_at (ADR-0057).
+
+        Cases im Papierkorb (deleted_at gesetzt) fehlen hier -- der Filter sitzt
+        in _SELECT_ALL_SQL und damit an genau einer Stelle. Jede Sicht, die
+        ueber list_all() laeuft (Ideenliste, Board, Monitoring, Kennzahlen,
+        Top-Cases, Dedup-Paare), ist dadurch automatisch papierkorb-frei.
+        """
         with connect(self._db_path) as conn:
             rows = conn.execute(_SELECT_ALL_SQL).fetchall()
+        return [_row_to_case(row) for row in rows]
+
+    def list_deleted(self) -> list[SubmittedCase]:
+        """Alle Cases im Papierkorb, zuletzt geloescht zuerst (ADR-0057)."""
+        with connect(self._db_path) as conn:
+            rows = conn.execute(_SELECT_DELETED_SQL).fetchall()
         return [_row_to_case(row) for row in rows]
 
     def delete(self, case_id: str) -> None:
@@ -754,6 +801,19 @@ class SQLiteRepository:
         with connect(self._db_path) as conn:
             conn.execute(_SET_SOLUTION_REFINE_COUNT_SQL, (count, case_id))
 
+    def set_deleted_at(self, case_id: str, value: datetime | None) -> None:
+        """Setzt (Papierkorb) oder loescht (Wiederherstellen) den Loeschzeitpunkt.
+
+        Dediziertes UPDATE der einen Spalte -- kein INSERT OR REPLACE der ganzen
+        Zeile (F-011-Lost-Update-Muster, analog set_discontinued). No-op bei
+        unbekannter case_id (analog delete/update_field). ADR-0057.
+        """
+        with connect(self._db_path) as conn:
+            conn.execute(
+                _SET_DELETED_AT_SQL,
+                (value.isoformat() if value is not None else None, case_id),
+            )
+
     def reevaluate(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
     ) -> None:
@@ -819,6 +879,10 @@ class SQLiteRepository:
         """Async-Wrapper um list_all() via asyncio.to_thread."""
         return await asyncio.to_thread(self.list_all)
 
+    async def list_deleted_async(self) -> list[SubmittedCase]:
+        """Async-Wrapper um list_deleted() via asyncio.to_thread (ADR-0057)."""
+        return await asyncio.to_thread(self.list_deleted)
+
     async def delete_async(self, case_id: str) -> None:
         """Async-Wrapper um delete() via asyncio.to_thread (ADR-0037/0038)."""
         await asyncio.to_thread(self.delete, case_id)
@@ -854,6 +918,10 @@ class SQLiteRepository:
     async def set_solution_refine_count_async(self, case_id: str, count: int) -> None:
         """Async-Wrapper um set_solution_refine_count() via asyncio.to_thread."""
         await asyncio.to_thread(self.set_solution_refine_count, case_id, count)
+
+    async def set_deleted_at_async(self, case_id: str, value: datetime | None) -> None:
+        """Async-Wrapper um set_deleted_at() via asyncio.to_thread (ADR-0057)."""
+        await asyncio.to_thread(self.set_deleted_at, case_id, value)
 
     async def reevaluate_async(
         self, case_id: str, use_case: UseCaseInput, result: TriageResult
