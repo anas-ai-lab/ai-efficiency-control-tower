@@ -175,20 +175,16 @@ oder shadcn/ui. Eine dokumentierte Reibung: recharts loest `var(--token)` im
 SVG-`fill` nicht auf, darum werden die Zonen-Farben via `getComputedStyle` gelesen
 und bei Dark-Mode-Wechsel per MutationObserver neu aufgeloest (ADR-0047).
 
-**Warum ein Status-Enum mit Decision-Kopplung statt einem einzigen System?**
+**Warum wird die Reviewer-Entscheidung aus dem Status abgeleitet?**
 
-Es sind zwei orthogonale Achsen. `reviewer_decision` (ADR-0043) beantwortet
-"ist der Case freigegeben?" (PENDING/APPROVED/REJECTED). `CaseStatus` (ADR-0045)
-beantwortet "wo im Bearbeitungsfluss steht er?" (SUBMITTED, IN_REVIEW, INTEGRATED,
-IMPLEMENTED ...). Ein Case kann freigegeben UND noch nicht integriert sein --
-beide Achsen zusammen in ein Enum zu ziehen braeuchte ein Kreuzprodukt der Werte.
-Getrennte Felder halten beide Achsen unabhaengig les- und setzbar. Die Kopplung
-ist gezielt und einseitig: `record_decision()` setzt zusaetzlich den
-Lifecycle-Status (APPROVED/REJECTED), damit der Lifecycle nie im Widerspruch zur
-fachlichen Freigabe steht -- die Freigabe gewinnt und darf einen manuell
-gesetzten Status ueberschreiben. Bewusst KEINE Transitions-Matrix: der
-Single-User-Inhaber des API-Keys ist die Autoritaet ueber den Stand, eine
-erzwungene Matrix wuerde nur legitime Korrekturen blockieren (ADR-0045).
+Zwei getrennte Schreibpfade hatten zwei Wahrheiten erzeugt: Monitoring las
+`CaseStatus`, das Board `reviewer_decision`. ADR-0056 macht deshalb
+`POST /cases/{id}/status` zum einzigen Pfad. APPROVED und REJECTED leiten die
+gleichnamige Reviewer-Entscheidung ab; SUBMITTED, IN_REVIEW, ALREADY_EXISTS und
+IMPLEMENTED leiten PENDING ab. Die Felder bleiben fuer ihre jeweiligen
+Lesemodelle erhalten, sind aber nicht mehr unabhaengig setzbar. Bewusst gibt es
+weiter keine Transitions-Matrix: Der Single-User-Admin darf jeden Status aus
+jedem Zustand als Korrektur setzen.
 
 ---
 

@@ -1,9 +1,8 @@
-"""Integrations-Tests fuer POST /cases/{case_id}/decision (Human-in-the-Loop,
-minimaler Decision-Record -- ADR-0043).
+"""Integrations-Tests fuer den einheitlichen Status-/Entscheidungspfad (ADR-0056).
 
 Methode: dependency_overrides mit EINEM gemeinsam genutzten TriageService
 (geteilter InMemoryRepository), damit POST /triage und der nachfolgende
-Decision-Call denselben Zustand sehen -- analog test_delete_case.py.
+Status-Call denselben Zustand sehen -- analog test_delete_case.py.
 """
 
 from __future__ import annotations
@@ -72,41 +71,41 @@ def _make_app() -> FastAPI:
     return app
 
 
-async def test_decision_without_key_returns_401() -> None:
+async def test_status_without_key_returns_401() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
         response = await client.post(
-            "/cases/some-id/decision", json={"decision": "approved"}
+            "/cases/some-id/status", json={"status": "approved"}
         )
     assert response.status_code == 401
 
 
-async def test_decision_wrong_key_returns_401() -> None:
+async def test_status_wrong_key_returns_401() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
         response = await client.post(
-            "/cases/some-id/decision",
-            json={"decision": "approved"},
+            "/cases/some-id/status",
+            json={"status": "approved"},
             headers={"X-API-Key": "wrong-key"},
         )
     assert response.status_code == 401
 
 
-async def test_decision_nonexistent_case_returns_404() -> None:
+async def test_status_nonexistent_case_returns_404() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
         response = await client.post(
-            "/cases/does-not-exist/decision",
-            json={"decision": "approved"},
+            "/cases/does-not-exist/status",
+            json={"status": "approved"},
             headers=_AUTH,
         )
     assert response.status_code == 404
 
 
-async def test_invalid_decision_value_returns_422() -> None:
+async def test_invalid_status_value_returns_422() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
@@ -114,8 +113,8 @@ async def test_invalid_decision_value_returns_422() -> None:
         case_id = created.json()["id"]
 
         response = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "pending"},  # nur approved/rejected sind gueltig
+            f"/cases/{case_id}/status",
+            json={"status": "on_hold"},
             headers=_AUTH,
         )
     assert response.status_code == 422
@@ -129,8 +128,8 @@ async def test_note_exceeding_max_length_returns_422() -> None:
         case_id = created.json()["id"]
 
         response = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": "x" * 2001},
+            f"/cases/{case_id}/status",
+            json={"status": "approved", "note": "x" * 2001},
             headers=_AUTH,
         )
     assert response.status_code == 422
@@ -144,17 +143,20 @@ async def test_approve_sets_fields_and_returns_200() -> None:
         case_id = created.json()["id"]
 
         response = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": "Passt, bitte umsetzen"},
+            f"/cases/{case_id}/status",
+            json={"status": "approved", "note": "Passt, bitte umsetzen"},
             headers=_AUTH,
         )
 
     assert response.status_code == 200
     body = response.json()
     assert body["case_id"] == case_id
+    assert body["status"] == "approved"
+    assert body["updated_at"] is not None
     assert body["reviewer_decision"] == "approved"
     assert body["reviewer_note"] == "Passt, bitte umsetzen"
     assert body["decided_at"] is not None
+    assert body["decided_at"] == body["updated_at"]
 
 
 async def test_reject_without_note_sets_fields() -> None:
@@ -165,18 +167,19 @@ async def test_reject_without_note_sets_fields() -> None:
         case_id = created.json()["id"]
 
         response = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "rejected"},
+            f"/cases/{case_id}/status",
+            json={"status": "rejected"},
             headers=_AUTH,
         )
 
     assert response.status_code == 200
     body = response.json()
+    assert body["status"] == "rejected"
     assert body["reviewer_decision"] == "rejected"
     assert body["reviewer_note"] is None
 
 
-async def test_overwrite_existing_decision_updates_decided_at() -> None:
+async def test_repeated_status_update_replaces_decision_and_timestamp() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
@@ -184,18 +187,19 @@ async def test_overwrite_existing_decision_updates_decided_at() -> None:
         case_id = created.json()["id"]
 
         first = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": "erste Einschaetzung"},
+            f"/cases/{case_id}/status",
+            json={"status": "approved", "note": "erste Einschaetzung"},
             headers=_AUTH,
         )
         second = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "rejected", "note": "korrigiert"},
+            f"/cases/{case_id}/status",
+            json={"status": "rejected", "note": "korrigiert"},
             headers=_AUTH,
         )
 
     assert first.status_code == 200
     assert second.status_code == 200
+    assert second.json()["status"] == "rejected"
     assert second.json()["reviewer_decision"] == "rejected"
     assert second.json()["reviewer_note"] == "korrigiert"
     # Kein Bug, Korrektur-Fall: decided_at wird bei jedem Aufruf aktualisiert
@@ -203,7 +207,7 @@ async def test_overwrite_existing_decision_updates_decided_at() -> None:
     assert second.json()["decided_at"] is not None
 
 
-async def test_report_reflects_recorded_decision() -> None:
+async def test_report_reflects_status_derived_decision() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
@@ -211,8 +215,8 @@ async def test_report_reflects_recorded_decision() -> None:
         case_id = created.json()["id"]
 
         await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": "Freigegeben"},
+            f"/cases/{case_id}/status",
+            json={"status": "approved", "note": "Freigegeben"},
             headers=_AUTH,
         )
         report = await client.post(f"/cases/{case_id}/report", json={}, headers=_AUTH)
@@ -238,3 +242,16 @@ async def test_report_before_any_decision_shows_pending() -> None:
     assert business_summary["reviewer_decision"] == "pending"
     assert business_summary["reviewer_note"] is None
     assert business_summary["decided_at"] is None
+
+
+async def test_removed_decision_endpoint_returns_404() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app()), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/cases/some-id/decision",
+            json={"decision": "approved"},
+            headers=_AUTH,
+        )
+
+    assert response.status_code == 404

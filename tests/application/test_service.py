@@ -1061,12 +1061,12 @@ class TestTriageServiceGenerateReportUsesPersistedText:
         assert report.business_summary.reviewer_note is None
         assert report.business_summary.decided_at is None
 
-    async def test_report_reflects_recorded_decision(
+    async def test_report_reflects_status_derived_decision(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
-        await service.record_decision(case.id, ReviewerDecision.APPROVED, "Freigegeben")
+        await service.update_status(case.id, CaseStatus.APPROVED, "Freigegeben")
 
         report = service.generate_report(case.id)
 
@@ -1342,11 +1342,11 @@ class TestTriageServiceDelete:
 
 
 # ---------------------------------------------------------------------------
-# Human-in-the-Loop Decision-Record (ADR-0043)
+# Einheitlicher Status- und Entscheidungspfad (ADR-0056)
 # ---------------------------------------------------------------------------
 
 
-class TestTriageServiceRecordDecision:
+class TestTriageServiceStatusDecision:
     async def test_default_decision_is_pending(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
@@ -1362,52 +1362,67 @@ class TestTriageServiceRecordDecision:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        updated = await service.record_decision(
-            case.id, ReviewerDecision.APPROVED, "Passt, bitte umsetzen"
+        updated = await service.update_status(
+            case.id, CaseStatus.APPROVED, "Passt, bitte umsetzen"
         )
 
         assert updated is not None
+        assert updated.status == CaseStatus.APPROVED
         assert updated.reviewer_decision == ReviewerDecision.APPROVED
         assert updated.reviewer_note == "Passt, bitte umsetzen"
         assert updated.decided_at == _FIXED_TIME
+        assert updated.status_updated_at == _FIXED_TIME
+        assert updated.decided_at == updated.status_updated_at
 
-    async def test_reject_without_note_sets_fields(
+    async def test_reject_after_approval_replaces_derived_decision(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED, "Erste Freigabe")
 
-        updated = await service.record_decision(
-            case.id, ReviewerDecision.REJECTED, None
-        )
+        updated = await service.update_status(case.id, CaseStatus.REJECTED)
 
         assert updated is not None
+        assert updated.status == CaseStatus.REJECTED
         assert updated.reviewer_decision == ReviewerDecision.REJECTED
-        assert updated.reviewer_note is None
+        assert updated.reviewer_note == "Erste Freigabe"
         assert updated.decided_at == _FIXED_TIME
 
-    async def test_decision_persists_to_repository(
+    async def test_status_and_derived_decision_persist_to_repository(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        await service.record_decision(case.id, ReviewerDecision.APPROVED, "ok")
+        await service.update_status(case.id, CaseStatus.APPROVED, "ok")
 
         persisted = repo.get(case.id)
         assert persisted is not None
+        assert persisted.status == CaseStatus.APPROVED
         assert persisted.reviewer_decision == ReviewerDecision.APPROVED
         assert persisted.reviewer_note == "ok"
         assert persisted.decided_at == _FIXED_TIME
+        assert persisted.status_updated_at == _FIXED_TIME
+
+    async def test_blank_note_clears_existing_note(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED, "Bestehende Notiz")
+
+        updated = await service.update_status(case.id, CaseStatus.REJECTED, "   ")
+
+        assert updated is not None
+        assert updated.reviewer_note is None
 
     async def test_missing_case_returns_none(self, roi_config: ROIConfig) -> None:
         service, _ = _make_service(roi_config)
-        result = await service.record_decision(
-            "does-not-exist", ReviewerDecision.APPROVED, None
-        )
+        result = await service.update_status("does-not-exist", CaseStatus.APPROVED)
         assert result is None
 
-    async def test_overwrite_updates_decided_at(
+    async def test_repeated_status_updates_share_each_changed_at(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         submitted_time = datetime.datetime(2026, 6, 9, 8, 0, 0, tzinfo=datetime.UTC)
@@ -1417,7 +1432,7 @@ class TestTriageServiceRecordDecision:
         service = TriageService(
             repository=repo,
             # erster now()-Aufruf ist submit_use_case() (submitted_at) --
-            # daher ein zusaetzlicher Zeitstempel VOR den beiden Decision-Zeiten.
+            # daher ein zusaetzlicher Zeitstempel VOR den beiden Wechselzeiten.
             clock=_SequentialClock([submitted_time, first_time, second_time]),
             id_generator=_FakeIdGenerator(ids=["id-001"]),
             roi_config=roi_config,
@@ -1426,17 +1441,15 @@ class TestTriageServiceRecordDecision:
         )
         case = service.submit_use_case(sample_use_case)
 
-        first = await service.record_decision(
-            case.id, ReviewerDecision.APPROVED, "erste"
-        )
+        first = await service.update_status(case.id, CaseStatus.APPROVED, "erste")
         assert first is not None
         assert first.decided_at == first_time
+        assert first.status_updated_at == first_time
 
-        second = await service.record_decision(
-            case.id, ReviewerDecision.REJECTED, "korrigiert"
-        )
+        second = await service.update_status(case.id, CaseStatus.REJECTED, "korrigiert")
         assert second is not None
         assert second.decided_at == second_time
+        assert second.status_updated_at == second_time
         assert second.reviewer_decision == ReviewerDecision.REJECTED
         assert second.reviewer_note == "korrigiert"
 
@@ -1447,15 +1460,17 @@ class TestTriageServiceRecordDecision:
         case = service.submit_use_case(sample_use_case)
 
         with capture_logs() as logs:
-            await service.record_decision(
-                case.id, ReviewerDecision.APPROVED, "vertrauliche Begruendung"
+            await service.update_status(
+                case.id, CaseStatus.APPROVED, "vertrauliche Begruendung"
             )
 
-        events = [e for e in logs if e.get("event") == "case_decision_recorded"]
+        events = [e for e in logs if e.get("event") == "case_decided"]
         assert len(events) == 1
         assert events[0]["case_id"] == case.id
-        assert events[0]["decision"] == "approved"
-        assert events[0]["decided_at"] == _FIXED_TIME.isoformat()
+        assert events[0]["old_status"] == "submitted"
+        assert events[0]["new_status"] == "approved"
+        assert events[0]["reviewer_decision"] == "approved"
+        assert events[0]["updated_at"] == _FIXED_TIME.isoformat()
         # PII-Allowlist-konform: reviewer_note (Freitext) wird NICHT geloggt.
         assert "reviewer_note" not in events[0]
         assert "vertrauliche Begruendung" not in str(events[0])
@@ -1486,6 +1501,8 @@ class TestTriageServiceUpdateStatus:
         assert updated is not None
         assert updated.status == CaseStatus.IN_REVIEW
         assert updated.status_updated_at == _FIXED_TIME
+        assert updated.reviewer_decision == ReviewerDecision.PENDING
+        assert updated.decided_at == _FIXED_TIME
 
     async def test_update_status_persists_to_repository(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
@@ -1499,6 +1516,8 @@ class TestTriageServiceUpdateStatus:
         assert persisted is not None
         assert persisted.status == CaseStatus.IMPLEMENTED
         assert persisted.status_updated_at == _FIXED_TIME
+        assert persisted.reviewer_decision == ReviewerDecision.PENDING
+        assert persisted.decided_at == _FIXED_TIME
 
     async def test_update_status_missing_case_returns_none(
         self, roi_config: ROIConfig
@@ -1516,75 +1535,87 @@ class TestTriageServiceUpdateStatus:
         with capture_logs() as logs:
             await service.update_status(case.id, CaseStatus.IMPLEMENTED)
 
-        events = [e for e in logs if e.get("event") == "case_status_changed"]
+        events = [e for e in logs if e.get("event") == "case_decided"]
         assert len(events) == 1
         assert events[0]["case_id"] == case.id
         assert events[0]["old_status"] == "submitted"
         assert events[0]["new_status"] == "implemented"
+        assert events[0]["reviewer_decision"] == "pending"
         assert events[0]["updated_at"] == _FIXED_TIME.isoformat()
 
-    async def test_record_decision_approved_couples_status(
+    async def test_approved_status_derives_approved_decision(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
 
-        await service.record_decision(case.id, ReviewerDecision.APPROVED, "ok")
+        await service.update_status(case.id, CaseStatus.APPROVED, "ok")
 
         persisted = repo.get(case.id)
         assert persisted is not None
         assert persisted.status == CaseStatus.APPROVED
         assert persisted.status_updated_at == _FIXED_TIME
+        assert persisted.reviewer_decision == ReviewerDecision.APPROVED
+        assert persisted.decided_at == persisted.status_updated_at
 
-    async def test_record_decision_rejected_couples_status(
+    async def test_rejected_status_after_approved_derives_rejected_decision(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED)
 
-        await service.record_decision(case.id, ReviewerDecision.REJECTED, None)
+        await service.update_status(case.id, CaseStatus.REJECTED)
 
         persisted = repo.get(case.id)
         assert persisted is not None
         assert persisted.status == CaseStatus.REJECTED
+        assert persisted.reviewer_decision == ReviewerDecision.REJECTED
 
-    async def test_decision_overwrites_manually_set_status(
+    async def test_in_review_after_approved_resets_decision_to_pending(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        # Freigabe gewinnt: ein manuell gesetzter Status wird von der
-        # ReviewerDecision-Kopplung ueberschrieben (Lifecycle-ADR).
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED)
 
-        await service.update_status(case.id, CaseStatus.IN_REVIEW)
-        updated = await service.record_decision(
-            case.id, ReviewerDecision.APPROVED, None
-        )
+        updated = await service.update_status(case.id, CaseStatus.IN_REVIEW)
 
         assert updated is not None
-        assert updated.status == CaseStatus.APPROVED
+        assert updated.status == CaseStatus.IN_REVIEW
+        assert updated.reviewer_decision == ReviewerDecision.PENDING
 
-    async def test_decision_does_not_downgrade_advanced_status(
+    async def test_implemented_after_approved_resets_decision_to_pending(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        # H-034: eine Freigabe darf einen fortgeschrittenen Lifecycle-Status
-        # (implemented) NICHT auf approved zurueckstufen -- die reviewer_decision
-        # wird dennoch festgehalten (monotone Kopplung).
+        # ADR-0056 ersetzt H-034: die Ableitung gilt fuer jeden Zielstatus.
         service, repo = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)
+        await service.update_status(case.id, CaseStatus.APPROVED)
 
-        await service.update_status(case.id, CaseStatus.IMPLEMENTED)
-        updated = await service.record_decision(
-            case.id, ReviewerDecision.APPROVED, None
-        )
+        updated = await service.update_status(case.id, CaseStatus.IMPLEMENTED)
 
         assert updated is not None
         assert updated.status == CaseStatus.IMPLEMENTED
-        assert updated.reviewer_decision == ReviewerDecision.APPROVED
+        assert updated.reviewer_decision == ReviewerDecision.PENDING
         persisted = repo.get(case.id)
         assert persisted is not None
         assert persisted.status == CaseStatus.IMPLEMENTED
-        assert persisted.reviewer_decision == ReviewerDecision.APPROVED
+        assert persisted.reviewer_decision == ReviewerDecision.PENDING
+
+    async def test_none_note_preserves_existing_note(
+        self, sample_use_case: UseCaseInput, roi_config: ROIConfig
+    ) -> None:
+        service, _ = _make_service(roi_config)
+        case = service.submit_use_case(sample_use_case)
+        await service.update_status(
+            case.id, CaseStatus.APPROVED, "Exakt erhaltene Notiz"
+        )
+
+        updated = await service.update_status(case.id, CaseStatus.IN_REVIEW, None)
+
+        assert updated is not None
+        assert updated.reviewer_note == "Exakt erhaltene Notiz"
 
 
 # ---------------------------------------------------------------------------
@@ -1680,7 +1711,7 @@ class TestTriageServiceSetDiscontinued:
     async def test_audit_log_carries_no_reason_or_actor_name(
         self, sample_use_case: UseCaseInput, roi_config: ROIConfig
     ) -> None:
-        # PII-Allowlist (analog case_decision_recorded): Freitext-Begruendung
+        # PII-Allowlist (analog case_decided): Freitext-Begruendung
         # und Personenname gehoeren in die Zeitleiste, nicht in die Logs.
         service, _ = _make_service(roi_config)
         case = service.submit_use_case(sample_use_case)

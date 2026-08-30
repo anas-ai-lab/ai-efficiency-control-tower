@@ -160,8 +160,8 @@ async def test_list_cases_hides_assessment_from_anonymous() -> None:
             json={**_PASSING_PAYLOAD, "title": "Zweiter tragfaehiger Use Case Liste"},
         )
         await client.post(
-            f"/cases/{decided_id}/decision",
-            json={"decision": "approved", "note": None},
+            f"/cases/{decided_id}/status",
+            json={"status": "approved", "note": None},
             headers=_AUTH,
         )
 

@@ -48,9 +48,7 @@ export type TriageZone =
   | "LIKELY_WIN"
   | "CALCULATED_RISK"
   | "MARGINAL_GAIN";
-// Human-in-the-Loop Decision-Record (ADR-0043): PENDING ist der
-// Ausgangszustand vor jeder manuellen Entscheidung, kein gueltiger
-// Request-Wert fuer POST /cases/{id}/decision (nur approved/rejected).
+// Aus CaseStatus abgeleitete Human-in-the-Loop-Entscheidung (ADR-0056).
 export type ReviewerDecision = "pending" | "approved" | "rejected";
 
 // Case-Lifecycle-Status (Lifecycle-ADR / P1). Werte exakt aus api.generated.ts
@@ -481,25 +479,20 @@ export interface CaseSummary extends PublicCaseSummary {
 
 export type CaseSummaryView = CaseSummary | PublicCaseSummary;
 
-// ---- Decision Response (/cases/{id}/decision POST) -------------------------
-
-export interface DecisionResponse {
-  case_id: string;
-  reviewer_decision: ReviewerDecision;
-  reviewer_note: string | null;
-  decided_at: string | null;
-}
-
-// ---- Lifecycle-Status (/cases/{id}/status POST, P1) ------------------------
+// ---- Lifecycle-Status + Entscheidung (/cases/{id}/status POST) -------------
 
 export interface StatusUpdateRequest {
   status: CaseStatus;
+  note?: string | null;
 }
 
 export interface StatusUpdateResponse {
   case_id: string;
   status: CaseStatus;
   updated_at: string | null;
+  reviewer_decision: ReviewerDecision;
+  reviewer_note: string | null;
+  decided_at: string | null;
 }
 
 // ---- discontinued-Flag (/cases/{id}/discontinue|reinstate POST, V4.1-S7) ---

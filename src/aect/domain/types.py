@@ -133,13 +133,11 @@ class TriageZone(StrEnum):
 
 
 class ReviewerDecision(StrEnum):
-    """Human-in-the-Loop-Entscheidung zu einem Case (minimaler Decision-Record,
-    ADR-0043 -- bewusst kein Multi-User-Reviewer-Workflow mit Rollen).
+    """Aus CaseStatus abgeleitete Human-in-the-Loop-Entscheidung (ADR-0056).
 
     PENDING ist der Default direkt nach Einreichung. APPROVED/REJECTED werden
-    ausschliesslich ueber POST /cases/{id}/decision gesetzt (TriageService.
-    record_decision()) -- derselbe API-Key-Auth-Mechanismus wie alle anderen
-    Routen, kein eigenes Auth-/Rollen-Konzept.
+    ausschliesslich in TriageService.update_status() aus dem gesetzten Status
+    abgeleitet; es gibt keinen separaten Decision-Request-Wert.
     """
 
     PENDING = "pending"
@@ -150,10 +148,9 @@ class ReviewerDecision(StrEnum):
 class CaseStatus(StrEnum):
     """Lifecycle-Status eines Case -- wo im Bearbeitungsfluss er steht.
 
-    APPROVED/REJECTED werden zusaetzlich durch record_decision() gesetzt
-    (Kopplung an ReviewerDecision, ADR-0043 -- der Freigabe-Akt bewegt den
-    Case auch im Lifecycle). Die uebrigen Zustaende werden ausschliesslich
-    ueber POST /cases/{id}/status gesetzt.
+    Jeder Wert wird ueber POST /cases/{id}/status gesetzt. APPROVED/REJECTED
+    leiten dieselbe ReviewerDecision ab; alle anderen Werte leiten PENDING ab
+    (ADR-0056).
 
     SUBMITTED ist der Default direkt nach Einreichung. Es gibt bewusst keine
     Transitions-Matrix -- jeder Zustand ist aus jedem setzbar (menschliche

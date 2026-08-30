@@ -13,7 +13,7 @@ import {
 //
 // Grund (Hang-Befund): Next.js fuehrt Server Actions SERIALISIERT aus. Wer
 // "Freigeben" klickt, waehrend Schaerfen/Compliance/Loesung/Skizze noch laufen,
-// haengt recordDecision hinter den belegten Slot -- der Button stand die volle
+// haengt updateCaseStatus hinter den belegten Slot -- der Button stand die volle
 // Restdauer des LLM-Calls (real bis 75 s, propose-solution bis 135 s) auf "Wird
 // gespeichert …", obwohl gar nichts gespeichert wurde. Das las sich wie ein
 // Haenger und log ueber den Grund.

@@ -278,36 +278,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{case_id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record Decision
-         * @description Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
-         *
-         *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-         *     Auth: require_admin (Session-Cookie ODER X-API-Key, inkl. Key-Rotation).
-         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
-         *
-         *     Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
-         *     kein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.
-         *
-         *     Raises:
-         *         HTTPException 404: case_id existiert nicht.
-         */
-        post: operations["record_decision_cases__case_id__decision_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/cases/{case_id}/status": {
         parameters: {
             query?: never;
@@ -323,10 +293,9 @@ export interface paths {
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
          *     Auth: require_admin (Session-Cookie ODER X-API-Key).
-         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
-         *     DELETE /cases/{id}.
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
          *
-         *     Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).
+         *     Kein LLM-Call -- Token-Budget wird hier nicht geprueft.
          *
          *     Raises:
          *         HTTPException 404: case_id existiert nicht.
@@ -473,8 +442,7 @@ export interface paths {
          *
          *     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
          *     Auth: require_admin (Session-Cookie ODER X-API-Key).
-         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
-         *     /status.
+         *     Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
          *
          *     201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.
          *
@@ -1000,9 +968,8 @@ export interface components {
          *     persistierten compliance_hints_json gelesen, kein Override moeglich
          *     (siehe ReportRequest-Docstring).
          *
-         *     reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
-         *     Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
-         *     sichtbar, ohne einen zweiten Endpoint abzufragen.
+         *     reviewer_decision/reviewer_note/decided_at (ADR-0056): aus dem Lifecycle-
+         *     Status abgeleiteter Human-in-the-Loop-Entscheidungs-Zustand.
          *
          *     sharpened_desired_state/sharpened_desired_example_process: dieselbe
          *     geschaerfte Fassung wie sharpened_text, getrennt in die beiden
@@ -1284,42 +1251,6 @@ export interface components {
             /** Contra Punkte */
             contra_punkte: string[];
             details: components["schemas"]["DecisionDetailsResponse"];
-        };
-        /**
-         * DecisionRequest
-         * @description Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,
-         *     minimaler Decision-Record -- ADR-0043, bewusst kein Multi-User-Reviewer-
-         *     Workflow mit Rollen).
-         *
-         *     decision: nur "approved"/"rejected" ueber diesen Endpoint setzbar --
-         *     PENDING ist ausschliesslich der Ausgangszustand vor jeder Entscheidung,
-         *     kein gueltiger Request-Wert (kein Zurueck-auf-PENDING via API).
-         *     note: optionale Begruendung. extra="forbid" + max_length konsistent mit
-         *     den uebrigen Freitextfeldern (Token-Flooding-Schutz, aect-security-
-         *     checklist v2.1 Phase A).
-         */
-        DecisionRequest: {
-            /**
-             * Decision
-             * @enum {string}
-             */
-            decision: "approved" | "rejected";
-            /** Note */
-            note?: string | null;
-        };
-        /**
-         * DecisionResponse
-         * @description Aktueller Entscheidungs-Zustand eines Case nach POST /decision.
-         */
-        DecisionResponse: {
-            /** Case Id */
-            case_id: string;
-            /** Reviewer Decision */
-            reviewer_decision: string;
-            /** Reviewer Note */
-            reviewer_note: string | null;
-            /** Decided At */
-            decided_at: string | null;
         };
         /**
          * DiscontinueEventRequest
@@ -1944,15 +1875,13 @@ export interface components {
         };
         /**
          * StatusUpdateRequest
-         * @description Neuer Lifecycle-Status fuer einen Case (Lifecycle-ADR).
+         * @description Neuer Lifecycle-Status samt optionaler Entscheidungsnotiz (ADR-0056).
          *
-         *     status: einer der sieben CaseStatus-Werte. Bewusst keine Transitions-Matrix
+         *     status: einer der sechs CaseStatus-Werte. Bewusst keine Transitions-Matrix
          *     -- jeder Zustand ist aus jedem setzbar (menschliche Autoritaet in einem
-         *     Single-User-Build). APPROVED/REJECTED sind hier ebenfalls setzbar, werden
-         *     aber zusaetzlich durch POST /decision gesetzt (Kopplung an ReviewerDecision,
-         *     ADR-0043).
-         *     extra="forbid": konsistent mit DecisionRequest (Eingabe-Disziplin, aect-
-         *     security-checklist v2.1 Phase A).
+         *     Single-User-Build). reviewer_decision wird ausschliesslich daraus abgeleitet.
+         *     note: optionale Begruendung mit Token-Flooding-Grenze. extra="forbid" haelt
+         *     den Request-Vertrag geschlossen (aect-security-checklist v2.1 Phase A).
          */
         StatusUpdateRequest: {
             /**
@@ -1960,6 +1889,8 @@ export interface components {
              * @enum {string}
              */
             status: "submitted" | "in_review" | "approved" | "already_exists" | "rejected" | "implemented";
+            /** Note */
+            note?: string | null;
         };
         /**
          * StatusUpdateResponse
@@ -1972,6 +1903,12 @@ export interface components {
             status: string;
             /** Updated At */
             updated_at: string | null;
+            /** Reviewer Decision */
+            reviewer_decision: string;
+            /** Reviewer Note */
+            reviewer_note: string | null;
+            /** Decided At */
+            decided_at: string | null;
         };
         /**
          * TechnicalDetailResponse
@@ -2523,41 +2460,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_decision_cases__case_id__decision_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                case_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DecisionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DecisionResponse"];
-                };
             };
             /** @description Validation Error */
             422: {

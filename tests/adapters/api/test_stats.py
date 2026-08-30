@@ -98,9 +98,9 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
     # Szenario trennt die vier Zaehler bewusst: "bewertet" folgt der
     # Board-Entscheidung (ReviewerDecision != PENDING), "freigegeben" und
     # "umgesetzt" folgen dem Status.
-    #   A: /decision approved  -> decision=approved, status=approved
+    #   A: /status approved    -> decision=approved, status=approved
     #   B: /status implemented -> decision=PENDING,  status=implemented
-    #   C: /decision rejected  -> decision=rejected, status=rejected
+    #   C: /status rejected    -> decision=rejected, status=rejected
     # => eingereicht=3, bewertet=2 (A,C -- B ist umgesetzt, aber unbewertet),
     #    freigegeben=1 (A -- status approved), umgesetzt=1 (B), netto ueber
     #    status approved+implemented (A,B).
@@ -127,8 +127,8 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
         c_id = c.json()["id"]
 
         await client.post(
-            f"/cases/{a_id}/decision",
-            json={"decision": "approved", "note": None},
+            f"/cases/{a_id}/status",
+            json={"status": "approved", "note": None},
             headers=_AUTH,
         )
         await client.post(
@@ -137,8 +137,8 @@ async def test_stats_funnel_and_released_net_benefit() -> None:
             headers=_AUTH,
         )
         await client.post(
-            f"/cases/{c_id}/decision",
-            json={"decision": "rejected", "note": None},
+            f"/cases/{c_id}/status",
+            json={"status": "rejected", "note": None},
             headers=_AUTH,
         )
 

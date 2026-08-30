@@ -139,6 +139,9 @@ async def test_update_status_sets_field_and_returns_200() -> None:
     assert body["case_id"] == case_id
     assert body["status"] == "already_exists"
     assert body["updated_at"] is not None
+    assert body["reviewer_decision"] == "pending"
+    assert body["reviewer_note"] is None
+    assert body["decided_at"] == body["updated_at"]
 
 
 async def test_update_status_rejects_removed_integrated_status() -> None:
@@ -158,27 +161,19 @@ async def test_update_status_rejects_removed_integrated_status() -> None:
     assert response.status_code == 422
 
 
-async def test_decision_endpoint_moves_lifecycle_status() -> None:
-    # Kopplung (Lifecycle-ADR): POST /decision setzt zusaetzlich den
-    # Lifecycle-Status -- ueber /status sichtbar via erneutem Setzen.
+async def test_status_endpoint_derives_reviewer_decision() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
         created = await client.post("/triage", json=_VALID_PAYLOAD, headers=_AUTH)
         case_id = created.json()["id"]
 
-        await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved"},
-            headers=_AUTH,
-        )
-        # Freigabe gewinnt: der manuell nachgezogene Status wird gesetzt,
-        # aber die Freigabe hatte den Case bereits auf 'approved' bewegt.
         status_after = await client.post(
             f"/cases/{case_id}/status",
-            json={"status": "implemented"},
+            json={"status": "approved"},
             headers=_AUTH,
         )
 
     assert status_after.status_code == 200
-    assert status_after.json()["status"] == "implemented"
+    assert status_after.json()["status"] == "approved"
+    assert status_after.json()["reviewer_decision"] == "approved"

@@ -110,8 +110,8 @@ test("anonyme Detailseite zeigt die Board-Entscheidung, aber keine Bewertung", a
     data: { password: ADMIN_PASSWORD },
   });
   expect(login.ok()).toBeTruthy();
-  const decided = await request.post(`${BACKEND_URL}/cases/${caseId}/decision`, {
-    data: { decision: "approved", note: RATIONALE },
+  const decided = await request.post(`${BACKEND_URL}/cases/${caseId}/status`, {
+    data: { status: "approved", note: RATIONALE },
   });
   expect(decided.ok()).toBeTruthy();
 

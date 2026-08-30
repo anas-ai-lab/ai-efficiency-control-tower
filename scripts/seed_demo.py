@@ -451,16 +451,20 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
             # +1 Tag als Zeitstempel des Statuswechsels (deterministisch).
             repository.update_status(spec["id"], status, decided_at)
 
-        # Board-Entscheidung fuer entschiedene Status setzen (V4-P7): ohne eine
-        # echte ReviewerDecision zaehlt der Case weder als "bewertet" (compute_
-        # stats) noch gibt GET /cases/{id} die Bewertung fuer Anonyme frei. Ein
-        # freigegebener/umgesetzter/integrierter Demo-Case impliziert ein Board-
-        # "Ja", ein abgelehnter ein "Nein"; in_review/submitted/already_exists
-        # bleiben bewusst PENDING (noch nicht entschieden).
-        decision = _DECISION_BY_STATUS.get(status)
-        if decision is not None:
+        # ReviewerDecision folgt deterministisch dem Status (ADR-0056). Fuer
+        # jeden expliziten Statuswechsel wird derselbe Zeitstempel geschrieben;
+        # nur approved/rejected tragen eine Board-Notiz.
+        if status is not CaseStatus.SUBMITTED:
+            decision = _DECISION_BY_STATUS.get(status, ReviewerDecision.PENDING)
             repository.record_decision(
-                spec["id"], decision, "Demo-Entscheidung des AI Board", decided_at
+                spec["id"],
+                decision,
+                (
+                    "Demo-Entscheidung des AI Board"
+                    if decision is not ReviewerDecision.PENDING
+                    else None
+                ),
+                decided_at,
             )
 
         zone = (
@@ -472,17 +476,10 @@ def seed(db_path: Path, *, reset: bool) -> list[tuple[str, str, str]]:
     return summary
 
 
-# Board-Entscheidung je Lifecycle-Status (V4-P7): entschiedene Status tragen eine
-# echte ReviewerDecision, damit sie als "bewertet" zaehlen und ihre Bewertung
-# fuer Anonyme freigegeben ist. Nicht gelistete Status (submitted, in_review,
-# already_exists) bleiben PENDING.
-#
-# ADR-0051: 'integrated' ist als Lifecycle-Status entfallen und in IMPLEMENTED
-# aufgegangen -- der Eintrag dafuer ist ersatzlos weg (IMPLEMENTED traegt die
-# Freigabe bereits), nicht auf einen anderen Wert umgebogen.
+# Dieselbe Ableitung wie im Service (ADR-0056). Nicht gelistete Status,
+# insbesondere IMPLEMENTED, fallen auf PENDING zurueck.
 _DECISION_BY_STATUS: dict[CaseStatus, ReviewerDecision] = {
     CaseStatus.APPROVED: ReviewerDecision.APPROVED,
-    CaseStatus.IMPLEMENTED: ReviewerDecision.APPROVED,
     CaseStatus.REJECTED: ReviewerDecision.REJECTED,
 }
 

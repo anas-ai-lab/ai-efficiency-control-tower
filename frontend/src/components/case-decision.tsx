@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 
 import type { ReviewerDecision } from "@/types/api";
-import { recordDecision } from "@/app/actions";
+import { updateCaseStatus } from "@/app/actions";
 import { hardRefresh } from "@/lib/reload";
 import { ActionError } from "@/components/action-error";
 import { useLlmBusy } from "@/components/llm-busy";
@@ -54,8 +54,7 @@ export function CaseDecision({ caseId, reviewerDecision, reviewerNote }: Props) 
     setBusy(decision);
     setError(null);
     try {
-      const trimmed = note.trim();
-      await recordDecision(caseId, decision, trimmed.length > 0 ? trimmed : null);
+      await updateCaseStatus(caseId, decision, note);
       hardRefresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"));

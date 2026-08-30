@@ -11,7 +11,6 @@ import type {
   CaseStatus,
   CaseSummaryView,
   ComplianceHintsResponse,
-  DecisionResponse,
   DiscontinuedResponse,
   IdeationResponse,
   ImplementationApproach,
@@ -347,20 +346,6 @@ export async function generateReport(caseId: string): Promise<ReportResponse> {
   );
 }
 
-export async function recordDecision(
-  caseId: string,
-  decision: "approved" | "rejected",
-  note: string | null,
-): Promise<DecisionResponse> {
-  const res = await apiFetch<DecisionResponse>(
-    `/cases/${caseId}/decision`,
-    RULE_TIMEOUT_MS,
-    JSON.stringify({ decision, note }),
-  );
-  revalidateCaseViews(caseId);
-  return res;
-}
-
 // ---- Portfolio / Lifecycle / Monitoring (v3, regelbasiert) -----------------
 // Alle vier sind regelbasiert (kein LLM-Call) -> RULE_TIMEOUT_MS. Fehler laufen
 // durch dasselbe apiFetch/handleResponse-Muster und werden ueber
@@ -428,11 +413,12 @@ export async function listSimilarityPairs(): Promise<SimilarityPairsResponse> {
 export async function updateCaseStatus(
   caseId: string,
   status: CaseStatus,
+  note: string | null = null,
 ): Promise<StatusUpdateResponse> {
   const res = await apiFetch<StatusUpdateResponse>(
     `/cases/${caseId}/status`,
     RULE_TIMEOUT_MS,
-    JSON.stringify({ status }),
+    JSON.stringify({ status, note }),
   );
   revalidateCaseViews(caseId);
   return res;

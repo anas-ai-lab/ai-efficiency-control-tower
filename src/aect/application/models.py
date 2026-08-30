@@ -152,22 +152,18 @@ class SubmittedCase:
     sharpened_content_json/proposal_text/compliance_hints_json via
     TriageService (s. service.py).
 
-    reviewer_decision/reviewer_note/decided_at (Human-in-the-Loop, minimaler
-    Decision-Record statt vollem Reviewer-Workflow -- ADR-0043): gesetzt ueber
-    TriageService.record_decision() / POST /cases/{id}/decision. PENDING +
-    None ist der Zustand vor jeder manuellen Entscheidung. Ueberschreiben ist
-    erlaubt (Korrektur-Fall) -- decided_at wird bei jedem Aufruf aktualisiert.
+    reviewer_decision/reviewer_note/decided_at (Human-in-the-Loop, ADR-0056):
+    zusammen mit status ueber TriageService.update_status() gesetzt. Die
+    Entscheidung wird deterministisch aus dem Status abgeleitet; decided_at
+    und status_updated_at verwenden denselben Zeitstempel.
 
     status/status_updated_at (Case-Lifecycle, siehe Lifecycle-ADR): wo der Case
     im Bearbeitungsfluss steht und wann der Zustand zuletzt wechselte. SUBMITTED
     + None direkt nach Einreichung (noch kein expliziter Wechsel), danach ueber
     POST /cases/{id}/status setzbar (TriageService.update_status()). status_
-    updated_at ist der Zeitstempel des letzten Wechsels -- analog decided_at zur
-    reviewer_decision, wird bei jedem Wechsel aktualisiert. Zusaetzlich koppelt
-    record_decision() den Lifecycle an ReviewerDecision: APPROVED bzw. REJECTED
-    wird ueber denselben Persistenz-Pfad mitgesetzt (status + status_updated_at)
-    -- der Freigabe-Akt darf einen manuell gesetzten Status ueberschreiben
-    (Lifecycle-ADR).
+    updated_at ist der Zeitstempel des letzten Wechsels und wird bei jedem
+    Wechsel aktualisiert. ReviewerDecision folgt demselben Status-Pfad statt
+    eines getrennten Decision-Records.
 
     discontinued (Monitoring, V4.1-S7): reines Zusatzflag "wird nicht mehr aktiv
     beobachtet", UNABHAENGIG vom sechsstufigen CaseStatus-Lifecycle (kein neuer

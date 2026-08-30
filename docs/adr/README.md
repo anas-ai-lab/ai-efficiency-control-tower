@@ -1,6 +1,6 @@
 # Architecture Decision Log -- AECT
 
-61 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
+62 Architecture Decision Records, thematisch gruppiert. Jede ADR dokumentiert
 Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 
 > **Zwei Namensserien (dokumentierte Schuld):** `ADR-00X` (Phase A/B) und `00XX`
@@ -37,6 +37,7 @@ Kontext, Entscheidung, ernsthaft erwogene Alternativen und Konsequenzen.
 | [0043](0043-decision-record-statt-reviewer-workflow.md) | Human-in-the-Loop-Decision-Record statt vollem Reviewer-Workflow |
 | [0044](0044-country-and-employee-level-schema-change.md) | Country- und Employee-Level-Schema-Erweiterung (5 Level, Impl.-Kosten) |
 | [0052](0052-public-schema-ohne-bewertungsfelder.md) | Public-Schema ohne Bewertungsfelder statt genullter Felder |
+| [0056](0056-ein-entscheidungspfad-ueber-case-status.md) | Ein Entscheidungspfad ueber den Case-Status statt getrenntem Decision-Record |
 | [0037](0037-async-repository-via-to-thread.md) | async Repository via asyncio.to_thread |
 | [0038](0038-dsgvo-art17-loeschpfad-kaskadiert.md) | DSGVO Art. 17: kaskadierter Loeschpfad |
 | [0039](0039-l3-dedup-embedding-similarity-intake.md) | L-3 Dedup: Embedding-Similarity beim Intake |

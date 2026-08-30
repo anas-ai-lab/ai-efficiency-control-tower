@@ -133,6 +133,15 @@ _MOCK_SOURCE_PREFIX = "mock-"
 _DEDUP_THRESHOLD_AWARENESS = 0.75  # ab hier: Hinweis "Aehnliches existiert"
 _DEDUP_THRESHOLD_COMBINE = 0.90  # ab hier zusaetzlich: "zusammenlegen?"
 
+# Ableitung reviewer_decision aus CaseStatus (ersetzt den getrennten
+# Decision-Record aus ADR-0043 -- siehe ADR-0056). Nicht enthaltene
+# Status (SUBMITTED/IN_REVIEW/ALREADY_EXISTS/IMPLEMENTED) -> PENDING
+# ueber .get()-Fallback in update_status().
+_DECISION_BY_STATUS: dict[CaseStatus, ReviewerDecision] = {
+    CaseStatus.APPROVED: ReviewerDecision.APPROVED,
+    CaseStatus.REJECTED: ReviewerDecision.REJECTED,
+}
+
 
 def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     """Cosinus-Aehnlichkeit zweier Vektoren in [-1.0, 1.0] (manuell, kein numpy).
@@ -879,7 +888,7 @@ class TriageService:
         einem Case sind, der den Ansatz von Anfang an hatte. Eingaben + Bewertung
         werden atomar persistiert (reevaluate, F-011-Muster). Auch als Korrektur
         eines bereits gesetzten Ansatzes zulaessig (Ueberschreiben, analog
-        record_decision).
+        update_status).
 
         Returns:
             Der neu bewertete Case, oder None wenn case_id nicht existiert (Route
@@ -1001,91 +1010,27 @@ class TriageService:
             deleted_at=self._clock.now().isoformat(),
         )
 
-    async def record_decision(
-        self, case_id: str, decision: ReviewerDecision, note: str | None
-    ) -> SubmittedCase | None:
-        """Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen Case
-        (Human-in-the-Loop, minimaler Decision-Record -- ADR-0043, bewusst
-        kein voller Multi-User-Reviewer-Workflow mit Rollen/Notifications).
-
-        Ueberschreiben einer bestehenden Entscheidung ist erlaubt
-        (Korrektur-Fall, kein Bug) -- decided_at wird bei jedem Aufruf
-        aktualisiert.
-
-        Persistenz: dediziertes UPDATE ueber RepositoryPort.record_decision_
-        async (F-011-Muster, siehe adapters/sqlite/repository.py) statt
-        save() der ganzen Zeile -- kein Lost-Update-Risiko gegenueber
-        parallelen LLM-Feld-Schreibvorgaengen (sharpen/propose/compliance)
-        auf demselben Case.
-
-        Audit-Trail: case_decision_recorded wird geloggt (case_id, decision,
-        decided_at) -- OHNE reviewer_note (PII-Allowlist-konform: Freitext
-        koennte personenbezogene Angaben enthalten, analog case_deleted,
-        das ebenfalls keine Inhaltsfelder loggt).
-
-        Returns:
-            None wenn case_id nicht existiert (Route mapped das auf 404).
-        """
-        case = await self._repository.get_async(case_id)
-        if case is None:
-            return None
-
-        decided_at = self._clock.now()
-        await self._repository.record_decision_async(
-            case_id, decision, note, decided_at
-        )
-        case.reviewer_decision = decision
-        case.reviewer_note = note
-        case.decided_at = decided_at
-
-        # Lifecycle-Kopplung (Lifecycle-ADR), monoton (H-034): der Freigabe-/
-        # Ablehnungs-Akt bewegt den Case im Lifecycle NUR, solange er noch in
-        # einem fruehen Zustand ({submitted, in_review}) steht. Ein bereits
-        # fortgeschrittener Status (z. B. implemented) wird NICHT
-        # zurueckgestuft -- die reviewer_decision wird dennoch festgehalten.
-        # PENDING hat keinen Lifecycle-Gegenwert (kommt ueber die Route nicht).
-        status_map = {
-            ReviewerDecision.APPROVED: CaseStatus.APPROVED,
-            ReviewerDecision.REJECTED: CaseStatus.REJECTED,
-        }
-        coupled_status = status_map.get(decision)
-        early_statuses = (CaseStatus.SUBMITTED, CaseStatus.IN_REVIEW)
-        if coupled_status is not None and case.status in early_statuses:
-            await self._repository.update_status_async(
-                case_id, coupled_status, decided_at
-            )
-            case.status = coupled_status
-            case.status_updated_at = decided_at
-
-        logger = structlog.get_logger()
-        logger.info(
-            "case_decision_recorded",
-            case_id=case_id,
-            decision=decision.value,
-            decided_at=decided_at.isoformat(),
-        )
-        return case
-
     async def update_status(
-        self, case_id: str, status: CaseStatus
+        self, case_id: str, status: CaseStatus, note: str | None = None
     ) -> SubmittedCase | None:
-        """Setzt den Lifecycle-Status eines Case (Lifecycle-ADR).
+        """Setzt Lifecycle-Status und abgeleitete Reviewer-Entscheidung (ADR-0056).
 
         Bewusst keine Transitions-Matrix: jeder Zustand ist aus jedem setzbar
-        (menschliche Autoritaet in einem Single-User-Build). Kopplung an
-        ReviewerDecision liegt in record_decision(), nicht hier -- dieser Pfad
-        setzt den Status frei.
+        (menschliche Autoritaet in einem Single-User-Build). APPROVED leitet
+        ReviewerDecision.APPROVED ab, REJECTED entsprechend REJECTED; alle
+        anderen Status setzen die Entscheidung auf PENDING zurueck.
 
-        Persistenz: dediziertes UPDATE ueber RepositoryPort.update_status_async
-        (F-011-Muster, analog record_decision) statt save() der ganzen Zeile --
-        kein Lost-Update gegenueber parallelen LLM-Feld-Schreibvorgaengen
-        (sharpen/propose/compliance) auf demselben Case.
+        Die Notiz hat drei explizite Faelle: note=None behaelt eine vorhandene
+        Notiz, beispielsweise bei einem reinen Statuswechsel. note="   " leert
+        sie bewusst. Jeder andere Wert wird getrimmt, beispielsweise wird
+        "  Freigegeben  " als "Freigegeben" gespeichert.
 
-        Audit-Trail: case_status_changed wird geloggt (case_id, old_status,
-        new_status, updated_at) -- reine Allowlist-Felder, kein Freitext
-        (PII-Allowlist-konform, analog case_decision_recorded/case_deleted).
-        Der updated_at-Zeitstempel (clock.now()) wird persistiert
-        (status_updated_at, analog decided_at), geloggt und am Case zurueckgegeben.
+        Beide dedizierten Per-Feld-UPDATEs verwenden denselben changed_at-Wert;
+        status_updated_at und decided_at beschreiben denselben logischen Akt.
+        save() der ganzen Case-Zeile bleibt ausgeschlossen (F-011).
+
+        Audit-Trail: case_decided wird einmal mit Status und abgeleiteter
+        Entscheidung geloggt, ohne reviewer_note oder anderen Freitext.
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -1095,18 +1040,33 @@ class TriageService:
             return None
 
         old_status = case.status
-        updated_at = self._clock.now()
-        await self._repository.update_status_async(case_id, status, updated_at)
+        changed_at = self._clock.now()
+        await self._repository.update_status_async(case_id, status, changed_at)
         case.status = status
-        case.status_updated_at = updated_at
+        case.status_updated_at = changed_at
+
+        derived_decision = _DECISION_BY_STATUS.get(status, ReviewerDecision.PENDING)
+        if note is None:
+            effective_note = case.reviewer_note
+        elif note.strip() == "":
+            effective_note = None
+        else:
+            effective_note = note.strip()
+        await self._repository.record_decision_async(
+            case_id, derived_decision, effective_note, changed_at
+        )
+        case.reviewer_decision = derived_decision
+        case.reviewer_note = effective_note
+        case.decided_at = changed_at
 
         logger = structlog.get_logger()
         logger.info(
-            "case_status_changed",
+            "case_decided",
             case_id=case_id,
             old_status=old_status.value,
             new_status=status.value,
-            updated_at=updated_at.isoformat(),
+            reviewer_decision=derived_decision.value,
+            updated_at=changed_at.isoformat(),
         )
         return case
 
@@ -1141,7 +1101,7 @@ class TriageService:
         Audit-Trail: case_discontinued_changed wird geloggt (case_id,
         discontinued, entry_id) -- reine Allowlist-Felder. OHNE reason
         (Freitext) und OHNE actor_name (Personenname): beides koennte PII
-        tragen, analog case_decision_recorded, das die reviewer_note ebenfalls
+        tragen, analog case_decided, das die reviewer_note ebenfalls
         nicht loggt.
 
         Returns:
@@ -1193,7 +1153,7 @@ class TriageService:
 
         Audit-Trail: monitoring_entry_added wird geloggt (case_id, entry_id,
         created_at) -- OHNE note (Freitext koennte PII enthalten,
-        PII-Allowlist-konform, analog case_decision_recorded/case_deleted).
+        PII-Allowlist-konform, analog case_decided/case_deleted).
 
         Returns:
             None wenn case_id nicht existiert (Route mapped das auf 404).
@@ -1952,6 +1912,10 @@ class TriageService:
         Returns:
             (IdeationResult, flagged) -- flagged True, wenn im Input ein
             Injection-Muster erkannt wurde.
+
+        Logging: ideation_schema_invalid faellt bei einem Schema-Verstoss,
+        ideation_requested bei Erfolg. Nach H-031/parse_structured_llm_output
+        ist str(exc) PII-frei, weil es nur loc+type und keinen LLM-Rohtext enthaelt.
         """
         logger = structlog.get_logger()
 
@@ -1968,14 +1932,24 @@ class TriageService:
                 patterns=detected,
             )
 
-        result = await self._llm.generate_ideation(
-            neutralize_delimiters(description), lang
-        )
+        try:
+            result = await self._llm.generate_ideation(
+                neutralize_delimiters(description), lang
+            )
+        except InvalidLLMOutputError as exc:
+            logger.warning(
+                "ideation_schema_invalid",
+                error=str(exc),
+                input_length=len(problem_description),
+                lang=lang,
+            )
+            raise
 
         logger.info(
             "ideation_requested",
             flagged=flagged,
             draft_count=len(result.drafts),
+            input_length=len(problem_description),
         )
         return result, flagged
 

@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from structlog.testing import capture_logs
 
 from aect.adapters.api.app import create_app
 from aect.adapters.api.dependencies import get_settings, get_triage_service
@@ -24,6 +26,7 @@ from aect.application.ports.llm import LLMMessage, LLMPort, LLMResponse, ToolDef
 from aect.application.service import TriageService
 from aect.application.structured_output import (
     IdeationResult,
+    InvalidLLMOutputError,
     parse_structured_llm_output,
 )
 from aect.domain.roi import load_roi_config
@@ -118,11 +121,12 @@ async def test_ideation_mock_path_returns_two_drafts() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=_make_app()), base_url="http://test"
     ) as client:
-        response = await client.post(
-            "/ideation",
-            json={"problem_description": _VALID_PROBLEM},
-            headers={"X-API-Key": TEST_API_KEY},
-        )
+        with capture_logs() as logs:
+            response = await client.post(
+                "/ideation",
+                json={"problem_description": _VALID_PROBLEM},
+                headers={"X-API-Key": TEST_API_KEY},
+            )
 
     assert response.status_code == 200
     data = response.json()
@@ -138,6 +142,11 @@ async def test_ideation_mock_path_returns_two_drafts() -> None:
             "open_questions",
         }
         assert len(draft["open_questions"]) >= 1
+    events = [log for log in logs if log["event"] == "ideation_requested"]
+    assert len(events) == 1
+    assert events[0]["flagged"] is False
+    assert events[0]["draft_count"] == 2
+    assert events[0]["input_length"] == len(_VALID_PROBLEM)
 
 
 async def test_ideation_injection_payload_is_flagged_but_still_valid() -> None:
@@ -175,6 +184,40 @@ async def test_ideation_invalid_llm_output_returns_502_no_stacktrace() -> None:
     body = response.text
     assert "Traceback" not in body
     assert "verwertbar" in response.json()["detail"]
+
+
+async def test_ideate_logs_invalid_schema_without_input_and_reraises() -> None:
+    problem = "PII_MARKER_9Q7X-" + "x" * 24
+    service = TriageService(
+        repository=InMemoryRepository(),
+        clock=SystemClock(),
+        id_generator=UUIDGenerator(),
+        roi_config=load_roi_config(),
+        llm=_BrokenIdeationLLM(),
+        retriever=MockRetriever(),
+    )
+
+    with (
+        capture_logs() as logs,
+        pytest.raises(InvalidLLMOutputError) as exc_info,
+    ):
+        await service.ideate(problem, lang="en")
+
+    events = [log for log in logs if log["event"] == "ideation_schema_invalid"]
+    assert len(events) == 1
+    assert set(events[0]) == {
+        "error",
+        "input_length",
+        "lang",
+        "event",
+        "log_level",
+    }
+    assert events[0]["error"] == str(exc_info.value)
+    assert events[0]["input_length"] == 40
+    assert events[0]["lang"] == "en"
+    assert all(
+        "PII_MARKER_9Q7X" not in str(value) for log in logs for value in log.values()
+    )
 
 
 async def test_ideation_too_short_returns_422() -> None:

@@ -269,8 +269,8 @@ Cases voraus.
 
 ## 16. Status-Historie: nur Snapshots im Frontend sichtbar
 
-**Was:** Jeder Statuswechsel loggt ein `case_status_changed`-Event in structlog
-(vollstaendiges Audit-Log, ADR-0045). Im Frontend ist die Status-Historie
+**Was:** Jeder Statuswechsel loggt ein `case_decided`-Event in structlog
+(vollstaendiges Audit-Log, ADR-0056). Im Frontend ist die Status-Historie
 jedoch NICHT als vollstaendiges Audit-Log sichtbar -- nur der aktuelle Status
 (Case-Detail) und die `status_snapshot`-Momentaufnahmen in den
 Monitoring-Eintraegen (ADR-0046) zeigen den Verlauf indirekt.

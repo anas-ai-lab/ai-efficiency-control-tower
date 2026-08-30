@@ -197,8 +197,8 @@ async def test_case_detail_anonymous_carries_no_assessment_field() -> None:
         ).status_code == 200
         assert (
             await client.post(
-                f"/cases/{case_id}/decision",
-                json={"decision": "approved", "note": "Tragfaehig, Board-Freigabe."},
+                f"/cases/{case_id}/status",
+                json={"status": "approved", "note": "Tragfaehig, Board-Freigabe."},
                 headers=auth,
             )
         ).status_code == 200
@@ -218,8 +218,8 @@ async def test_case_detail_anonymous_sees_board_decision_with_rationale() -> Non
     ) as client:
         case_id = await _submit_public(client)
         await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "rejected", "note": "Aufwand steht nicht zum Nutzen."},
+            f"/cases/{case_id}/status",
+            json={"status": "rejected", "note": "Aufwand steht nicht zum Nutzen."},
             headers={"X-API-Key": TEST_API_KEY},
         )
         body = (await client.get(f"/cases/{case_id}")).json()  # anonym
@@ -259,8 +259,8 @@ async def test_case_detail_admin_full_after_board_decision() -> None:
     ) as client:
         case_id = await _submit_public(client)
         decision_resp = await client.post(
-            f"/cases/{case_id}/decision",
-            json={"decision": "approved", "note": None},
+            f"/cases/{case_id}/status",
+            json={"status": "approved", "note": None},
             headers=auth,
         )
         assert decision_resp.status_code == 200

@@ -360,80 +360,14 @@ async def delete_case(
     return Response(status_code=204)
 
 
-class DecisionRequest(BaseModel):
-    """Freigabe-/Ablehnungsentscheidung fuer einen Case (Human-in-the-Loop,
-    minimaler Decision-Record -- ADR-0043, bewusst kein Multi-User-Reviewer-
-    Workflow mit Rollen).
-
-    decision: nur "approved"/"rejected" ueber diesen Endpoint setzbar --
-    PENDING ist ausschliesslich der Ausgangszustand vor jeder Entscheidung,
-    kein gueltiger Request-Wert (kein Zurueck-auf-PENDING via API).
-    note: optionale Begruendung. extra="forbid" + max_length konsistent mit
-    den uebrigen Freitextfeldern (Token-Flooding-Schutz, aect-security-
-    checklist v2.1 Phase A).
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    decision: Literal["approved", "rejected"]
-    note: str | None = Field(default=None, max_length=2000)
-
-
-class DecisionResponse(BaseModel):
-    """Aktueller Entscheidungs-Zustand eines Case nach POST /decision."""
-
-    case_id: str
-    reviewer_decision: str
-    reviewer_note: str | None
-    decided_at: datetime | None
-
-
-@router.post("/{case_id}/decision", response_model=DecisionResponse)
-@limiter.limit("10/minute")
-async def record_decision(
-    case_id: str,
-    body: DecisionRequest,
-    request: Request,
-    response: Response,
-    service: TriageService = Depends(get_triage_service),  # noqa: B008
-    _: str = Depends(require_admin),
-) -> DecisionResponse:
-    """Setzt eine Freigabe-/Ablehnungsentscheidung fuer einen bestehenden Case.
-
-    request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
-    Auth: require_admin (Session-Cookie ODER X-API-Key, inkl. Key-Rotation).
-    Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
-
-    Ueberschreiben einer bestehenden Entscheidung ist erlaubt (Korrektur-Fall,
-    kein Bug) -- decided_at wird bei jedem Aufruf aktualisiert.
-
-    Raises:
-        HTTPException 404: case_id existiert nicht.
-    """
-    case = await service.record_decision(
-        case_id, ReviewerDecision(body.decision), body.note
-    )
-    if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    return DecisionResponse(
-        case_id=case.id,
-        reviewer_decision=case.reviewer_decision.value,
-        reviewer_note=case.reviewer_note,
-        decided_at=case.decided_at,
-    )
-
-
 class StatusUpdateRequest(BaseModel):
-    """Neuer Lifecycle-Status fuer einen Case (Lifecycle-ADR).
+    """Neuer Lifecycle-Status samt optionaler Entscheidungsnotiz (ADR-0056).
 
-    status: einer der sieben CaseStatus-Werte. Bewusst keine Transitions-Matrix
+    status: einer der sechs CaseStatus-Werte. Bewusst keine Transitions-Matrix
     -- jeder Zustand ist aus jedem setzbar (menschliche Autoritaet in einem
-    Single-User-Build). APPROVED/REJECTED sind hier ebenfalls setzbar, werden
-    aber zusaetzlich durch POST /decision gesetzt (Kopplung an ReviewerDecision,
-    ADR-0043).
-    extra="forbid": konsistent mit DecisionRequest (Eingabe-Disziplin, aect-
-    security-checklist v2.1 Phase A).
+    Single-User-Build). reviewer_decision wird ausschliesslich daraus abgeleitet.
+    note: optionale Begruendung mit Token-Flooding-Grenze. extra="forbid" haelt
+    den Request-Vertrag geschlossen (aect-security-checklist v2.1 Phase A).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -446,6 +380,7 @@ class StatusUpdateRequest(BaseModel):
         "rejected",
         "implemented",
     ]
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class StatusUpdateResponse(BaseModel):
@@ -454,6 +389,9 @@ class StatusUpdateResponse(BaseModel):
     case_id: str
     status: str
     updated_at: datetime | None
+    reviewer_decision: str
+    reviewer_note: str | None
+    decided_at: datetime | None
 
 
 @router.post("/{case_id}/status", response_model=StatusUpdateResponse)
@@ -470,15 +408,14 @@ async def update_status(
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: require_admin (Session-Cookie ODER X-API-Key).
-    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
-    DELETE /cases/{id}.
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog DELETE /cases/{id}.
 
-    Kein LLM-Call -- Token-Budget wird hier nicht geprueft (analog /decision).
+    Kein LLM-Call -- Token-Budget wird hier nicht geprueft.
 
     Raises:
         HTTPException 404: case_id existiert nicht.
     """
-    case = await service.update_status(case_id, CaseStatus(body.status))
+    case = await service.update_status(case_id, CaseStatus(body.status), body.note)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -486,6 +423,9 @@ async def update_status(
         case_id=case.id,
         status=case.status.value,
         updated_at=case.status_updated_at,
+        reviewer_decision=case.reviewer_decision.value,
+        reviewer_note=case.reviewer_note,
+        decided_at=case.decided_at,
     )
 
 
@@ -709,8 +649,7 @@ async def add_monitoring_note(
 
     request/response: von slowapi benoetigt (Rate-Limit-Key, Header-Injektion).
     Auth: require_admin (Session-Cookie ODER X-API-Key).
-    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /decision und
-    /status.
+    Rate Limit: 10/Minute -- schreibender Zugriff, analog POST /status.
 
     201 Created bei Erfolg (ein neuer Eintrag entsteht). Kein LLM-Call.
 
@@ -1214,9 +1153,8 @@ class BusinessSummaryResponse(BaseModel):
     persistierten compliance_hints_json gelesen, kein Override moeglich
     (siehe ReportRequest-Docstring).
 
-    reviewer_decision/reviewer_note/decided_at (ADR-0043): aktueller
-    Human-in-the-Loop-Entscheidungs-Zustand, macht POST /decision-Ergebnisse
-    sichtbar, ohne einen zweiten Endpoint abzufragen.
+    reviewer_decision/reviewer_note/decided_at (ADR-0056): aus dem Lifecycle-
+    Status abgeleiteter Human-in-the-Loop-Entscheidungs-Zustand.
 
     sharpened_desired_state/sharpened_desired_example_process: dieselbe
     geschaerfte Fassung wie sharpened_text, getrennt in die beiden

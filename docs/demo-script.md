@@ -98,7 +98,7 @@ Zwei-Stufen-Modell ist selbst ein Demo-Punkt.
 | 2 | **Anonyme Einreichung** (`/einreichen`) | 5-Schritt-Wizard mit dem vorbereiteten Beispiel-Case (Tabelle unten) ausfuellen, absenden | Nach dem Absenden **kein** Score-Preview -- nur eine Bestaetigung mit Case-Link. "Die Bewertung macht das Board sichtbar, nicht der Einreicher." |
 | 3 | **Case anonym oeffnen** (`/cases/{id}`) | Den soeben erzeugten Case oeffnen | Es erscheinen nur die **rohen Eingaben** + "Wird vom AI Board geprueft". Zone/ROI/Report sind bewusst verborgen (SDR-0003). |
 | 4 | **Admin-Login** (`/login`) | Mit dem Demo-Passwort einloggen | Nach Login erscheinen Board + Monitoring in der Navigation; die Aktions-Buttons am Case werden sichtbar. |
-| 5 | **Board-Entscheidung** (Case-Detail, Admin) | Case freigeben ("Freigeben"/approved, kurze Notiz) | Loest `record_decision` aus. "Ab jetzt ist die Bewertung auch fuer anonyme Betrachter sichtbar." |
+| 5 | **Board-Entscheidung** (Case-Detail, Admin) | Case freigeben ("Freigeben"/approved, kurze Notiz) | Setzt den Status auf `approved`; die Reviewer-Entscheidung wird daraus abgeleitet (ADR-0056). "Ab jetzt ist die Bewertung auch fuer anonyme Betrachter sichtbar." |
 | 6 | **Score-Breakdown & Konfidenz** | Denselben Case ansehen | Aufwandscore-Herkunft je Komponente ("Aufwandscore N von 9 -> LABEL"), Machbarkeit, Konfidenz als **Begruendung** (nicht nur Zahl). Zwei getrennte Konfidenz-Zeilen: eine zur **Bewertungszone**, eine zur **Routing**-Empfehlung -- unterschiedliche Fragen. |
 | 7 | **Schaerfen + Diff** | Button "Schaerfen" -> Draft ansehen | Der vorbereitete Case loest einen **starken Rewrite** aus -> die Ansicht schaltet automatisch auf **Nebeneinander** (Vorher \| Nachher, churn > 0,5). Umschalter Inline/Split zeigen. Vorschlaege tragen `Bezugsfeld / Vorschlag / Hebel` -- **keine erfundenen Zahlen**. |
 | 8 | **Uebernehmen** | Button "Uebernehmen" (accept) | Draft wird in die regulaeren Felder uebernommen; verwerfen (reject) waere die Alternative. |
@@ -166,7 +166,7 @@ curl -s localhost:8000/cases/<ID>
 curl -s -c cj.txt -X POST localhost:8000/auth/login -H 'Content-Type: application/json' -d '{"password":"<demo-pw>"}'
 # 3c. Admin sieht triage/report; 3d. Freigabe; 3e. Anonym danach sichtbar
 curl -s -b cj.txt localhost:8000/cases/<ID>
-curl -s -b cj.txt -X POST localhost:8000/cases/<ID>/decision -H 'Content-Type: application/json' -d '{"decision":"approved","note":"Demo"}'
+curl -s -b cj.txt -X POST localhost:8000/cases/<ID>/status -H 'Content-Type: application/json' -d '{"status":"approved","note":"Demo"}'
 # 4-11: sharpen -> accept -> propose-solution -> compliance-hints -> report  (alle -b cj.txt)
 # 12: GET /cases (Board-Daten), 13: POST/GET monitoring, 14: POST /auth/logout
 ```
@@ -179,7 +179,7 @@ curl -s -b cj.txt -X POST localhost:8000/cases/<ID>/decision -H 'Content-Type: a
       `null`, `eingaben` vorhanden.
 - [x] `POST /auth/login` -> **200** + `aect_session`-Cookie.
 - [x] `GET /cases/{id}` **als Admin** -> `triage`/`report` befuellt.
-- [x] `POST /cases/{id}/decision` (approved) -> **200**.
+- [x] `POST /cases/{id}/status` (approved) -> **200**.
 - [x] `GET /cases/{id}` **anonym nach** Freigabe -> Bewertung jetzt sichtbar.
 - [x] `POST /sharpen` -> **200**, Draft mit churn > 0,5 (Split-Ansicht),
       Vorschlaege als `bezugsfeld/vorschlag/hebel`, keine erfundenen Zahlen.
