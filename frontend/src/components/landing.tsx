@@ -116,6 +116,9 @@ export async function Landing({
   const cards = authenticated
     ? [...PUBLIC_CARDS.filter((c) => !c.hideForAdmin), ...ADMIN_CARDS]
     : PUBLIC_CARDS;
+  const heroEyebrow = authenticated ? t("adminEyebrow") : t("eyebrow");
+  const heroTitle = authenticated ? t("adminHeroTitle") : t("heroTitle");
+  const heroLead = authenticated ? t("adminHeroLead") : t("heroLead");
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-20 sm:px-6 sm:py-24">
@@ -140,31 +143,36 @@ export async function Landing({
           Mengen-Staende, keine Historie. Jede Kurve und jedes Delta an dieser
           Stelle waere erfunden -- siehe CLAUDE.md, "Keine erfundenen Zahlen".
           Was die Karten stattdessen tragen, ist der aus denselben Staenden
-          ABGELEITETE Trichter-Anteil (Begruendung in stat-card.tsx). */}
+          ABGELEITETE Trichter-Anteil (Begruendung in stat-card.tsx). Admins
+          sehen einen anderen Hero-Text: Die Einladung zum Einreichen richtet
+          sich an Einreichende, nicht an die Verwaltung. Fuer sie entfaellt die
+          CTA vollstaendig, weil ihr Einstieg die Kachel-Sektion darunter ist. */}
       <section className="max-w-2xl">
-        <p className="eyebrow">{t("eyebrow")}</p>
+        <p className="eyebrow">{heroEyebrow}</p>
         <h1 className="mt-4 text-pretty text-4xl leading-[1.12] font-semibold tracking-tight text-foreground sm:text-[3.25rem]">
-          {t("heroTitle")}
+          {heroTitle}
         </h1>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted-foreground">
-          {t("heroLead")}
+          {heroLead}
         </p>
-        <div className="mt-8">
-          {/* Der farbige Schatten ist laut CLAUDE.md ausschliesslich hier
-              erlaubt -- er markiert die eine primaere Aktion der Startseite.
-              color-mix gegen --brand-primary statt einer festen Farbe, damit
-              der Schatten dem Marken-Token folgt (auch im Dark-Theme). */}
-          <Button
-            asChild
-            size="lg"
-            className="shadow-[0_10px_24px_-10px_color-mix(in_oklch,var(--brand-primary),transparent_45%)] transition-shadow hover:shadow-[0_16px_30px_-12px_color-mix(in_oklch,var(--brand-primary),transparent_38%)]"
-          >
-            <Link href="/einreichen" {...{ [LEAF_ORIGIN_ATTR]: "" }}>
-              {t("heroCtaLabel")}
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
+        {!authenticated && (
+          <div className="mt-8">
+            {/* Der farbige Schatten ist laut CLAUDE.md ausschliesslich hier
+                erlaubt -- er markiert die eine primaere Aktion der Startseite.
+                color-mix gegen --brand-primary statt einer festen Farbe, damit
+                der Schatten dem Marken-Token folgt (auch im Dark-Theme). */}
+            <Button
+              asChild
+              size="lg"
+              className="shadow-[0_10px_24px_-10px_color-mix(in_oklch,var(--brand-primary),transparent_45%)] transition-shadow hover:shadow-[0_16px_30px_-12px_color-mix(in_oklch,var(--brand-primary),transparent_38%)]"
+            >
+              <Link href="/einreichen" {...{ [LEAF_ORIGIN_ATTR]: "" }}>
+                {t("heroCtaLabel")}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        )}
       </section>
 
       {/* Kennzahlen + Pipeline-Leiste. Ab lg zweispaltig: 2x2-Raster links,
